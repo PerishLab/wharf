@@ -5,7 +5,7 @@ import sys
 from pathlib import Path
 
 from wharf.refusal import Refusal
-from wharf.ship import binary, cargo, smoke
+from wharf.ship import binary, cargo, identity, smoke
 from wharf.store import trigger, workload
 from wharf.store.r2 import Bucket
 
@@ -30,7 +30,20 @@ def ship_key_binary(args):
 
 
 def ship_smoke(args):
-    return smoke.smoke(args.dir, args.name, args.target, args.output)
+    return smoke.smoke(args.dir, args.name, args.target, args.output, args.expect)
+
+
+def ship_bind(args):
+    return identity.perform(args.dir, args.name, args.target, args.repository, args.marker, args.commit, args.tree, args.binary_key, args.output)
+
+
+def ship_key_bind(args):
+    inputs = {
+        "entry": {"kind": "binary-identity", "binary": args.binary_key},
+        "identity": {"repository": args.repository, "marker": args.marker, "commit": args.commit, "tree": args.tree},
+    }
+    Path(args.inputs).write_bytes(workload.canonical(inputs))
+    return {"key": workload.key(inputs, workload.implementation(identity))}
 
 
 def ship_key_smoke(args):
@@ -79,6 +92,12 @@ def parser():
     entry.add_argument("--runner", required=True)
     entry.add_argument("--inputs", required=True)
     entry.set_defaults(run=ship_key_binary)
+    binding = keyed.add_parser("bind")
+    binding.add_argument("--binary-key", required=True)
+    for field in ("repository", "marker", "commit", "tree"):
+        binding.add_argument(f"--{field}", required=True)
+    binding.add_argument("--inputs", required=True)
+    binding.set_defaults(run=ship_key_bind)
     check = keyed.add_parser("smoke")
     check.add_argument("--binary-key", required=True)
     check.add_argument("--inputs", required=True)
@@ -89,7 +108,18 @@ def parser():
     check_run.add_argument("--name", required=True)
     check_run.add_argument("--target", required=True)
     check_run.add_argument("--output", required=True)
+    check_run.add_argument("--expect", required=True)
     check_run.set_defaults(run=ship_smoke)
+
+    bind = ship.add_parser("bind", help="bind a release identity into a fetched binary")
+    bind.add_argument("--dir", required=True)
+    bind.add_argument("--name", required=True)
+    bind.add_argument("--target", required=True)
+    for field in ("repository", "marker", "commit", "tree"):
+        bind.add_argument(f"--{field}", required=True)
+    bind.add_argument("--binary-key", required=True)
+    bind.add_argument("--output", required=True)
+    bind.set_defaults(run=ship_bind)
 
     store = paths.add_parser("store").add_subparsers(dest="action", required=True)
     lookup = store.add_parser("reusable", help="report whether a workload record exists")

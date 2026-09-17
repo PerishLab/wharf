@@ -8,8 +8,8 @@ from wharf.refusal import Refusal
 from wharf.ship.binary import run
 
 
-def smoke(directory, name, triple, output, runner=run):
-    """Both surfaces must exit zero."""
+def smoke(directory, name, triple, output, expect, runner=run):
+    """Both surfaces must exit zero and --version must report the expected identity."""
     directory = Path(directory)
     output = Path(output)
     suffix = ".exe" if "windows" in triple else ""
@@ -25,7 +25,9 @@ def smoke(directory, name, triple, output, runner=run):
             results[surface] = runner([str(artifact.resolve()), surface], directory).strip()[:2000]
         except subprocess.CalledProcessError as failure:
             raise Refusal(f"{artifact.name} {surface} exited {failure.returncode}: {(failure.stderr or failure.stdout or '').strip()[:500]}")
+    if results["--version"] != expect:
+        raise Refusal(f"{artifact.name} --version reported {results['--version']!r}, expected {expect!r}")
     output.mkdir(parents=True)
-    receipt = {"action": "ship.binary.smoke", "file": artifact.name, "surfaces": results}
+    receipt = {"action": "ship.binary.smoke", "expect": expect, "file": artifact.name, "surfaces": results}
     (output / "receipt.json").write_text(json.dumps(receipt, indent=2, sort_keys=True) + "\n")
     return receipt

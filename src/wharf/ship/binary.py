@@ -49,7 +49,10 @@ def build(source, name, triple, output, runner=run, declared=cargo.toolchain):
     toolchain = declared(source)["channel"]
 
     runner(["rustup", "toolchain", "install", toolchain, "--profile", "minimal", "--target", triple], source)
+    prefix = name.upper().replace("-", "_")
     env = dict(os.environ, RUSTUP_TOOLCHAIN=toolchain)
+    env[f"{prefix}_BUILD_TARGET"] = triple
+    env[f"{prefix}_BUILD_CHANNEL"] = "unbound"
     package = locate(source, name, lambda argv, cwd: runner(argv, cwd, env))
     rustc = runner(["rustc", "--version"], source, env).strip()
 

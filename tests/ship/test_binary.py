@@ -39,6 +39,10 @@ class Cargo:
         return ""
 
 
+def build_env(cargo):
+    return next(env for argv, env in cargo.calls if argv[:2] == ["cargo", "build"])
+
+
 class Binary(unittest.TestCase):
     def setUp(self):
         self.root = Path(tempfile.mkdtemp())
@@ -64,6 +68,8 @@ class Binary(unittest.TestCase):
         build = next(argv for argv, _ in cargo.calls if argv[:2] == ["cargo", "build"])
         self.assertIn("--locked", build)
         self.assertTrue(all(env is None or env["RUSTUP_TOOLCHAIN"] == "1.96.1" for _, env in cargo.calls))
+        self.assertEqual(build_env(cargo)["PLUMB_BUILD_TARGET"], "x86_64-unknown-linux-gnu")
+        self.assertEqual(build_env(cargo)["PLUMB_BUILD_CHANNEL"], "unbound")
 
     def test_refuses_before_side_effects(self):
         cases = [
