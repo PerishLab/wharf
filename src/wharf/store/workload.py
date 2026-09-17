@@ -64,3 +64,20 @@ def publish(bucket, workload, directory, inputs, context):
     except Conflict:
         return {"key": workload, "state": "already-recorded"}
     return {"key": workload, "state": "recorded", "files": entries}
+
+
+def fetch(bucket, workload, destination):
+    base = prefix(workload)
+    if not bucket.exists(base + "record.json"):
+        raise Refusal(f"workload {workload} has no record")
+    record = json.loads(bucket.get(base + "record.json"))
+    destination = Path(destination)
+    if destination.exists():
+        raise Refusal(f"{destination} already exists")
+    destination.mkdir(parents=True)
+    for name, expected in sorted(record["files"].items()):
+        body = bucket.get(base + "blobs/" + name)
+        if hashlib.sha256(body).hexdigest() != expected["sha256"] or len(body) != expected["size"]:
+            raise Refusal(f"{name} under {workload} does not match its record")
+        (destination / name).write_bytes(body)
+    return {"key": workload, "files": record["files"]}

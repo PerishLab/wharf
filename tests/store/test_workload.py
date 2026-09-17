@@ -66,3 +66,25 @@ class Workload(unittest.TestCase):
 
     def test_key_ignores_mapping_order(self):
         self.assertEqual(workload.key({"a": 1, "b": 2}, {}), workload.key({"b": 2, "a": 1}, {}))
+
+
+class Fetch(unittest.TestCase):
+    def setUp(self):
+        self.bucket = Memory()
+        source = Path(tempfile.mkdtemp())
+        (source / "demo").write_bytes(b"binary")
+        workload.publish(self.bucket, KEY, source, {}, {})
+        self.destination = Path(tempfile.mkdtemp()) / "out"
+
+    def test_fetches_recorded_files(self):
+        workload.fetch(self.bucket, KEY, self.destination)
+        self.assertEqual((self.destination / "demo").read_bytes(), b"binary")
+
+    def test_refuses_tampered_blob(self):
+        self.bucket.objects[f"workload/1/{KEY}/blobs/demo"] = b"tampered"
+        with self.assertRaises(Refusal):
+            workload.fetch(self.bucket, KEY, self.destination)
+
+    def test_refuses_unrecorded_workload(self):
+        with self.assertRaises(Refusal):
+            workload.fetch(self.bucket, "b" * 64, self.destination)

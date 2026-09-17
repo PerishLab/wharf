@@ -28,8 +28,12 @@ jobs:
   plan:
     runs-on: ubuntu-24.04
     outputs:
+      commit: ${{ steps.source.outputs.commit }}
+      tree: ${{ steps.source.outputs.tree }}
       binary-linux-key: ${{ steps.binary-linux.outputs.key }}
       binary-linux: ${{ steps.binary-linux.outputs.decision }}
+      binary-smoke-linux-key: ${{ steps.binary-smoke-linux.outputs.key }}
+      binary-smoke-linux: ${{ steps.binary-smoke-linux.outputs.decision }}
     steps:
       - name: Refuse malformed request
         env:
@@ -53,6 +57,12 @@ jobs:
           path: product
           persist-credentials: false
 
+      - name: Identify source
+        id: source
+        run: |
+          echo "commit=$(git -C product rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+          echo "tree=$(git -C product rev-parse 'HEAD^{tree}')" >> "$GITHUB_OUTPUT"
+
       - name: Plan binary for x86_64-unknown-linux-gnu
         id: binary-linux
         env:
@@ -68,6 +78,21 @@ jobs:
           echo "decision=$decision" >> "$GITHUB_OUTPUT"
           echo "| binary x86_64-unknown-linux-gnu | \`$key\` | $decision |" >> "$GITHUB_STEP_SUMMARY"
           cat inputs.json
+
+      - name: Plan binary smoke for x86_64-unknown-linux-gnu
+        id: binary-smoke-linux
+        env:
+          BINARY: ${{ steps.binary-linux.outputs.key }}
+          WHARF_R2_ACCESS_KEY_ID: ${{ secrets.WHARF_R2_ACCESS_KEY_ID }}
+          WHARF_R2_SECRET_ACCESS_KEY: ${{ secrets.WHARF_R2_SECRET_ACCESS_KEY }}
+        run: |
+          key=$(python3 -B -m wharf ship key smoke --binary-key "$BINARY" --inputs smoke-inputs.json | python3 -c 'import json,sys; print(json.load(sys.stdin)["key"])')
+          reusable=$(python3 -B -m wharf store reusable --key "$key" | python3 -c 'import json,sys; print(json.load(sys.stdin)["reusable"])')
+          decision=run
+          [ "$reusable" = True ] && decision=skip
+          echo "key=$key" >> "$GITHUB_OUTPUT"
+          echo "decision=$decision" >> "$GITHUB_OUTPUT"
+          echo "| binary smoke x86_64-unknown-linux-gnu | \`$key\` | $decision |" >> "$GITHUB_STEP_SUMMARY"
 
   binary-linux:
     needs: plan
@@ -122,3 +147,62 @@ jobs:
               json.dump(context, handle, sort_keys=True)
           EOF
           python3 -B -m wharf store publish --key "$KEY" --dir dist --inputs inputs.json --context context.json
+
+  binary-smoke-linux:
+    needs: [plan, binary-linux]
+    if: always() && needs.plan.outputs.binary-smoke-linux == 'run' && (needs.binary-linux.result == 'success' || needs.binary-linux.result == 'skipped')
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Check out wharf
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          path: wharf
+          persist-credentials: false
+
+      - name: Smoke the recorded binary
+        env:
+          REPOSITORY: ${{ inputs.repository }}
+          MARKER: ${{ inputs.marker }}
+          BINARY: ${{ needs.plan.outputs.binary-linux-key }}
+          KEY: ${{ needs.plan.outputs.binary-smoke-linux-key }}
+          WHARF: ${{ github.sha }}
+          RUN: ${{ github.run_id }}
+          ATTEMPT: ${{ github.run_attempt }}
+          WHARF_R2_ACCESS_KEY_ID: ${{ secrets.WHARF_R2_ACCESS_KEY_ID }}
+          WHARF_R2_SECRET_ACCESS_KEY: ${{ secrets.WHARF_R2_SECRET_ACCESS_KEY }}
+        run: |
+          key=$(python3 -B -m wharf ship key smoke --binary-key "$BINARY" --inputs smoke-inputs.json | python3 -c 'import json,sys; print(json.load(sys.stdin)["key"])')
+          [ "$key" = "$KEY" ] || { echo "resolved key $key differs from planned $KEY"; exit 2; }
+          python3 -B -m wharf store fetch --key "$BINARY" --dir binary
+          python3 -B -m wharf ship smoke --dir binary --name "${REPOSITORY#*/}" --target x86_64-unknown-linux-gnu --output smoke
+          python3 -c 'import json,os; json.dump({f: os.environ[e] for f, e in {"repository": "REPOSITORY", "marker": "MARKER", "wharf": "WHARF", "run": "RUN", "attempt": "ATTEMPT"}.items()}, open("context.json", "w"))'
+          python3 -B -m wharf store publish --key "$KEY" --dir smoke --inputs smoke-inputs.json --context context.json
+
+  complete:
+    needs: [plan, binary-linux, binary-smoke-linux]
+    if: always()
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Check out wharf
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          path: wharf
+          persist-credentials: false
+
+      - name: Write the trigger record
+        env:
+          NEEDS: ${{ toJSON(needs) }}
+          REPOSITORY: ${{ inputs.repository }}
+          MARKER: ${{ inputs.marker }}
+          COMMIT: ${{ needs.plan.outputs.commit }}
+          TREE: ${{ needs.plan.outputs.tree }}
+          WHARF: ${{ github.sha }}
+          RUN: ${{ github.run_id }}
+          ATTEMPT: ${{ github.run_attempt }}
+          ACTOR: ${{ github.triggering_actor }}
+          WHARF_R2_ACCESS_KEY_ID: ${{ secrets.WHARF_R2_ACCESS_KEY_ID }}
+          WHARF_R2_SECRET_ACCESS_KEY: ${{ secrets.WHARF_R2_SECRET_ACCESS_KEY }}
+        run: |
+          printf '%s' "$NEEDS" > needs.json
+          python3 -c 'import json,os; json.dump({f: os.environ[e] for f, e in {"repository": "REPOSITORY", "marker": "MARKER", "commit": "COMMIT", "tree": "TREE", "wharf": "WHARF", "run": "RUN", "attempt": "ATTEMPT", "actor": "ACTOR"}.items()}, open("context.json", "w"))'
+          python3 -B -m wharf store trigger --context context.json --needs needs.json

@@ -6,7 +6,7 @@ from pathlib import Path
 
 from wharf.refusal import Refusal
 from wharf.ship import binary, cargo
-from wharf.store import workload
+from wharf.store import trigger, workload
 from wharf.store.r2 import Bucket
 
 
@@ -27,6 +27,26 @@ def ship_key_binary(args):
     digest = workload.key(inputs, workload.implementation(binary, cargo))
     Path(args.inputs).write_bytes(workload.canonical(inputs))
     return {"key": digest}
+
+
+def ship_smoke(args):
+    return binary.smoke(args.dir, args.name, args.target, args.output)
+
+
+def ship_key_smoke(args):
+    inputs = {"entry": {"kind": "binary-smoke", "binary": args.binary_key}}
+    Path(args.inputs).write_bytes(workload.canonical(inputs))
+    return {"key": workload.key(inputs, workload.implementation(binary))}
+
+
+def store_fetch(args):
+    return workload.fetch(bucket(), args.key, args.dir)
+
+
+def store_trigger(args):
+    context = json.loads(Path(args.context).read_text())
+    needs = json.loads(Path(args.needs).read_text())
+    return trigger.record(bucket(), context, needs)
 
 
 def store_reusable(args):
@@ -59,6 +79,17 @@ def parser():
     entry.add_argument("--runner", required=True)
     entry.add_argument("--inputs", required=True)
     entry.set_defaults(run=ship_key_binary)
+    check = keyed.add_parser("smoke")
+    check.add_argument("--binary-key", required=True)
+    check.add_argument("--inputs", required=True)
+    check.set_defaults(run=ship_key_smoke)
+
+    smoke = ship.add_parser("smoke", help="run a fetched binary's version and help surfaces")
+    smoke.add_argument("--dir", required=True)
+    smoke.add_argument("--name", required=True)
+    smoke.add_argument("--target", required=True)
+    smoke.add_argument("--output", required=True)
+    smoke.set_defaults(run=ship_smoke)
 
     store = paths.add_parser("store").add_subparsers(dest="action", required=True)
     lookup = store.add_parser("reusable", help="report whether a workload record exists")
@@ -70,6 +101,14 @@ def parser():
     record.add_argument("--inputs", required=True)
     record.add_argument("--context", required=True)
     record.set_defaults(run=store_publish)
+    fetched = store.add_parser("fetch", help="download and verify a recorded workload")
+    fetched.add_argument("--key", required=True)
+    fetched.add_argument("--dir", required=True)
+    fetched.set_defaults(run=store_fetch)
+    trail = store.add_parser("trigger", help="write the trigger record of this run")
+    trail.add_argument("--context", required=True)
+    trail.add_argument("--needs", required=True)
+    trail.set_defaults(run=store_trigger)
     return root
 
 
