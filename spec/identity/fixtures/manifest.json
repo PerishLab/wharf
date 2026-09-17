@@ -1,0 +1,42 @@
+{
+  "bound.region": {
+    "binding": {
+      "commit": "3333333333333333333333333333333333333333",
+      "digest": "2222222222222222222222222222222222222222222222222222222222222222",
+      "marker": "v1.2.3-beta.4",
+      "product": "demo-tool",
+      "workload": "4444444444444444444444444444444444444444444444444444444444444444"
+    },
+    "origin": {
+      "commit": "1111111111111111111111111111111111111111",
+      "prefix": "DEMO_TOOL",
+      "target": "x86_64-unknown-linux-gnu"
+    }
+  },
+  "refused-checksum.region": {
+    "refused": true
+  },
+  "refused-legacy-magic.region": {
+    "refused": true
+  },
+  "refused-noncanonical-padding.region": {
+    "refused": true
+  },
+  "refused-payload.region": {
+    "refused": true
+  },
+  "refused-trailing-payload.region": {
+    "refused": true
+  },
+  "refused-unbound-data.region": {
+    "refused": true
+  },
+  "unbound.region": {
+    "binding": null,
+    "origin": {
+      "commit": "1111111111111111111111111111111111111111",
+      "prefix": "DEMO_TOOL",
+      "target": "x86_64-unknown-linux-gnu"
+    }
+  }
+}

@@ -1,7 +1,7 @@
 """Atomic action: bind a release identity into a built executable.
 
-Writes the PLUMB.IDENTITY.1 region that plumb-lib reads at startup. The region is
-a 4096-byte section (.plumbid in ELF) laid out as:
+Writes the release identity region defined in spec/identity/README.md. The region
+is a 4096-byte section (.releaseid in ELF) laid out as:
 
   0..16    magic                  80..120   origin commit
   16..80   origin prefix          120..248  origin target
@@ -21,7 +21,8 @@ from pathlib import Path
 from wharf.refusal import Refusal
 
 SIZE = 4096
-MAGIC = b"PLUMB.IDENTITY.1"
+MAGIC = b"RELEASE.IDENT.V2"
+SECTION = ".releaseid"
 PAYLOAD = 288
 MARKER = re.compile(r"^v\d+\.\d+\.\d+(-(alpha|beta|rc)\.[1-9]\d*)?$")
 FIELDS = ("product", "marker", "digest", "commit", "workload")
@@ -112,7 +113,7 @@ def locate(image):
     for index, (name, kind, _, _, offset, size, _, info, _, _) in enumerate(sections):
         start = names[4] + name
         title = image[start:image.index(b"\0", start)].decode()
-        if title != ".plumbid":
+        if title != SECTION:
             continue
         if found is not None:
             raise Refusal("executable has multiple identity regions")
@@ -122,7 +123,7 @@ def locate(image):
             raise Refusal("identity region must not carry relocations")
         found = (offset, offset + size)
     if found is None:
-        raise Refusal("executable has no Plumb identity region")
+        raise Refusal("executable has no release identity region")
     return found
 
 

@@ -13,7 +13,7 @@ def region(prefix="PLUMB", target="x86_64-unknown-linux-gnu"):
     return bytes(bytes_)
 
 
-def elf(content, sections=(".plumbid",), relocate=False):
+def elf(content, sections=(".releaseid",), relocate=False):
     """A minimal ELF64 executable: header, one data blob per named section, string table, headers."""
     names = b"\0" + b"".join(name.encode() + b"\0" for name in sections) + b".shstrtab\0" + b".rela\0"
     body = bytearray(64)
@@ -87,7 +87,7 @@ class Identity(unittest.TestCase):
             identity.inspect(bytes(image))
 
     def test_refuses_missing_duplicate_or_relocated_regions(self):
-        for image in (elf(region(), sections=(".data",)), elf(region(), sections=(".plumbid", ".plumbid")), elf(region(), relocate=True)):
+        for image in (elf(region(), sections=(".data",)), elf(region(), sections=(".releaseid", ".releaseid")), elf(region(), relocate=True)):
             with self.subTest(), self.assertRaises(Refusal):
                 identity.inspect(image)
 
