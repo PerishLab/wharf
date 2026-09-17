@@ -5,7 +5,7 @@ import sys
 from pathlib import Path
 
 from wharf.refusal import Refusal
-from wharf.ship import binary, cargo
+from wharf.ship import binary, cargo, smoke
 from wharf.store import trigger, workload
 from wharf.store.r2 import Bucket
 
@@ -30,13 +30,13 @@ def ship_key_binary(args):
 
 
 def ship_smoke(args):
-    return binary.smoke(args.dir, args.name, args.target, args.output)
+    return smoke.smoke(args.dir, args.name, args.target, args.output)
 
 
 def ship_key_smoke(args):
     inputs = {"entry": {"kind": "binary-smoke", "binary": args.binary_key}}
     Path(args.inputs).write_bytes(workload.canonical(inputs))
-    return {"key": workload.key(inputs, workload.implementation(binary))}
+    return {"key": workload.key(inputs, workload.implementation(smoke))}
 
 
 def store_fetch(args):
@@ -84,12 +84,12 @@ def parser():
     check.add_argument("--inputs", required=True)
     check.set_defaults(run=ship_key_smoke)
 
-    smoke = ship.add_parser("smoke", help="run a fetched binary's version and help surfaces")
-    smoke.add_argument("--dir", required=True)
-    smoke.add_argument("--name", required=True)
-    smoke.add_argument("--target", required=True)
-    smoke.add_argument("--output", required=True)
-    smoke.set_defaults(run=ship_smoke)
+    check_run = ship.add_parser("smoke", help="run a fetched binary's version and help surfaces")
+    check_run.add_argument("--dir", required=True)
+    check_run.add_argument("--name", required=True)
+    check_run.add_argument("--target", required=True)
+    check_run.add_argument("--output", required=True)
+    check_run.set_defaults(run=ship_smoke)
 
     store = paths.add_parser("store").add_subparsers(dest="action", required=True)
     lookup = store.add_parser("reusable", help="report whether a workload record exists")
