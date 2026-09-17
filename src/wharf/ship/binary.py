@@ -15,9 +15,9 @@ import tempfile
 from pathlib import Path
 
 from wharf.refusal import Refusal
+from wharf.ship import cargo
 
 TRIPLE = re.compile(r"^[a-z0-9_]+(-[a-z0-9_]+){2,3}$")
-TOOLCHAIN = re.compile(r"^\d+\.\d+\.\d+$")
 
 
 def run(argv, cwd, env=None):
@@ -39,15 +39,14 @@ def locate(source, name, runner=run):
     return owners[0]
 
 
-def build(source, name, triple, toolchain, output, runner=run):
+def build(source, name, triple, output, runner=run, declared=cargo.toolchain):
     source = Path(source).resolve()
     output = Path(output)
     if not TRIPLE.match(triple):
         raise Refusal(f"target triple {triple!r} is malformed")
-    if not TOOLCHAIN.match(toolchain):
-        raise Refusal(f"toolchain {toolchain!r} must be an exact x.y.z version")
     if output.exists():
         raise Refusal(f"output {output} already exists")
+    toolchain = declared(source)["channel"]
 
     runner(["rustup", "toolchain", "install", toolchain, "--profile", "minimal", "--target", triple], source)
     env = dict(os.environ, RUSTUP_TOOLCHAIN=toolchain)

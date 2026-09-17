@@ -50,7 +50,8 @@ class Binary(unittest.TestCase):
     def build(self, cargo, **overrides):
         args = dict(name="plumb", triple="x86_64-unknown-linux-gnu", toolchain="1.96.1")
         args.update(overrides)
-        return binary.build(self.source, args["name"], args["triple"], args["toolchain"], self.output, cargo)
+        declared = lambda source: {"channel": args["toolchain"]}
+        return binary.build(self.source, args["name"], args["triple"], self.output, cargo, declared)
 
     def test_builds_one_binary_with_receipt(self):
         cargo = Cargo([("plumb-cli", ["plumb"])])
@@ -67,7 +68,6 @@ class Binary(unittest.TestCase):
     def test_refuses_before_side_effects(self):
         cases = [
             dict(triple="linux"),
-            dict(toolchain="stable"),
         ]
         for case in cases:
             cargo = Cargo([("plumb-cli", ["plumb"])])

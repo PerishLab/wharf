@@ -20,11 +20,16 @@ concurrency:
   cancel-in-progress: false
 
 env:
-  RUST_TOOLCHAIN: 1.96.1
+  PYTHONPATH: wharf/src
+  WHARF_R2_ENDPOINT: ${{ vars.WHARF_R2_ENDPOINT }}
+  WHARF_R2_BUCKET: ${{ vars.WHARF_R2_BUCKET }}
 
 jobs:
-  binary-linux:
+  plan:
     runs-on: ubuntu-24.04
+    outputs:
+      binary-linux-key: ${{ steps.binary-linux.outputs.key }}
+      binary-linux: ${{ steps.binary-linux.outputs.decision }}
     steps:
       - name: Refuse malformed request
         env:
@@ -48,32 +53,72 @@ jobs:
           path: product
           persist-credentials: false
 
+      - name: Plan binary for x86_64-unknown-linux-gnu
+        id: binary-linux
+        env:
+          REPOSITORY: ${{ inputs.repository }}
+          WHARF_R2_ACCESS_KEY_ID: ${{ secrets.WHARF_R2_ACCESS_KEY_ID }}
+          WHARF_R2_SECRET_ACCESS_KEY: ${{ secrets.WHARF_R2_SECRET_ACCESS_KEY }}
+        run: |
+          key=$(python3 -B -m wharf ship key binary --source product --name "${REPOSITORY#*/}" --target x86_64-unknown-linux-gnu --runner ubuntu-24.04 --inputs inputs.json | python3 -c 'import json,sys; print(json.load(sys.stdin)["key"])')
+          reusable=$(python3 -B -m wharf store reusable --key "$key" | python3 -c 'import json,sys; print(json.load(sys.stdin)["reusable"])')
+          decision=run
+          [ "$reusable" = True ] && decision=skip
+          echo "key=$key" >> "$GITHUB_OUTPUT"
+          echo "decision=$decision" >> "$GITHUB_OUTPUT"
+          echo "| binary x86_64-unknown-linux-gnu | \`$key\` | $decision |" >> "$GITHUB_STEP_SUMMARY"
+          cat inputs.json
+
+  binary-linux:
+    needs: plan
+    if: needs.plan.outputs.binary-linux == 'run'
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Check out wharf
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          path: wharf
+          persist-credentials: false
+
+      - name: Check out product at marker
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: ${{ inputs.repository }}
+          ref: refs/tags/${{ inputs.marker }}
+          path: product
+          persist-credentials: false
+
+      - name: Confirm the planned key
+        env:
+          REPOSITORY: ${{ inputs.repository }}
+          PLANNED: ${{ needs.plan.outputs.binary-linux-key }}
+        run: |
+          key=$(python3 -B -m wharf ship key binary --source product --name "${REPOSITORY#*/}" --target x86_64-unknown-linux-gnu --runner ubuntu-24.04 --inputs inputs.json | python3 -c 'import json,sys; print(json.load(sys.stdin)["key"])')
+          [ "$key" = "$PLANNED" ] || { echo "resolved key $key differs from planned $PLANNED"; exit 2; }
+
       - name: Build binary
         env:
-          PYTHONPATH: wharf/src
-          NAME: ${{ inputs.repository }}
-        run: python3 -B -m wharf ship binary --source product --name "${NAME#*/}" --target x86_64-unknown-linux-gnu --toolchain "$RUST_TOOLCHAIN" --output dist
+          REPOSITORY: ${{ inputs.repository }}
+        run: python3 -B -m wharf ship binary --source product --name "${REPOSITORY#*/}" --target x86_64-unknown-linux-gnu --output dist
 
-      - name: Record run context
+      - name: Record workload
         env:
           REPOSITORY: ${{ inputs.repository }}
           MARKER: ${{ inputs.marker }}
+          KEY: ${{ needs.plan.outputs.binary-linux-key }}
           WHARF: ${{ github.sha }}
           RUN: ${{ github.run_id }}
+          ATTEMPT: ${{ github.run_attempt }}
+          WHARF_R2_ACCESS_KEY_ID: ${{ secrets.WHARF_R2_ACCESS_KEY_ID }}
+          WHARF_R2_SECRET_ACCESS_KEY: ${{ secrets.WHARF_R2_SECRET_ACCESS_KEY }}
         run: |
           python3 - <<'EOF'
           import json, os, subprocess
           commit = subprocess.run(["git", "-C", "product", "rev-parse", "HEAD"], check=True, capture_output=True, text=True).stdout.strip()
-          context = {"repository": os.environ["REPOSITORY"], "marker": os.environ["MARKER"], "commit": commit, "wharf": os.environ["WHARF"], "run": os.environ["RUN"]}
-          with open("dist/context.json", "w") as handle:
-              json.dump(context, handle, indent=2, sort_keys=True)
-              handle.write("\n")
-          print(json.dumps(context, indent=2, sort_keys=True))
+          names = {"repository": "REPOSITORY", "marker": "MARKER", "wharf": "WHARF", "run": "RUN", "attempt": "ATTEMPT"}
+          context = {field: os.environ[name] for field, name in names.items()}
+          context["commit"] = commit
+          with open("context.json", "w") as handle:
+              json.dump(context, handle, sort_keys=True)
           EOF
-
-      - name: Upload binary
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
-        with:
-          name: binary-x86_64-unknown-linux-gnu
-          path: dist/
-          if-no-files-found: error
+          python3 -B -m wharf store publish --key "$KEY" --dir dist --inputs inputs.json --context context.json
