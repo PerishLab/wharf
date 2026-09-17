@@ -1,0 +1,5 @@
+#!/bin/sh
+set -eu
+root=$(git rev-parse --show-toplevel)
+cd "$root"
+PYTHONPATH=src python3 -B -m unittest discover -s tests -t . -q

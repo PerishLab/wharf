@@ -1,0 +1,7 @@
+[project]
+name = "wharf"
+version = "0"
+description = "Distribution hub for perish.code products"
+license = "MIT"
+requires-python = ">=3.12"
+dependencies = []

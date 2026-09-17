@@ -1,0 +1,79 @@
+name: ship
+
+on:
+  workflow_dispatch:
+    inputs:
+      repository:
+        description: Product repository, owner/name
+        required: true
+        type: string
+      marker:
+        description: Release marker tag in the product repository
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ship-${{ inputs.repository }}-${{ inputs.marker }}
+  cancel-in-progress: false
+
+env:
+  RUST_TOOLCHAIN: 1.96.1
+
+jobs:
+  binary-linux:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Refuse malformed request
+        env:
+          REPOSITORY: ${{ inputs.repository }}
+          MARKER: ${{ inputs.marker }}
+        run: |
+          echo "$REPOSITORY" | grep -Eq '^PerishLab/[A-Za-z0-9._-]+$' || { echo "repository $REPOSITORY is not a PerishLab repository"; exit 2; }
+          echo "$MARKER" | grep -Eq '^v[0-9]+\.[0-9]+\.[0-9]+(-beta\.[0-9]+)?$' || { echo "marker $MARKER is malformed"; exit 2; }
+
+      - name: Check out wharf
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          path: wharf
+          persist-credentials: false
+
+      - name: Check out product at marker
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: ${{ inputs.repository }}
+          ref: refs/tags/${{ inputs.marker }}
+          path: product
+          persist-credentials: false
+
+      - name: Build binary
+        env:
+          PYTHONPATH: wharf/src
+          NAME: ${{ inputs.repository }}
+        run: python3 -B -m wharf ship binary --source product --name "${NAME#*/}" --target x86_64-unknown-linux-gnu --toolchain "$RUST_TOOLCHAIN" --output dist
+
+      - name: Record run context
+        env:
+          REPOSITORY: ${{ inputs.repository }}
+          MARKER: ${{ inputs.marker }}
+          WHARF: ${{ github.sha }}
+          RUN: ${{ github.run_id }}
+        run: |
+          python3 - <<'EOF'
+          import json, os, subprocess
+          commit = subprocess.run(["git", "-C", "product", "rev-parse", "HEAD"], check=True, capture_output=True, text=True).stdout.strip()
+          context = {"repository": os.environ["REPOSITORY"], "marker": os.environ["MARKER"], "commit": commit, "wharf": os.environ["WHARF"], "run": os.environ["RUN"]}
+          with open("dist/context.json", "w") as handle:
+              json.dump(context, handle, indent=2, sort_keys=True)
+              handle.write("\n")
+          print(json.dumps(context, indent=2, sort_keys=True))
+          EOF
+
+      - name: Upload binary
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: binary-x86_64-unknown-linux-gnu
+          path: dist/
+          if-no-files-found: error
