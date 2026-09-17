@@ -39,6 +39,7 @@ jobs:
       bind-linux: ${{ steps.bind-linux.outputs.decision }}
       smoke-linux-key: ${{ steps.smoke-linux.outputs.key }}
       smoke-linux: ${{ steps.smoke-linux.outputs.decision }}
+      cargo: ${{ steps.cargo.outputs.decision }}
     steps:
       - name: Refuse malformed request
         working-directory: .
@@ -117,6 +118,17 @@ jobs:
           echo "key=$key" >> "$GITHUB_OUTPUT"
           echo "decision=$decision" >> "$GITHUB_OUTPUT"
           echo "| smoke x86_64-unknown-linux-gnu | \`$key\` | $decision |" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: cargo packages
+        id: cargo
+        env:
+          MARKER: ${{ inputs.marker }}
+        run: |
+          published=$(python3 -B -m scripts.ship cargo-plan --source ../product --marker "$MARKER" | python3 -c 'import json,sys; print(json.load(sys.stdin)["published"])')
+          decision=run
+          [ "$published" = True ] && decision=skip
+          echo "decision=$decision" >> "$GITHUB_OUTPUT"
+          echo "| cargo packages | $MARKER | $decision |" >> "$GITHUB_STEP_SUMMARY"
 
   binary-linux:
     needs: plan
@@ -216,8 +228,33 @@ jobs:
           python3 -c 'import json,os; json.dump({f: os.environ[e] for f, e in {"repository": "REPOSITORY", "marker": "MARKER", "wharf": "WHARF", "run": "RUN", "attempt": "ATTEMPT"}.items()}, open("../context.json", "w"))'
           python3 -B -m scripts.store publish --key "$KEY" --dir ../smoked --basis ../basis.json --context ../context.json
 
+  cargo:
+    needs: [plan, binary-linux]
+    if: always() && needs.plan.outputs.cargo == 'run' && (needs.binary-linux.result == 'success' || needs.binary-linux.result == 'skipped')
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Check out wharf
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          path: wharf
+          persist-credentials: false
+
+      - name: Check out product at marker
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          repository: ${{ inputs.repository }}
+          ref: refs/tags/${{ inputs.marker }}
+          path: product
+          persist-credentials: false
+
+      - name: Publish cargo packages
+        env:
+          MARKER: ${{ inputs.marker }}
+          WHARF_CARGO_TOKEN: ${{ secrets.WHARF_CARGO_TOKEN }}
+        run: python3 -B -m scripts.ship cargo-publish --source ../product --marker "$MARKER"
+
   complete:
-    needs: [plan, binary-linux, bind-linux, smoke-linux]
+    needs: [plan, binary-linux, bind-linux, smoke-linux, cargo]
     if: always()
     runs-on: ubuntu-24.04
     steps:

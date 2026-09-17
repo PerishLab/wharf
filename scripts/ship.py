@@ -4,7 +4,7 @@ import sys
 from pathlib import Path
 
 from lib import canonical, implementation
-from lib.cargo import basis, build
+from lib.cargo import basis, build, publish, version
 from lib.identity import bind
 from lib.refusal import Refusal
 from lib.smoke import smoke
@@ -50,6 +50,16 @@ def run_smoke(args):
     return smoke(bind.Artifact(Path(args.dir), args.name, args.target), args.output, args.expect)
 
 
+def cargo_plan(args):
+    held = publish.pending(args.source, version.marker(args.marker))
+    return {"published": all(item["published"] for item in held), "packages": held}
+
+
+def cargo_publish(args):
+    bound = version.inject(args.source, version.marker(args.marker))
+    return publish.publish(args.source, bound["version"])
+
+
 def command(actions, name, handler, options):
     parser = actions.add_parser(name)
     for option in options:
@@ -66,6 +76,8 @@ def parser():
     command(actions, "binary", run_binary, ["source", "name", "target", "output"])
     command(actions, "bind", run_bind, ["dir", "name", "target", *RELEASE, "binary-key", "output"])
     command(actions, "smoke", run_smoke, ["dir", "name", "target", "output", "expect"])
+    command(actions, "cargo-plan", cargo_plan, ["source", "marker"])
+    command(actions, "cargo-publish", cargo_publish, ["source", "marker"])
     return root
 
 
