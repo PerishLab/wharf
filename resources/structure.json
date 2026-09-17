@@ -1,0 +1,10 @@
+{
+  "top": [".github", ".githooks", ".gitignore", "AGENTS.md", "CLAUDE.md", "LICENSE", "lib", "resources", "scripts", "tests"],
+  "unstructured": ["AGENTS.md", "LICENSE"],
+  "pointer": {"CLAUDE.md": "@AGENTS.md\n"},
+  "python": ["lib", "scripts", "tests"],
+  "prose": [".md", ".txt", ".rst", ".adoc"],
+  "hooks": [".githooks/pre-commit"],
+  "workflows": ".github/workflows",
+  "limits": {"lines": 300, "parameters": 4, "nesting": 4, "entries": 10, "depth": 3}
+}

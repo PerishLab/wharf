@@ -1,5 +1,5 @@
 #!/bin/sh
 set -eu
-root=$(git rev-parse --show-toplevel)
-cd "$root"
-PYTHONPATH=src python3 -B -m unittest discover -s tests -t . -q
+cd "$(git rev-parse --show-toplevel)"
+python3 -B -m scripts.selfcheck
+python3 -B -m unittest discover -s tests -t . -q

@@ -1,0 +1,11 @@
+{
+  "claimed": {
+    "carrier": "Plumb seats an adaptor projects from: Containerfile, charts, packages",
+    "deps": "the dependency posture a repository consumes",
+    "inputs": "the Plumb release declaration",
+    "wrapper": "Runseal Deno transition scripts"
+  },
+  "external": [
+    "--no-deps"
+  ]
+}

@@ -1,0 +1,33 @@
+{
+  "magic": "RELEASE.IDENT.V2",
+  "size": 4096,
+  "sections": {
+    "elf": ".releaseid",
+    "pe": ".releaseid",
+    "macho": {"segment": "__DATA", "section": "__releaseid"}
+  },
+  "layout": {
+    "magic": {"offset": 0, "length": 16},
+    "prefix": {"offset": 16, "length": 64, "rule": "uppercase ASCII letters and underscore, non-empty"},
+    "commit": {"offset": 80, "length": 40, "rule": "empty or 40 lowercase hex digits"},
+    "target": {"offset": 120, "length": 128, "rule": "target triple of the build"},
+    "length": {"offset": 248, "length": 8, "rule": "payload length, unsigned little-endian"},
+    "checksum": {"offset": 256, "length": 32, "rule": "sha256 of the region without these bytes"},
+    "payload": {"offset": 288, "length": 3808, "rule": "compact JSON binding, zero padded"}
+  },
+  "text": "UTF-8, zero padded, no bytes after the first zero",
+  "binding": {
+    "fields": ["product", "marker", "digest", "commit", "workload"],
+    "product": "uppercased with - replaced by _ equals the origin prefix",
+    "marker": "^v\\d+\\.\\d+\\.\\d+(-(alpha|beta|rc)\\.[1-9]\\d*)?$",
+    "digest": 64,
+    "commit": 40,
+    "workload": 64
+  },
+  "build": {
+    "target": "<PREFIX>_BUILD_TARGET",
+    "commit": "<PREFIX>_BUILD_COMMIT",
+    "channel": "<PREFIX>_BUILD_CHANNEL",
+    "unbound": "unbound"
+  }
+}

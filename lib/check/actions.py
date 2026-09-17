@@ -1,0 +1,22 @@
+import re
+from pathlib import Path
+
+from lib import resources
+
+PINNED = resources.read_json("actions.json")
+USES = re.compile(r"uses:\s*([^\s@]+)@(\S+)")
+
+
+def check(root, paths):
+    findings = []
+    for path in [path for path in paths if path.suffix in (".yml", ".yaml")]:
+        for number, line in enumerate((Path(root) / path).read_text().splitlines(), 1):
+            match = USES.search(line)
+            if not match:
+                continue
+            name, reference = match.groups()
+            if name not in PINNED:
+                findings.append(f"{path}:{number}: {name} is not in the pinned action list")
+            elif reference != PINNED[name]["sha"]:
+                findings.append(f"{path}:{number}: {name} must be pinned to {PINNED[name]['sha']}")
+    return findings
