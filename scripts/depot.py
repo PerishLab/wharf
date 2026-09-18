@@ -38,8 +38,8 @@ def patch(args):
     store = bucket(held)
     base = lineage.base(store, target(held), args.from_)
     puts = [item.split("=", 1) for item in args.put]
-    if any(len(item) != 2 for item in puts) or not (puts or args.remove):
-        raise Refusal("patch needs --put PATH=FILE or --remove PATH")
+    if any(len(item) != 2 for item in puts):
+        raise Refusal("--put takes PATH=FILE")
     content = edit.patched(base, puts, args.remove)
     return dict(edit.stage(store, edit.Change(held, content, base, now())), base=base["generation"])
 

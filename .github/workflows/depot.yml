@@ -48,6 +48,7 @@ jobs:
           repository: ${{ inputs.repository }}
           ref: refs/tags/${{ inputs.marker }}
           path: product
+          fetch-depth: 0
           persist-credentials: false
 
       - name: Publish the configuration generation
@@ -58,7 +59,5 @@ jobs:
           WHARF_DEPOT_ACCESS_KEY_ID: ${{ secrets.WHARF_DEPOT_ACCESS_KEY_ID }}
           WHARF_DEPOT_SECRET_ACCESS_KEY: ${{ secrets.WHARF_DEPOT_SECRET_ACCESS_KEY }}
         run: |
-          commit=$(git -C ../product rev-parse HEAD)
-          tree=$(git -C ../product rev-parse 'HEAD^{tree}')
-          python3 -B -m scripts.depot publish --repository "$REPOSITORY" --marker "$MARKER" --commit "$commit" --tree "$tree" | tee ../depot.json
+          python3 -B -m scripts.depot patch --repository "$REPOSITORY" --marker "$MARKER" --source ../product | tee ../depot.json
           echo "| configuration | $MARKER | $(python3 -c 'import json; d=json.load(open("../depot.json")); print(d["state"], d["generation"][:12])') |" >> "$GITHUB_STEP_SUMMARY"
