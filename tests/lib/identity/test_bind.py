@@ -13,7 +13,7 @@ def region(prefix="PLUMB", target="x86_64-unknown-linux-gnu"):
     return bytes(bytes_)
 
 
-def executable(content, sections=(".releaseid",), relocate=False):
+def executable(content, sections=(".relid",), relocate=False):
     names = b"\0" + b"".join(name.encode() + b"\0" for name in sections) + b".shstrtab\0" + b".rela\0"
     body = bytearray(64)
     offsets = []
@@ -86,7 +86,7 @@ class Identity(unittest.TestCase):
             bind.inspect(bytes(image))
 
     def test_refuses_missing_duplicate_or_relocated_regions(self):
-        for image in (executable(region(), sections=(".data",)), executable(region(), sections=(".releaseid", ".releaseid")), executable(region(), relocate=True)):
+        for image in (executable(region(), sections=(".data",)), executable(region(), sections=(".relid", ".relid")), executable(region(), relocate=True)):
             with self.subTest(), self.assertRaises(Refusal):
                 bind.inspect(image)
 

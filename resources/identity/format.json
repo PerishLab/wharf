@@ -2,9 +2,9 @@
   "magic": "RELEASE.IDENT.V2",
   "size": 4096,
   "sections": {
-    "elf": ".releaseid",
-    "pe": ".releaseid",
-    "macho": {"segment": "__DATA", "section": "__releaseid"}
+    "elf": ".relid",
+    "pe": ".relid",
+    "macho": {"segment": "__DATA", "section": "__relid"}
   },
   "layout": {
     "magic": {"offset": 0, "length": 16},

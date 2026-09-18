@@ -61,6 +61,8 @@ must reproduce byte for byte and every reader must test against.
 
 - The region lives in one 4096-byte section with file content and no relocations;
   a signed PE input is refused.
+- Section names stay within 8 bytes: the MSVC linker truncates longer PE section
+  names, so `.releaseid` became `.release` in a real Windows image.
 - An unbound region has payload length 0 and nothing after the length field.
 - Binding an already bound region succeeds only with an identical binding and then
   changes nothing.

@@ -8,7 +8,7 @@ from tests.lib.identity.test_bind import BINDING, region
 TARGET = "x86_64-pc-windows-msvc"
 
 
-def image(content, sections=(".releaseid",), security=(0, 0), flags=0x0022):
+def image(content, sections=(".relid",), security=(0, 0), flags=0x0022):
     names = [name.encode() for name in sections]
     strings = b""
     raw_names = []
@@ -42,9 +42,11 @@ class Portable(unittest.TestCase):
         self.assertEqual(bind.inspect(bound), ({"prefix": "PLUMB", "commit": "", "target": TARGET}, BINDING))
 
     def test_resolves_long_names_through_the_string_table(self):
-        held = image(region(target=TARGET), sections=(".text", ".releaseid"))
+        held = image(region(target=TARGET), sections=(".debug_info", ".relid"))
         start, end = pe.locate(held)
         self.assertEqual(held[start:end], region(target=TARGET))
+        with self.assertRaisesRegex(Refusal, r"\.debug_info"):
+            pe.locate(image(region(target=TARGET), sections=(".debug_info",)))
 
     def test_refuses_an_authenticode_signed_input(self):
         with self.assertRaisesRegex(Refusal, "Authenticode"):
@@ -59,6 +61,6 @@ class Portable(unittest.TestCase):
             bind.inspect(image(region(target=TARGET), sections=(".release",)))
 
     def test_refuses_duplicate_or_short_regions(self):
-        for held in (image(region(target=TARGET), sections=(".releaseid", ".releaseid")), image(region(target=TARGET)[:512])):
+        for held in (image(region(target=TARGET), sections=(".relid", ".relid")), image(region(target=TARGET)[:512])):
             with self.subTest(), self.assertRaises(Refusal):
                 bind.inspect(held)
