@@ -5,7 +5,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from lib.cargo import suite
+from lib.cargo import suite, toolchain
 from lib.refusal import Refusal
 
 PASSING = """
@@ -39,7 +39,7 @@ class Runner:
         return self.code, self.log
 
     def tools(self):
-        return suite.Tools(run=self.run, attempt=self.attempt, toolchain=lambda source: {"channel": "1.96.1"})
+        return suite.Tools(run=self.run, attempt=self.attempt, toolchain=lambda source: {"channel": "1.96.1", "profile": "minimal", "components": ["clippy", "rustfmt"], "targets": []})
 
 
 class Suite(unittest.TestCase):
@@ -71,3 +71,10 @@ class Suite(unittest.TestCase):
             with self.subTest(code=code), self.assertRaises(Refusal):
                 suite.suite(self.request, Runner(code, log).tools())
             self.assertFalse(self.request.output.exists())
+
+    def test_installs_the_declared_components_and_targets(self):
+        declared = {"channel": "1.96.1", "profile": "minimal", "components": ["clippy", "rustfmt"], "targets": ["x86_64-unknown-linux-gnu"]}
+        self.assertEqual(
+            toolchain.install(declared, ["aarch64-apple-darwin"]),
+            ["rustup", "toolchain", "install", "1.96.1", "--profile", "minimal", "--component", "clippy", "--component", "rustfmt", "--target", "aarch64-apple-darwin", "--target", "x86_64-unknown-linux-gnu"],
+        )

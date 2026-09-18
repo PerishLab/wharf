@@ -19,3 +19,12 @@ def declared(source):
         "components": sorted(toolchain.get("components", [])),
         "targets": sorted(toolchain.get("targets", [])),
     }
+
+
+def install(declared, targets=()):
+    argv = ["rustup", "toolchain", "install", declared["channel"], "--profile", declared["profile"]]
+    for component in declared["components"]:
+        argv += ["--component", component]
+    for target in sorted({*declared["targets"], *targets}):
+        argv += ["--target", target]
+    return argv

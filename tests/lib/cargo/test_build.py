@@ -43,7 +43,7 @@ class Build(unittest.TestCase):
         self.output = root / "out"
 
     def build(self, cargo, target="x86_64-unknown-linux-gnu"):
-        tools = build.Tools(run=cargo, toolchain=lambda source: {"channel": "1.96.1"})
+        tools = build.Tools(run=cargo, toolchain=lambda source: {"channel": "1.96.1", "profile": "minimal", "components": ["clippy", "rustfmt"], "targets": []})
         return build.build(build.Build(self.source, "plumb", target, self.output), tools)
 
     def test_builds_one_unbound_binary_with_receipt(self):

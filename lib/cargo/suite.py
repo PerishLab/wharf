@@ -81,8 +81,9 @@ def suite(request, tools=Tools()):
     request = Suite(Path(request.source).resolve(), Path(request.output))
     if request.output.exists():
         raise Refusal(f"output {request.output} already exists")
-    channel = tools.toolchain(request.source)["channel"]
-    tools.run(["rustup", "toolchain", "install", channel, "--profile", "minimal"], request.source)
+    declared = tools.toolchain(request.source)
+    channel = declared["channel"]
+    tools.run(toolchain.install(declared), request.source)
     code, log, rustc = execute(request, tools, channel)
     print(log, file=sys.stderr)
     targets, totals = tally(log)

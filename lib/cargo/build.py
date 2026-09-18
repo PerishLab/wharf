@@ -79,8 +79,9 @@ def build(request, tools=Tools()):
         raise Refusal(f"target triple {request.target!r} is malformed")
     if request.output.exists():
         raise Refusal(f"output {request.output} already exists")
-    channel = tools.toolchain(request.source)["channel"]
-    tools.run(["rustup", "toolchain", "install", channel, "--profile", "minimal", "--target", request.target], request.source)
+    declared = tools.toolchain(request.source)
+    channel = declared["channel"]
+    tools.run(toolchain.install(declared, [request.target]), request.source)
     env = environment(request, channel)
     package = produce(request, tools, env)
     rustc = tools.run(["rustc", "--version"], request.source, env).strip()
