@@ -4,6 +4,7 @@ from lib.refusal import Conflict
 class Memory:
     def __init__(self):
         self.objects = {}
+        self.headers = {}
         self.writes = []
 
     def exists(self, key):
@@ -12,8 +13,12 @@ class Memory:
     def get(self, key):
         return self.objects[key]
 
-    def create(self, key, body):
+    def create(self, key, body, headers=None):
         if key in self.objects:
             raise Conflict(key)
+        self.put(key, body, headers)
+
+    def put(self, key, body, headers=None):
         self.objects[key] = body
+        self.headers[key] = dict(headers or {})
         self.writes.append(key)

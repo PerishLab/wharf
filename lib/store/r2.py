@@ -60,12 +60,28 @@ class Bucket:
             raise Refusal(f"GET {key} answered {status}")
         return body
 
-    def create(self, key, body):
-        status, answer = self.request(Operation("PUT", key, body, {"If-None-Match": "*"}))
+    def create(self, key, body, headers=None):
+        status, answer = self.request(Operation("PUT", key, body, dict(headers or {}, **{"If-None-Match": "*"})))
         if status == 412:
             raise Conflict(f"{key} already exists")
         if status != 200:
             raise Refusal(f"PUT {key} answered {status}: {answer[:200]!r}")
+
+    def put(self, key, body, headers=None):
+        status, answer = self.request(Operation("PUT", key, body, dict(headers or {})))
+        if status != 200:
+            raise Refusal(f"PUT {key} answered {status}: {answer[:200]!r}")
+
+
+RELEASES = ("WHARF_R2_ENDPOINT", "WHARF_RELEASES_ACCESS_KEY_ID", "WHARF_RELEASES_SECRET_ACCESS_KEY")
+
+
+def releases(bucket, environ=os.environ):
+    missing = [name for name in RELEASES if not environ.get(name)]
+    if missing:
+        raise Refusal(f"missing release store configuration: {', '.join(missing)}")
+    endpoint, access, secret = (environ[name] for name in RELEASES)
+    return Bucket(endpoint, bucket, Credentials(access, secret))
 
 
 def configured(environ=os.environ):

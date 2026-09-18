@@ -8,7 +8,8 @@ from lib.cargo import basis, build, publish, suite, version
 from lib.identity import bind
 from lib.refusal import Refusal
 from lib.identity.smoke import smoke
-from lib.media import chart, node, npm, oci
+from lib.media import cfworker, chart, node, npm, oci, release as releasing
+from lib.store import r2
 from lib.store import workload
 
 RELEASE = ("repository", "marker", "commit", "tree")
@@ -102,6 +103,30 @@ def chart_publish(args):
     return chart.publish(args.source, args.repository.split("/", 1)[0], version.marker(args.marker))
 
 
+def published_release(args):
+    return releasing.Release(args.repository, args.marker, args.commit, args.wharf)
+
+
+def release_plan(args):
+    held = published_release(args)
+    return {"channel": releasing.channel(held.marker), "published": releasing.published(held)}
+
+
+def release_publish(args):
+    held = published_release(args)
+    bound = {"x86_64-unknown-linux-gnu": args.linux, "x86_64-pc-windows-msvc": args.windows, "aarch64-apple-darwin": args.macos}
+    return releasing.publish(held, bound, r2.releases(releasing.place(held)[1]))
+
+
+def key_cfworker(args):
+    held = cfworker.basis(args.source, args.runner)
+    return keyed(held, (["lib.media.cfworker"], []), args)
+
+
+def cfworker_deploy(args):
+    return cfworker.deploy(cfworker.Deploy(Path(args.source), Path(args.output)))
+
+
 def cargo_plan(args):
     held = publish.pending(args.source, version.marker(args.marker))
     return {"published": all(item["published"] for item in held), "packages": held}
@@ -139,6 +164,10 @@ def parser():
     command(actions, "oci-publish", oci_publish, ["source", "dir", "target", "repository", "marker"])
     command(actions, "chart-plan", chart_plan, ["source", "repository", "marker"])
     command(actions, "chart-publish", chart_publish, ["source", "repository", "marker"])
+    command(actions, "release-plan", release_plan, ["repository", "marker", "commit", "wharf"])
+    command(actions, "release-publish", release_publish, ["repository", "marker", "commit", "wharf", "linux", "windows", "macos"])
+    command(actions, "key-cfworker", key_cfworker, ["source", "runner", "basis"])
+    command(actions, "cfworker-deploy", cfworker_deploy, ["source", "output"])
     command(actions, "cargo-plan", cargo_plan, ["source", "marker"])
     command(actions, "cargo-publish", cargo_publish, ["source", "marker"])
     return root

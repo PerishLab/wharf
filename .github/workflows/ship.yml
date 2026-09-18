@@ -41,6 +41,9 @@ jobs:
       npm: ${{ steps.npm.outputs.decision }}
       oci: ${{ steps.oci.outputs.decision }}
       chart: ${{ steps.chart.outputs.decision }}
+      release: ${{ steps.release.outputs.decision }}
+      cfworker-key: ${{ steps.cfworker.outputs.key }}
+      cfworker: ${{ steps.cfworker.outputs.decision }}
       commit: ${{ steps.source.outputs.commit }}
       tree: ${{ steps.source.outputs.tree }}
       binary-linux-key: ${{ steps.binary-linux.outputs.key }}
@@ -320,6 +323,34 @@ jobs:
           [ "$published" = True ] && decision=skip
           echo "decision=$decision" >> "$GITHUB_OUTPUT"
           echo "| charts | $MARKER | $decision |" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: binary release
+        id: release
+        env:
+          REPOSITORY: ${{ inputs.repository }}
+          MARKER: ${{ inputs.marker }}
+          COMMIT: ${{ steps.source.outputs.commit }}
+          WHARF: ${{ github.sha }}
+        run: |
+          published=$(python3 -B -m scripts.ship release-plan --repository "$REPOSITORY" --marker "$MARKER" --commit "$COMMIT" --wharf "$WHARF" | python3 -c 'import json,sys; print(json.load(sys.stdin)["published"])')
+          decision=run
+          [ "$published" = True ] && decision=skip
+          echo "decision=$decision" >> "$GITHUB_OUTPUT"
+          echo "| binary release | $MARKER | $decision |" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: cfworker
+        id: cfworker
+        env:
+          WHARF_R2_ACCESS_KEY_ID: ${{ secrets.WHARF_R2_ACCESS_KEY_ID }}
+          WHARF_R2_SECRET_ACCESS_KEY: ${{ secrets.WHARF_R2_SECRET_ACCESS_KEY }}
+        run: |
+          key=$(python3 -B -m scripts.ship key-cfworker --source ../product --runner ubuntu-24.04 --basis ../cfworker-basis.json | python3 -c 'import json,sys; print(json.load(sys.stdin)["key"])')
+          reusable=$(python3 -B -m scripts.store reusable --key "$key" | python3 -c 'import json,sys; print(json.load(sys.stdin)["reusable"])')
+          decision=run
+          [ "$reusable" = True ] && decision=skip
+          echo "key=$key" >> "$GITHUB_OUTPUT"
+          echo "decision=$decision" >> "$GITHUB_OUTPUT"
+          echo "| cfworker | \`$key\` | $decision |" >> "$GITHUB_STEP_SUMMARY"
 
       - name: cargo packages
         id: cargo
@@ -843,6 +874,83 @@ jobs:
           MARKER: ${{ inputs.marker }}
         run: python3 -B -m scripts.ship chart-publish --source ../product --repository "$REPOSITORY" --marker "$MARKER"
 
+  release:
+    needs: [plan, smoke-linux, smoke-windows, smoke-macos, suite-linux, suite-node]
+    if: always() && needs.plan.outputs.release == 'run' && (needs.smoke-linux.result == 'success' || needs.smoke-linux.result == 'skipped') && (needs.smoke-windows.result == 'success' || needs.smoke-windows.result == 'skipped') && (needs.smoke-macos.result == 'success' || needs.smoke-macos.result == 'skipped') && (needs.suite-linux.result == 'success' || needs.suite-linux.result == 'skipped') && (needs.suite-node.result == 'success' || needs.suite-node.result == 'skipped')
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Check out wharf
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          path: wharf
+          persist-credentials: false
+
+      - name: Publish the bound binaries
+        env:
+          REPOSITORY: ${{ inputs.repository }}
+          MARKER: ${{ inputs.marker }}
+          COMMIT: ${{ needs.plan.outputs.commit }}
+          WHARF: ${{ github.sha }}
+          LINUX: ${{ needs.plan.outputs.bind-linux-key }}
+          WINDOWS: ${{ needs.plan.outputs.bind-windows-key }}
+          MACOS: ${{ needs.plan.outputs.bind-macos-key }}
+          WHARF_R2_ACCESS_KEY_ID: ${{ secrets.WHARF_R2_ACCESS_KEY_ID }}
+          WHARF_R2_SECRET_ACCESS_KEY: ${{ secrets.WHARF_R2_SECRET_ACCESS_KEY }}
+          WHARF_RELEASES_ACCESS_KEY_ID: ${{ secrets.WHARF_RELEASES_ACCESS_KEY_ID }}
+          WHARF_RELEASES_SECRET_ACCESS_KEY: ${{ secrets.WHARF_RELEASES_SECRET_ACCESS_KEY }}
+        run: |
+          python3 -B -m scripts.store fetch --key "$LINUX" --dir ../linux
+          python3 -B -m scripts.store fetch --key "$WINDOWS" --dir ../windows
+          python3 -B -m scripts.store fetch --key "$MACOS" --dir ../macos
+          python3 -B -m scripts.ship release-publish --repository "$REPOSITORY" --marker "$MARKER" --commit "$COMMIT" --wharf "$WHARF" --linux ../linux --windows ../windows --macos ../macos
+
+  cfworker:
+    needs: [plan, suite-linux, suite-node]
+    if: always() && needs.plan.outputs.cfworker == 'run' && (needs.suite-linux.result == 'success' || needs.suite-linux.result == 'skipped') && (needs.suite-node.result == 'success' || needs.suite-node.result == 'skipped')
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Check out wharf
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          path: wharf
+          persist-credentials: false
+
+      - name: Check out product at marker
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          repository: ${{ inputs.repository }}
+          ref: refs/tags/${{ inputs.marker }}
+          path: product
+          persist-credentials: false
+
+      - name: Prepare the declared Node toolchain
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020
+        with:
+          node-version: ${{ needs.plan.outputs.node }}
+
+      - name: Prepare the declared pnpm
+        env:
+          PNPM: ${{ needs.plan.outputs.pnpm }}
+        run: npm install --global "pnpm@$PNPM"
+
+      - name: Deploy and record the workers
+        env:
+          REPOSITORY: ${{ inputs.repository }}
+          MARKER: ${{ inputs.marker }}
+          KEY: ${{ needs.plan.outputs.cfworker-key }}
+          WHARF: ${{ github.sha }}
+          RUN: ${{ github.run_id }}
+          ATTEMPT: ${{ github.run_attempt }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.WHARF_CLOUDFLARE_TOKEN }}
+          WHARF_R2_ACCESS_KEY_ID: ${{ secrets.WHARF_R2_ACCESS_KEY_ID }}
+          WHARF_R2_SECRET_ACCESS_KEY: ${{ secrets.WHARF_R2_SECRET_ACCESS_KEY }}
+        run: |
+          key=$(python3 -B -m scripts.ship key-cfworker --source ../product --runner ubuntu-24.04 --basis ../basis.json | python3 -c 'import json,sys; print(json.load(sys.stdin)["key"])')
+          [ "$key" = "$KEY" ] || { echo "resolved key $key differs from planned $KEY"; exit 2; }
+          python3 -B -m scripts.ship cfworker-deploy --source ../product --output ../deployed
+          python3 -c 'import json,os; json.dump({f: os.environ[e] for f, e in {"repository": "REPOSITORY", "marker": "MARKER", "wharf": "WHARF", "run": "RUN", "attempt": "ATTEMPT"}.items()}, open("../context.json", "w"))'
+          python3 -B -m scripts.store publish --key "$KEY" --dir ../deployed --basis ../basis.json --context ../context.json
+
   cargo:
     needs: [plan, binary-linux, suite-linux, suite-node]
     if: always() && needs.plan.outputs.cargo == 'run' && (needs.binary-linux.result == 'success' || needs.binary-linux.result == 'skipped') && (needs.suite-linux.result == 'success' || needs.suite-linux.result == 'skipped') && (needs.suite-node.result == 'success' || needs.suite-node.result == 'skipped')
@@ -869,7 +977,7 @@ jobs:
         run: python3 -B -m scripts.ship cargo-publish --source ../product --marker "$MARKER"
 
   complete:
-    needs: [plan, binary-linux, bind-linux, smoke-linux, binary-windows, bind-windows, smoke-windows, binary-macos, bind-macos, smoke-macos, suite-linux, suite-node, npm, oci, chart, cargo]
+    needs: [plan, binary-linux, bind-linux, smoke-linux, binary-windows, bind-windows, smoke-windows, binary-macos, bind-macos, smoke-macos, suite-linux, suite-node, npm, oci, chart, release, cfworker, cargo]
     if: always()
     runs-on: ubuntu-24.04
     steps:
