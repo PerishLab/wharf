@@ -1,5 +1,11 @@
 {
   "cargo": {
     "perish": "https://git.perish.top/api/packages/PerishLab/cargo/"
+  },
+  "npm": {
+    "@perishlab": "https://npm.pkg.github.com/"
+  },
+  "oci": {
+    "host": "ghcr.io"
   }
 }

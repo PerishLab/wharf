@@ -1,9 +1,17 @@
 {
-  "runtimes": ["node24", "composite"],
+  "runtimes": [
+    "node24",
+    "composite"
+  ],
   "pinned": {
     "actions/checkout": {
       "sha": "3d3c42e5aac5ba805825da76410c181273ba90b1",
       "version": "v7.0.1",
+      "runtime": "node24"
+    },
+    "actions/setup-node": {
+      "sha": "820762786026740c76f36085b0efc47a31fe5020",
+      "version": "v7.0.0",
       "runtime": "node24"
     }
   }

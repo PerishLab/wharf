@@ -9,7 +9,7 @@ class Implementation(unittest.TestCase):
         self.assertIn("lib.cargo.build", held)
         self.assertIn("lib.cargo.toolchain", held)
         self.assertIn("lib.process", held)
-        self.assertNotIn("lib.smoke", held)
+        self.assertNotIn("lib.identity.smoke", held)
 
     def test_resourced_adds_resource_content(self):
         held = implementation.resourced(["lib.identity.bind"], ["identity/format.json"])

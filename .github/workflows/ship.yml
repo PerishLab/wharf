@@ -30,7 +30,17 @@ defaults:
 jobs:
   plan:
     runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      packages: read
     outputs:
+      node: ${{ steps.engines.outputs.node }}
+      pnpm: ${{ steps.engines.outputs.pnpm }}
+      suite-node-key: ${{ steps.suite-node.outputs.key }}
+      suite-node: ${{ steps.suite-node.outputs.decision }}
+      npm: ${{ steps.npm.outputs.decision }}
+      oci: ${{ steps.oci.outputs.decision }}
+      chart: ${{ steps.chart.outputs.decision }}
       commit: ${{ steps.source.outputs.commit }}
       tree: ${{ steps.source.outputs.tree }}
       binary-linux-key: ${{ steps.binary-linux.outputs.key }}
@@ -244,6 +254,72 @@ jobs:
           echo "key=$key" >> "$GITHUB_OUTPUT"
           echo "decision=$decision" >> "$GITHUB_OUTPUT"
           echo "| suite x86_64-unknown-linux-gnu | \`$key\` | $decision |" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Sign in to the package registry
+        working-directory: .
+        env:
+          TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          ACTOR: ${{ github.actor }}
+        run: |
+          printf '%s' "$TOKEN" | docker login ghcr.io --username "$ACTOR" --password-stdin
+          printf '%s' "$TOKEN" | helm registry login ghcr.io --username "$ACTOR" --password-stdin
+
+      - name: engines
+        id: engines
+        run: |
+          python3 -B -m scripts.ship node-engines --source ../product > ../engines.json
+          echo "node=$(python3 -c 'import json; print(json.load(open("../engines.json"))["node"])')" >> "$GITHUB_OUTPUT"
+          echo "pnpm=$(python3 -c 'import json; print(json.load(open("../engines.json"))["pnpm"])')" >> "$GITHUB_OUTPUT"
+
+      - name: suite node
+        id: suite-node
+        env:
+          WHARF_R2_ACCESS_KEY_ID: ${{ secrets.WHARF_R2_ACCESS_KEY_ID }}
+          WHARF_R2_SECRET_ACCESS_KEY: ${{ secrets.WHARF_R2_SECRET_ACCESS_KEY }}
+        run: |
+          key=$(python3 -B -m scripts.ship key-node --source ../product --runner ubuntu-24.04 --basis ../node-basis.json | python3 -c 'import json,sys; print(json.load(sys.stdin)["key"])')
+          reusable=$(python3 -B -m scripts.store reusable --key "$key" | python3 -c 'import json,sys; print(json.load(sys.stdin)["reusable"])')
+          decision=run
+          [ "$reusable" = True ] && decision=skip
+          echo "key=$key" >> "$GITHUB_OUTPUT"
+          echo "decision=$decision" >> "$GITHUB_OUTPUT"
+          echo "| suite node | \`$key\` | $decision |" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: npm packages
+        id: npm
+        env:
+          MARKER: ${{ inputs.marker }}
+          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          published=$(python3 -B -m scripts.ship npm-plan --source ../product --marker "$MARKER" | python3 -c 'import json,sys; print(json.load(sys.stdin)["published"])')
+          decision=run
+          [ "$published" = True ] && decision=skip
+          echo "decision=$decision" >> "$GITHUB_OUTPUT"
+          echo "| npm packages | $MARKER | $decision |" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: oci image
+        id: oci
+        env:
+          REPOSITORY: ${{ inputs.repository }}
+          MARKER: ${{ inputs.marker }}
+        run: |
+          published=$(python3 -B -m scripts.ship oci-plan --repository "$REPOSITORY" --marker "$MARKER" | python3 -c 'import json,sys; print(json.load(sys.stdin)["published"])')
+          decision=run
+          [ "$published" = True ] && decision=skip
+          echo "decision=$decision" >> "$GITHUB_OUTPUT"
+          echo "| oci image | $MARKER | $decision |" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: charts
+        id: chart
+        env:
+          REPOSITORY: ${{ inputs.repository }}
+          MARKER: ${{ inputs.marker }}
+        run: |
+          published=$(python3 -B -m scripts.ship chart-plan --source ../product --repository "$REPOSITORY" --marker "$MARKER" | python3 -c 'import json,sys; print(json.load(sys.stdin)["published"])')
+          decision=run
+          [ "$published" = True ] && decision=skip
+          echo "decision=$decision" >> "$GITHUB_OUTPUT"
+          echo "| charts | $MARKER | $decision |" >> "$GITHUB_STEP_SUMMARY"
 
       - name: cargo packages
         id: cargo
@@ -603,9 +679,173 @@ jobs:
           python3 -c 'import json,os; json.dump({f: os.environ[e] for f, e in {"repository": "REPOSITORY", "marker": "MARKER", "wharf": "WHARF", "run": "RUN", "attempt": "ATTEMPT"}.items()}, open("../context.json", "w"))'
           python3 -B -m scripts.store publish --key "$KEY" --dir ../suite --basis ../basis.json --context ../context.json
 
+  suite-node:
+    needs: plan
+    if: needs.plan.outputs.suite-node == 'run'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    steps:
+      - name: Check out wharf
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          path: wharf
+          persist-credentials: false
+
+      - name: Check out product at marker
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          repository: ${{ inputs.repository }}
+          ref: refs/tags/${{ inputs.marker }}
+          path: product
+          persist-credentials: false
+
+      - name: Prepare the declared Node toolchain
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020
+        with:
+          node-version: ${{ needs.plan.outputs.node }}
+
+      - name: Prepare the declared pnpm
+        env:
+          PNPM: ${{ needs.plan.outputs.pnpm }}
+        run: npm install --global "pnpm@$PNPM"
+
+      - name: Test and record the pnpm workspace
+        env:
+          REPOSITORY: ${{ inputs.repository }}
+          MARKER: ${{ inputs.marker }}
+          KEY: ${{ needs.plan.outputs.suite-node-key }}
+          WHARF: ${{ github.sha }}
+          RUN: ${{ github.run_id }}
+          ATTEMPT: ${{ github.run_attempt }}
+          WHARF_R2_ACCESS_KEY_ID: ${{ secrets.WHARF_R2_ACCESS_KEY_ID }}
+          WHARF_R2_SECRET_ACCESS_KEY: ${{ secrets.WHARF_R2_SECRET_ACCESS_KEY }}
+        run: |
+          key=$(python3 -B -m scripts.ship key-node --source ../product --runner ubuntu-24.04 --basis ../basis.json | python3 -c 'import json,sys; print(json.load(sys.stdin)["key"])')
+          [ "$key" = "$KEY" ] || { echo "resolved key $key differs from planned $KEY"; exit 2; }
+          python3 -B -m scripts.ship node-suite --source ../product --output ../suite
+          python3 -c 'import json,os; json.dump({f: os.environ[e] for f, e in {"repository": "REPOSITORY", "marker": "MARKER", "wharf": "WHARF", "run": "RUN", "attempt": "ATTEMPT"}.items()}, open("../context.json", "w"))'
+          python3 -B -m scripts.store publish --key "$KEY" --dir ../suite --basis ../basis.json --context ../context.json
+
+  npm:
+    needs: [plan, suite-linux, suite-node]
+    if: always() && needs.plan.outputs.npm == 'run' && (needs.suite-linux.result == 'success' || needs.suite-linux.result == 'skipped') && (needs.suite-node.result == 'success' || needs.suite-node.result == 'skipped')
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - name: Check out wharf
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          path: wharf
+          persist-credentials: false
+
+      - name: Check out product at marker
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          repository: ${{ inputs.repository }}
+          ref: refs/tags/${{ inputs.marker }}
+          path: product
+          persist-credentials: false
+
+      - name: Prepare the declared Node toolchain
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020
+        with:
+          node-version: ${{ needs.plan.outputs.node }}
+
+      - name: Prepare the declared pnpm
+        env:
+          PNPM: ${{ needs.plan.outputs.pnpm }}
+        run: npm install --global "pnpm@$PNPM"
+
+      - name: Publish npm packages
+        env:
+          MARKER: ${{ inputs.marker }}
+          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: python3 -B -m scripts.ship npm-publish --source ../product --marker "$MARKER"
+
+  oci:
+    needs: [plan, bind-linux, smoke-linux, suite-linux, suite-node]
+    if: always() && needs.plan.outputs.oci == 'run' && (needs.smoke-linux.result == 'success' || needs.smoke-linux.result == 'skipped') && (needs.bind-linux.result == 'success' || needs.bind-linux.result == 'skipped') && (needs.suite-linux.result == 'success' || needs.suite-linux.result == 'skipped') && (needs.suite-node.result == 'success' || needs.suite-node.result == 'skipped')
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - name: Check out wharf
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          path: wharf
+          persist-credentials: false
+
+      - name: Check out product at marker
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          repository: ${{ inputs.repository }}
+          ref: refs/tags/${{ inputs.marker }}
+          path: product
+          persist-credentials: false
+
+      - name: Sign in to the package registry
+        working-directory: .
+        env:
+          TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          ACTOR: ${{ github.actor }}
+        run: |
+          printf '%s' "$TOKEN" | docker login ghcr.io --username "$ACTOR" --password-stdin
+          printf '%s' "$TOKEN" | helm registry login ghcr.io --username "$ACTOR" --password-stdin
+
+      - name: Publish the image of the bound binary
+        env:
+          REPOSITORY: ${{ inputs.repository }}
+          MARKER: ${{ inputs.marker }}
+          BOUND: ${{ needs.plan.outputs.bind-linux-key }}
+          WHARF_R2_ACCESS_KEY_ID: ${{ secrets.WHARF_R2_ACCESS_KEY_ID }}
+          WHARF_R2_SECRET_ACCESS_KEY: ${{ secrets.WHARF_R2_SECRET_ACCESS_KEY }}
+        run: |
+          python3 -B -m scripts.store fetch --key "$BOUND" --dir ../bound
+          python3 -B -m scripts.ship oci-publish --source ../product --dir ../bound --target x86_64-unknown-linux-gnu --repository "$REPOSITORY" --marker "$MARKER"
+
+  chart:
+    needs: [plan, suite-linux, suite-node]
+    if: always() && needs.plan.outputs.chart == 'run' && (needs.suite-linux.result == 'success' || needs.suite-linux.result == 'skipped') && (needs.suite-node.result == 'success' || needs.suite-node.result == 'skipped')
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - name: Check out wharf
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          path: wharf
+          persist-credentials: false
+
+      - name: Check out product at marker
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          repository: ${{ inputs.repository }}
+          ref: refs/tags/${{ inputs.marker }}
+          path: product
+          persist-credentials: false
+
+      - name: Sign in to the package registry
+        working-directory: .
+        env:
+          TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          ACTOR: ${{ github.actor }}
+        run: |
+          printf '%s' "$TOKEN" | docker login ghcr.io --username "$ACTOR" --password-stdin
+          printf '%s' "$TOKEN" | helm registry login ghcr.io --username "$ACTOR" --password-stdin
+
+      - name: Publish charts
+        env:
+          REPOSITORY: ${{ inputs.repository }}
+          MARKER: ${{ inputs.marker }}
+        run: python3 -B -m scripts.ship chart-publish --source ../product --repository "$REPOSITORY" --marker "$MARKER"
+
   cargo:
-    needs: [plan, binary-linux, suite-linux]
-    if: always() && needs.plan.outputs.cargo == 'run' && (needs.binary-linux.result == 'success' || needs.binary-linux.result == 'skipped') && (needs.suite-linux.result == 'success' || needs.suite-linux.result == 'skipped')
+    needs: [plan, binary-linux, suite-linux, suite-node]
+    if: always() && needs.plan.outputs.cargo == 'run' && (needs.binary-linux.result == 'success' || needs.binary-linux.result == 'skipped') && (needs.suite-linux.result == 'success' || needs.suite-linux.result == 'skipped') && (needs.suite-node.result == 'success' || needs.suite-node.result == 'skipped')
     runs-on: ubuntu-24.04
     steps:
       - name: Check out wharf
@@ -629,7 +869,7 @@ jobs:
         run: python3 -B -m scripts.ship cargo-publish --source ../product --marker "$MARKER"
 
   complete:
-    needs: [plan, binary-linux, bind-linux, smoke-linux, binary-windows, bind-windows, smoke-windows, binary-macos, bind-macos, smoke-macos, suite-linux, cargo]
+    needs: [plan, binary-linux, bind-linux, smoke-linux, binary-windows, bind-windows, smoke-windows, binary-macos, bind-macos, smoke-macos, suite-linux, suite-node, npm, oci, chart, cargo]
     if: always()
     runs-on: ubuntu-24.04
     steps:

@@ -7,7 +7,8 @@ from lib import canonical, implementation
 from lib.cargo import basis, build, publish, suite, version
 from lib.identity import bind
 from lib.refusal import Refusal
-from lib.smoke import smoke
+from lib.identity.smoke import smoke
+from lib.media import chart, node, npm, oci
 from lib.store import workload
 
 RELEASE = ("repository", "marker", "commit", "tree")
@@ -40,7 +41,7 @@ def key_bind(args):
 
 def key_smoke(args):
     held = {"entry": {"kind": "binary-smoke", "binary": args.binary_key}}
-    return keyed(held, (["lib.smoke"], []), args)
+    return keyed(held, (["lib.identity.smoke"], []), args)
 
 
 def run_binary(args):
@@ -57,6 +58,48 @@ def run_bind(args):
 
 def run_smoke(args):
     return smoke(bind.Artifact(Path(args.dir), args.name, args.target), args.output, args.expect)
+
+
+def key_node(args):
+    held = node.basis(args.source, args.runner)
+    return keyed(held, (["lib.media.node"], []), args)
+
+
+def node_engines(args):
+    return node.declared(args.source)
+
+
+def node_suite(args):
+    return node.suite(node.Suite(Path(args.source), Path(args.output)))
+
+
+def npm_plan(args):
+    held = npm.pending(args.source, version.marker(args.marker))
+    return {"published": all(item["published"] for item in held), "packages": held}
+
+
+def npm_publish(args):
+    return npm.publish(args.source, version.marker(args.marker))
+
+
+def oci_plan(args):
+    image = oci.reference(args.repository, version.marker(args.marker))
+    return {"image": image, "published": oci.exists(image)}
+
+
+def oci_publish(args):
+    artifact = bind.Artifact(Path(args.dir), args.repository.split("/", 1)[1], args.target)
+    image = oci.reference(args.repository, version.marker(args.marker))
+    return oci.publish(oci.Image(Path(args.source), artifact.file, artifact.name, image))
+
+
+def chart_plan(args):
+    held = chart.pending(args.source, args.repository.split("/", 1)[0], version.marker(args.marker))
+    return {"published": all(item["published"] for item in held), "charts": held}
+
+
+def chart_publish(args):
+    return chart.publish(args.source, args.repository.split("/", 1)[0], version.marker(args.marker))
 
 
 def cargo_plan(args):
@@ -87,6 +130,15 @@ def parser():
     command(actions, "suite", run_suite, ["source", "output"])
     command(actions, "bind", run_bind, ["dir", "name", "target", *RELEASE, "binary-key", "output"])
     command(actions, "smoke", run_smoke, ["dir", "name", "target", "output", "expect"])
+    command(actions, "key-node", key_node, ["source", "runner", "basis"])
+    command(actions, "node-engines", node_engines, ["source"])
+    command(actions, "node-suite", node_suite, ["source", "output"])
+    command(actions, "npm-plan", npm_plan, ["source", "marker"])
+    command(actions, "npm-publish", npm_publish, ["source", "marker"])
+    command(actions, "oci-plan", oci_plan, ["repository", "marker"])
+    command(actions, "oci-publish", oci_publish, ["source", "dir", "target", "repository", "marker"])
+    command(actions, "chart-plan", chart_plan, ["source", "repository", "marker"])
+    command(actions, "chart-publish", chart_publish, ["source", "repository", "marker"])
     command(actions, "cargo-plan", cargo_plan, ["source", "marker"])
     command(actions, "cargo-publish", cargo_publish, ["source", "marker"])
     return root

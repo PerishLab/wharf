@@ -5,7 +5,7 @@ from pathlib import Path
 
 from lib.identity.bind import Artifact
 from lib.refusal import Refusal
-from lib.smoke import smoke
+from lib.identity.smoke import smoke
 
 
 def answering(version, failing=None):
