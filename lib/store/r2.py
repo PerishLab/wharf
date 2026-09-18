@@ -73,14 +73,12 @@ class Bucket:
             raise Refusal(f"PUT {key} answered {status}: {answer[:200]!r}")
 
 
-RELEASES = ("WHARF_R2_ENDPOINT", "WHARF_RELEASES_ACCESS_KEY_ID", "WHARF_RELEASES_SECRET_ACCESS_KEY")
-
-
-def releases(bucket, environ=os.environ):
-    missing = [name for name in RELEASES if not environ.get(name)]
+def writer(bucket, role, environ=os.environ):
+    names = ("WHARF_R2_ENDPOINT", f"WHARF_{role}_ACCESS_KEY_ID", f"WHARF_{role}_SECRET_ACCESS_KEY")
+    missing = [name for name in names if not environ.get(name)]
     if missing:
-        raise Refusal(f"missing release store configuration: {', '.join(missing)}")
-    endpoint, access, secret = (environ[name] for name in RELEASES)
+        raise Refusal(f"missing {role.lower()} store configuration: {', '.join(missing)}")
+    endpoint, access, secret = (environ[name] for name in names)
     return Bucket(endpoint, bucket, Credentials(access, secret))
 
 

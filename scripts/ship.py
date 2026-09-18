@@ -115,7 +115,7 @@ def release_plan(args):
 def release_publish(args):
     held = published_release(args)
     bound = {"x86_64-unknown-linux-gnu": args.linux, "x86_64-pc-windows-msvc": args.windows, "aarch64-apple-darwin": args.macos}
-    return releasing.publish(held, bound, r2.releases(releasing.place(held)[1]))
+    return releasing.publish(held, bound, r2.writer(releasing.place(held)[1], "RELEASES"))
 
 
 def key_cfworker(args):

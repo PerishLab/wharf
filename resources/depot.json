@@ -1,0 +1,4 @@
+{
+  "source": "https://depot.{name}.perish.uk",
+  "bucket": "perish-{name}-depot"
+}

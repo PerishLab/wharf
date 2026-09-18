@@ -1,0 +1,64 @@
+name: depot
+
+on:
+  workflow_dispatch:
+    inputs:
+      repository:
+        description: Product repository, owner/name
+        required: true
+        type: string
+      marker:
+        description: Release marker tag in the product repository
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: depot-${{ inputs.repository }}
+  cancel-in-progress: false
+
+defaults:
+  run:
+    working-directory: wharf
+
+jobs:
+  configuration:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Refuse malformed request
+        working-directory: .
+        env:
+          REPOSITORY: ${{ inputs.repository }}
+          MARKER: ${{ inputs.marker }}
+        run: |
+          echo "$REPOSITORY" | grep -Eq '^PerishLab/[A-Za-z0-9._-]+$' || { echo "repository $REPOSITORY is not a PerishLab repository"; exit 2; }
+          echo "$MARKER" | grep -Eq '^v[0-9]+\.[0-9]+\.[0-9]+-(alpha|beta|rc)\.[0-9]+$' || { echo "marker $MARKER is not a prerelease marker"; exit 2; }
+
+      - name: Check out wharf
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          path: wharf
+          persist-credentials: false
+
+      - name: Check out product at marker
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          repository: ${{ inputs.repository }}
+          ref: refs/tags/${{ inputs.marker }}
+          path: product
+          persist-credentials: false
+
+      - name: Publish the configuration generation
+        env:
+          REPOSITORY: ${{ inputs.repository }}
+          MARKER: ${{ inputs.marker }}
+          WHARF_R2_ENDPOINT: ${{ vars.WHARF_R2_ENDPOINT }}
+          WHARF_DEPOT_ACCESS_KEY_ID: ${{ secrets.WHARF_DEPOT_ACCESS_KEY_ID }}
+          WHARF_DEPOT_SECRET_ACCESS_KEY: ${{ secrets.WHARF_DEPOT_SECRET_ACCESS_KEY }}
+        run: |
+          commit=$(git -C ../product rev-parse HEAD)
+          tree=$(git -C ../product rev-parse 'HEAD^{tree}')
+          python3 -B -m scripts.depot publish --repository "$REPOSITORY" --marker "$MARKER" --commit "$commit" --tree "$tree" | tee ../depot.json
+          echo "| configuration | $MARKER | $(python3 -c 'import json; d=json.load(open("../depot.json")); print(d["state"], d["generation"][:12])') |" >> "$GITHUB_STEP_SUMMARY"
