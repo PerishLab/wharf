@@ -1,6 +1,10 @@
 {
-  "actions/checkout": {
-    "sha": "3d3c42e5aac5ba805825da76410c181273ba90b1",
-    "version": "v7.0.1"
+  "runtimes": ["node24", "composite"],
+  "pinned": {
+    "actions/checkout": {
+      "sha": "3d3c42e5aac5ba805825da76410c181273ba90b1",
+      "version": "v7.0.1",
+      "runtime": "node24"
+    }
   }
 }

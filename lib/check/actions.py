@@ -3,7 +3,9 @@ from pathlib import Path
 
 from lib import resources
 
-PINNED = resources.read_json("actions.json")
+LOCKED = resources.read_json("actions.json")
+PINNED = LOCKED["pinned"]
+RUNTIMES = LOCKED["runtimes"]
 USES = re.compile(r"uses:\s*([^\s@]+)@(\S+)")
 
 
@@ -19,4 +21,6 @@ def check(root, paths):
                 findings.append(f"{path}:{number}: {name} is not in the pinned action list")
             elif reference != PINNED[name]["sha"]:
                 findings.append(f"{path}:{number}: {name} must be pinned to {PINNED[name]['sha']}")
+            elif PINNED[name].get("runtime") not in RUNTIMES:
+                findings.append(f"{path}:{number}: {name} runs on {PINNED[name].get('runtime')}, allowed runtimes are {RUNTIMES}")
     return findings

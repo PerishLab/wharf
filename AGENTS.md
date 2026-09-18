@@ -32,7 +32,9 @@ other; `lib` has no import cycles. Only `lib/resources.py` knows where files liv
   and must not name anything here.
 - Third-party Python dependencies are allowed only when locked to exact versions and
   hashes. Actions are official `actions/*` only, pinned by SHA in
-  `resources/actions.json`.
+  `resources/actions.json` together with the `runs.using` of that SHA's
+  `action.yml`; only `node24` and `composite` are accepted, so a Node 20 action
+  never enters. Prefer tools already on the runner over adding an action.
 - Enable the gate with `git config core.hooksPath .githooks`. It runs
   `python3 -B -m scripts.selfcheck` and the test suite.
 

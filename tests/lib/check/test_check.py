@@ -2,6 +2,7 @@ import subprocess
 import tempfile
 import textwrap
 import unittest
+from unittest import mock
 from pathlib import Path
 
 from lib.check import actions, files, imports, source, structure, vocabulary
@@ -58,3 +59,12 @@ class Violations(unittest.TestCase):
     def test_reports_unpinned_action(self):
         workflow = "jobs:\n  a:\n    steps:\n      - uses: actions/checkout@v7\n"
         self.assertNotEqual(self.found(".github/workflows/demo.yml", workflow), [])
+
+    def test_reports_action_on_a_retired_runtime(self):
+        pinned = {"actions/checkout": dict(actions.PINNED["actions/checkout"], runtime="node20")}
+        workflow = f"jobs:\n  a:\n    steps:\n      - uses: actions/checkout@{pinned['actions/checkout']['sha']}\n"
+        with mock.patch.object(actions, "PINNED", pinned):
+            self.assertIn("node20", " ".join(self.found(".github/workflows/demo.yml", workflow)))
+
+    def test_accepts_the_locked_actions(self):
+        self.assertTrue(all(entry["runtime"] in actions.RUNTIMES for entry in actions.PINNED.values()))
