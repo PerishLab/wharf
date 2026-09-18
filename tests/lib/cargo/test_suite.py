@@ -1,3 +1,5 @@
+import contextlib
+import io
 import json
 import tempfile
 import unittest
@@ -44,6 +46,9 @@ class Suite(unittest.TestCase):
     def setUp(self):
         root = Path(tempfile.mkdtemp())
         self.request = suite.Suite(root, root / "out")
+        quiet = contextlib.redirect_stderr(io.StringIO())
+        quiet.__enter__()
+        self.addCleanup(quiet.__exit__, None, None, None)
 
     def test_records_deterministic_totals_per_target(self):
         runner = Runner()
