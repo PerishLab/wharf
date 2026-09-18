@@ -874,9 +874,21 @@ jobs:
           MARKER: ${{ inputs.marker }}
         run: python3 -B -m scripts.ship chart-publish --source ../product --repository "$REPOSITORY" --marker "$MARKER"
 
+  depot:
+    if: contains(inputs.marker, '-')
+    strategy:
+      matrix:
+        kind: [configuration, skill]
+    uses: ./.github/workflows/depot.yml
+    with:
+      repository: ${{ inputs.repository }}
+      marker: ${{ inputs.marker }}
+      kind: ${{ matrix.kind }}
+    secrets: inherit
+
   release:
-    needs: [plan, smoke-linux, smoke-windows, smoke-macos, suite-linux, suite-node]
-    if: always() && needs.plan.outputs.release == 'run' && (needs.smoke-linux.result == 'success' || needs.smoke-linux.result == 'skipped') && (needs.smoke-windows.result == 'success' || needs.smoke-windows.result == 'skipped') && (needs.smoke-macos.result == 'success' || needs.smoke-macos.result == 'skipped') && (needs.suite-linux.result == 'success' || needs.suite-linux.result == 'skipped') && (needs.suite-node.result == 'success' || needs.suite-node.result == 'skipped')
+    needs: [plan, smoke-linux, smoke-windows, smoke-macos, suite-linux, suite-node, depot]
+    if: always() && needs.plan.outputs.release == 'run' && (needs.depot.result == 'success' || needs.depot.result == 'skipped') && (needs.smoke-linux.result == 'success' || needs.smoke-linux.result == 'skipped') && (needs.smoke-windows.result == 'success' || needs.smoke-windows.result == 'skipped') && (needs.smoke-macos.result == 'success' || needs.smoke-macos.result == 'skipped') && (needs.suite-linux.result == 'success' || needs.suite-linux.result == 'skipped') && (needs.suite-node.result == 'success' || needs.suite-node.result == 'skipped')
     runs-on: ubuntu-24.04
     steps:
       - name: Check out wharf
@@ -977,7 +989,7 @@ jobs:
         run: python3 -B -m scripts.ship cargo-publish --source ../product --marker "$MARKER"
 
   complete:
-    needs: [plan, binary-linux, bind-linux, smoke-linux, binary-windows, bind-windows, smoke-windows, binary-macos, bind-macos, smoke-macos, suite-linux, suite-node, npm, oci, chart, release, cfworker, cargo]
+    needs: [plan, binary-linux, bind-linux, smoke-linux, binary-windows, bind-windows, smoke-windows, binary-macos, bind-macos, smoke-macos, suite-linux, suite-node, npm, oci, chart, depot, release, cfworker, cargo]
     if: always()
     runs-on: ubuntu-24.04
     steps:

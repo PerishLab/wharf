@@ -72,3 +72,19 @@ must reproduce byte for byte and every reader must test against.
   `{repository, marker, commit, tree}`; `workload` is the key of the unbound binary.
 - A product with prefix `P` builds with `P_BUILD_TARGET` and `P_BUILD_CHANNEL=unbound`;
   such an executable refuses to run commands until bound.
+
+## Depot
+
+Depot generations are marker-bound blobs of one kind (`configuration`, `skill`,
+`changelog`); wharf never reads their meaning. The standing generation on Depot is
+the only source, its `previousGeneration` chain the history, and an edit pulls it,
+changes it and publishes the next one.
+
+- A new marker's base is its own standing generation, else the highest lower
+  version on its `x.y.z` line; with neither, `--full` or `--from` is required.
+- Unchanged objects are copied server-side, and the pointer is written only if it
+  still holds the ETag it was read with.
+- Only prerelease markers are written. Authors edit locally through the
+  `wharf.depot` Runseal profile; CI inherits through `depot.yml`, which `ship.yml`
+  calls per kind before `release` moves a channel pointer, so an installed binary
+  always finds its generations.

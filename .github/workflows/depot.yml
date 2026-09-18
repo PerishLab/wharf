@@ -19,6 +19,17 @@ on:
         options:
           - configuration
           - skill
+  workflow_call:
+    inputs:
+      repository:
+        required: true
+        type: string
+      marker:
+        required: true
+        type: string
+      kind:
+        required: true
+        type: string
 
 permissions:
   contents: read
