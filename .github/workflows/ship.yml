@@ -39,6 +39,12 @@ jobs:
       bind-linux: ${{ steps.bind-linux.outputs.decision }}
       smoke-linux-key: ${{ steps.smoke-linux.outputs.key }}
       smoke-linux: ${{ steps.smoke-linux.outputs.decision }}
+      binary-windows-key: ${{ steps.binary-windows.outputs.key }}
+      binary-windows: ${{ steps.binary-windows.outputs.decision }}
+      bind-windows-key: ${{ steps.bind-windows.outputs.key }}
+      bind-windows: ${{ steps.bind-windows.outputs.decision }}
+      smoke-windows-key: ${{ steps.smoke-windows.outputs.key }}
+      smoke-windows: ${{ steps.smoke-windows.outputs.decision }}
       cargo: ${{ steps.cargo.outputs.decision }}
     steps:
       - name: Refuse malformed request
@@ -118,6 +124,55 @@ jobs:
           echo "key=$key" >> "$GITHUB_OUTPUT"
           echo "decision=$decision" >> "$GITHUB_OUTPUT"
           echo "| smoke x86_64-unknown-linux-gnu | \`$key\` | $decision |" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: binary x86_64-pc-windows-msvc
+        id: binary-windows
+        env:
+          REPOSITORY: ${{ inputs.repository }}
+          WHARF_R2_ACCESS_KEY_ID: ${{ secrets.WHARF_R2_ACCESS_KEY_ID }}
+          WHARF_R2_SECRET_ACCESS_KEY: ${{ secrets.WHARF_R2_SECRET_ACCESS_KEY }}
+        run: |
+          key=$(python3 -B -m scripts.ship key-binary --source ../product --name "${REPOSITORY#*/}" --target x86_64-pc-windows-msvc --runner windows-2025 --basis ../binary-windows-basis.json | python3 -c 'import json,sys; print(json.load(sys.stdin)["key"])')
+          reusable=$(python3 -B -m scripts.store reusable --key "$key" | python3 -c 'import json,sys; print(json.load(sys.stdin)["reusable"])')
+          decision=run
+          [ "$reusable" = True ] && decision=skip
+          echo "key=$key" >> "$GITHUB_OUTPUT"
+          echo "decision=$decision" >> "$GITHUB_OUTPUT"
+          echo "| binary x86_64-pc-windows-msvc | \`$key\` | $decision |" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: identity x86_64-pc-windows-msvc
+        id: bind-windows
+        env:
+          BINARY: ${{ steps.binary-windows.outputs.key }}
+          REPOSITORY: ${{ inputs.repository }}
+          MARKER: ${{ inputs.marker }}
+          COMMIT: ${{ steps.source.outputs.commit }}
+          TREE: ${{ steps.source.outputs.tree }}
+          WHARF_R2_ACCESS_KEY_ID: ${{ secrets.WHARF_R2_ACCESS_KEY_ID }}
+          WHARF_R2_SECRET_ACCESS_KEY: ${{ secrets.WHARF_R2_SECRET_ACCESS_KEY }}
+        run: |
+          key=$(python3 -B -m scripts.ship key-bind --binary-key "$BINARY" --repository "$REPOSITORY" --marker "$MARKER" --commit "$COMMIT" --tree "$TREE" --basis ../bind-windows-basis.json | python3 -c 'import json,sys; print(json.load(sys.stdin)["key"])')
+          reusable=$(python3 -B -m scripts.store reusable --key "$key" | python3 -c 'import json,sys; print(json.load(sys.stdin)["reusable"])')
+          decision=run
+          [ "$reusable" = True ] && decision=skip
+          echo "key=$key" >> "$GITHUB_OUTPUT"
+          echo "decision=$decision" >> "$GITHUB_OUTPUT"
+          echo "| identity x86_64-pc-windows-msvc | \`$key\` | $decision |" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: smoke x86_64-pc-windows-msvc
+        id: smoke-windows
+        env:
+          BOUND: ${{ steps.bind-windows.outputs.key }}
+          WHARF_R2_ACCESS_KEY_ID: ${{ secrets.WHARF_R2_ACCESS_KEY_ID }}
+          WHARF_R2_SECRET_ACCESS_KEY: ${{ secrets.WHARF_R2_SECRET_ACCESS_KEY }}
+        run: |
+          key=$(python3 -B -m scripts.ship key-smoke --binary-key "$BOUND" --basis ../smoke-windows-basis.json | python3 -c 'import json,sys; print(json.load(sys.stdin)["key"])')
+          reusable=$(python3 -B -m scripts.store reusable --key "$key" | python3 -c 'import json,sys; print(json.load(sys.stdin)["reusable"])')
+          decision=run
+          [ "$reusable" = True ] && decision=skip
+          echo "key=$key" >> "$GITHUB_OUTPUT"
+          echo "decision=$decision" >> "$GITHUB_OUTPUT"
+          echo "| smoke x86_64-pc-windows-msvc | \`$key\` | $decision |" >> "$GITHUB_STEP_SUMMARY"
 
       - name: cargo packages
         id: cargo
@@ -228,6 +283,120 @@ jobs:
           python3 -c 'import json,os; json.dump({f: os.environ[e] for f, e in {"repository": "REPOSITORY", "marker": "MARKER", "wharf": "WHARF", "run": "RUN", "attempt": "ATTEMPT"}.items()}, open("../context.json", "w"))'
           python3 -B -m scripts.store publish --key "$KEY" --dir ../smoked --basis ../basis.json --context ../context.json
 
+  binary-windows:
+    needs: plan
+    if: needs.plan.outputs.binary-windows == 'run'
+    runs-on: windows-2025
+    defaults:
+      run:
+        shell: bash
+        working-directory: wharf
+    steps:
+      - name: Keep checkouts byte-identical
+        working-directory: .
+        run: git config --global core.autocrlf false
+
+      - name: Check out wharf
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          path: wharf
+          persist-credentials: false
+
+      - name: Check out product at marker
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          repository: ${{ inputs.repository }}
+          ref: refs/tags/${{ inputs.marker }}
+          path: product
+          persist-credentials: false
+
+      - name: Build and record the binary
+        env:
+          REPOSITORY: ${{ inputs.repository }}
+          MARKER: ${{ inputs.marker }}
+          KEY: ${{ needs.plan.outputs.binary-windows-key }}
+          WHARF: ${{ github.sha }}
+          RUN: ${{ github.run_id }}
+          ATTEMPT: ${{ github.run_attempt }}
+          WHARF_R2_ACCESS_KEY_ID: ${{ secrets.WHARF_R2_ACCESS_KEY_ID }}
+          WHARF_R2_SECRET_ACCESS_KEY: ${{ secrets.WHARF_R2_SECRET_ACCESS_KEY }}
+        run: |
+          key=$(python -B -m scripts.ship key-binary --source ../product --name "${REPOSITORY#*/}" --target x86_64-pc-windows-msvc --runner windows-2025 --basis ../basis.json | python -c 'import json,sys; print(json.load(sys.stdin)["key"])')
+          [ "$key" = "$KEY" ] || { echo "resolved key $key differs from planned $KEY"; exit 2; }
+          python -B -m scripts.ship binary --source ../product --name "${REPOSITORY#*/}" --target x86_64-pc-windows-msvc --output ../produced
+          python -c 'import json,os; json.dump({f: os.environ[e] for f, e in {"repository": "REPOSITORY", "marker": "MARKER", "wharf": "WHARF", "run": "RUN", "attempt": "ATTEMPT"}.items()}, open("../context.json", "w"))'
+          python -B -m scripts.store publish --key "$KEY" --dir ../produced --basis ../basis.json --context ../context.json
+
+  bind-windows:
+    needs: [plan, binary-windows]
+    if: always() && needs.plan.outputs.bind-windows == 'run' && (needs.binary-windows.result == 'success' || needs.binary-windows.result == 'skipped')
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Check out wharf
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          path: wharf
+          persist-credentials: false
+
+      - name: Bind and record the release identity
+        env:
+          REPOSITORY: ${{ inputs.repository }}
+          MARKER: ${{ inputs.marker }}
+          COMMIT: ${{ needs.plan.outputs.commit }}
+          TREE: ${{ needs.plan.outputs.tree }}
+          BINARY: ${{ needs.plan.outputs.binary-windows-key }}
+          KEY: ${{ needs.plan.outputs.bind-windows-key }}
+          WHARF: ${{ github.sha }}
+          RUN: ${{ github.run_id }}
+          ATTEMPT: ${{ github.run_attempt }}
+          WHARF_R2_ACCESS_KEY_ID: ${{ secrets.WHARF_R2_ACCESS_KEY_ID }}
+          WHARF_R2_SECRET_ACCESS_KEY: ${{ secrets.WHARF_R2_SECRET_ACCESS_KEY }}
+        run: |
+          key=$(python3 -B -m scripts.ship key-bind --binary-key "$BINARY" --repository "$REPOSITORY" --marker "$MARKER" --commit "$COMMIT" --tree "$TREE" --basis ../basis.json | python3 -c 'import json,sys; print(json.load(sys.stdin)["key"])')
+          [ "$key" = "$KEY" ] || { echo "resolved key $key differs from planned $KEY"; exit 2; }
+          python3 -B -m scripts.store fetch --key "$BINARY" --dir ../binary
+          python3 -B -m scripts.ship bind --dir ../binary --name "${REPOSITORY#*/}" --target x86_64-pc-windows-msvc --repository "$REPOSITORY" --marker "$MARKER" --commit "$COMMIT" --tree "$TREE" --binary-key "$BINARY" --output ../bound
+          python3 -c 'import json,os; json.dump({f: os.environ[e] for f, e in {"repository": "REPOSITORY", "marker": "MARKER", "wharf": "WHARF", "run": "RUN", "attempt": "ATTEMPT"}.items()}, open("../context.json", "w"))'
+          python3 -B -m scripts.store publish --key "$KEY" --dir ../bound --basis ../basis.json --context ../context.json
+
+  smoke-windows:
+    needs: [plan, bind-windows]
+    if: always() && needs.plan.outputs.smoke-windows == 'run' && (needs.bind-windows.result == 'success' || needs.bind-windows.result == 'skipped')
+    runs-on: windows-2025
+    defaults:
+      run:
+        shell: bash
+        working-directory: wharf
+    steps:
+      - name: Keep checkouts byte-identical
+        working-directory: .
+        run: git config --global core.autocrlf false
+
+      - name: Check out wharf
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          path: wharf
+          persist-credentials: false
+
+      - name: Smoke and record the bound binary
+        env:
+          REPOSITORY: ${{ inputs.repository }}
+          MARKER: ${{ inputs.marker }}
+          BOUND: ${{ needs.plan.outputs.bind-windows-key }}
+          KEY: ${{ needs.plan.outputs.smoke-windows-key }}
+          WHARF: ${{ github.sha }}
+          RUN: ${{ github.run_id }}
+          ATTEMPT: ${{ github.run_attempt }}
+          WHARF_R2_ACCESS_KEY_ID: ${{ secrets.WHARF_R2_ACCESS_KEY_ID }}
+          WHARF_R2_SECRET_ACCESS_KEY: ${{ secrets.WHARF_R2_SECRET_ACCESS_KEY }}
+        run: |
+          key=$(python -B -m scripts.ship key-smoke --binary-key "$BOUND" --basis ../basis.json | python -c 'import json,sys; print(json.load(sys.stdin)["key"])')
+          [ "$key" = "$KEY" ] || { echo "resolved key $key differs from planned $KEY"; exit 2; }
+          python -B -m scripts.store fetch --key "$BOUND" --dir ../bound
+          python -B -m scripts.ship smoke --dir ../bound --name "${REPOSITORY#*/}" --target x86_64-pc-windows-msvc --output ../smoked --expect "${REPOSITORY#*/} $MARKER"
+          python -c 'import json,os; json.dump({f: os.environ[e] for f, e in {"repository": "REPOSITORY", "marker": "MARKER", "wharf": "WHARF", "run": "RUN", "attempt": "ATTEMPT"}.items()}, open("../context.json", "w"))'
+          python -B -m scripts.store publish --key "$KEY" --dir ../smoked --basis ../basis.json --context ../context.json
+
   cargo:
     needs: [plan, binary-linux]
     if: always() && needs.plan.outputs.cargo == 'run' && (needs.binary-linux.result == 'success' || needs.binary-linux.result == 'skipped')
@@ -254,7 +423,7 @@ jobs:
         run: python3 -B -m scripts.ship cargo-publish --source ../product --marker "$MARKER"
 
   complete:
-    needs: [plan, binary-linux, bind-linux, smoke-linux, cargo]
+    needs: [plan, binary-linux, bind-linux, smoke-linux, binary-windows, bind-windows, smoke-windows, cargo]
     if: always()
     runs-on: ubuntu-24.04
     steps:

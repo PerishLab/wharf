@@ -5,7 +5,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from lib import canonical
-from lib.identity import elf, region
+from lib.identity import image as located, region
 from lib.refusal import Refusal
 
 
@@ -30,12 +30,12 @@ class Artifact:
 
 
 def inspect(image):
-    start, end = elf.locate(image)
+    start, end = located.locate(image)
     return region.decode(image[start:end])
 
 
 def bind(image, binding):
-    start, end = elf.locate(image)
+    start, end = located.locate(image)
     result = image[:start] + region.encode(image[start:end], binding) + image[end:]
     if inspect(result)[1] != binding:
         raise Refusal("bound executable identity did not read back")

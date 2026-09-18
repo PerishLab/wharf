@@ -1,6 +1,6 @@
 import struct
 
-from lib.identity.format import SECTION, SIZE
+from lib.identity.format import SECTIONS, SIZE
 from lib.refusal import Refusal
 
 HEADER = "<IIQQQQIIQQ"
@@ -23,7 +23,7 @@ def sections(image):
 
 def locate(image):
     listed = sections(image)
-    found = [(index, header) for index, (name, header) in enumerate(listed) if name == SECTION]
+    found = [(index, header) for index, (name, header) in enumerate(listed) if name == SECTIONS["elf"]]
     if not found:
         raise Refusal("executable has no release identity region")
     if len(found) > 1:
