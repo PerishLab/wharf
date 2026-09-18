@@ -11,12 +11,20 @@ on:
         description: Release marker tag in the product repository
         required: true
         type: string
+      kind:
+        description: Depot kind to inherit
+        required: true
+        default: configuration
+        type: choice
+        options:
+          - configuration
+          - skill
 
 permissions:
   contents: read
 
 concurrency:
-  group: depot-${{ inputs.repository }}
+  group: depot-${{ inputs.repository }}-${{ inputs.kind }}
   cancel-in-progress: false
 
 defaults:
@@ -24,7 +32,7 @@ defaults:
     working-directory: wharf
 
 jobs:
-  configuration:
+  inherit:
     runs-on: ubuntu-24.04
     steps:
       - name: Refuse malformed request
@@ -51,13 +59,14 @@ jobs:
           fetch-depth: 0
           persist-credentials: false
 
-      - name: Publish the configuration generation
+      - name: Inherit the generation
         env:
           REPOSITORY: ${{ inputs.repository }}
           MARKER: ${{ inputs.marker }}
+          KIND: ${{ inputs.kind }}
           WHARF_R2_ENDPOINT: ${{ vars.WHARF_R2_ENDPOINT }}
           WHARF_DEPOT_ACCESS_KEY_ID: ${{ secrets.WHARF_DEPOT_ACCESS_KEY_ID }}
           WHARF_DEPOT_SECRET_ACCESS_KEY: ${{ secrets.WHARF_DEPOT_SECRET_ACCESS_KEY }}
         run: |
-          python3 -B -m scripts.depot patch --repository "$REPOSITORY" --marker "$MARKER" --source ../product | tee ../depot.json
-          echo "| configuration | $MARKER | $(python3 -c 'import json; d=json.load(open("../depot.json")); print(d["state"], d["generation"][:12])') |" >> "$GITHUB_STEP_SUMMARY"
+          python3 -B -m scripts.depot patch --repository "$REPOSITORY" --marker "$MARKER" --kind "$KIND" --source ../product | tee ../depot.json
+          echo "| $KIND | $MARKER | $(python3 -c 'import json; d=json.load(open("../depot.json")); print(d["state"], d["generation"][:12])') |" >> "$GITHUB_STEP_SUMMARY"

@@ -9,8 +9,7 @@ from lib import canonical, resources
 from lib.refusal import Conflict, Refusal
 
 FORMAT = 3
-KIND = "configuration"
-DIRECTORY = "configurations"
+KINDS = {"configuration": "configurations", "changelog": "changelogs", "skill": "skills"}
 LAYOUT = resources.read_json("depot.json")
 DIGEST = re.compile(r"[0-9a-f]{64}")
 
@@ -50,13 +49,19 @@ def source(release):
     return LAYOUT["source"].format(name=release.repository.split("/", 1)[1].lower())
 
 
-def route(channel, version):
-    return f"channels/{channel}/{DIRECTORY}/versions/{version}"
+def directory(kind):
+    if kind not in KINDS:
+        raise Refusal(f"{kind!r} is not a depot kind; known: {', '.join(KINDS)}")
+    return KINDS[kind]
 
 
-def identity(release, channel):
+def route(channel, version, kind):
+    return f"channels/{channel}/{directory(kind)}/versions/{version}"
+
+
+def identity(release, channel, kind):
     marker = {"name": release.marker, "sha256": canonical.digest({"repository": release.repository, "marker": release.marker, "commit": release.commit, "tree": release.tree})}
-    return {"product": release.repository.split("/", 1)[1].lower(), "channel": channel, "version": release.marker, "marker": marker, "kind": KIND}
+    return {"product": release.repository.split("/", 1)[1].lower(), "channel": channel, "version": release.marker, "marker": marker, "kind": kind}
 
 
 def check(path):
@@ -75,7 +80,7 @@ def manifest(held, objects):
 def pointer(document, base, prior, created):
     generation = sha(compact(document))
     body = pretty(document)
-    reference = {"url": f"{base}/{route(document['channel'], document['version'])}/generations/{generation}/manifest.json", "sha256": sha(body), "size": len(body)}
+    reference = {"url": f"{base}/{route(document['channel'], document['version'], document['kind'])}/generations/{generation}/manifest.json", "sha256": sha(body), "size": len(body)}
     held = {key: document[key] for key in ("format", "product", "channel", "version", "marker", "kind")}
     return dict(held, generation=generation, manifest=reference, previousGeneration=prior, createdAt=created)
 
@@ -100,6 +105,6 @@ def settle(bucket, key, body, mime):
 def channel_of(marker):
     matched = re.fullmatch(r"v\d+\.\d+\.\d+-(alpha|beta|rc)\.[1-9]\d*", marker)
     if not matched:
-        raise Refusal(f"marker {marker!r} is not a prerelease; stable configuration is not written here")
+        raise Refusal(f"marker {marker!r} is not a prerelease; stable generations are not written here")
     return matched.group(1)
 

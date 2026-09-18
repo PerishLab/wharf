@@ -19,8 +19,8 @@ def bucket(held):
     return r2.writer(depot.LAYOUT["bucket"].format(name=held.repository.split("/", 1)[1].lower()), "DEPOT")
 
 
-def target(held):
-    return depot.channel_of(held.marker), held.marker
+def target(held, kind):
+    return depot.channel_of(held.marker), held.marker, kind
 
 
 def now():
@@ -30,18 +30,18 @@ def now():
 def pull(args):
     held = release(args)
     store = bucket(held)
-    return edit.pull(store, lineage.base(store, target(held), args.from_), args.dir)
+    return edit.pull(store, lineage.base(store, target(held, args.kind), args.from_), args.dir)
 
 
 def patch(args):
     held = release(args)
     store = bucket(held)
-    base = lineage.base(store, target(held), args.from_)
+    base = lineage.base(store, target(held, args.kind), args.from_)
     puts = [item.split("=", 1) for item in args.put]
     if any(len(item) != 2 for item in puts):
         raise Refusal("--put takes PATH=FILE")
     content = edit.patched(base, puts, args.remove)
-    return dict(edit.stage(store, edit.Change(held, content, base, now())), base=base["generation"])
+    return dict(edit.stage(store, edit.Change(held, args.kind, content, base, now())), base=base["generation"])
 
 
 def publish(args):
@@ -49,19 +49,19 @@ def publish(args):
     store = bucket(held)
     if args.full and args.from_:
         raise Refusal("--full and --from are exclusive")
-    base = None if args.full else lineage.base(store, target(held), args.from_)
+    base = None if args.full else lineage.base(store, target(held, args.kind), args.from_)
     content = edit.directory(args.dir)
-    result = edit.stage(store, edit.Change(held, content, base, now()))
+    result = edit.stage(store, edit.Change(held, args.kind, content, base, now()))
     return dict(result, base=base["generation"] if base else None)
 
 
 def compare(args):
     held = release(args)
     store = bucket(held)
-    own = lineage.standing(store, *target(held))
+    own = lineage.standing(store, target(held, args.kind))
     if not own:
-        raise Refusal(f"{held.marker} has no standing generation")
-    against = lineage.base(store, target(held), args.against) if args.against else lineage.standing(store, *lineage.nearest(store, depot.DIRECTORY, held.marker))
+        raise Refusal(f"{held.marker} has no standing {args.kind} generation")
+    against = lineage.base(store, target(held, args.kind), args.against) if args.against else lineage.below(store, target(held, args.kind))
     return edit.diff(against, own)
 
 
@@ -72,6 +72,7 @@ def parser():
         command = actions.add_parser(name)
         for option in ("repository", "marker", "source"):
             command.add_argument(f"--{option}", required=True)
+        command.add_argument("--kind", required=True, choices=sorted(depot.KINDS))
         command.set_defaults(handler=handler)
         if name != "diff":
             command.add_argument("--from", dest="from_")

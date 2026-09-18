@@ -11,6 +11,7 @@ MEDIA = {".json": "application/json", ".toml": "application/toml", ".yaml": "app
 @dataclass(frozen=True)
 class Change:
     release: depot.Release
+    kind: str
     content: dict
     base: dict
     now: str
@@ -59,13 +60,14 @@ def patched(base, puts, removes):
 
 
 def stage(bucket, change):
-    held = depot.identity(change.release, depot.channel_of(change.release.marker))
+    held = depot.identity(change.release, depot.channel_of(change.release.marker), change.kind)
+    place = (held["channel"], held["version"], held["kind"])
     document = depot.manifest(held, [entry for entry, _ in change.content.values()])
     generation = depot.sha(depot.compact(document))
-    current, etag = lineage.pointer(bucket, held["channel"], held["version"])
+    current, etag = lineage.pointer(bucket, place)
     if current is not None and current["generation"] == generation:
         return {"generation": generation, "state": "already-published"}
-    folder = f"{depot.route(held['channel'], held['version'])}/generations/{generation}"
+    folder = f"{depot.route(*place)}/generations/{generation}"
     kept = {entry["path"]: entry["sha256"] for entry in change.base["document"]["objects"]} if change.base else {}
     for relative, (entry, body) in sorted(change.content.items()):
         target = f"{folder}/objects/{relative}"
@@ -76,7 +78,7 @@ def stage(bucket, change):
     depot.settle(bucket, f"{folder}/manifest.json", depot.pretty(document), "application/json")
     written = depot.pointer(document, depot.source(change.release), depot.lineage(current, document), change.now)
     try:
-        bucket.swap(f"{depot.route(held['channel'], held['version'])}/latest.json", depot.pretty(written), etag)
+        bucket.swap(f"{depot.route(*place)}/latest.json", depot.pretty(written), etag)
     except Conflict:
         raise Refusal("the pointer moved while this generation was staged; pull again and reapply")
     return {"generation": generation, "previous": written["previousGeneration"], "state": "published"}

@@ -21,7 +21,8 @@ def line(version):
     return order(version)[:3]
 
 
-def versions(bucket, directory):
+def versions(bucket, kind):
+    directory = depot.directory(kind)
     found = []
     for channel in bucket.prefixes("channels/"):
         name = channel.split("/")[1]
@@ -32,21 +33,22 @@ def versions(bucket, directory):
     return found
 
 
-def nearest(bucket, directory, version):
-    candidates = [held for held in versions(bucket, directory) if line(held[1]) == line(version) and order(held[1]) < order(version)]
+def nearest(bucket, kind, version):
+    candidates = [held for held in versions(bucket, kind) if line(held[1]) == line(version) and order(held[1]) < order(version)]
     if not candidates:
-        raise Refusal(f"no {directory} generation below {version} on its line; pass --full or --from")
+        raise Refusal(f"no {kind} generation below {version} on its line; pass --full or --from")
     return max(candidates, key=lambda held: order(held[1]))
 
 
-def pointer(bucket, channel, version):
-    key = f"{depot.route(channel, version)}/latest.json"
+def pointer(bucket, target):
+    key = f"{depot.route(*target)}/latest.json"
     etag = bucket.head(key)
     return (json.loads(bucket.get(key)), etag) if etag else (None, None)
 
 
-def generation(bucket, channel, version, digest):
-    folder = f"{depot.route(channel, version)}/generations/{digest}"
+def generation(bucket, target, digest):
+    channel, version, _ = target
+    folder = f"{depot.route(*target)}/generations/{digest}"
     if not bucket.exists(f"{folder}/manifest.json"):
         return None
     document = json.loads(bucket.get(f"{folder}/manifest.json"))
@@ -55,30 +57,31 @@ def generation(bucket, channel, version, digest):
     return {"channel": channel, "version": version, "generation": digest, "folder": folder, "document": document}
 
 
-def standing(bucket, channel, version):
-    held, _ = pointer(bucket, channel, version)
-    return generation(bucket, channel, version, held["generation"]) if held else None
+def standing(bucket, target):
+    held, _ = pointer(bucket, target)
+    return generation(bucket, target, held["generation"]) if held else None
 
 
-def named(bucket, directory, spec):
+def named(bucket, kind, spec):
     if depot.DIGEST.fullmatch(spec):
-        for channel, version in versions(bucket, directory):
-            found = generation(bucket, channel, version, spec)
+        for channel, version in versions(bucket, kind):
+            found = generation(bucket, (channel, version, kind), spec)
             if found:
                 return found
-        raise Refusal(f"no {directory} generation {spec}")
+        raise Refusal(f"no {kind} generation {spec}")
     channel, _, version = spec.partition("/")
-    found = standing(bucket, channel, version) if version else None
+    found = standing(bucket, (channel, version, kind)) if version else None
     if not found:
         raise Refusal(f"--from {spec!r} names no standing generation; use <channel>/<version> or a generation digest")
     return found
 
 
+def below(bucket, target):
+    _, version, kind = target
+    return standing(bucket, (*nearest(bucket, kind, version), kind))
+
+
 def base(bucket, target, spec=None):
-    channel, version = target
     if spec:
-        return named(bucket, depot.DIRECTORY, spec)
-    own = standing(bucket, channel, version)
-    if own:
-        return own
-    return standing(bucket, *nearest(bucket, depot.DIRECTORY, version))
+        return named(bucket, target[2], spec)
+    return standing(bucket, target) or below(bucket, target)
