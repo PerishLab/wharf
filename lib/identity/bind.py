@@ -5,7 +5,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from lib import canonical
-from lib.identity import image as located, region
+from lib.identity import image as located, region, signature
 from lib.refusal import Refusal
 
 
@@ -61,6 +61,10 @@ def perform(artifact, release, workload, output):
     target = output / artifact.file.name
     target.write_bytes(bound)
     shutil.copymode(artifact.file, target)
-    receipt = {"action": "ship.identity", "file": target.name, "binding": binding, "origin": origin, "sha256": hashlib.sha256(bound).hexdigest(), "size": len(bound)}
+    signed = signature.finalize(target, artifact.target)
+    final = target.read_bytes()
+    if inspect(final)[1] != binding:
+        raise Refusal("finalized executable identity did not read back")
+    receipt = {"action": "ship.identity", "file": target.name, "binding": binding, "origin": origin, "signature": signed, "sha256": hashlib.sha256(final).hexdigest(), "size": len(final)}
     (output / "receipt.json").write_text(json.dumps(receipt, indent=2, sort_keys=True) + "\n")
     return receipt
