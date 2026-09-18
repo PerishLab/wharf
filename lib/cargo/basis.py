@@ -1,6 +1,7 @@
 from pathlib import Path
 
 from lib.cargo import lock, manifest, toolchain
+from lib.process import git
 
 CONFIG = ".cargo/config.toml"
 WIDENED = [
@@ -26,4 +27,21 @@ def resolve(source, name, target, runner):
         "lock": lock.closure(source, reached),
         "config": config,
         "widened": WIDENED,
+    }
+
+
+SUITE_WIDENED = [
+    "the whole repository tree, because tests read files outside their own crate",
+]
+
+
+def suite(source, runner):
+    source = Path(source)
+    root = manifest.read(source, "Cargo.toml")
+    manifest.unversioned(source, root, manifest.members(source, root))
+    return {
+        "entry": {"kind": "cargo-suite", "scope": "workspace", "runner": runner},
+        "toolchain": toolchain.declared(source),
+        "tree": git(source, "rev-parse", "HEAD^{tree}"),
+        "widened": SUITE_WIDENED,
     }

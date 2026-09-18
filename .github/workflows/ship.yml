@@ -51,6 +51,8 @@ jobs:
       bind-macos: ${{ steps.bind-macos.outputs.decision }}
       smoke-macos-key: ${{ steps.smoke-macos.outputs.key }}
       smoke-macos: ${{ steps.smoke-macos.outputs.decision }}
+      suite-linux-key: ${{ steps.suite-linux.outputs.key }}
+      suite-linux: ${{ steps.suite-linux.outputs.decision }}
       cargo: ${{ steps.cargo.outputs.decision }}
     steps:
       - name: Refuse malformed request
@@ -228,6 +230,20 @@ jobs:
           echo "key=$key" >> "$GITHUB_OUTPUT"
           echo "decision=$decision" >> "$GITHUB_OUTPUT"
           echo "| smoke aarch64-apple-darwin | \`$key\` | $decision |" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: suite x86_64-unknown-linux-gnu
+        id: suite-linux
+        env:
+          WHARF_R2_ACCESS_KEY_ID: ${{ secrets.WHARF_R2_ACCESS_KEY_ID }}
+          WHARF_R2_SECRET_ACCESS_KEY: ${{ secrets.WHARF_R2_SECRET_ACCESS_KEY }}
+        run: |
+          key=$(python3 -B -m scripts.ship key-suite --source ../product --runner ubuntu-24.04 --basis ../suite-basis.json | python3 -c 'import json,sys; print(json.load(sys.stdin)["key"])')
+          reusable=$(python3 -B -m scripts.store reusable --key "$key" | python3 -c 'import json,sys; print(json.load(sys.stdin)["reusable"])')
+          decision=run
+          [ "$reusable" = True ] && decision=skip
+          echo "key=$key" >> "$GITHUB_OUTPUT"
+          echo "decision=$decision" >> "$GITHUB_OUTPUT"
+          echo "| suite x86_64-unknown-linux-gnu | \`$key\` | $decision |" >> "$GITHUB_STEP_SUMMARY"
 
       - name: cargo packages
         id: cargo
@@ -550,9 +566,46 @@ jobs:
           python3 -c 'import json,os; json.dump({f: os.environ[e] for f, e in {"repository": "REPOSITORY", "marker": "MARKER", "wharf": "WHARF", "run": "RUN", "attempt": "ATTEMPT"}.items()}, open("../context.json", "w"))'
           python3 -B -m scripts.store publish --key "$KEY" --dir ../smoked --basis ../basis.json --context ../context.json
 
+  suite-linux:
+    needs: plan
+    if: needs.plan.outputs.suite-linux == 'run'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    steps:
+      - name: Check out wharf
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          path: wharf
+          persist-credentials: false
+
+      - name: Check out product at marker
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          repository: ${{ inputs.repository }}
+          ref: refs/tags/${{ inputs.marker }}
+          path: product
+          persist-credentials: false
+
+      - name: Test and record the workspace
+        env:
+          REPOSITORY: ${{ inputs.repository }}
+          MARKER: ${{ inputs.marker }}
+          KEY: ${{ needs.plan.outputs.suite-linux-key }}
+          WHARF: ${{ github.sha }}
+          RUN: ${{ github.run_id }}
+          ATTEMPT: ${{ github.run_attempt }}
+          WHARF_R2_ACCESS_KEY_ID: ${{ secrets.WHARF_R2_ACCESS_KEY_ID }}
+          WHARF_R2_SECRET_ACCESS_KEY: ${{ secrets.WHARF_R2_SECRET_ACCESS_KEY }}
+        run: |
+          key=$(python3 -B -m scripts.ship key-suite --source ../product --runner ubuntu-24.04 --basis ../basis.json | python3 -c 'import json,sys; print(json.load(sys.stdin)["key"])')
+          [ "$key" = "$KEY" ] || { echo "resolved key $key differs from planned $KEY"; exit 2; }
+          python3 -B -m scripts.ship suite --source ../product --output ../suite
+          python3 -c 'import json,os; json.dump({f: os.environ[e] for f, e in {"repository": "REPOSITORY", "marker": "MARKER", "wharf": "WHARF", "run": "RUN", "attempt": "ATTEMPT"}.items()}, open("../context.json", "w"))'
+          python3 -B -m scripts.store publish --key "$KEY" --dir ../suite --basis ../basis.json --context ../context.json
+
   cargo:
-    needs: [plan, binary-linux]
-    if: always() && needs.plan.outputs.cargo == 'run' && (needs.binary-linux.result == 'success' || needs.binary-linux.result == 'skipped')
+    needs: [plan, binary-linux, suite-linux]
+    if: always() && needs.plan.outputs.cargo == 'run' && (needs.binary-linux.result == 'success' || needs.binary-linux.result == 'skipped') && (needs.suite-linux.result == 'success' || needs.suite-linux.result == 'skipped')
     runs-on: ubuntu-24.04
     steps:
       - name: Check out wharf
@@ -576,7 +629,7 @@ jobs:
         run: python3 -B -m scripts.ship cargo-publish --source ../product --marker "$MARKER"
 
   complete:
-    needs: [plan, binary-linux, bind-linux, smoke-linux, binary-windows, bind-windows, smoke-windows, binary-macos, bind-macos, smoke-macos, cargo]
+    needs: [plan, binary-linux, bind-linux, smoke-linux, binary-windows, bind-windows, smoke-windows, binary-macos, bind-macos, smoke-macos, suite-linux, cargo]
     if: always()
     runs-on: ubuntu-24.04
     steps:

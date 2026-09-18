@@ -4,7 +4,7 @@ import sys
 from pathlib import Path
 
 from lib import canonical, implementation
-from lib.cargo import basis, build, publish, version
+from lib.cargo import basis, build, publish, suite, version
 from lib.identity import bind
 from lib.refusal import Refusal
 from lib.smoke import smoke
@@ -27,6 +27,11 @@ def key_binary(args):
     return keyed(held, (["lib.cargo.basis", "lib.cargo.build"], []), args)
 
 
+def key_suite(args):
+    held = basis.suite(args.source, args.runner)
+    return keyed(held, (["lib.cargo.basis", "lib.cargo.suite"], []), args)
+
+
 def key_bind(args):
     identity = {field: getattr(args, field) for field in RELEASE}
     held = {"entry": {"kind": "binary-identity", "binary": args.binary_key}, "identity": identity}
@@ -40,6 +45,10 @@ def key_smoke(args):
 
 def run_binary(args):
     return build.build(build.Build(Path(args.source), args.name, args.target, Path(args.output)))
+
+
+def run_suite(args):
+    return suite.suite(suite.Suite(Path(args.source), Path(args.output)))
 
 
 def run_bind(args):
@@ -71,9 +80,11 @@ def parser():
     root = argparse.ArgumentParser(prog="ship")
     actions = root.add_subparsers(dest="action", required=True)
     command(actions, "key-binary", key_binary, ["source", "name", "target", "runner", "basis"])
+    command(actions, "key-suite", key_suite, ["source", "runner", "basis"])
     command(actions, "key-bind", key_bind, ["binary-key", *RELEASE, "basis"])
     command(actions, "key-smoke", key_smoke, ["binary-key", "basis"])
     command(actions, "binary", run_binary, ["source", "name", "target", "output"])
+    command(actions, "suite", run_suite, ["source", "output"])
     command(actions, "bind", run_bind, ["dir", "name", "target", *RELEASE, "binary-key", "output"])
     command(actions, "smoke", run_smoke, ["dir", "name", "target", "output", "expect"])
     command(actions, "cargo-plan", cargo_plan, ["source", "marker"])

@@ -173,3 +173,24 @@ class Key(unittest.TestCase):
     def test_refuses_an_unknown_binary(self):
         with self.assertRaises(Refusal):
             basis.resolve(self.repository.root, "missing", "x86_64-unknown-linux-gnu", "ubuntu-24.04")
+
+
+class SuiteBasis(unittest.TestCase):
+    def setUp(self):
+        self.repository = Repository()
+
+    def held(self):
+        return basis.suite(self.repository.root, "ubuntu-24.04")
+
+    def test_follows_the_whole_tree(self):
+        before = self.held()
+        self.assertEqual(before["entry"]["kind"], "cargo-suite")
+        self.repository.edit("docs/readme.md", "hello", "bye")
+        self.repository.commit()
+        self.assertNotEqual(self.held()["tree"], before["tree"])
+
+    def test_refuses_declared_versions(self):
+        self.repository.edit("Cargo.toml", 'version = "0.0.0"', 'version = "1.2.3"')
+        self.repository.commit()
+        with self.assertRaises(Refusal):
+            self.held()
