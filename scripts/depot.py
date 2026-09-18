@@ -3,31 +3,87 @@ import datetime
 import json
 import sys
 
-from lib import resources
-from lib.media import depot
+from lib.media import depot, edit, lineage
+from lib.process import git
 from lib.refusal import Refusal
 from lib.store import r2
 
-RELEASES = resources.read_json("releases.json")
+
+def release(args):
+    commit = git(args.source, "rev-parse", f"refs/tags/{args.marker}^{{commit}}")
+    tree = git(args.source, "rev-parse", f"refs/tags/{args.marker}^{{tree}}")
+    return depot.Release(args.repository, args.marker, commit, tree)
+
+
+def bucket(held):
+    return r2.writer(depot.LAYOUT["bucket"].format(name=held.repository.split("/", 1)[1].lower()), "DEPOT")
+
+
+def target(held):
+    return depot.channel_of(held.marker), held.marker
+
+
+def now():
+    return datetime.datetime.now(datetime.UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
+
+
+def pull(args):
+    held = release(args)
+    store = bucket(held)
+    return edit.pull(store, lineage.base(store, target(held), args.from_), args.dir)
+
+
+def patch(args):
+    held = release(args)
+    store = bucket(held)
+    base = lineage.base(store, target(held), args.from_)
+    puts = [item.split("=", 1) for item in args.put]
+    if any(len(item) != 2 for item in puts) or not (puts or args.remove):
+        raise Refusal("patch needs --put PATH=FILE or --remove PATH")
+    content = edit.patched(base, puts, args.remove)
+    return dict(edit.stage(store, edit.Change(held, content, base, now())), base=base["generation"])
 
 
 def publish(args):
-    release = depot.Release(args.repository, args.marker, args.commit, args.tree)
-    name = args.repository.split("/", 1)[1].lower()
-    stable = depot.stable_version(RELEASES["authority"].format(name=name))
-    carry = depot.carried(depot.source(release), "stable", stable)
-    now = datetime.datetime.now(datetime.UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
-    bucket = r2.writer(depot.LAYOUT["bucket"].format(name=name), "DEPOT")
-    return dict(depot.publish(bucket, depot.Publication(release, carry, now)), stable=stable)
+    held = release(args)
+    store = bucket(held)
+    if args.full and args.from_:
+        raise Refusal("--full and --from are exclusive")
+    base = None if args.full else lineage.base(store, target(held), args.from_)
+    content = edit.directory(args.dir)
+    result = edit.stage(store, edit.Change(held, content, base, now()))
+    return dict(result, base=base["generation"] if base else None)
+
+
+def compare(args):
+    held = release(args)
+    store = bucket(held)
+    own = lineage.standing(store, *target(held))
+    if not own:
+        raise Refusal(f"{held.marker} has no standing generation")
+    against = lineage.base(store, target(held), args.against) if args.against else lineage.standing(store, *lineage.nearest(store, depot.DIRECTORY, held.marker))
+    return edit.diff(against, own)
 
 
 def parser():
     root = argparse.ArgumentParser(prog="depot")
     actions = root.add_subparsers(dest="action", required=True)
-    command = actions.add_parser("publish")
-    for option in ("repository", "marker", "commit", "tree"):
-        command.add_argument(f"--{option}", required=True)
-    command.set_defaults(handler=publish)
+    for name, handler in (("pull", pull), ("patch", patch), ("publish", publish), ("diff", compare)):
+        command = actions.add_parser(name)
+        for option in ("repository", "marker", "source"):
+            command.add_argument(f"--{option}", required=True)
+        command.set_defaults(handler=handler)
+        if name != "diff":
+            command.add_argument("--from", dest="from_")
+        if name in ("pull", "publish"):
+            command.add_argument("--dir", required=True)
+        if name == "patch":
+            command.add_argument("--put", action="append", default=[])
+            command.add_argument("--remove", action="append", default=[])
+        if name == "publish":
+            command.add_argument("--full", action="store_true")
+        if name == "diff":
+            command.add_argument("--against")
     return root
 
 

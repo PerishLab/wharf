@@ -23,13 +23,6 @@ class Release:
     tree: str
 
 
-@dataclass(frozen=True)
-class Publication:
-    release: Release
-    carry: tuple
-    now: str
-
-
 def compact(value):
     return json.dumps(value, separators=(",", ":"), ensure_ascii=False).encode()
 
@@ -66,6 +59,12 @@ def identity(release, channel):
     return {"product": release.repository.split("/", 1)[1].lower(), "channel": channel, "version": release.marker, "marker": marker, "kind": KIND}
 
 
+def check(path):
+    parts = path.split("/")
+    if not path or path.startswith("/") or any(part in ("", ".", "..") for part in parts):
+        raise Refusal(f"object path {path!r} is not anchored")
+
+
 def manifest(held, objects):
     ordered = sorted(objects, key=lambda item: item["path"])
     if not ordered:
@@ -79,29 +78,6 @@ def pointer(document, base, prior, created):
     reference = {"url": f"{base}/{route(document['channel'], document['version'])}/generations/{generation}/manifest.json", "sha256": sha(body), "size": len(body)}
     held = {key: document[key] for key in ("format", "product", "channel", "version", "marker", "kind")}
     return dict(held, generation=generation, manifest=reference, previousGeneration=prior, createdAt=created)
-
-
-def carried(base, channel, version, reader=fetch):
-    standing = reader(f"{base}/{route(channel, version)}/latest.json")
-    if standing is None:
-        raise Refusal(f"depot carries no {KIND} {version} on {channel} to carry forward")
-    held = json.loads(standing)
-    document = reader(held["manifest"]["url"])
-    if document is None or sha(document) != held["manifest"]["sha256"]:
-        raise Refusal(f"depot {KIND} {version} does not bind its manifest")
-    objects = json.loads(document)["objects"]
-    prefix = held["manifest"]["url"].removesuffix("manifest.json")
-    bodies = {}
-    for entry in objects:
-        body = reader(f"{prefix}objects/{entry['path']}")
-        if body is None or sha(body) != entry["sha256"] or len(body) != entry["size"]:
-            raise Refusal(f"depot object {entry['path']} drifted from its manifest")
-        bodies[entry["path"]] = body
-    return objects, bodies, held["generation"]
-
-
-def standing(bucket, key):
-    return json.loads(bucket.get(key)) if bucket.exists(key) else None
 
 
 def lineage(current, candidate):
@@ -121,37 +97,9 @@ def settle(bucket, key, body, mime):
             raise Refusal(f"{key} already holds different bytes")
 
 
-def publish(bucket, publication, reader=fetch):
-    release, now = publication.release, publication.now
-    base = source(release)
-    objects, bodies, origin = publication.carry
-    document = manifest(identity(release, channel_of(release.marker)), objects)
-    key = f"{route(document['channel'], document['version'])}/latest.json"
-    current = standing(bucket, key)
-    generation = sha(compact(document))
-    if current is not None and current["generation"] == generation:
-        return {"pointer": key, "generation": generation, "state": "already-published"}
-    held = pointer(document, base, lineage(current, document), now)
-    folder = f"{route(document['channel'], document['version'])}/generations/{generation}"
-    for entry in document["objects"]:
-        settle(bucket, f"{folder}/objects/{entry['path']}", bodies[entry["path"]], "application/octet-stream")
-    settle(bucket, f"{folder}/manifest.json", pretty(document), "application/json")
-    body = pretty(held)
-    bucket.put(key, body, {"Content-Type": "application/json"})
-    if reader(f"{base}/{key}") != body:
-        raise Refusal(f"{base}/{key} does not serve the written pointer")
-    return {"pointer": key, "generation": generation, "previous": held["previousGeneration"], "carried": origin, "state": "published"}
-
-
 def channel_of(marker):
     matched = re.fullmatch(r"v\d+\.\d+\.\d+-(alpha|beta|rc)\.[1-9]\d*", marker)
     if not matched:
         raise Refusal(f"marker {marker!r} is not a prerelease; stable configuration is not written here")
     return matched.group(1)
 
-
-def stable_version(authority, reader=fetch):
-    held = reader(f"{authority}/v1/channels/stable.json")
-    if held is None:
-        raise Refusal(f"{authority} names no stable release to carry configuration from")
-    return json.loads(held)["releaseVersion"]

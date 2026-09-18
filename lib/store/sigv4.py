@@ -19,6 +19,7 @@ class Request:
     path: str
     body: bytes = b""
     headers: dict = field(default_factory=dict)
+    query: str = ""
 
 
 def mac(key, message):
@@ -28,7 +29,7 @@ def mac(key, message):
 def canonical(request, headers, payload):
     names = sorted(headers)
     lines = "".join(f"{name}:{str(headers[name]).strip()}\n" for name in names)
-    return "\n".join([request.method, request.path, "", lines, ";".join(names), payload]), ";".join(names)
+    return "\n".join([request.method, request.path, request.query, lines, ";".join(names), payload]), ";".join(names)
 
 
 def sign(request, credentials, now):
