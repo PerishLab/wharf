@@ -22,3 +22,8 @@ class Trigger(unittest.TestCase):
     def test_refuses_malformed_marker(self):
         with self.assertRaises(Refusal):
             trigger.record(Memory(), dict(CONTEXT, marker="latest"), {})
+
+    def test_records_rc_and_stable_markers(self):
+        for marker in ("v0.38.0-rc.1", "v0.38.0"):
+            result = trigger.record(Memory(), dict(CONTEXT, marker=marker), {"plan": {"result": "success"}})
+            self.assertEqual(result["record"], f"trigger/PerishLab/plumb/{marker}/7-1.json")

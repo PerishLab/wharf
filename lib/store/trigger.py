@@ -9,7 +9,7 @@ SETTLED = {"success", "skipped"}
 def location(context):
     if not re.fullmatch(r"[A-Za-z0-9._-]+/[A-Za-z0-9._-]+", context["repository"]):
         raise Refusal(f"repository {context['repository']!r} is not owner/name")
-    if not re.fullmatch(r"v\d+\.\d+\.\d+(-beta\.\d+)?", context["marker"]):
+    if not re.fullmatch(r"v\d+\.\d+\.\d+(-(alpha|beta|rc)\.[1-9]\d*)?", context["marker"]):
         raise Refusal(f"marker {context['marker']!r} is malformed")
     return f"trigger/{context['repository']}/{context['marker']}/{context['run']}-{context['attempt']}.json"
 
