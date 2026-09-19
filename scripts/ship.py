@@ -116,10 +116,16 @@ def release_plan(args):
     return {"channel": releasing.channel(held.marker), "published": releasing.published(held)}
 
 
+def release_managers(args):
+    held = published_release(args)
+    binary = bind.Artifact(Path(args.dir), args.name, "x86_64-unknown-linux-gnu").file
+    return releasing.render(held, binary, args.source, args.output)
+
+
 def release_publish(args):
     held = published_release(args)
     bound = {"x86_64-unknown-linux-gnu": args.linux, "x86_64-pc-windows-msvc": args.windows, "aarch64-apple-darwin": args.macos}
-    return releasing.publish(held, bound, r2.writer(releasing.place(held)[1], "RELEASES"))
+    return releasing.publish(held, releasing.Contents(bound, Path(args.managers)), r2.writer(releasing.place(held)[1], "RELEASES"))
 
 
 def key_cfworker(args):
@@ -170,7 +176,8 @@ def parser():
     command(actions, "chart-plan", chart_plan, ["source", "repository", "marker"])
     command(actions, "chart-publish", chart_publish, ["source", "repository", "marker"])
     command(actions, "release-plan", release_plan, ["repository", "marker", "commit", "wharf"])
-    command(actions, "release-publish", release_publish, ["repository", "marker", "commit", "wharf", "linux", "windows", "macos"])
+    command(actions, "release-managers", release_managers, ["repository", "marker", "commit", "wharf", "dir", "name", "source", "output"])
+    command(actions, "release-publish", release_publish, ["repository", "marker", "commit", "wharf", "linux", "windows", "macos", "managers"])
     command(actions, "key-cfworker", key_cfworker, ["source", "runner", "basis"])
     command(actions, "cfworker-deploy", cfworker_deploy, ["source", "output"])
     command(actions, "cargo-plan", cargo_plan, ["source", "marker"])

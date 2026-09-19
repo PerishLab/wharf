@@ -918,7 +918,15 @@ jobs:
           path: wharf
           persist-credentials: false
 
-      - name: Publish the bound binaries
+      - name: Check out product at marker
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          repository: ${{ inputs.repository }}
+          ref: refs/tags/${{ inputs.marker }}
+          path: product
+          persist-credentials: false
+
+      - name: Publish the bound binaries and their manager scripts
         env:
           REPOSITORY: ${{ inputs.repository }}
           MARKER: ${{ inputs.marker }}
@@ -935,7 +943,8 @@ jobs:
           python3 -B -m scripts.store fetch --key "$LINUX" --dir ../linux
           python3 -B -m scripts.store fetch --key "$WINDOWS" --dir ../windows
           python3 -B -m scripts.store fetch --key "$MACOS" --dir ../macos
-          python3 -B -m scripts.ship release-publish --repository "$REPOSITORY" --marker "$MARKER" --commit "$COMMIT" --wharf "$WHARF" --linux ../linux --windows ../windows --macos ../macos
+          python3 -B -m scripts.ship release-managers --repository "$REPOSITORY" --marker "$MARKER" --commit "$COMMIT" --wharf "$WHARF" --dir ../linux --name "${REPOSITORY#*/}" --source ../product --output ../managers
+          python3 -B -m scripts.ship release-publish --repository "$REPOSITORY" --marker "$MARKER" --commit "$COMMIT" --wharf "$WHARF" --linux ../linux --windows ../windows --macos ../macos --managers ../managers
 
   cfworker:
     needs: [plan, suite-linux, suite-node]

@@ -1,0 +1,3 @@
+{
+  "PerishLab/plumb": ["release", "managers", "--version", "{marker}", "--out", "{out}"]
+}

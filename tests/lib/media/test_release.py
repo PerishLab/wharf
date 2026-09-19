@@ -1,3 +1,4 @@
+import hashlib
 import io
 import json
 import tarfile
@@ -26,6 +27,15 @@ def bound():
     return held
 
 
+def managers(stable):
+    root = Path(tempfile.mkdtemp())
+    for directory in [root, root / release.CANONICAL] if stable else [root]:
+        directory.mkdir(exist_ok=True)
+        (directory / "manage.sh").write_text(f"sh {directory.name}")
+        (directory / "manage.ps1").write_text(f"ps1 {directory.name}")
+    return root
+
+
 class Archive(unittest.TestCase):
     def test_tarball_is_deterministic_and_executable(self):
         body = archive.tarball("plumb", b"elf")
@@ -51,8 +61,9 @@ class Publish(unittest.TestCase):
         key = url.split(".perish.uk/", 1)[1]
         return self.bucket.get(key)
 
-    def publish(self, marker):
-        return release.publish(release.Release("PerishLab/plumb", marker, "a" * 40, "b" * 40), self.bound, self.bucket, self.reader)
+    def publish(self, marker, held=None):
+        held = managers(release.channel(marker) == "stable") if held is None else held
+        return release.publish(release.Release("PerishLab/plumb", marker, "a" * 40, "b" * 40), release.Contents(self.bound, held), self.bucket, self.reader)
 
     def test_writes_the_v1_layout_plumb_can_read(self):
         result = self.publish("v0.38.0-beta.7")
@@ -82,15 +93,74 @@ class Publish(unittest.TestCase):
         with self.assertRaises(Refusal):
             self.publish("v0.38.0-beta.7")
 
-    def test_refuses_stable_until_managers_are_published(self):
+    def test_a_prerelease_seal_carries_its_pinned_managers_and_leaves_the_root_alone(self):
+        self.publish("v0.38.0-rc.2")
+        seal = json.loads(self.bucket.get("v1/releases/rc/v0.38.0-rc.2/seal.json"))
+        self.assertEqual(sorted(seal["managers"]), ["unix", "windows"])
+        unix = seal["managers"]["unix"]
+        self.assertEqual((unix["name"], unix["mime"]), ("manage.sh", "text/x-shellscript; charset=utf-8"))
+        self.assertTrue(self.bucket.get(unix["url"].split(".perish.uk/", 1)[1]).startswith(b"sh "))
+        self.assertEqual(json.loads(self.bucket.get("v1/channels/rc.json"))["managers"], {})
+        self.assertFalse(self.bucket.exists("manage.sh"))
+
+    def test_stable_moves_the_canonical_managers_with_its_pointer(self):
+        result = self.publish("v0.38.0")
+        self.assertEqual(result["pointer"]["managers"], ["manage.ps1", "manage.sh"])
+        self.assertEqual(self.bucket.get("manage.sh"), b"sh canonical")
+        pointer = json.loads(self.bucket.get("v1/channels/stable.json"))
+        self.assertEqual(pointer["managers"]["unix"]["url"], "https://releases.plumb.perish.uk/manage.sh")
+        self.assertEqual(pointer["managers"]["windows"]["sha256"], hashlib.sha256(b"ps1 canonical").hexdigest())
+        seal = json.loads(self.bucket.get("v1/releases/stable/v0.38.0/seal.json"))
+        self.assertNotEqual(seal["managers"]["unix"]["url"], pointer["managers"]["unix"]["url"])
+
+    def test_an_older_stable_keeps_the_root_managers(self):
+        self.publish("v0.38.1")
+        self.bucket.put("manage.sh", b"newer")
+        self.assertEqual(self.publish("v0.38.0")["pointer"]["state"], "kept")
+        self.assertEqual(self.bucket.get("manage.sh"), b"newer")
+
+    def test_a_rerun_stable_restores_its_root_managers(self):
+        self.publish("v0.38.0")
+        self.bucket.put("manage.sh", b"lost")
+        self.assertEqual(self.publish("v0.38.0")["state"], "already-published")
+        self.assertEqual(self.bucket.get("manage.sh"), b"sh canonical")
+
+    def test_refuses_stable_without_canonical_managers(self):
         with self.assertRaisesRegex(Refusal, "manager scripts"):
-            self.publish("v0.38.0")
+            self.publish("v0.38.0", managers(False))
         self.assertEqual(self.bucket.writes, [])
 
     def test_rc_writes_its_own_channel(self):
         self.publish("v0.38.0-rc.1")
         self.assertEqual(json.loads(self.bucket.get("v1/channels/rc.json"))["releaseVersion"], "v0.38.0-rc.1")
         self.assertFalse(self.bucket.exists("v1/channels/beta.json"))
+
+
+class Render(unittest.TestCase):
+    def setUp(self):
+        self.root = Path(tempfile.mkdtemp())
+        self.binary = self.root / "plumb"
+        self.binary.write_text('#!/bin/sh\n[ "$1 $2 $3" = "release managers --version" ] || exit 3\nmkdir "$6" && printf "%s %s " "$4" "$HOME" > "$6/manage.sh" && pwd >> "$6/manage.sh"\n')
+
+    def test_runs_the_declared_step_in_a_clean_home_at_the_source(self):
+        held = release.Release("PerishLab/plumb", "v0.38.0-rc.2", "a" * 40, "b" * 40)
+        result = release.render(held, self.binary, self.root, self.root / "out")
+        self.assertEqual(result["files"], ["manage.sh"])
+        body = (self.root / "out" / "manage.sh").read_text()
+        self.assertTrue(body.startswith("v0.38.0-rc.2 /"))
+        self.assertNotIn(str(Path.home()), body.split()[1])
+        self.assertEqual(body.split()[2], str(self.root.resolve()))
+
+    def test_an_undeclared_product_renders_nothing(self):
+        held = release.Release("PerishLab/other", "v1.0.0", "a" * 40, "b" * 40)
+        self.assertIsNone(release.render(held, self.binary, self.root, self.root / "out")["step"])
+        self.assertEqual(list((self.root / "out").iterdir()), [])
+
+    def test_a_failing_step_refuses(self):
+        self.binary.write_text("#!/bin/sh\necho broken >&2\nexit 4\n")
+        held = release.Release("PerishLab/plumb", "v1.0.0", "a" * 40, "b" * 40)
+        with self.assertRaisesRegex(Refusal, "exited 4: broken"):
+            release.render(held, self.binary, self.root, self.root / "out")
 
 
 class Order(unittest.TestCase):
