@@ -13,7 +13,8 @@ from lib.refusal import Conflict, Refusal
 LAYOUT = resources.read_json("releases.json")
 JSON = "application/json; charset=utf-8"
 MIMES = {"tar.gz": "application/gzip", "zip": "application/zip"}
-MARKER = re.compile(r"v(\d+)\.(\d+)\.(\d+)-(alpha|beta|rc)\.([1-9]\d*)")
+MARKER = re.compile(r"v(\d+)\.(\d+)\.(\d+)(?:-(alpha|beta|rc)\.([1-9]\d*))?")
+STAGES = {"alpha": 0, "beta": 1, "rc": 2}
 
 
 @dataclass(frozen=True)
@@ -32,13 +33,14 @@ def place(release):
 def channel(marker):
     matched = MARKER.fullmatch(marker)
     if not matched:
-        raise Refusal(f"marker {marker!r} is not a prerelease; stable channels are not written here")
-    return matched.group(4)
+        raise Refusal(f"marker {marker!r} is not a release marker")
+    return matched.group(4) or "stable"
 
 
 def order(marker):
     matched = MARKER.fullmatch(marker)
-    return tuple(int(part) for part in matched.group(1, 2, 3)), matched.group(4), int(matched.group(5))
+    stage = (1, 0) if matched.group(4) is None else (0, STAGES[matched.group(4)], int(matched.group(5)))
+    return tuple(int(part) for part in matched.group(1, 2, 3)) + stage
 
 
 def remote(authority, key, body, mime):
@@ -115,6 +117,8 @@ def published(release, reader=fetch):
 
 
 def publish(release, bound, bucket, reader=fetch):
+    if channel(release.marker) == "stable":
+        raise Refusal("a stable release carries its manager scripts, which this path does not publish yet")
     name, _, authority = place(release)
     staged = objects(name, bound, authority)
     key, body = seal(release, name, staged, authority)

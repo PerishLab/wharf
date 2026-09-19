@@ -1,0 +1,15 @@
+{
+  "PerishLab/plumb": [
+    [
+      "configuration",
+      "install",
+      "--version",
+      "{marker}"
+    ],
+    [
+      "rule",
+      "list",
+      "--json"
+    ]
+  ]
+}

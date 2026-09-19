@@ -41,3 +41,8 @@ class Format(unittest.TestCase):
         self.assertIn("/channels/beta/skills/versions/v0.38.0-beta.8/generations/", held["manifest"]["url"])
         with self.assertRaisesRegex(Refusal, "not a depot kind"):
             depot.route("beta", "v0.38.0-beta.8", "rules")
+
+    def test_channel_of_names_stable_for_an_exact_marker(self):
+        self.assertEqual((depot.channel_of("v0.38.0"), depot.channel_of("v0.38.0-rc.1")), ("stable", "rc"))
+        with self.assertRaises(Refusal):
+            depot.channel_of("0.38.0")

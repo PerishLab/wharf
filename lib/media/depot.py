@@ -103,8 +103,8 @@ def settle(bucket, key, body, mime):
 
 
 def channel_of(marker):
-    matched = re.fullmatch(r"v\d+\.\d+\.\d+-(alpha|beta|rc)\.[1-9]\d*", marker)
+    matched = re.fullmatch(r"v\d+\.\d+\.\d+(?:-(alpha|beta|rc)\.[1-9]\d*)?", marker)
     if not matched:
-        raise Refusal(f"marker {marker!r} is not a prerelease; stable generations are not written here")
-    return matched.group(1)
+        raise Refusal(f"marker {marker!r} is not a release marker")
+    return matched.group(1) or "stable"
 

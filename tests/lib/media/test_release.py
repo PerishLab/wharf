@@ -82,7 +82,22 @@ class Publish(unittest.TestCase):
         with self.assertRaises(Refusal):
             self.publish("v0.38.0-beta.7")
 
-    def test_never_writes_stable(self):
-        with self.assertRaises(Refusal):
+    def test_refuses_stable_until_managers_are_published(self):
+        with self.assertRaisesRegex(Refusal, "manager scripts"):
             self.publish("v0.38.0")
         self.assertEqual(self.bucket.writes, [])
+
+    def test_rc_writes_its_own_channel(self):
+        self.publish("v0.38.0-rc.1")
+        self.assertEqual(json.loads(self.bucket.get("v1/channels/rc.json"))["releaseVersion"], "v0.38.0-rc.1")
+        self.assertFalse(self.bucket.exists("v1/channels/beta.json"))
+
+
+class Order(unittest.TestCase):
+    def test_channels_and_version_order(self):
+        self.assertEqual([release.channel(marker) for marker in ("v1.0.0", "v1.0.0-rc.2", "v1.0.0-beta.3")], ["stable", "rc", "beta"])
+        self.assertLess(release.order("v1.0.0-beta.9"), release.order("v1.0.0-rc.1"))
+        self.assertLess(release.order("v1.0.0-rc.9"), release.order("v1.0.0"))
+        self.assertLess(release.order("v1.0.0"), release.order("v1.0.1-beta.1"))
+        with self.assertRaises(Refusal):
+            release.channel("1.0.0")

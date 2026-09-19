@@ -7,7 +7,7 @@ from lib import canonical, implementation
 from lib.cargo import basis, build, publish, suite, version
 from lib.identity import bind
 from lib.refusal import Refusal
-from lib.identity.smoke import smoke
+from lib.identity.smoke import configured, smoke
 from lib.media import cfworker, chart, node, npm, oci, release as releasing
 from lib.store import r2
 from lib.store import workload
@@ -55,6 +55,10 @@ def run_suite(args):
 
 def run_bind(args):
     return bind.perform(bind.Artifact(Path(args.dir), args.name, args.target), release(args), args.binary_key, args.output)
+
+
+def validate(args):
+    return configured(bind.Artifact(Path(args.dir), args.name, args.target), args.repository, args.marker)
 
 
 def run_smoke(args):
@@ -155,6 +159,7 @@ def parser():
     command(actions, "suite", run_suite, ["source", "output"])
     command(actions, "bind", run_bind, ["dir", "name", "target", *RELEASE, "binary-key", "output"])
     command(actions, "smoke", run_smoke, ["dir", "name", "target", "output", "expect"])
+    command(actions, "validate", validate, ["dir", "name", "target", "repository", "marker"])
     command(actions, "key-node", key_node, ["source", "runner", "basis"])
     command(actions, "node-engines", node_engines, ["source"])
     command(actions, "node-suite", node_suite, ["source", "output"])

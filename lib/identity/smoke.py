@@ -1,7 +1,10 @@
 import json
+import os
 import subprocess
+import tempfile
 from pathlib import Path
 
+from lib import resources
 from lib.process import run
 from lib.refusal import Refusal
 
@@ -30,3 +33,20 @@ def smoke(artifact, output, expect, runner=run):
     receipt = {"action": "ship.binary.smoke", "expect": expect, "file": artifact.file.name, "surfaces": results}
     (output / "receipt.json").write_text(json.dumps(receipt, indent=2, sort_keys=True) + "\n")
     return receipt
+
+
+def configured(artifact, repository, marker, runner=run):
+    steps = resources.read_json("validators.json").get(repository, [])
+    if not steps:
+        return {"action": "ship.binary.configured", "steps": []}
+    artifact.file.chmod(0o755)
+    with tempfile.TemporaryDirectory() as home:
+        env = {"HOME": home, "PATH": os.environ.get("PATH", "/usr/bin:/bin")}
+        for step in steps:
+            argv = [str(artifact.file.resolve()), *(part.replace("{marker}", marker) for part in step)]
+            try:
+                runner(argv, home, env)
+            except subprocess.CalledProcessError as failure:
+                detail = (failure.stderr or failure.stdout or "").strip()[:500]
+                raise Refusal(f"{' '.join(step)} exited {failure.returncode} in a clean home: {detail}")
+    return {"action": "ship.binary.configured", "steps": [" ".join(step) for step in steps]}

@@ -5,7 +5,7 @@ from pathlib import Path
 
 from lib.identity.bind import Artifact
 from lib.refusal import Refusal
-from lib.identity.smoke import smoke
+from lib.identity.smoke import configured, smoke
 
 
 def answering(version, failing=None):
@@ -35,3 +35,30 @@ class Smoke(unittest.TestCase):
     def test_refuses_failing_surface(self):
         with self.assertRaises(Refusal):
             smoke(self.artifact, self.output, "demo v1.0.0", answering("demo v1.0.0", failing="--help"))
+
+
+class Configured(unittest.TestCase):
+    def setUp(self):
+        directory = Path(tempfile.mkdtemp())
+        (directory / "plumb-x86_64-unknown-linux-gnu").write_bytes(b"binary")
+        self.artifact = Artifact(directory, "plumb", "x86_64-unknown-linux-gnu")
+
+    def test_runs_the_declared_steps_in_a_clean_home(self):
+        calls = []
+
+        def runner(argv, cwd, env):
+            calls.append((argv[1:], env["HOME"] == cwd))
+            return ""
+
+        receipt = configured(self.artifact, "PerishLab/plumb", "v0.38.0-rc.1", runner)
+        self.assertEqual(calls[0][0], ["configuration", "install", "--version", "v0.38.0-rc.1"])
+        self.assertTrue(all(clean for _, clean in calls))
+        self.assertEqual(len(receipt["steps"]), len(calls))
+
+    def test_refuses_a_failing_step_and_skips_undeclared_products(self):
+        def runner(argv, cwd, env):
+            raise subprocess.CalledProcessError(1, argv, stderr="catalogue does not cover every mechanism")
+
+        with self.assertRaisesRegex(Refusal, "clean home"):
+            configured(self.artifact, "PerishLab/plumb", "v0.38.0", runner)
+        self.assertEqual(configured(self.artifact, "PerishLab/other", "v1.0.0", runner)["steps"], [])

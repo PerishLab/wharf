@@ -75,7 +75,7 @@ jobs:
           MARKER: ${{ inputs.marker }}
         run: |
           echo "$REPOSITORY" | grep -Eq '^PerishLab/[A-Za-z0-9._-]+$' || { echo "repository $REPOSITORY is not a PerishLab repository"; exit 2; }
-          echo "$MARKER" | grep -Eq '^v[0-9]+\.[0-9]+\.[0-9]+(-beta\.[0-9]+)?$' || { echo "marker $MARKER is malformed"; exit 2; }
+          echo "$MARKER" | grep -Eq '^v[0-9]+\.[0-9]+\.[0-9]+(-(beta|rc)\.[0-9]+)?$' || { echo "marker $MARKER is malformed"; exit 2; }
 
       - name: Check out wharf
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
@@ -875,7 +875,6 @@ jobs:
         run: python3 -B -m scripts.ship chart-publish --source ../product --repository "$REPOSITORY" --marker "$MARKER"
 
   depot:
-    if: contains(inputs.marker, '-')
     strategy:
       matrix:
         kind: [configuration, skill]
@@ -886,9 +885,31 @@ jobs:
       kind: ${{ matrix.kind }}
     secrets: inherit
 
+  validate:
+    needs: [plan, bind-linux, depot]
+    if: always() && needs.plan.outputs.release == 'run' && (needs.bind-linux.result == 'success' || needs.bind-linux.result == 'skipped') && needs.depot.result == 'success'
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Check out wharf
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          path: wharf
+          persist-credentials: false
+
+      - name: Load the release configuration with its own binary
+        env:
+          REPOSITORY: ${{ inputs.repository }}
+          MARKER: ${{ inputs.marker }}
+          BOUND: ${{ needs.plan.outputs.bind-linux-key }}
+          WHARF_R2_ACCESS_KEY_ID: ${{ secrets.WHARF_R2_ACCESS_KEY_ID }}
+          WHARF_R2_SECRET_ACCESS_KEY: ${{ secrets.WHARF_R2_SECRET_ACCESS_KEY }}
+        run: |
+          python3 -B -m scripts.store fetch --key "$BOUND" --dir ../bound
+          python3 -B -m scripts.ship validate --dir ../bound --name "${REPOSITORY#*/}" --target x86_64-unknown-linux-gnu --repository "$REPOSITORY" --marker "$MARKER"
+
   release:
-    needs: [plan, smoke-linux, smoke-windows, smoke-macos, suite-linux, suite-node, depot]
-    if: always() && needs.plan.outputs.release == 'run' && (needs.depot.result == 'success' || needs.depot.result == 'skipped') && (needs.smoke-linux.result == 'success' || needs.smoke-linux.result == 'skipped') && (needs.smoke-windows.result == 'success' || needs.smoke-windows.result == 'skipped') && (needs.smoke-macos.result == 'success' || needs.smoke-macos.result == 'skipped') && (needs.suite-linux.result == 'success' || needs.suite-linux.result == 'skipped') && (needs.suite-node.result == 'success' || needs.suite-node.result == 'skipped')
+    needs: [plan, smoke-linux, smoke-windows, smoke-macos, suite-linux, suite-node, depot, validate]
+    if: always() && needs.plan.outputs.release == 'run' && needs.depot.result == 'success' && (needs.validate.result == 'success' || needs.validate.result == 'skipped') && (needs.smoke-linux.result == 'success' || needs.smoke-linux.result == 'skipped') && (needs.smoke-windows.result == 'success' || needs.smoke-windows.result == 'skipped') && (needs.smoke-macos.result == 'success' || needs.smoke-macos.result == 'skipped') && (needs.suite-linux.result == 'success' || needs.suite-linux.result == 'skipped') && (needs.suite-node.result == 'success' || needs.suite-node.result == 'skipped')
     runs-on: ubuntu-24.04
     steps:
       - name: Check out wharf
@@ -989,7 +1010,7 @@ jobs:
         run: python3 -B -m scripts.ship cargo-publish --source ../product --marker "$MARKER"
 
   complete:
-    needs: [plan, binary-linux, bind-linux, smoke-linux, binary-windows, bind-windows, smoke-windows, binary-macos, bind-macos, smoke-macos, suite-linux, suite-node, npm, oci, chart, depot, release, cfworker, cargo]
+    needs: [plan, binary-linux, bind-linux, smoke-linux, binary-windows, bind-windows, smoke-windows, binary-macos, bind-macos, smoke-macos, suite-linux, suite-node, npm, oci, chart, depot, validate, release, cfworker, cargo]
     if: always()
     runs-on: ubuntu-24.04
     steps:
