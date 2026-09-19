@@ -42,6 +42,12 @@ class Format(unittest.TestCase):
         with self.assertRaisesRegex(Refusal, "not a depot kind"):
             depot.route("beta", "v0.38.0-beta.8", "rules")
 
+    def test_a_changelog_belongs_to_a_stable_marker_only(self):
+        held = depot.identity(release("v0.38.0"), "stable", "changelog")
+        self.assertEqual((held["channel"], held["kind"]), ("stable", "changelog"))
+        with self.assertRaisesRegex(Refusal, "describes a stable release"):
+            depot.identity(release("v0.38.0-rc.2"), "rc", "changelog")
+
     def test_channel_of_names_stable_for_an_exact_marker(self):
         self.assertEqual((depot.channel_of("v0.38.0"), depot.channel_of("v0.38.0-rc.1")), ("stable", "rc"))
         with self.assertRaises(Refusal):

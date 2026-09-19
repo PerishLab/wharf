@@ -10,6 +10,7 @@ from lib.refusal import Conflict, Refusal
 
 FORMAT = 3
 KINDS = {"configuration": "configurations", "changelog": "changelogs", "skill": "skills"}
+STABLE_ONLY = {"changelog"}
 LAYOUT = resources.read_json("depot.json")
 DIGEST = re.compile(r"[0-9a-f]{64}")
 
@@ -60,6 +61,8 @@ def route(channel, version, kind):
 
 
 def identity(release, channel, kind):
+    if kind in STABLE_ONLY and channel != "stable":
+        raise Refusal(f"a {kind} describes a stable release; {release.marker} is on the {channel} channel")
     marker = {"name": release.marker, "sha256": canonical.digest({"repository": release.repository, "marker": release.marker, "commit": release.commit, "tree": release.tree})}
     return {"product": release.repository.split("/", 1)[1].lower(), "channel": channel, "version": release.marker, "marker": marker, "kind": kind}
 
