@@ -23,8 +23,12 @@ class Suite:
     output: Path
 
 
+def carried(source, path=MANIFEST):
+    return git(source, "ls-tree", "--name-only", "HEAD", "--", path) == path
+
+
 def manifest(source, path=MANIFEST):
-    if git(source, "ls-tree", "--name-only", "HEAD", "--", path) != path:
+    if not carried(source, path):
         raise Refusal(f"{path} is not tracked at HEAD")
     return json.loads((Path(source) / path).read_text())
 

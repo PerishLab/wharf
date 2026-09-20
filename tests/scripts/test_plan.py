@@ -85,6 +85,18 @@ class Matrices(unittest.TestCase):
                 parameters.answer({})
 
 
+class Carried(unittest.TestCase):
+    def test_a_product_with_no_node_workspace_plans_nothing_for_it(self):
+        entries = {"suite-linux": {"key": "a" * 64, "decision": "run"}}
+        path = Path(tempfile.mkdtemp()) / "output"
+        path.write_text("")
+        with mock.patch.dict(os.environ, {parameters.OUTPUT: str(path)}):
+            answered = plan.emit(plan.matrices({f"{family}-{name}": {"decision": "skip"} for family in plan.FAMILIES for name in ("linux", "windows", "macos")}), entries)
+        self.assertEqual(answered["suite-node"], "skip")
+        self.assertEqual(answered["cfworker"], "skip")
+        self.assertIn("suite-node=skip", path.read_text())
+
+
 class Reported(unittest.TestCase):
     def test_only_the_fields_a_plan_states_are_read_back(self):
         held = plan.reported(STEPS)

@@ -115,7 +115,7 @@ def run_smoke(held):
 
 
 def node_engines(held):
-    return parameters.answer(node.declared(held["source"]))
+    return parameters.answer(node.declared(held["source"]) if node.carried(held["source"]) else {})
 
 
 def node_suite(held):

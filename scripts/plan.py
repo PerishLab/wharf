@@ -45,8 +45,10 @@ def binaries(held, bucket, entries):
 def suites(held, bucket, entries):
     source = held["source"]
     entries["suite-linux"] = decided(bucket, basis.suite(source, RUNNER), (["lib.cargo.basis", "lib.cargo.suite"], []))
-    entries["suite-node"] = decided(bucket, node.basis(source, RUNNER), (["lib.media.node"], []))
-    entries["cfworker"] = decided(bucket, cfworker.basis(source, RUNNER), (["lib.media.cfworker"], []))
+    if node.carried(source):
+        entries["suite-node"] = decided(bucket, node.basis(source, RUNNER), (["lib.media.node"], []))
+    if cfworker.workers(source):
+        entries["cfworker"] = decided(bucket, cfworker.basis(source, RUNNER), (["lib.media.cfworker"], []))
 
 
 def media(observed, entries):
@@ -68,7 +70,7 @@ def matrices(entries):
 
 def emit(held, entries):
     answered = {family: json.dumps(targets, separators=(",", ":")) for family, targets in held.items()}
-    answered.update({name: entries[name]["decision"] for name in SINGLE})
+    answered.update({name: entries[name]["decision"] if name in entries else "skip" for name in SINGLE})
     parameters.answer(answered)
     return answered
 
@@ -84,7 +86,8 @@ def record(held):
     binaries(held, bucket, entries)
     suites(held, bucket, entries)
     media(observed, entries)
-    recorded = plan.record(bucket, {field: held[field] for field in CONTEXT}, entries, node.declared(held["source"]))
+    engines = node.declared(held["source"]) if node.carried(held["source"]) else {}
+    recorded = plan.record(bucket, {field: held[field] for field in CONTEXT}, entries, engines)
     return dict(recorded, decided=emit(matrices(entries), entries))
 
 

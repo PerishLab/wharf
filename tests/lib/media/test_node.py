@@ -24,6 +24,19 @@ class Engines(unittest.TestCase):
         self.assertNotEqual(node.basis(repository.root, "ubuntu-24.04")["tree"], before["tree"])
 
 
+class Carried(unittest.TestCase):
+    def test_a_repository_that_tracks_a_manifest_carries_a_node_workspace(self):
+        self.assertTrue(node.carried(Repository().root))
+
+    def test_a_repository_without_one_carries_none_and_is_not_refused_for_asking(self):
+        repository = Repository()
+        repository.git("rm", "-q", "package.json")
+        repository.commit()
+        self.assertFalse(node.carried(repository.root))
+        with self.assertRaises(Refusal):
+            node.declared(repository.root)
+
+
 class Suite(unittest.TestCase):
     def test_requires_the_prepared_toolchain_and_runs_both_steps(self):
         repository = Repository()
