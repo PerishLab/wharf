@@ -1,5 +1,7 @@
+import io
 import tempfile
 import unittest
+from contextlib import redirect_stderr
 from pathlib import Path
 from unittest import mock
 
@@ -53,7 +55,8 @@ class Inheriting(unittest.TestCase):
 
     def run_binary(self):
         bucket, resolve, depends, built, archive, restore = self.acting()
-        with bucket, resolve, depends, built, archive, restore:
+        self.reported = io.StringIO()
+        with bucket, resolve, depends, built, archive, restore, redirect_stderr(self.reported):
             return ship.run_binary(self.held)
 
     def test_a_plan_that_holds_them_already_hands_them_to_the_build(self):
@@ -70,6 +73,7 @@ class Inheriting(unittest.TestCase):
         self.assertEqual(len(self.archived), 1)
         self.assertIn(f"workload/1/{self.inherited}/record.json", self.bucket.objects)
         self.assertEqual(self.bucket.get(f"workload/1/{self.inherited}/blobs/{ship.DEPENDENCIES}"), b"a packed target directory")
+        self.assertIn(self.inherited, self.reported.getvalue())
 
     def test_the_binary_is_recorded_either_way(self):
         for decision in ("run", "skip"):
