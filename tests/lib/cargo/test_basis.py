@@ -194,3 +194,42 @@ class SuiteBasis(unittest.TestCase):
         self.repository.commit()
         with self.assertRaises(Refusal):
             self.held()
+
+
+class Dependencies(unittest.TestCase):
+    def setUp(self):
+        self.repository = Repository()
+
+    def held(self):
+        return basis.dependencies(self.repository.root, "demo", "x86_64-unknown-linux-gnu", "ubuntu-24.04")
+
+    def key(self):
+        return workload.key(self.held(), implementation.digest("lib.cargo.basis", "lib.cargo.build"))
+
+    def test_a_member_is_taken_as_its_manifest_not_its_tree(self):
+        self.assertEqual(sorted(self.held()["members"]), ["crates/cli/Cargo.toml", "crates/lib/Cargo.toml"])
+
+    def test_a_source_change_leaves_the_dependencies_where_they_are(self):
+        before = self.key()
+        self.repository.write("crates/lib/src/lib.rs", "// changed\n")
+        self.repository.commit()
+        self.assertNotEqual(self.repository.key(), before, "the binary must follow its own sources")
+        self.assertEqual(self.key(), before)
+
+    def test_a_declared_dependency_change_moves_them(self):
+        before = self.key()
+        self.repository.edit("crates/lib/Cargo.toml", 'itoa = "1"', 'itoa = "1.0.0"')
+        self.repository.commit()
+        self.assertNotEqual(self.key(), before)
+
+    def test_a_locked_version_change_moves_them(self):
+        before = self.key()
+        self.repository.edit("Cargo.lock", 'checksum = "aaaa"', 'checksum = "cccc"')
+        self.repository.commit()
+        self.assertNotEqual(self.key(), before)
+
+    def test_the_target_and_the_runner_are_part_of_what_is_built(self):
+        self.assertNotEqual(self.key(), workload.key(basis.dependencies(self.repository.root, "demo", "aarch64-apple-darwin", "macos-15"), implementation.digest("lib.cargo.basis", "lib.cargo.build")))
+
+    def test_it_is_not_the_binary_under_another_name(self):
+        self.assertNotEqual(self.key(), self.repository.key())

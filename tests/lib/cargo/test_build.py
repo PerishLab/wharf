@@ -1,12 +1,14 @@
 import contextlib
 import io
 import json
+import shutil
 import tempfile
 import unittest
 from pathlib import Path
 
 from lib import process
 from lib.cargo import build
+from tests.lib.cargo.test_basis import Repository
 from lib.refusal import Refusal
 
 
@@ -109,3 +111,58 @@ class Build(unittest.TestCase):
     def test_refuses_when_cargo_leaves_nothing(self):
         with self.assertRaises(Refusal):
             self.build(Cargo([("plumb-cli", ["plumb"])], produce=False))
+
+
+class Dependencies(unittest.TestCase):
+    def setUp(self):
+        self.repository = Repository()
+        self.target = build.workspace(self.repository.root)
+        self.written = {
+            "x86_64-unknown-linux-gnu/release/deps/libitoa-4ca4f21e2a5b3a99.rlib": b"a dependency",
+            "x86_64-unknown-linux-gnu/release/.fingerprint/itoa-4ca4f21e2a5b3a99/lib-itoa": b"a fingerprint",
+            "x86_64-unknown-linux-gnu/release/deps/libdemo-9b1c3f77aa0e4d21.rlib": b"a member",
+            "x86_64-unknown-linux-gnu/release/.fingerprint/demo-cli-77ff11aa22bb33cc/bin-demo": b"a member fingerprint",
+            "x86_64-unknown-linux-gnu/release/demo": b"the binary",
+            ".rustc_info.json": b"a probe",
+        }
+        for name, body in self.written.items():
+            path = self.target / name
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_bytes(body)
+
+    def packed(self, name="dependencies.tar.gz"):
+        return build.archive(self.repository.root, Path(tempfile.mkdtemp()) / name)
+
+    def test_what_the_product_builds_itself_is_left_out(self):
+        held = build.held(self.target, {"demo", "demo-cli", "demo_cli"})
+        self.assertEqual(held, [
+            "x86_64-unknown-linux-gnu/release/.fingerprint/itoa-4ca4f21e2a5b3a99/lib-itoa",
+            "x86_64-unknown-linux-gnu/release/deps/libitoa-4ca4f21e2a5b3a99.rlib",
+        ])
+
+    def test_two_archives_of_the_same_tree_are_the_same_bytes(self):
+        self.assertEqual(self.packed("one.tar.gz").read_bytes(), self.packed("two.tar.gz").read_bytes())
+
+    def test_restoring_brings_back_dependencies_and_nothing_of_the_product(self):
+        packed = self.packed()
+        shutil.rmtree(self.target)
+        build.restore(self.repository.root, packed)
+        found = sorted(path.relative_to(self.target).as_posix() for path in self.target.rglob("*") if path.is_file())
+        self.assertEqual(found, [
+            "x86_64-unknown-linux-gnu/release/.fingerprint/itoa-4ca4f21e2a5b3a99/lib-itoa",
+            "x86_64-unknown-linux-gnu/release/deps/libitoa-4ca4f21e2a5b3a99.rlib",
+        ])
+        self.assertEqual((self.target / "x86_64-unknown-linux-gnu/release/deps/libitoa-4ca4f21e2a5b3a99.rlib").read_bytes(), b"a dependency")
+
+    def test_a_member_artifact_in_the_archive_is_dropped_on_the_way_back(self):
+        packed = self.packed()
+        build.restore(self.repository.root, packed)
+        self.assertFalse((self.target / "x86_64-unknown-linux-gnu/release/demo").exists())
+        self.assertFalse((self.target / "x86_64-unknown-linux-gnu/release/deps/libdemo-9b1c3f77aa0e4d21.rlib").exists())
+
+    def test_everything_restored_carries_one_instant_so_cargo_reads_it_as_fresh(self):
+        packed = self.packed()
+        shutil.rmtree(self.target)
+        build.restore(self.repository.root, packed)
+        stamps = {path.stat().st_mtime_ns for path in self.target.rglob("*")}
+        self.assertEqual(len(stamps), 1)

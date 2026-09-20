@@ -83,6 +83,18 @@ workload record must hash to the key it is filed under. A job that consumes
 another job's workload reads that key from the plan too, so a key is never
 passed down twice.
 
+The dependencies a binary compiles against are a workload of their own. Their
+basis is the binary's basis without the members' own sources — the member
+manifests, the lock closure, the toolchain, the target and the runner — so a
+product's own change does not move them, and two products that lock the same
+closure share one record. The build job restores them when the plan already
+holds them and records them when it does not, from the same build either way.
+What is recorded is the cargo target directory with every artifact of a
+workspace member and cargo's own probe cache left out, so nothing a product
+builds itself can come back stale. It is packed under one fixed timestamp to
+stay byte for byte the same, and restored under one instant, because cargo
+rebuilds whatever it finds an input newer than.
+
 The plan also tells the runner what to start: one matrix per target family and
 one decision per single job, written to the runner's output file. Skipping is
 absence from a matrix, not a condition on a job that exists. A single job that

@@ -1,19 +1,22 @@
+import gzip
 import hashlib
 import json
 import os
 import re
 import shutil
 import sys
-import tempfile
+import tarfile
 import time
 from dataclasses import dataclass
 from pathlib import Path
 
-from lib.cargo import toolchain
+from lib.cargo import manifest, toolchain
 from lib.process import run, stream
 from lib.refusal import Refusal
 
 TRIPLE = re.compile(r"^[a-z0-9_]+(-[a-z0-9_]+){2,3}$")
+HASHED = re.compile(r"-[0-9a-f]{8,}$")
+PROBED = ".rustc_info.json"
 
 
 @dataclass(frozen=True)
@@ -70,22 +73,74 @@ def environment(request, channel):
     return env
 
 
+def workspace(source):
+    return Path(source).resolve() / "target"
+
+
+def crates(source):
+    return set(manifest.members(source, manifest.read(source, "Cargo.toml")))
+
+
+def stem(part):
+    base = part[3:] if part.startswith("lib") else part
+    return HASHED.sub("", base.split(".")[0])
+
+
+def owned(relative, named):
+    return any(stem(part) in named for part in Path(relative).parts)
+
+
+def held(directory, named):
+    found = (path for path in Path(directory).rglob("*") if path.is_file() and not path.is_symlink())
+    names = sorted(path.relative_to(directory).as_posix() for path in found)
+    return [name for name in names if name != PROBED and not owned(name, named)]
+
+
+def archive(source, output):
+    directory = workspace(source)
+    named = {name.replace("-", "_") for name in crates(source)} | crates(source)
+    with open(output, "wb") as body, gzip.GzipFile(filename="", mode="wb", fileobj=body, mtime=0, compresslevel=1) as packed:
+        with tarfile.open(fileobj=packed, mode="w", format=tarfile.GNU_FORMAT) as archived:
+            for name in held(directory, named):
+                path = directory / name
+                entry = tarfile.TarInfo(name)
+                entry.size, entry.mtime, entry.uid, entry.gid, entry.uname, entry.gname = path.stat().st_size, 0, 0, 0, "", ""
+                entry.mode = 0o755 if path.stat().st_mode & 0o100 else 0o644
+                with path.open("rb") as reading:
+                    archived.addfile(entry, reading)
+    return output
+
+
+def restore(source, packed):
+    directory = workspace(source)
+    named = {name.replace("-", "_") for name in crates(source)} | crates(source)
+    with gzip.open(packed, "rb") as body, tarfile.open(fileobj=body, mode="r|") as archived:
+        archived.extractall(directory, filter="data")
+    for path in sorted(directory.rglob("*"), reverse=True):
+        if path.is_file() and owned(path.relative_to(directory).as_posix(), named):
+            path.unlink()
+    stamped = time.time()
+    for path in directory.rglob("*"):
+        os.utime(path, (stamped, stamped))
+    return directory
+
+
 def produce(request, tools, env, spans):
-    with tempfile.TemporaryDirectory() as target:
-        env["CARGO_TARGET_DIR"] = target
-        locked(request.source)
-        listed, seconds = timed(tools.run, ["cargo", "metadata", "--locked", "--no-deps", "--format-version", "1"], request.source, env)
-        spans.append(("metadata", seconds))
-        package = owner(request.name, listed)
-        spans.append(("fetch", timed(tools.stream, ["cargo", "fetch", "--locked", "--target", request.target], request.source, env)[1]))
-        argv = ["cargo", "build", "--locked", "--offline", "--release", "--package", package, "--bin", request.name, "--target", request.target]
-        spans.append(("build", timed(tools.stream, argv, request.source, env)[1]))
-        built = Path(target) / request.target / "release" / f"{request.name}{request.suffix}"
-        if not built.is_file():
-            raise Refusal(f"cargo reported success but {built} is missing")
-        request.output.mkdir(parents=True)
-        shutil.copy2(built, request.output / request.artifact)
-        return package
+    target = workspace(request.source)
+    env["CARGO_TARGET_DIR"] = str(target)
+    locked(request.source)
+    listed, seconds = timed(tools.run, ["cargo", "metadata", "--locked", "--no-deps", "--format-version", "1"], request.source, env)
+    spans.append(("metadata", seconds))
+    package = owner(request.name, listed)
+    spans.append(("fetch", timed(tools.stream, ["cargo", "fetch", "--locked", "--target", request.target], request.source, env)[1]))
+    argv = ["cargo", "build", "--locked", "--offline", "--release", "--package", package, "--bin", request.name, "--target", request.target]
+    spans.append(("build", timed(tools.stream, argv, request.source, env)[1]))
+    built = target / request.target / "release" / f"{request.name}{request.suffix}"
+    if not built.is_file():
+        raise Refusal(f"cargo reported success but {built} is missing")
+    request.output.mkdir(parents=True)
+    shutil.copy2(built, request.output / request.artifact)
+    return package
 
 
 def build(request, tools=Tools()):

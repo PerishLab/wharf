@@ -13,6 +13,7 @@ from lib.media import cfworker, chart, node, npm, oci, release as releasing
 from lib.store import plan, r2
 from lib.store import workload
 
+DEPENDENCIES = "dependencies.tar.gz"
 RELEASE = ("repository", "marker", "commit", "tree")
 CONTEXT = ("repository", "marker", "wharf", "run", "attempt")
 BUILD = resources.read_json("build.json")
@@ -61,14 +62,37 @@ def staged(bucket, key):
     return directory
 
 
+def inherited(bucket, document, held, target):
+    entry = document["entries"].get(f"dependencies-{target['name']}")
+    if entry is None or entry["decision"] != "skip":
+        return entry
+    restored = place()
+    workload.fetch(bucket, entry["key"], str(restored))
+    build.restore(held["source"], restored / DEPENDENCIES)
+    return entry
+
+
+def depended(bucket, held, target, entry):
+    name = plan.product(carried(held))
+    held_basis = basis.dependencies(held["source"], name, target["target"], target["runner"])
+    resolved(entry, held_basis, (["lib.cargo.basis", "lib.cargo.build"], []))
+    output = place()
+    output.mkdir(parents=True)
+    build.archive(held["source"], output / DEPENDENCIES)
+    return workload.publish(bucket, entry["key"], workload.Produced(output, held_basis, carried(held)))
+
+
 def run_binary(held):
     target = targeted(held["target"])
     bucket, document, entry = opened(held, f"binary-{target['name']}")
     name = plan.product(document["context"])
     held_basis = basis.resolve(held["source"], name, target["target"], target["runner"])
     resolved(entry, held_basis, (["lib.cargo.basis", "lib.cargo.build"], []))
+    dependencies = inherited(bucket, document, held, target)
     output = place()
     build.build(build.Build(Path(held["source"]), name, target["target"], output))
+    if dependencies is not None and dependencies["decision"] == "run":
+        depended(bucket, held, target, dependencies)
     return workload.publish(bucket, entry["key"], workload.Produced(output, held_basis, carried(held)))
 
 

@@ -37,6 +37,7 @@ def binaries(held, bucket, entries):
             {"entry": {"kind": "binary-identity", "binary": built["key"]}, "identity": identity},
             (["lib.identity.bind"], ["identity/format.json"]),
         )
+        entries[f"dependencies-{target['name']}"] = decided(bucket, basis.dependencies(held["source"], name, target["target"], target["runner"]), (["lib.cargo.basis", "lib.cargo.build"], []))
         entries[f"binary-{target['name']}"] = built
         entries[f"bind-{target['name']}"] = bound
         entries[f"smoke-{target['name']}"] = decided(bucket, {"entry": {"kind": "binary-smoke", "binary": bound["key"]}}, (["lib.identity.smoke"], []))
