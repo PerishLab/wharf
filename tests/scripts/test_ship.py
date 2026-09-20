@@ -110,23 +110,30 @@ class Building(unittest.TestCase):
 class Binding(unittest.TestCase):
     def setUp(self):
         self.bucket = Memory()
-        self.held = dict(CONTEXT, target="x86_64-unknown-linux-gnu")
+        self.held = dict(CONTEXT)
         self.identity = {"repository": CONTEXT["repository"], "marker": CONTEXT["marker"], "commit": "a" * 40, "tree": "b" * 40}
-        self.binary = "e" * 64
-        self.basis = {"entry": {"kind": "binary-identity", "binary": self.binary}, "identity": self.identity}
-        self.key = ship.workload.key(self.basis, ship.implementation.resourced(["lib.identity.bind"], ["identity/format.json"]))
+        self.witnessed = []
+        self.binaries = {"linux": "e" * 64, "windows": "f" * 64}
+        self.keys = {name: self.keyed(key) for name, key in self.binaries.items()}
 
-    def seed(self, decision):
-        produced = Path(tempfile.mkdtemp()) / "unbound"
-        produced.mkdir()
-        produced.joinpath("plumb-x86_64-unknown-linux-gnu").write_bytes(b"an unbound executable")
-        ship.workload.publish(self.bucket, self.binary, ship.workload.Produced(produced, {}, {}))
-        entries = {"binary-linux": {"key": self.binary, "decision": "skip"}, "bind-linux": {"key": self.key, "decision": decision}}
+    def keyed(self, binary):
+        basis = {"entry": {"kind": "binary-identity", "binary": binary}, "identity": self.identity}
+        return ship.workload.key(basis, ship.implementation.resourced(["lib.identity.bind"], ["identity/format.json"]))
+
+    def seed(self, decisions):
+        entries = {}
+        for name, decision in decisions.items():
+            produced = Path(tempfile.mkdtemp()) / "unbound"
+            produced.mkdir()
+            produced.joinpath(f"plumb-{ship.targeted(name)['target']}").write_bytes(b"an unbound executable")
+            ship.workload.publish(self.bucket, self.binaries[name], ship.workload.Produced(produced, {}, {}))
+            entries[f"binary-{name}"] = {"key": self.binaries[name], "decision": "skip"}
+            entries[f"bind-{name}"] = {"key": self.keys[name], "decision": decision}
         plan.record(self.bucket, dict(CONTEXT, commit="a" * 40, tree="b" * 40), entries, {})
 
     def bound(self):
         def perform(artifact, release, workload, output):
-            self.witnessed = (artifact.directory, release, workload)
+            self.witnessed.append((artifact.directory, release, workload))
             Path(output).mkdir(parents=True)
             Path(output).joinpath(artifact.file.name).write_bytes(b"a bound executable")
             return {"binding": release.marker}
@@ -138,19 +145,28 @@ class Binding(unittest.TestCase):
             return ship.run_bind(self.held)
 
     def test_the_binary_it_binds_is_the_one_the_plan_named(self):
-        self.seed("run")
-        self.assertEqual(self.run_bind()["key"], self.key)
-        self.assertEqual(self.witnessed[2], self.binary)
-        self.assertTrue(self.witnessed[0].joinpath("plumb-x86_64-unknown-linux-gnu").is_file())
+        self.seed({"linux": "run"})
+        self.assertEqual([record["key"] for record in self.run_bind()], [self.keys["linux"]])
+        self.assertEqual(self.witnessed[0][2], self.binaries["linux"])
+        self.assertTrue(self.witnessed[0][0].joinpath("plumb-x86_64-unknown-linux-gnu").is_file())
 
     def test_the_identity_it_binds_comes_from_the_plan_not_from_the_job(self):
-        self.seed("run")
+        self.seed({"linux": "run"})
         self.run_bind()
-        self.assertEqual(self.witnessed[1], ship.bind.Release(**self.identity))
+        self.assertEqual(self.witnessed[0][1], ship.bind.Release(**self.identity))
 
-    def test_a_plan_that_decided_to_skip_stops_the_job(self):
-        self.seed("skip")
-        with self.assertRaisesRegex(Refusal, "decided 'skip' for bind-linux"):
+    def test_one_job_binds_every_target_the_plan_decided_to_run(self):
+        self.seed({"linux": "run", "windows": "run"})
+        self.assertEqual([record["key"] for record in self.run_bind()], [self.keys["linux"], self.keys["windows"]])
+        self.assertEqual([witnessed[2] for witnessed in self.witnessed], [self.binaries["linux"], self.binaries["windows"]])
+
+    def test_a_target_the_plan_decided_to_skip_is_absent_from_the_job(self):
+        self.seed({"linux": "run", "windows": "skip"})
+        self.assertEqual([record["key"] for record in self.run_bind()], [self.keys["linux"]])
+
+    def test_a_plan_that_decided_to_skip_every_target_stops_the_job(self):
+        self.seed({"linux": "skip", "windows": "skip"})
+        with self.assertRaisesRegex(Refusal, "no target needs binding"):
             self.run_bind()
 
 
