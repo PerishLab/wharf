@@ -81,15 +81,9 @@ def run_suite(held):
     return workload.publish(bucket, entry["key"], workload.Produced(output, held_basis, carried(held)))
 
 
-def binding(document):
-    named = [target for target in BUILD["targets"] if document["entries"].get(f"bind-{target['name']}", {}).get("decision") == "run"]
-    if not named:
-        raise Refusal("the plan for this run decided no target needs binding")
-    return named
-
-
-def bind_target(bucket, document, held, target):
-    entry = plan.planned(document, f"bind-{target['name']}")
+def run_bind(held):
+    target = targeted(held["target"])
+    bucket, document, entry = opened(held, f"bind-{target['name']}")
     binary = document["entries"][f"binary-{target['name']}"]["key"]
     identity = {field: document["context"][field] for field in RELEASE}
     held_basis = {"entry": {"kind": "binary-identity", "binary": binary}, "identity": identity}
@@ -98,12 +92,6 @@ def bind_target(bucket, document, held, target):
     bound = bind.Artifact(staged(bucket, binary), plan.product(identity), target["target"])
     bind.perform(bound, bind.Release(**identity), binary, str(output))
     return workload.publish(bucket, entry["key"], workload.Produced(output, held_basis, carried(held)))
-
-
-def run_bind(held):
-    bucket = r2.configured()
-    document = plan.read(bucket, carried(held))
-    return [bind_target(bucket, document, held, target) for target in binding(document)]
 
 
 def validate(held):
@@ -226,7 +214,7 @@ def cargo_publish(held):
 ACTIONS = {
     "binary": (run_binary, ["source", "target", *CONTEXT]),
     "suite": (run_suite, ["source", *CONTEXT]),
-    "bind": (run_bind, [*CONTEXT]),
+    "bind": (run_bind, ["target", *CONTEXT]),
     "smoke": (run_smoke, ["target", *CONTEXT]),
     "validate": (validate, [*CONTEXT]),
     "node-engines": (node_engines, ["source"]),

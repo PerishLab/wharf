@@ -195,9 +195,23 @@ jobs:
 
   bind:
     needs: [plan, binary]
-    if: always() && needs.plan.result == 'success' && needs.plan.outputs.bind == 'run' && (needs.binary.result == 'success' || needs.binary.result == 'skipped')
-    runs-on: ubuntu-24.04
+    if: always() && needs.plan.result == 'success' && needs.plan.outputs.bind != '[]' && (needs.binary.result == 'success' || needs.binary.result == 'skipped')
+    strategy:
+      fail-fast: false
+      matrix:
+        include: ${{ fromJSON(needs.plan.outputs.bind) }}
+    name: bind ${{ matrix.name }}
+    runs-on: ${{ matrix.runner }}
+    defaults:
+      run:
+        shell: bash
+        working-directory: wharf
     steps:
+      - name: Keep checkouts byte-identical
+        if: runner.os == 'Windows'
+        working-directory: .
+        run: git config --global core.autocrlf false
+
       - name: Check out wharf
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
@@ -206,6 +220,7 @@ jobs:
 
       - name: Bind and record the release identity
         env:
+          WHARF_TARGET: ${{ matrix.target }}
           WHARF_REPOSITORY: ${{ inputs.repository }}
           WHARF_MARKER: ${{ inputs.marker }}
           WHARF_WHARF: ${{ github.sha }}
