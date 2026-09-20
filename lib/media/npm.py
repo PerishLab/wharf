@@ -9,7 +9,7 @@ import urllib.request
 from dataclasses import dataclass
 from pathlib import Path
 
-from lib import resources
+from lib.content import resources
 from lib.media.node import manifest
 from lib.process import git, run
 from lib.refusal import Refusal

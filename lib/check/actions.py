@@ -1,7 +1,7 @@
 import re
 from pathlib import Path
 
-from lib import resources
+from lib.content import resources
 
 LOCKED = resources.read_json("actions.json")
 PINNED = LOCKED["pinned"]

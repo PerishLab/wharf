@@ -1,4 +1,4 @@
-from lib import resources
+from lib.content import resources
 
 SPEC = resources.read_json("identity/format.json")
 MAGIC = SPEC["magic"].encode()

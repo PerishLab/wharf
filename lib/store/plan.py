@@ -1,6 +1,6 @@
 import re
 
-from lib import canonical
+from lib.content import canonical
 from lib.refusal import Refusal
 
 MARKER = re.compile(r"v\d+\.\d+\.\d+(-(alpha|beta|rc)\.[1-9]\d*)?")

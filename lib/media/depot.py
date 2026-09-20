@@ -5,7 +5,7 @@ import urllib.error
 import urllib.request
 from dataclasses import dataclass
 
-from lib import canonical, resources
+from lib.content import canonical, resources
 from lib.refusal import Conflict, Refusal
 
 FORMAT = 3

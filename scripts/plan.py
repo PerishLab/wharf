@@ -3,7 +3,7 @@ import json
 import os
 import sys
 
-from lib import implementation
+from lib.content import implementation
 from lib.cargo import basis
 from lib.media import cfworker, node
 from lib.refusal import Refusal

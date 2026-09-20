@@ -1,6 +1,6 @@
 import re
 
-from lib import canonical
+from lib.content import canonical
 from lib.refusal import Refusal
 
 SETTLED = {"success", "skipped"}

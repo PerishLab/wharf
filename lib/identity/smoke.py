@@ -4,7 +4,7 @@ import subprocess
 import tempfile
 from pathlib import Path
 
-from lib import resources
+from lib.content import resources
 from lib.process import run
 from lib.refusal import Refusal
 

@@ -2,7 +2,7 @@ import ast
 import re
 from pathlib import Path
 
-from lib import resources
+from lib.content import resources
 
 VOCABULARY = resources.read_json("vocabulary.json")
 CLAIMED = VOCABULARY["claimed"]

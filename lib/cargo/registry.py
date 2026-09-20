@@ -4,7 +4,7 @@ import urllib.error
 import urllib.request
 from pathlib import Path
 
-from lib import resources
+from lib.content import resources
 from lib.refusal import Refusal
 
 KNOWN = resources.read_json("registries.json")["cargo"]

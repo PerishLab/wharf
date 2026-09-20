@@ -3,7 +3,7 @@ import json
 import sys
 from pathlib import Path
 
-from lib import canonical, implementation
+from lib.content import canonical, implementation
 from lib.cargo import basis, build, publish, suite, version
 from lib.identity import bind
 from lib.refusal import Refusal

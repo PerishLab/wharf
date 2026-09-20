@@ -3,7 +3,7 @@ from pathlib import Path, PurePosixPath
 
 from lib.refusal import Refusal
 
-ROOT = Path(__file__).resolve().parent.parent / "resources"
+ROOT = Path(__file__).resolve().parent.parent.parent / "resources"
 
 
 def locate(name):

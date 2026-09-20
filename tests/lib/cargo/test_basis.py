@@ -4,7 +4,7 @@ import textwrap
 import unittest
 from pathlib import Path
 
-from lib import implementation
+from lib.content import implementation
 from lib.cargo import basis
 from lib.refusal import Refusal
 from lib.store import workload

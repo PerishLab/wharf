@@ -1,6 +1,6 @@
 import unittest
 
-from lib import resources
+from lib.content import resources
 from lib.refusal import Refusal
 
 

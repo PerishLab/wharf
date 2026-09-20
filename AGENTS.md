@@ -12,11 +12,11 @@ the repository; `CLAUDE.md` only points here.
 | `lib/` | every piece of shared logic, one module per function |
 | `scripts/` | thin entry points run as `python -m scripts.<name>` from the repository root |
 | `tests/` | tests mirroring `lib/` and `scripts/` |
-| `resources/` | non-code files, read only through `lib/resources.py` |
+| `resources/` | non-code files, read only through `lib/content/resources.py` |
 | `.githooks/pre-commit` | the only gate |
 
 `scripts` may import `lib`; `lib` never imports `scripts`; scripts never import each
-other; `lib` has no import cycles. Only `lib/resources.py` knows where files live.
+other; `lib` has no import cycles. Only `lib/content/resources.py` knows where files live.
 
 ## Working rules
 

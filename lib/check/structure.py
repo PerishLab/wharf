@@ -1,6 +1,6 @@
 from pathlib import Path
 
-from lib import resources
+from lib.content import resources
 
 RULES = resources.read_json("structure.json")
 

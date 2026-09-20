@@ -1,7 +1,7 @@
 import ast
 from pathlib import Path
 
-RESOURCE_OWNER = "lib/resources.py"
+RESOURCE_OWNER = "lib/content/resources.py"
 
 
 def module(path):

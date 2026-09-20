@@ -3,7 +3,7 @@ import json
 from dataclasses import dataclass
 from pathlib import Path
 
-from lib import canonical
+from lib.content import canonical
 from lib.refusal import Conflict, Refusal
 
 HASH_VERSION = 1

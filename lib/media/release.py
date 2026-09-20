@@ -9,7 +9,7 @@ import urllib.request
 from dataclasses import dataclass
 from pathlib import Path
 
-from lib import canonical, implementation, resources
+from lib.content import canonical, implementation, resources
 from lib.media import archive
 from lib.process import run
 from lib.refusal import Conflict, Refusal

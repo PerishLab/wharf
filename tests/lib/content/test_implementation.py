@@ -1,6 +1,6 @@
 import unittest
 
-from lib import implementation
+from lib.content import implementation
 
 
 class Implementation(unittest.TestCase):

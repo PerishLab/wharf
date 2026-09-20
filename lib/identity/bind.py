@@ -4,7 +4,7 @@ import shutil
 from dataclasses import dataclass
 from pathlib import Path
 
-from lib import canonical
+from lib.content import canonical
 from lib.identity import image as located, region, signature
 from lib.refusal import Refusal
 

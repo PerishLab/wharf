@@ -3,7 +3,7 @@ import hashlib
 import importlib.util
 from pathlib import Path
 
-from lib import resources
+from lib.content import resources
 
 
 def package():
