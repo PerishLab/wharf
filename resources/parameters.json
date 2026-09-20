@@ -3,15 +3,26 @@
   "credential": "TOKEN|SECRET|PASSWORD|CREDENTIAL|ACCESS_KEY|API_KEY|PRIVATE_KEY|SIGNING_KEY",
   "types": {
     "attempt": "string",
+    "basis": "string",
+    "binary-key": "string",
     "commit": "string",
+    "dir": "string",
+    "expect": "string",
+    "linux": "string",
+    "macos": "string",
+    "managers": "string",
     "marker": "string",
     "name": "string",
+    "output": "string",
     "repository": "string",
     "run": "string",
+    "runner": "string",
     "source": "string",
     "steps": "string",
+    "target": "string",
     "tree": "string",
-    "wharf": "string"
+    "wharf": "string",
+    "windows": "string"
   },
   "defaults": {}
 }

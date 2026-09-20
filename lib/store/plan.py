@@ -1,8 +1,10 @@
+import json
 import re
 
 from lib.content import canonical
 from lib.refusal import Refusal
 
+SCHEMA = 1
 MARKER = re.compile(r"v\d+\.\d+\.\d+(-(alpha|beta|rc)\.[1-9]\d*)?")
 NAMED = re.compile(r"[A-Za-z0-9._-]+/[A-Za-z0-9._-]+")
 
@@ -15,6 +17,11 @@ def named(context):
     return f"plan/{context['repository']}/{context['marker']}"
 
 
+def product(context):
+    named(context)
+    return context["repository"].split("/", 1)[1]
+
+
 def location(context):
     return f"{named(context)}/{context['run']}-{context['attempt']}.json"
 
@@ -24,7 +31,7 @@ def standing(context):
 
 
 def document(context, entries, engines):
-    return {"schema": 1, "context": context, "engines": engines, "entries": {name: entries[name] for name in sorted(entries)}}
+    return {"schema": SCHEMA, "context": context, "engines": engines, "entries": {name: entries[name] for name in sorted(entries)}}
 
 
 def agreed(entries, observed):
@@ -35,6 +42,22 @@ def agreed(entries, observed):
             if held.get(field) != entry[field]:
                 drift.append(f"{name}.{field}: planned {entry[field]!r}, step reported {held.get(field)!r}")
     return drift
+
+
+def read(bucket, context):
+    held = json.loads(bucket.get(location(context)))
+    if held.get("schema") != SCHEMA:
+        raise Refusal(f"{location(context)} is not a schema {SCHEMA} plan")
+    return held
+
+
+def planned(document, name):
+    entry = document["entries"].get(name)
+    if entry is None:
+        raise Refusal(f"the plan for this run holds no entry {name}")
+    if entry.get("decision") != "run":
+        raise Refusal(f"the plan decided {entry.get('decision')!r} for {name}, so nothing should have run it")
+    return entry
 
 
 def record(bucket, context, entries, engines):

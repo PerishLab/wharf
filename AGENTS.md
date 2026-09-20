@@ -57,6 +57,15 @@ and any resources it reads. Records live under `workload/<hash_version>/<key>/` 
 different bytes under an existing key refuse as non-determinism. Jobs hand work to
 each other only through recorded workloads, never through run artifacts.
 
+The plan job decides, for every entry a run could hold, the workload key and
+whether it runs, and records that as one document at
+`plan/<owner>/<repository>/<marker>/<run>-<attempt>.json`, with a `latest.json`
+pointer beside it. A job addresses its own run's plan from the context it
+already has, reads its entry there rather than deciding again, and refuses if
+the plan decided to skip it. It still resolves the basis it is about to record
+and refuses when that resolves to a key other than the planned one, because a
+workload record must hash to the key it is filed under.
+
 Every run attempt writes one trigger record at
 `trigger/<owner>/<repository>/<marker>/<run>-<attempt>.json`; a run is complete only
 when every job succeeded or was skipped by plan.

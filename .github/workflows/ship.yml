@@ -400,20 +400,16 @@ jobs:
 
       - name: Build and record the binary
         env:
-          REPOSITORY: ${{ inputs.repository }}
-          MARKER: ${{ inputs.marker }}
-          KEY: ${{ needs.plan.outputs.binary-linux-key }}
-          WHARF: ${{ github.sha }}
-          RUN: ${{ github.run_id }}
-          ATTEMPT: ${{ github.run_attempt }}
+          WHARF_SOURCE: ../product
+          WHARF_TARGET: x86_64-unknown-linux-gnu
+          WHARF_REPOSITORY: ${{ inputs.repository }}
+          WHARF_MARKER: ${{ inputs.marker }}
+          WHARF_WHARF: ${{ github.sha }}
+          WHARF_RUN: ${{ github.run_id }}
+          WHARF_ATTEMPT: ${{ github.run_attempt }}
           WHARF_R2_ACCESS_KEY_ID: ${{ secrets.WHARF_R2_ACCESS_KEY_ID }}
           WHARF_R2_SECRET_ACCESS_KEY: ${{ secrets.WHARF_R2_SECRET_ACCESS_KEY }}
-        run: |
-          key=$(python3 -B -m scripts.ship key-binary --source ../product --name "${REPOSITORY#*/}" --target x86_64-unknown-linux-gnu --runner ubuntu-24.04 --basis ../basis.json | python3 -c 'import json,sys; print(json.load(sys.stdin)["key"])')
-          [ "$key" = "$KEY" ] || { echo "resolved key $key differs from planned $KEY"; exit 2; }
-          python3 -B -m scripts.ship binary --source ../product --name "${REPOSITORY#*/}" --target x86_64-unknown-linux-gnu --output ../produced
-          python3 -c 'import json,os; json.dump({f: os.environ[e] for f, e in {"repository": "REPOSITORY", "marker": "MARKER", "wharf": "WHARF", "run": "RUN", "attempt": "ATTEMPT"}.items()}, open("../context.json", "w"))'
-          python3 -B -m scripts.store publish --key "$KEY" --dir ../produced --basis ../basis.json --context ../context.json
+        run: python3 -B -m scripts.ship binary
 
   bind-linux:
     needs: [plan, binary-linux]
@@ -506,20 +502,16 @@ jobs:
 
       - name: Build and record the binary
         env:
-          REPOSITORY: ${{ inputs.repository }}
-          MARKER: ${{ inputs.marker }}
-          KEY: ${{ needs.plan.outputs.binary-windows-key }}
-          WHARF: ${{ github.sha }}
-          RUN: ${{ github.run_id }}
-          ATTEMPT: ${{ github.run_attempt }}
+          WHARF_SOURCE: ../product
+          WHARF_TARGET: x86_64-pc-windows-msvc
+          WHARF_REPOSITORY: ${{ inputs.repository }}
+          WHARF_MARKER: ${{ inputs.marker }}
+          WHARF_WHARF: ${{ github.sha }}
+          WHARF_RUN: ${{ github.run_id }}
+          WHARF_ATTEMPT: ${{ github.run_attempt }}
           WHARF_R2_ACCESS_KEY_ID: ${{ secrets.WHARF_R2_ACCESS_KEY_ID }}
           WHARF_R2_SECRET_ACCESS_KEY: ${{ secrets.WHARF_R2_SECRET_ACCESS_KEY }}
-        run: |
-          key=$(python -B -m scripts.ship key-binary --source ../product --name "${REPOSITORY#*/}" --target x86_64-pc-windows-msvc --runner windows-2025 --basis ../basis.json | python -c 'import json,sys; print(json.load(sys.stdin)["key"])')
-          [ "$key" = "$KEY" ] || { echo "resolved key $key differs from planned $KEY"; exit 2; }
-          python -B -m scripts.ship binary --source ../product --name "${REPOSITORY#*/}" --target x86_64-pc-windows-msvc --output ../produced
-          python -c 'import json,os; json.dump({f: os.environ[e] for f, e in {"repository": "REPOSITORY", "marker": "MARKER", "wharf": "WHARF", "run": "RUN", "attempt": "ATTEMPT"}.items()}, open("../context.json", "w"))'
-          python -B -m scripts.store publish --key "$KEY" --dir ../produced --basis ../basis.json --context ../context.json
+        run: python3 -B -m scripts.ship binary
 
   bind-windows:
     needs: [plan, binary-windows]
@@ -612,20 +604,16 @@ jobs:
 
       - name: Build and record the binary
         env:
-          REPOSITORY: ${{ inputs.repository }}
-          MARKER: ${{ inputs.marker }}
-          KEY: ${{ needs.plan.outputs.binary-macos-key }}
-          WHARF: ${{ github.sha }}
-          RUN: ${{ github.run_id }}
-          ATTEMPT: ${{ github.run_attempt }}
+          WHARF_SOURCE: ../product
+          WHARF_TARGET: aarch64-apple-darwin
+          WHARF_REPOSITORY: ${{ inputs.repository }}
+          WHARF_MARKER: ${{ inputs.marker }}
+          WHARF_WHARF: ${{ github.sha }}
+          WHARF_RUN: ${{ github.run_id }}
+          WHARF_ATTEMPT: ${{ github.run_attempt }}
           WHARF_R2_ACCESS_KEY_ID: ${{ secrets.WHARF_R2_ACCESS_KEY_ID }}
           WHARF_R2_SECRET_ACCESS_KEY: ${{ secrets.WHARF_R2_SECRET_ACCESS_KEY }}
-        run: |
-          key=$(python3 -B -m scripts.ship key-binary --source ../product --name "${REPOSITORY#*/}" --target aarch64-apple-darwin --runner macos-15 --basis ../basis.json | python3 -c 'import json,sys; print(json.load(sys.stdin)["key"])')
-          [ "$key" = "$KEY" ] || { echo "resolved key $key differs from planned $KEY"; exit 2; }
-          python3 -B -m scripts.ship binary --source ../product --name "${REPOSITORY#*/}" --target aarch64-apple-darwin --output ../produced
-          python3 -c 'import json,os; json.dump({f: os.environ[e] for f, e in {"repository": "REPOSITORY", "marker": "MARKER", "wharf": "WHARF", "run": "RUN", "attempt": "ATTEMPT"}.items()}, open("../context.json", "w"))'
-          python3 -B -m scripts.store publish --key "$KEY" --dir ../produced --basis ../basis.json --context ../context.json
+        run: python3 -B -m scripts.ship binary
 
   bind-macos:
     needs: [plan, binary-macos]
