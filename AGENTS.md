@@ -86,6 +86,12 @@ with the step that can ask its registry, because asking needs that registry's
 credentials and one step holding all of them would be the widest credential in
 the run; the plan records what those steps report.
 
+A job that consumes another job's workload names every job that produced one in
+its `needs`, not only the last of them. A job the plan left nothing to do and a
+job whose own condition was false because an ancestor failed both read as
+skipped, so a gate that admits skipped ancestors admits a failed build unless
+each producer is named.
+
 Every run attempt writes one trigger record at
 `trigger/<owner>/<repository>/<marker>/<run>-<attempt>.json`; a run is complete only
 when every job succeeded or was skipped by plan.

@@ -374,8 +374,8 @@ jobs:
         run: python3 -B -m scripts.ship npm-publish
 
   oci:
-    needs: [plan, bind, smoke, suite-linux, suite-node]
-    if: always() && needs.plan.result == 'success' && needs.plan.outputs.oci == 'run' && (needs.smoke.result == 'success' || needs.smoke.result == 'skipped') && (needs.bind.result == 'success' || needs.bind.result == 'skipped') && (needs.suite-linux.result == 'success' || needs.suite-linux.result == 'skipped') && (needs.suite-node.result == 'success' || needs.suite-node.result == 'skipped')
+    needs: [plan, binary, bind, smoke, suite-linux, suite-node]
+    if: always() && needs.plan.result == 'success' && needs.plan.outputs.oci == 'run' && (needs.binary.result == 'success' || needs.binary.result == 'skipped') && (needs.bind.result == 'success' || needs.bind.result == 'skipped') && (needs.smoke.result == 'success' || needs.smoke.result == 'skipped') && (needs.suite-linux.result == 'success' || needs.suite-linux.result == 'skipped') && (needs.suite-node.result == 'success' || needs.suite-node.result == 'skipped')
     runs-on: ubuntu-24.04
     permissions:
       contents: read
@@ -455,8 +455,8 @@ jobs:
         run: python3 -B -m scripts.ship chart-publish
 
   validate:
-    needs: [plan, bind]
-    if: always() && needs.plan.result == 'success' && needs.plan.outputs.release == 'run' && (needs.bind.result == 'success' || needs.bind.result == 'skipped')
+    needs: [plan, binary, bind]
+    if: always() && needs.plan.result == 'success' && needs.plan.outputs.release == 'run' && (needs.binary.result == 'success' || needs.binary.result == 'skipped') && (needs.bind.result == 'success' || needs.bind.result == 'skipped')
     runs-on: ubuntu-24.04
     steps:
       - name: Check out wharf
@@ -477,8 +477,8 @@ jobs:
         run: python3 -B -m scripts.ship validate
 
   release:
-    needs: [plan, smoke, suite-linux, suite-node, validate]
-    if: always() && needs.plan.result == 'success' && needs.plan.outputs.release == 'run' && (needs.validate.result == 'success' || needs.validate.result == 'skipped') && (needs.smoke.result == 'success' || needs.smoke.result == 'skipped') && (needs.suite-linux.result == 'success' || needs.suite-linux.result == 'skipped') && (needs.suite-node.result == 'success' || needs.suite-node.result == 'skipped')
+    needs: [plan, binary, bind, smoke, suite-linux, suite-node, validate]
+    if: always() && needs.plan.result == 'success' && needs.plan.outputs.release == 'run' && (needs.binary.result == 'success' || needs.binary.result == 'skipped') && (needs.bind.result == 'success' || needs.bind.result == 'skipped') && (needs.validate.result == 'success' || needs.validate.result == 'skipped') && (needs.smoke.result == 'success' || needs.smoke.result == 'skipped') && (needs.suite-linux.result == 'success' || needs.suite-linux.result == 'skipped') && (needs.suite-node.result == 'success' || needs.suite-node.result == 'skipped')
     runs-on: ubuntu-24.04
     steps:
       - name: Check out wharf
