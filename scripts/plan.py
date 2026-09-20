@@ -1,4 +1,5 @@
 import json
+import os
 import sys
 
 from lib import parameters
@@ -10,18 +11,13 @@ from lib.store import plan, r2, workload
 
 BUILD = resources.read_json("build.json")
 RUNNER = BUILD["runner"]
+FAMILIES = ("binary", "bind", "smoke")
+OUTPUT = "GITHUB_OUTPUT"
 REPORTED = ("key", "decision")
 MEDIA = ("npm", "oci", "chart", "cargo", "release")
 IDENTITY = ("repository", "marker", "commit", "tree")
 CONTEXT = IDENTITY + ("wharf", "run", "attempt")
 TAKEN = IDENTITY + ("wharf", "run", "attempt", "source", "steps")
-
-
-def named(repository):
-    owner, _, name = repository.partition("/")
-    if not owner or not name:
-        raise Refusal(f"repository {repository} is not owner/name")
-    return name
 
 
 def decided(bucket, held, modules):
@@ -31,7 +27,7 @@ def decided(bucket, held, modules):
 
 def binaries(held, bucket, entries):
     identity = {field: held[field] for field in IDENTITY}
-    name = named(held["repository"])
+    name = plan.product(identity)
     for target in BUILD["targets"]:
         built = decided(bucket, basis.resolve(held["source"], name, target["target"], target["runner"]), (["lib.cargo.basis", "lib.cargo.build"], []))
         bound = decided(
@@ -70,6 +66,20 @@ def settled(entries, observed):
         raise Refusal("the recorded plan disagrees with the steps that produced it: " + "; ".join(drift))
 
 
+def matrices(entries):
+    return {family: [target for target in BUILD["targets"] if entries[f"{family}-{target['name']}"]["decision"] == "run"] for family in FAMILIES}
+
+
+def emit(held):
+    path = os.environ.get(OUTPUT)
+    if not path:
+        raise Refusal(f"{OUTPUT} is not set, so there is nowhere to tell the runner what to build")
+    with open(path, "a") as file:
+        for family, targets in sorted(held.items()):
+            file.write(f"{family}={json.dumps(targets, separators=(',', ':'))}\n")
+    return {family: [target["name"] for target in targets] for family, targets in held.items()}
+
+
 def record(held):
     bucket = r2.configured()
     entries = {}
@@ -78,7 +88,8 @@ def record(held):
     suites(held, bucket, entries)
     media(observed, entries)
     settled(entries, observed)
-    return plan.record(bucket, {field: held[field] for field in CONTEXT}, entries, node.declared(held["source"]))
+    recorded = plan.record(bucket, {field: held[field] for field in CONTEXT}, entries, node.declared(held["source"]))
+    return dict(recorded, matrices=emit(matrices(entries)))
 
 
 ACTIONS = {"record": record}

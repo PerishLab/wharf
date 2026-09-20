@@ -1,4 +1,8 @@
+import os
+import tempfile
 import unittest
+from pathlib import Path
+from unittest import mock
 
 from lib import parameters
 from lib.refusal import Refusal
@@ -25,16 +29,42 @@ class Taken(unittest.TestCase):
         with self.assertRaisesRegex(Refusal, "plan takes one action: record"):
             parameters.acted("plan", plan.ACTIONS, ["invent"])
 
-    def test_the_product_name_comes_from_the_repository(self):
-        self.assertEqual(plan.named("PerishLab/plumb"), "plumb")
-
-    def test_a_repository_that_is_not_owner_and_name_refuses(self):
-        with self.assertRaisesRegex(Refusal, "is not owner/name"):
-            plan.named("plumb")
-
     def test_every_build_target_states_its_name_target_and_runner(self):
         self.assertEqual(sorted(plan.BUILD["targets"][0]), ["name", "runner", "target"])
         self.assertEqual([target["name"] for target in plan.BUILD["targets"]], ["linux", "windows", "macos"])
+
+
+class Matrices(unittest.TestCase):
+    def entries(self, decisions):
+        held = {f"{family}-{name}": {"decision": "run"} for family in plan.FAMILIES for name in ("linux", "windows", "macos")}
+        return dict(held, **{name: {"decision": "skip"} for name in decisions})
+
+    def test_only_what_the_plan_decided_to_run_reaches_the_matrix(self):
+        held = plan.matrices(self.entries(["binary-windows", "binary-macos"]))
+        self.assertEqual([target["name"] for target in held["binary"]], ["linux"])
+        self.assertEqual([target["name"] for target in held["bind"]], ["linux", "windows", "macos"])
+
+    def test_a_matrix_entry_carries_the_target_and_the_runner_the_job_needs(self):
+        held = plan.matrices(self.entries([]))
+        self.assertEqual(held["smoke"][1], {"name": "windows", "target": "x86_64-pc-windows-msvc", "runner": "windows-2025"})
+
+    def test_a_family_with_nothing_to_do_is_an_empty_matrix(self):
+        held = plan.matrices(self.entries([f"binary-{name}" for name in ("linux", "windows", "macos")]))
+        self.assertEqual(held["binary"], [])
+
+    def test_the_matrices_are_written_where_the_runner_reads_them(self):
+        path = Path(tempfile.mkdtemp()) / "output"
+        path.write_text("")
+        with mock.patch.dict(os.environ, {plan.OUTPUT: str(path)}):
+            named = plan.emit(plan.matrices(self.entries(["binary-macos"])))
+        self.assertEqual(named["binary"], ["linux", "windows"])
+        self.assertIn('bind=[{"name":"linux"', path.read_text())
+        self.assertEqual(len(path.read_text().splitlines()), 3)
+
+    def test_nowhere_to_write_the_matrices_refuses(self):
+        with mock.patch.dict(os.environ, {}, clear=True):
+            with self.assertRaisesRegex(Refusal, "GITHUB_OUTPUT is not set"):
+                plan.emit({})
 
 
 class Reported(unittest.TestCase):

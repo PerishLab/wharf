@@ -1,5 +1,6 @@
 import io
 import json
+import tempfile
 import unittest
 from pathlib import Path
 from contextlib import redirect_stderr, redirect_stdout
@@ -57,6 +58,9 @@ class Building(unittest.TestCase):
 
     def built(self, produced):
         def build(request):
+            if Path(request.output).exists():
+                raise Refusal(f"output {request.output} already exists")
+            Path(request.output).mkdir(parents=True)
             Path(request.output).joinpath("plumb").write_bytes(produced)
             return {"artifact": "plumb"}
 
@@ -69,6 +73,11 @@ class Building(unittest.TestCase):
         bucket, resolve = self.running()
         with bucket, resolve, self.built(b"an executable"):
             return ship.run_binary(self.held)
+
+    def test_the_action_is_handed_a_place_that_does_not_exist_yet(self):
+        self.stored({"binary-linux": {"key": self.key, "decision": "run"}})
+        self.run_binary()
+        self.assertFalse(ship.place().exists())
 
     def test_the_binary_is_recorded_under_the_key_the_plan_holds(self):
         self.stored({"binary-linux": {"key": self.key, "decision": "run"}})
@@ -96,6 +105,53 @@ class Building(unittest.TestCase):
         with self.assertRaisesRegex(Refusal, "the plan for this run recorded"):
             self.run_binary()
         self.assertEqual([name for name in self.bucket.objects if name.startswith("workload/")], [])
+
+
+class Binding(unittest.TestCase):
+    def setUp(self):
+        self.bucket = Memory()
+        self.held = dict(CONTEXT, target="x86_64-unknown-linux-gnu")
+        self.identity = {"repository": CONTEXT["repository"], "marker": CONTEXT["marker"], "commit": "a" * 40, "tree": "b" * 40}
+        self.binary = "e" * 64
+        self.basis = {"entry": {"kind": "binary-identity", "binary": self.binary}, "identity": self.identity}
+        self.key = ship.workload.key(self.basis, ship.implementation.resourced(["lib.identity.bind"], ["identity/format.json"]))
+
+    def seed(self, decision):
+        produced = Path(tempfile.mkdtemp()) / "unbound"
+        produced.mkdir()
+        produced.joinpath("plumb-x86_64-unknown-linux-gnu").write_bytes(b"an unbound executable")
+        ship.workload.publish(self.bucket, self.binary, ship.workload.Produced(produced, {}, {}))
+        entries = {"binary-linux": {"key": self.binary, "decision": "skip"}, "bind-linux": {"key": self.key, "decision": decision}}
+        plan.record(self.bucket, dict(CONTEXT, commit="a" * 40, tree="b" * 40), entries, {})
+
+    def bound(self):
+        def perform(artifact, release, workload, output):
+            self.witnessed = (artifact.directory, release, workload)
+            Path(output).mkdir(parents=True)
+            Path(output).joinpath(artifact.file.name).write_bytes(b"a bound executable")
+            return {"binding": release.marker}
+
+        return mock.patch.object(ship.bind, "perform", side_effect=perform)
+
+    def run_bind(self):
+        with mock.patch.object(ship.r2, "configured", return_value=self.bucket), self.bound():
+            return ship.run_bind(self.held)
+
+    def test_the_binary_it_binds_is_the_one_the_plan_named(self):
+        self.seed("run")
+        self.assertEqual(self.run_bind()["key"], self.key)
+        self.assertEqual(self.witnessed[2], self.binary)
+        self.assertTrue(self.witnessed[0].joinpath("plumb-x86_64-unknown-linux-gnu").is_file())
+
+    def test_the_identity_it_binds_comes_from_the_plan_not_from_the_job(self):
+        self.seed("run")
+        self.run_bind()
+        self.assertEqual(self.witnessed[1], ship.bind.Release(**self.identity))
+
+    def test_a_plan_that_decided_to_skip_stops_the_job(self):
+        self.seed("skip")
+        with self.assertRaisesRegex(Refusal, "decided 'skip' for bind-linux"):
+            self.run_bind()
 
 
 class Ship(unittest.TestCase):

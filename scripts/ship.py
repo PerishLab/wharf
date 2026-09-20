@@ -22,7 +22,7 @@ def release(held):
     return bind.Release(held["repository"], held["marker"], held["commit"], held["tree"])
 
 
-def artifact(held):
+def validated(held):
     return bind.Artifact(Path(held["dir"]), held["name"], held["target"])
 
 
@@ -62,17 +62,35 @@ def resolved(entry, basis_held, modules):
     return key
 
 
-def run_binary(held):
+def carried(held):
+    return {field: held[field] for field in CONTEXT}
+
+
+def opened(held, family):
     bucket = r2.configured()
-    context = {field: held[field] for field in CONTEXT}
     target = targeted(held["target"])
-    entry = plan.planned(plan.read(bucket, context), f"binary-{target['name']}")
-    name = plan.product(context)
+    document = plan.read(bucket, carried(held))
+    return bucket, document, target, plan.planned(document, f"{family}-{target['name']}")
+
+
+def place():
+    return Path(tempfile.mkdtemp()) / "produced"
+
+
+def staged(bucket, key):
+    directory = place()
+    workload.fetch(bucket, key, str(directory))
+    return directory
+
+
+def run_binary(held):
+    bucket, document, target, entry = opened(held, "binary")
+    name = plan.product(document["context"])
     held_basis = basis.resolve(held["source"], name, target["target"], target["runner"])
     resolved(entry, held_basis, (["lib.cargo.basis", "lib.cargo.build"], []))
-    output = Path(tempfile.mkdtemp())
+    output = place()
     build.build(build.Build(Path(held["source"]), name, target["target"], output))
-    return workload.publish(bucket, entry["key"], workload.Produced(output, held_basis, context))
+    return workload.publish(bucket, entry["key"], workload.Produced(output, held_basis, carried(held)))
 
 
 def run_suite(held):
@@ -80,15 +98,31 @@ def run_suite(held):
 
 
 def run_bind(held):
-    return bind.perform(artifact(held), release(held), held["binary-key"], held["output"])
+    bucket, document, target, entry = opened(held, "bind")
+    binary = document["entries"][f"binary-{target['name']}"]["key"]
+    identity = {field: document["context"][field] for field in RELEASE}
+    held_basis = {"entry": {"kind": "binary-identity", "binary": binary}, "identity": identity}
+    resolved(entry, held_basis, (["lib.identity.bind"], ["identity/format.json"]))
+    output = place()
+    bound = bind.Artifact(staged(bucket, binary), plan.product(identity), target["target"])
+    bind.perform(bound, bind.Release(**identity), binary, str(output))
+    return workload.publish(bucket, entry["key"], workload.Produced(output, held_basis, carried(held)))
 
 
 def validate(held):
-    return configured(artifact(held), held["repository"], held["marker"])
+    return configured(validated(held), held["repository"], held["marker"])
 
 
 def run_smoke(held):
-    return smoke(artifact(held), held["output"], held["expect"])
+    bucket, document, target, entry = opened(held, "smoke")
+    bound = document["entries"][f"bind-{target['name']}"]["key"]
+    held_basis = {"entry": {"kind": "binary-smoke", "binary": bound}}
+    resolved(entry, held_basis, (["lib.identity.smoke"], []))
+    name = plan.product(document["context"])
+    output = place()
+    artifact = bind.Artifact(staged(bucket, bound), name, target["target"])
+    smoke(artifact, str(output), f"{name} {document['context']['marker']}")
+    return workload.publish(bucket, entry["key"], workload.Produced(output, held_basis, carried(held)))
 
 
 def key_node(held):
@@ -178,8 +212,8 @@ ACTIONS = {
     "key-smoke": (key_smoke, ["binary-key", "basis"]),
     "binary": (run_binary, ["source", "target", *CONTEXT]),
     "suite": (run_suite, ["source", "output"]),
-    "bind": (run_bind, ["dir", "name", "target", *RELEASE, "binary-key", "output"]),
-    "smoke": (run_smoke, ["dir", "name", "target", "output", "expect"]),
+    "bind": (run_bind, ["target", *CONTEXT]),
+    "smoke": (run_smoke, ["target", *CONTEXT]),
     "validate": (validate, ["dir", "name", "target", "repository", "marker"]),
     "key-node": (key_node, ["source", "runner", "basis"]),
     "node-engines": (node_engines, ["source"]),

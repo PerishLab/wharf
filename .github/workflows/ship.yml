@@ -34,6 +34,9 @@ jobs:
       contents: read
       packages: read
     outputs:
+      binary: ${{ steps.plan.outputs.binary }}
+      bind: ${{ steps.plan.outputs.bind }}
+      smoke: ${{ steps.plan.outputs.smoke }}
       node: ${{ steps.engines.outputs.node }}
       pnpm: ${{ steps.engines.outputs.pnpm }}
       suite-node-key: ${{ steps.suite-node.outputs.key }}
@@ -47,23 +50,14 @@ jobs:
       commit: ${{ steps.source.outputs.commit }}
       tree: ${{ steps.source.outputs.tree }}
       binary-linux-key: ${{ steps.binary-linux.outputs.key }}
-      binary-linux: ${{ steps.binary-linux.outputs.decision }}
       bind-linux-key: ${{ steps.bind-linux.outputs.key }}
-      bind-linux: ${{ steps.bind-linux.outputs.decision }}
       smoke-linux-key: ${{ steps.smoke-linux.outputs.key }}
-      smoke-linux: ${{ steps.smoke-linux.outputs.decision }}
       binary-windows-key: ${{ steps.binary-windows.outputs.key }}
-      binary-windows: ${{ steps.binary-windows.outputs.decision }}
       bind-windows-key: ${{ steps.bind-windows.outputs.key }}
-      bind-windows: ${{ steps.bind-windows.outputs.decision }}
       smoke-windows-key: ${{ steps.smoke-windows.outputs.key }}
-      smoke-windows: ${{ steps.smoke-windows.outputs.decision }}
       binary-macos-key: ${{ steps.binary-macos.outputs.key }}
-      binary-macos: ${{ steps.binary-macos.outputs.decision }}
       bind-macos-key: ${{ steps.bind-macos.outputs.key }}
-      bind-macos: ${{ steps.bind-macos.outputs.decision }}
       smoke-macos-key: ${{ steps.smoke-macos.outputs.key }}
-      smoke-macos: ${{ steps.smoke-macos.outputs.decision }}
       suite-linux-key: ${{ steps.suite-linux.outputs.key }}
       suite-linux: ${{ steps.suite-linux.outputs.decision }}
       cargo: ${{ steps.cargo.outputs.decision }}
@@ -364,6 +358,7 @@ jobs:
           echo "| cargo packages | $MARKER | $decision |" >> "$GITHUB_STEP_SUMMARY"
 
       - name: Record the plan this run decided
+        id: plan
         env:
           WHARF_SOURCE: ../product
           WHARF_REPOSITORY: ${{ inputs.repository }}
@@ -379,110 +374,22 @@ jobs:
           WHARF_R2_SECRET_ACCESS_KEY: ${{ secrets.WHARF_R2_SECRET_ACCESS_KEY }}
         run: python3 -B -m scripts.plan record
 
-  binary-linux:
+  binary:
     needs: plan
-    if: needs.plan.outputs.binary-linux == 'run'
-    runs-on: ubuntu-24.04
-    steps:
-      - name: Check out wharf
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
-        with:
-          path: wharf
-          persist-credentials: false
-
-      - name: Check out product at marker
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
-        with:
-          repository: ${{ inputs.repository }}
-          ref: refs/tags/${{ inputs.marker }}
-          path: product
-          persist-credentials: false
-
-      - name: Build and record the binary
-        env:
-          WHARF_SOURCE: ../product
-          WHARF_TARGET: x86_64-unknown-linux-gnu
-          WHARF_REPOSITORY: ${{ inputs.repository }}
-          WHARF_MARKER: ${{ inputs.marker }}
-          WHARF_WHARF: ${{ github.sha }}
-          WHARF_RUN: ${{ github.run_id }}
-          WHARF_ATTEMPT: ${{ github.run_attempt }}
-          WHARF_R2_ACCESS_KEY_ID: ${{ secrets.WHARF_R2_ACCESS_KEY_ID }}
-          WHARF_R2_SECRET_ACCESS_KEY: ${{ secrets.WHARF_R2_SECRET_ACCESS_KEY }}
-        run: python3 -B -m scripts.ship binary
-
-  bind-linux:
-    needs: [plan, binary-linux]
-    if: always() && needs.plan.result == 'success' && needs.plan.outputs.bind-linux == 'run' && (needs.binary-linux.result == 'success' || needs.binary-linux.result == 'skipped')
-    runs-on: ubuntu-24.04
-    steps:
-      - name: Check out wharf
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
-        with:
-          path: wharf
-          persist-credentials: false
-
-      - name: Bind and record the release identity
-        env:
-          REPOSITORY: ${{ inputs.repository }}
-          MARKER: ${{ inputs.marker }}
-          COMMIT: ${{ needs.plan.outputs.commit }}
-          TREE: ${{ needs.plan.outputs.tree }}
-          BINARY: ${{ needs.plan.outputs.binary-linux-key }}
-          KEY: ${{ needs.plan.outputs.bind-linux-key }}
-          WHARF: ${{ github.sha }}
-          RUN: ${{ github.run_id }}
-          ATTEMPT: ${{ github.run_attempt }}
-          WHARF_R2_ACCESS_KEY_ID: ${{ secrets.WHARF_R2_ACCESS_KEY_ID }}
-          WHARF_R2_SECRET_ACCESS_KEY: ${{ secrets.WHARF_R2_SECRET_ACCESS_KEY }}
-        run: |
-          key=$(python3 -B -m scripts.ship key-bind --binary-key "$BINARY" --repository "$REPOSITORY" --marker "$MARKER" --commit "$COMMIT" --tree "$TREE" --basis ../basis.json | python3 -c 'import json,sys; print(json.load(sys.stdin)["key"])')
-          [ "$key" = "$KEY" ] || { echo "resolved key $key differs from planned $KEY"; exit 2; }
-          python3 -B -m scripts.store fetch --key "$BINARY" --dir ../binary
-          python3 -B -m scripts.ship bind --dir ../binary --name "${REPOSITORY#*/}" --target x86_64-unknown-linux-gnu --repository "$REPOSITORY" --marker "$MARKER" --commit "$COMMIT" --tree "$TREE" --binary-key "$BINARY" --output ../bound
-          python3 -c 'import json,os; json.dump({f: os.environ[e] for f, e in {"repository": "REPOSITORY", "marker": "MARKER", "wharf": "WHARF", "run": "RUN", "attempt": "ATTEMPT"}.items()}, open("../context.json", "w"))'
-          python3 -B -m scripts.store publish --key "$KEY" --dir ../bound --basis ../basis.json --context ../context.json
-
-  smoke-linux:
-    needs: [plan, bind-linux]
-    if: always() && needs.plan.result == 'success' && needs.plan.outputs.smoke-linux == 'run' && (needs.bind-linux.result == 'success' || needs.bind-linux.result == 'skipped')
-    runs-on: ubuntu-24.04
-    steps:
-      - name: Check out wharf
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
-        with:
-          path: wharf
-          persist-credentials: false
-
-      - name: Smoke and record the bound binary
-        env:
-          REPOSITORY: ${{ inputs.repository }}
-          MARKER: ${{ inputs.marker }}
-          BOUND: ${{ needs.plan.outputs.bind-linux-key }}
-          KEY: ${{ needs.plan.outputs.smoke-linux-key }}
-          WHARF: ${{ github.sha }}
-          RUN: ${{ github.run_id }}
-          ATTEMPT: ${{ github.run_attempt }}
-          WHARF_R2_ACCESS_KEY_ID: ${{ secrets.WHARF_R2_ACCESS_KEY_ID }}
-          WHARF_R2_SECRET_ACCESS_KEY: ${{ secrets.WHARF_R2_SECRET_ACCESS_KEY }}
-        run: |
-          key=$(python3 -B -m scripts.ship key-smoke --binary-key "$BOUND" --basis ../basis.json | python3 -c 'import json,sys; print(json.load(sys.stdin)["key"])')
-          [ "$key" = "$KEY" ] || { echo "resolved key $key differs from planned $KEY"; exit 2; }
-          python3 -B -m scripts.store fetch --key "$BOUND" --dir ../bound
-          python3 -B -m scripts.ship smoke --dir ../bound --name "${REPOSITORY#*/}" --target x86_64-unknown-linux-gnu --output ../smoked --expect "${REPOSITORY#*/} $MARKER"
-          python3 -c 'import json,os; json.dump({f: os.environ[e] for f, e in {"repository": "REPOSITORY", "marker": "MARKER", "wharf": "WHARF", "run": "RUN", "attempt": "ATTEMPT"}.items()}, open("../context.json", "w"))'
-          python3 -B -m scripts.store publish --key "$KEY" --dir ../smoked --basis ../basis.json --context ../context.json
-
-  binary-windows:
-    needs: plan
-    if: needs.plan.outputs.binary-windows == 'run'
-    runs-on: windows-2025
+    if: needs.plan.outputs.binary != '[]'
+    strategy:
+      fail-fast: false
+      matrix:
+        include: ${{ fromJSON(needs.plan.outputs.binary) }}
+    name: binary ${{ matrix.name }}
+    runs-on: ${{ matrix.runner }}
     defaults:
       run:
         shell: bash
         working-directory: wharf
     steps:
       - name: Keep checkouts byte-identical
+        if: runner.os == 'Windows'
         working-directory: .
         run: git config --global core.autocrlf false
 
@@ -503,7 +410,7 @@ jobs:
       - name: Build and record the binary
         env:
           WHARF_SOURCE: ../product
-          WHARF_TARGET: x86_64-pc-windows-msvc
+          WHARF_TARGET: ${{ matrix.target }}
           WHARF_REPOSITORY: ${{ inputs.repository }}
           WHARF_MARKER: ${{ inputs.marker }}
           WHARF_WHARF: ${{ github.sha }}
@@ -513,11 +420,25 @@ jobs:
           WHARF_R2_SECRET_ACCESS_KEY: ${{ secrets.WHARF_R2_SECRET_ACCESS_KEY }}
         run: python3 -B -m scripts.ship binary
 
-  bind-windows:
-    needs: [plan, binary-windows]
-    if: always() && needs.plan.result == 'success' && needs.plan.outputs.bind-windows == 'run' && (needs.binary-windows.result == 'success' || needs.binary-windows.result == 'skipped')
-    runs-on: ubuntu-24.04
+  bind:
+    needs: [plan, binary]
+    if: always() && needs.plan.result == 'success' && needs.plan.outputs.bind != '[]' && (needs.binary.result == 'success' || needs.binary.result == 'skipped')
+    strategy:
+      fail-fast: false
+      matrix:
+        include: ${{ fromJSON(needs.plan.outputs.bind) }}
+    name: bind ${{ matrix.name }}
+    runs-on: ${{ matrix.runner }}
+    defaults:
+      run:
+        shell: bash
+        working-directory: wharf
     steps:
+      - name: Keep checkouts byte-identical
+        if: runner.os == 'Windows'
+        working-directory: .
+        run: git config --global core.autocrlf false
+
       - name: Check out wharf
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
@@ -526,35 +447,32 @@ jobs:
 
       - name: Bind and record the release identity
         env:
-          REPOSITORY: ${{ inputs.repository }}
-          MARKER: ${{ inputs.marker }}
-          COMMIT: ${{ needs.plan.outputs.commit }}
-          TREE: ${{ needs.plan.outputs.tree }}
-          BINARY: ${{ needs.plan.outputs.binary-windows-key }}
-          KEY: ${{ needs.plan.outputs.bind-windows-key }}
-          WHARF: ${{ github.sha }}
-          RUN: ${{ github.run_id }}
-          ATTEMPT: ${{ github.run_attempt }}
+          WHARF_TARGET: ${{ matrix.target }}
+          WHARF_REPOSITORY: ${{ inputs.repository }}
+          WHARF_MARKER: ${{ inputs.marker }}
+          WHARF_WHARF: ${{ github.sha }}
+          WHARF_RUN: ${{ github.run_id }}
+          WHARF_ATTEMPT: ${{ github.run_attempt }}
           WHARF_R2_ACCESS_KEY_ID: ${{ secrets.WHARF_R2_ACCESS_KEY_ID }}
           WHARF_R2_SECRET_ACCESS_KEY: ${{ secrets.WHARF_R2_SECRET_ACCESS_KEY }}
-        run: |
-          key=$(python3 -B -m scripts.ship key-bind --binary-key "$BINARY" --repository "$REPOSITORY" --marker "$MARKER" --commit "$COMMIT" --tree "$TREE" --basis ../basis.json | python3 -c 'import json,sys; print(json.load(sys.stdin)["key"])')
-          [ "$key" = "$KEY" ] || { echo "resolved key $key differs from planned $KEY"; exit 2; }
-          python3 -B -m scripts.store fetch --key "$BINARY" --dir ../binary
-          python3 -B -m scripts.ship bind --dir ../binary --name "${REPOSITORY#*/}" --target x86_64-pc-windows-msvc --repository "$REPOSITORY" --marker "$MARKER" --commit "$COMMIT" --tree "$TREE" --binary-key "$BINARY" --output ../bound
-          python3 -c 'import json,os; json.dump({f: os.environ[e] for f, e in {"repository": "REPOSITORY", "marker": "MARKER", "wharf": "WHARF", "run": "RUN", "attempt": "ATTEMPT"}.items()}, open("../context.json", "w"))'
-          python3 -B -m scripts.store publish --key "$KEY" --dir ../bound --basis ../basis.json --context ../context.json
+        run: python3 -B -m scripts.ship bind
 
-  smoke-windows:
-    needs: [plan, bind-windows]
-    if: always() && needs.plan.result == 'success' && needs.plan.outputs.smoke-windows == 'run' && (needs.bind-windows.result == 'success' || needs.bind-windows.result == 'skipped')
-    runs-on: windows-2025
+  smoke:
+    needs: [plan, bind]
+    if: always() && needs.plan.result == 'success' && needs.plan.outputs.smoke != '[]' && (needs.bind.result == 'success' || needs.bind.result == 'skipped')
+    strategy:
+      fail-fast: false
+      matrix:
+        include: ${{ fromJSON(needs.plan.outputs.smoke) }}
+    name: smoke ${{ matrix.name }}
+    runs-on: ${{ matrix.runner }}
     defaults:
       run:
         shell: bash
         working-directory: wharf
     steps:
       - name: Keep checkouts byte-identical
+        if: runner.os == 'Windows'
         working-directory: .
         run: git config --global core.autocrlf false
 
@@ -566,46 +484,7 @@ jobs:
 
       - name: Smoke and record the bound binary
         env:
-          REPOSITORY: ${{ inputs.repository }}
-          MARKER: ${{ inputs.marker }}
-          BOUND: ${{ needs.plan.outputs.bind-windows-key }}
-          KEY: ${{ needs.plan.outputs.smoke-windows-key }}
-          WHARF: ${{ github.sha }}
-          RUN: ${{ github.run_id }}
-          ATTEMPT: ${{ github.run_attempt }}
-          WHARF_R2_ACCESS_KEY_ID: ${{ secrets.WHARF_R2_ACCESS_KEY_ID }}
-          WHARF_R2_SECRET_ACCESS_KEY: ${{ secrets.WHARF_R2_SECRET_ACCESS_KEY }}
-        run: |
-          key=$(python -B -m scripts.ship key-smoke --binary-key "$BOUND" --basis ../basis.json | python -c 'import json,sys; print(json.load(sys.stdin)["key"])')
-          [ "$key" = "$KEY" ] || { echo "resolved key $key differs from planned $KEY"; exit 2; }
-          python -B -m scripts.store fetch --key "$BOUND" --dir ../bound
-          python -B -m scripts.ship smoke --dir ../bound --name "${REPOSITORY#*/}" --target x86_64-pc-windows-msvc --output ../smoked --expect "${REPOSITORY#*/} $MARKER"
-          python -c 'import json,os; json.dump({f: os.environ[e] for f, e in {"repository": "REPOSITORY", "marker": "MARKER", "wharf": "WHARF", "run": "RUN", "attempt": "ATTEMPT"}.items()}, open("../context.json", "w"))'
-          python -B -m scripts.store publish --key "$KEY" --dir ../smoked --basis ../basis.json --context ../context.json
-
-  binary-macos:
-    needs: plan
-    if: needs.plan.outputs.binary-macos == 'run'
-    runs-on: macos-15
-    steps:
-      - name: Check out wharf
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
-        with:
-          path: wharf
-          persist-credentials: false
-
-      - name: Check out product at marker
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
-        with:
-          repository: ${{ inputs.repository }}
-          ref: refs/tags/${{ inputs.marker }}
-          path: product
-          persist-credentials: false
-
-      - name: Build and record the binary
-        env:
-          WHARF_SOURCE: ../product
-          WHARF_TARGET: aarch64-apple-darwin
+          WHARF_TARGET: ${{ matrix.target }}
           WHARF_REPOSITORY: ${{ inputs.repository }}
           WHARF_MARKER: ${{ inputs.marker }}
           WHARF_WHARF: ${{ github.sha }}
@@ -613,69 +492,7 @@ jobs:
           WHARF_ATTEMPT: ${{ github.run_attempt }}
           WHARF_R2_ACCESS_KEY_ID: ${{ secrets.WHARF_R2_ACCESS_KEY_ID }}
           WHARF_R2_SECRET_ACCESS_KEY: ${{ secrets.WHARF_R2_SECRET_ACCESS_KEY }}
-        run: python3 -B -m scripts.ship binary
-
-  bind-macos:
-    needs: [plan, binary-macos]
-    if: always() && needs.plan.result == 'success' && needs.plan.outputs.bind-macos == 'run' && (needs.binary-macos.result == 'success' || needs.binary-macos.result == 'skipped')
-    runs-on: macos-15
-    steps:
-      - name: Check out wharf
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
-        with:
-          path: wharf
-          persist-credentials: false
-
-      - name: Bind and record the release identity
-        env:
-          REPOSITORY: ${{ inputs.repository }}
-          MARKER: ${{ inputs.marker }}
-          COMMIT: ${{ needs.plan.outputs.commit }}
-          TREE: ${{ needs.plan.outputs.tree }}
-          BINARY: ${{ needs.plan.outputs.binary-macos-key }}
-          KEY: ${{ needs.plan.outputs.bind-macos-key }}
-          WHARF: ${{ github.sha }}
-          RUN: ${{ github.run_id }}
-          ATTEMPT: ${{ github.run_attempt }}
-          WHARF_R2_ACCESS_KEY_ID: ${{ secrets.WHARF_R2_ACCESS_KEY_ID }}
-          WHARF_R2_SECRET_ACCESS_KEY: ${{ secrets.WHARF_R2_SECRET_ACCESS_KEY }}
-        run: |
-          key=$(python3 -B -m scripts.ship key-bind --binary-key "$BINARY" --repository "$REPOSITORY" --marker "$MARKER" --commit "$COMMIT" --tree "$TREE" --basis ../basis.json | python3 -c 'import json,sys; print(json.load(sys.stdin)["key"])')
-          [ "$key" = "$KEY" ] || { echo "resolved key $key differs from planned $KEY"; exit 2; }
-          python3 -B -m scripts.store fetch --key "$BINARY" --dir ../binary
-          python3 -B -m scripts.ship bind --dir ../binary --name "${REPOSITORY#*/}" --target aarch64-apple-darwin --repository "$REPOSITORY" --marker "$MARKER" --commit "$COMMIT" --tree "$TREE" --binary-key "$BINARY" --output ../bound
-          python3 -c 'import json,os; json.dump({f: os.environ[e] for f, e in {"repository": "REPOSITORY", "marker": "MARKER", "wharf": "WHARF", "run": "RUN", "attempt": "ATTEMPT"}.items()}, open("../context.json", "w"))'
-          python3 -B -m scripts.store publish --key "$KEY" --dir ../bound --basis ../basis.json --context ../context.json
-
-  smoke-macos:
-    needs: [plan, bind-macos]
-    if: always() && needs.plan.result == 'success' && needs.plan.outputs.smoke-macos == 'run' && (needs.bind-macos.result == 'success' || needs.bind-macos.result == 'skipped')
-    runs-on: macos-15
-    steps:
-      - name: Check out wharf
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
-        with:
-          path: wharf
-          persist-credentials: false
-
-      - name: Smoke and record the bound binary
-        env:
-          REPOSITORY: ${{ inputs.repository }}
-          MARKER: ${{ inputs.marker }}
-          BOUND: ${{ needs.plan.outputs.bind-macos-key }}
-          KEY: ${{ needs.plan.outputs.smoke-macos-key }}
-          WHARF: ${{ github.sha }}
-          RUN: ${{ github.run_id }}
-          ATTEMPT: ${{ github.run_attempt }}
-          WHARF_R2_ACCESS_KEY_ID: ${{ secrets.WHARF_R2_ACCESS_KEY_ID }}
-          WHARF_R2_SECRET_ACCESS_KEY: ${{ secrets.WHARF_R2_SECRET_ACCESS_KEY }}
-        run: |
-          key=$(python3 -B -m scripts.ship key-smoke --binary-key "$BOUND" --basis ../basis.json | python3 -c 'import json,sys; print(json.load(sys.stdin)["key"])')
-          [ "$key" = "$KEY" ] || { echo "resolved key $key differs from planned $KEY"; exit 2; }
-          python3 -B -m scripts.store fetch --key "$BOUND" --dir ../bound
-          python3 -B -m scripts.ship smoke --dir ../bound --name "${REPOSITORY#*/}" --target aarch64-apple-darwin --output ../smoked --expect "${REPOSITORY#*/} $MARKER"
-          python3 -c 'import json,os; json.dump({f: os.environ[e] for f, e in {"repository": "REPOSITORY", "marker": "MARKER", "wharf": "WHARF", "run": "RUN", "attempt": "ATTEMPT"}.items()}, open("../context.json", "w"))'
-          python3 -B -m scripts.store publish --key "$KEY" --dir ../smoked --basis ../basis.json --context ../context.json
+        run: python3 -B -m scripts.ship smoke
 
   suite-linux:
     needs: plan
@@ -800,8 +617,8 @@ jobs:
         run: python3 -B -m scripts.ship npm-publish --source ../product --marker "$MARKER"
 
   oci:
-    needs: [plan, bind-linux, smoke-linux, suite-linux, suite-node]
-    if: always() && needs.plan.result == 'success' && needs.plan.outputs.oci == 'run' && (needs.smoke-linux.result == 'success' || needs.smoke-linux.result == 'skipped') && (needs.bind-linux.result == 'success' || needs.bind-linux.result == 'skipped') && (needs.suite-linux.result == 'success' || needs.suite-linux.result == 'skipped') && (needs.suite-node.result == 'success' || needs.suite-node.result == 'skipped')
+    needs: [plan, bind, smoke, suite-linux, suite-node]
+    if: always() && needs.plan.result == 'success' && needs.plan.outputs.oci == 'run' && (needs.smoke.result == 'success' || needs.smoke.result == 'skipped') && (needs.bind.result == 'success' || needs.bind.result == 'skipped') && (needs.suite-linux.result == 'success' || needs.suite-linux.result == 'skipped') && (needs.suite-node.result == 'success' || needs.suite-node.result == 'skipped')
     runs-on: ubuntu-24.04
     permissions:
       contents: read
@@ -890,8 +707,8 @@ jobs:
     secrets: inherit
 
   validate:
-    needs: [plan, bind-linux, depot]
-    if: always() && needs.plan.result == 'success' && needs.plan.outputs.release == 'run' && (needs.bind-linux.result == 'success' || needs.bind-linux.result == 'skipped') && needs.depot.result == 'success'
+    needs: [plan, bind, depot]
+    if: always() && needs.plan.result == 'success' && needs.plan.outputs.release == 'run' && (needs.bind.result == 'success' || needs.bind.result == 'skipped') && needs.depot.result == 'success'
     runs-on: ubuntu-24.04
     steps:
       - name: Check out wharf
@@ -912,8 +729,8 @@ jobs:
           python3 -B -m scripts.ship validate --dir ../bound --name "${REPOSITORY#*/}" --target x86_64-unknown-linux-gnu --repository "$REPOSITORY" --marker "$MARKER"
 
   release:
-    needs: [plan, smoke-linux, smoke-windows, smoke-macos, suite-linux, suite-node, depot, validate]
-    if: always() && needs.plan.result == 'success' && needs.plan.outputs.release == 'run' && needs.depot.result == 'success' && (needs.validate.result == 'success' || needs.validate.result == 'skipped') && (needs.smoke-linux.result == 'success' || needs.smoke-linux.result == 'skipped') && (needs.smoke-windows.result == 'success' || needs.smoke-windows.result == 'skipped') && (needs.smoke-macos.result == 'success' || needs.smoke-macos.result == 'skipped') && (needs.suite-linux.result == 'success' || needs.suite-linux.result == 'skipped') && (needs.suite-node.result == 'success' || needs.suite-node.result == 'skipped')
+    needs: [plan, smoke, suite-linux, suite-node, depot, validate]
+    if: always() && needs.plan.result == 'success' && needs.plan.outputs.release == 'run' && needs.depot.result == 'success' && (needs.validate.result == 'success' || needs.validate.result == 'skipped') && (needs.smoke.result == 'success' || needs.smoke.result == 'skipped') && (needs.suite-linux.result == 'success' || needs.suite-linux.result == 'skipped') && (needs.suite-node.result == 'success' || needs.suite-node.result == 'skipped')
     runs-on: ubuntu-24.04
     steps:
       - name: Check out wharf
@@ -998,8 +815,8 @@ jobs:
           python3 -B -m scripts.store publish --key "$KEY" --dir ../deployed --basis ../basis.json --context ../context.json
 
   cargo:
-    needs: [plan, binary-linux, suite-linux, suite-node]
-    if: always() && needs.plan.result == 'success' && needs.plan.outputs.cargo == 'run' && (needs.binary-linux.result == 'success' || needs.binary-linux.result == 'skipped') && (needs.suite-linux.result == 'success' || needs.suite-linux.result == 'skipped') && (needs.suite-node.result == 'success' || needs.suite-node.result == 'skipped')
+    needs: [plan, binary, suite-linux, suite-node]
+    if: always() && needs.plan.result == 'success' && needs.plan.outputs.cargo == 'run' && (needs.binary.result == 'success' || needs.binary.result == 'skipped') && (needs.suite-linux.result == 'success' || needs.suite-linux.result == 'skipped') && (needs.suite-node.result == 'success' || needs.suite-node.result == 'skipped')
     runs-on: ubuntu-24.04
     steps:
       - name: Check out wharf
@@ -1023,7 +840,7 @@ jobs:
         run: python3 -B -m scripts.ship cargo-publish --source ../product --marker "$MARKER"
 
   complete:
-    needs: [plan, binary-linux, bind-linux, smoke-linux, binary-windows, bind-windows, smoke-windows, binary-macos, bind-macos, smoke-macos, suite-linux, suite-node, npm, oci, chart, depot, validate, release, cfworker, cargo]
+    needs: [plan, binary, bind, smoke, suite-linux, suite-node, npm, oci, chart, depot, validate, release, cfworker, cargo]
     if: always()
     runs-on: ubuntu-24.04
     steps:
