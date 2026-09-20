@@ -10,7 +10,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from lib.cargo import toolchain
-from lib.process import run
+from lib.process import run, stream
 from lib.refusal import Refusal
 
 TRIPLE = re.compile(r"^[a-z0-9_]+(-[a-z0-9_]+){2,3}$")
@@ -35,6 +35,7 @@ class Build:
 @dataclass(frozen=True)
 class Tools:
     run: object = run
+    stream: object = stream
     toolchain: object = toolchain.declared
 
 
@@ -76,9 +77,9 @@ def produce(request, tools, env, spans):
         listed, seconds = timed(tools.run, ["cargo", "metadata", "--locked", "--no-deps", "--format-version", "1"], request.source, env)
         spans.append(("metadata", seconds))
         package = owner(request.name, listed)
-        spans.append(("fetch", timed(tools.run, ["cargo", "fetch", "--locked", "--target", request.target], request.source, env)[1]))
+        spans.append(("fetch", timed(tools.stream, ["cargo", "fetch", "--locked", "--target", request.target], request.source, env)[1]))
         argv = ["cargo", "build", "--locked", "--offline", "--release", "--package", package, "--bin", request.name, "--target", request.target]
-        spans.append(("build", timed(tools.run, argv, request.source, env)[1]))
+        spans.append(("build", timed(tools.stream, argv, request.source, env)[1]))
         built = Path(target) / request.target / "release" / f"{request.name}{request.suffix}"
         if not built.is_file():
             raise Refusal(f"cargo reported success but {built} is missing")
@@ -95,7 +96,7 @@ def build(request, tools=Tools()):
         raise Refusal(f"output {request.output} already exists")
     declared = tools.toolchain(request.source)
     channel = declared["channel"]
-    spans = [("toolchain", timed(tools.run, toolchain.install(declared, [request.target]), request.source)[1])]
+    spans = [("toolchain", timed(tools.stream, toolchain.install(declared, [request.target]), request.source)[1])]
     env = environment(request, channel)
     package = produce(request, tools, env, spans)
     print("\n".join(f"{name} {seconds}s" for name, seconds in spans), file=sys.stderr)

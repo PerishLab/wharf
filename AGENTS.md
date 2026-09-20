@@ -47,6 +47,12 @@ other; `lib` has no import cycles. Only `lib/content/resources.py` knows where f
 - A release marker has one shape, owned by `lib/content/marker.py`, which also
   says what channel a marker is on and how two markers order. Nothing else
   matches a marker with a pattern of its own.
+- A command whose output a step needs back is captured; a command that takes
+  minutes streams to the log while it runs, because a step that prints nothing
+  until it ends cannot be told from one that hung, and a failure that prints
+  only afterwards has already cost the wait. What a script decided still goes
+  back through `lib/parameters.py`; the runner's output file carries decisions,
+  never logs.
 - Third-party Python dependencies are allowed only when locked to exact versions and
   hashes. Actions are official `actions/*` only, pinned by SHA in
   `resources/actions.json` together with the `runs.using` of that SHA's

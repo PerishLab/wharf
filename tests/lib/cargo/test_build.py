@@ -5,6 +5,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
+from lib import process
 from lib.cargo import build
 from lib.refusal import Refusal
 
@@ -45,10 +46,18 @@ class Build(unittest.TestCase):
         self.output = root / "out"
 
     def build(self, cargo, target="x86_64-unknown-linux-gnu"):
-        tools = build.Tools(run=cargo, toolchain=lambda source: {"channel": "1.96.1", "profile": "minimal", "components": ["clippy", "rustfmt"], "targets": []})
+        tools = build.Tools(run=cargo, stream=cargo, toolchain=lambda source: {"channel": "1.96.1", "profile": "minimal", "components": ["clippy", "rustfmt"], "targets": []})
         self.reported = io.StringIO()
         with contextlib.redirect_stderr(self.reported):
             return build.build(build.Build(self.source, "plumb", target, self.output), tools)
+
+    def test_what_takes_the_time_is_streamed_and_what_is_read_back_is_captured(self):
+        cargo = Cargo([("plumb-cli", ["plumb"])])
+        self.build(cargo)
+        streamed = [argv[0] for argv, _ in cargo.calls if argv[:2] in (["cargo", "fetch"], ["cargo", "build"])] + [argv[0] for argv, _ in cargo.calls if argv[0] == "rustup"]
+        self.assertEqual(streamed, ["cargo", "cargo", "rustup"])
+        self.assertEqual(build.Tools().stream, process.stream)
+        self.assertEqual(build.Tools().run, process.run)
 
     def test_every_phase_reports_what_it_took(self):
         self.build(Cargo([("plumb-cli", ["plumb"])]))
