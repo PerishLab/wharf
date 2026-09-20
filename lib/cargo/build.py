@@ -3,7 +3,9 @@ import json
 import os
 import re
 import shutil
+import sys
 import tempfile
+import time
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -36,19 +38,27 @@ class Tools:
     toolchain: object = toolchain.declared
 
 
-def locate(source, name, execute):
+def locked(source):
     if not (source / "Cargo.lock").is_file():
         raise Refusal(f"{source} has no Cargo.lock; a locked build is required")
-    metadata = json.loads(execute(["cargo", "metadata", "--locked", "--no-deps", "--format-version", "1"]))
+
+
+def owner(name, metadata):
     owners = [
         package["name"]
-        for package in metadata["packages"]
+        for package in json.loads(metadata)["packages"]
         for target in package["targets"]
         if target["name"] == name and "bin" in target["kind"]
     ]
     if len(owners) != 1:
         raise Refusal(f"binary {name!r} must be declared by exactly one package, found {owners}")
     return owners[0]
+
+
+def timed(runner, argv, cwd, env=None):
+    started = time.monotonic()
+    output = runner(argv, cwd, env)
+    return output, round(time.monotonic() - started, 1)
 
 
 def environment(request, channel):
@@ -59,12 +69,16 @@ def environment(request, channel):
     return env
 
 
-def produce(request, tools, env):
+def produce(request, tools, env, spans):
     with tempfile.TemporaryDirectory() as target:
         env["CARGO_TARGET_DIR"] = target
-        package = locate(request.source, request.name, lambda argv: tools.run(argv, request.source, env))
-        argv = ["cargo", "build", "--locked", "--release", "--package", package, "--bin", request.name, "--target", request.target]
-        tools.run(argv, request.source, env)
+        locked(request.source)
+        listed, seconds = timed(tools.run, ["cargo", "metadata", "--locked", "--no-deps", "--format-version", "1"], request.source, env)
+        spans.append(("metadata", seconds))
+        package = owner(request.name, listed)
+        spans.append(("fetch", timed(tools.run, ["cargo", "fetch", "--locked", "--target", request.target], request.source, env)[1]))
+        argv = ["cargo", "build", "--locked", "--offline", "--release", "--package", package, "--bin", request.name, "--target", request.target]
+        spans.append(("build", timed(tools.run, argv, request.source, env)[1]))
         built = Path(target) / request.target / "release" / f"{request.name}{request.suffix}"
         if not built.is_file():
             raise Refusal(f"cargo reported success but {built} is missing")
@@ -81,9 +95,10 @@ def build(request, tools=Tools()):
         raise Refusal(f"output {request.output} already exists")
     declared = tools.toolchain(request.source)
     channel = declared["channel"]
-    tools.run(toolchain.install(declared, [request.target]), request.source)
+    spans = [("toolchain", timed(tools.run, toolchain.install(declared, [request.target]), request.source)[1])]
     env = environment(request, channel)
-    package = produce(request, tools, env)
+    package = produce(request, tools, env, spans)
+    print("\n".join(f"{name} {seconds}s" for name, seconds in spans), file=sys.stderr)
     rustc = tools.run(["rustc", "--version"], request.source, env).strip()
     body = (request.output / request.artifact).read_bytes()
     receipt = {

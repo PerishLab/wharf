@@ -1,3 +1,5 @@
+import contextlib
+import io
 import json
 import tempfile
 import unittest
@@ -44,7 +46,13 @@ class Build(unittest.TestCase):
 
     def build(self, cargo, target="x86_64-unknown-linux-gnu"):
         tools = build.Tools(run=cargo, toolchain=lambda source: {"channel": "1.96.1", "profile": "minimal", "components": ["clippy", "rustfmt"], "targets": []})
-        return build.build(build.Build(self.source, "plumb", target, self.output), tools)
+        self.reported = io.StringIO()
+        with contextlib.redirect_stderr(self.reported):
+            return build.build(build.Build(self.source, "plumb", target, self.output), tools)
+
+    def test_every_phase_reports_what_it_took(self):
+        self.build(Cargo([("plumb-cli", ["plumb"])]))
+        self.assertEqual([line.split()[0] for line in self.reported.getvalue().splitlines()], ["toolchain", "metadata", "fetch", "build"])
 
     def test_builds_one_unbound_binary_with_receipt(self):
         cargo = Cargo([("plumb-cli", ["plumb"])])
@@ -57,6 +65,16 @@ class Build(unittest.TestCase):
         self.assertEqual(cargo.build_env()["RUSTUP_TOOLCHAIN"], "1.96.1")
         self.assertEqual(cargo.build_env()["PLUMB_BUILD_TARGET"], "x86_64-unknown-linux-gnu")
         self.assertEqual(cargo.build_env()["PLUMB_BUILD_CHANNEL"], "unbound")
+
+    def test_the_dependencies_are_fetched_before_a_build_that_cannot_reach_the_network(self):
+        cargo = Cargo([("plumb-cli", ["plumb"])])
+        self.build(cargo)
+        spoken = [argv[:2] for argv, _ in cargo.calls]
+        self.assertLess(spoken.index(["cargo", "fetch"]), spoken.index(["cargo", "build"]))
+        fetch = next(argv for argv, _ in cargo.calls if argv[:2] == ["cargo", "fetch"])
+        self.assertEqual(fetch[argv_target := fetch.index("--target") + 1], "x86_64-unknown-linux-gnu")
+        self.assertIn("--offline", next(argv for argv, _ in cargo.calls if argv[:2] == ["cargo", "build"]))
+        self.assertNotIn("--offline", fetch)
 
     def test_refuses_malformed_target_before_side_effects(self):
         cargo = Cargo([("plumb-cli", ["plumb"])])
