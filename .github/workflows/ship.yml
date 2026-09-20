@@ -416,7 +416,7 @@ jobs:
 
   bind-linux:
     needs: [plan, binary-linux]
-    if: always() && needs.plan.outputs.bind-linux == 'run' && (needs.binary-linux.result == 'success' || needs.binary-linux.result == 'skipped')
+    if: always() && needs.plan.result == 'success' && needs.plan.outputs.bind-linux == 'run' && (needs.binary-linux.result == 'success' || needs.binary-linux.result == 'skipped')
     runs-on: ubuntu-24.04
     steps:
       - name: Check out wharf
@@ -448,7 +448,7 @@ jobs:
 
   smoke-linux:
     needs: [plan, bind-linux]
-    if: always() && needs.plan.outputs.smoke-linux == 'run' && (needs.bind-linux.result == 'success' || needs.bind-linux.result == 'skipped')
+    if: always() && needs.plan.result == 'success' && needs.plan.outputs.smoke-linux == 'run' && (needs.bind-linux.result == 'success' || needs.bind-linux.result == 'skipped')
     runs-on: ubuntu-24.04
     steps:
       - name: Check out wharf
@@ -522,7 +522,7 @@ jobs:
 
   bind-windows:
     needs: [plan, binary-windows]
-    if: always() && needs.plan.outputs.bind-windows == 'run' && (needs.binary-windows.result == 'success' || needs.binary-windows.result == 'skipped')
+    if: always() && needs.plan.result == 'success' && needs.plan.outputs.bind-windows == 'run' && (needs.binary-windows.result == 'success' || needs.binary-windows.result == 'skipped')
     runs-on: ubuntu-24.04
     steps:
       - name: Check out wharf
@@ -554,7 +554,7 @@ jobs:
 
   smoke-windows:
     needs: [plan, bind-windows]
-    if: always() && needs.plan.outputs.smoke-windows == 'run' && (needs.bind-windows.result == 'success' || needs.bind-windows.result == 'skipped')
+    if: always() && needs.plan.result == 'success' && needs.plan.outputs.smoke-windows == 'run' && (needs.bind-windows.result == 'success' || needs.bind-windows.result == 'skipped')
     runs-on: windows-2025
     defaults:
       run:
@@ -628,7 +628,7 @@ jobs:
 
   bind-macos:
     needs: [plan, binary-macos]
-    if: always() && needs.plan.outputs.bind-macos == 'run' && (needs.binary-macos.result == 'success' || needs.binary-macos.result == 'skipped')
+    if: always() && needs.plan.result == 'success' && needs.plan.outputs.bind-macos == 'run' && (needs.binary-macos.result == 'success' || needs.binary-macos.result == 'skipped')
     runs-on: macos-15
     steps:
       - name: Check out wharf
@@ -660,7 +660,7 @@ jobs:
 
   smoke-macos:
     needs: [plan, bind-macos]
-    if: always() && needs.plan.outputs.smoke-macos == 'run' && (needs.bind-macos.result == 'success' || needs.bind-macos.result == 'skipped')
+    if: always() && needs.plan.result == 'success' && needs.plan.outputs.smoke-macos == 'run' && (needs.bind-macos.result == 'success' || needs.bind-macos.result == 'skipped')
     runs-on: macos-15
     steps:
       - name: Check out wharf
@@ -774,7 +774,7 @@ jobs:
 
   npm:
     needs: [plan, suite-linux, suite-node]
-    if: always() && needs.plan.outputs.npm == 'run' && (needs.suite-linux.result == 'success' || needs.suite-linux.result == 'skipped') && (needs.suite-node.result == 'success' || needs.suite-node.result == 'skipped')
+    if: always() && needs.plan.result == 'success' && needs.plan.outputs.npm == 'run' && (needs.suite-linux.result == 'success' || needs.suite-linux.result == 'skipped') && (needs.suite-node.result == 'success' || needs.suite-node.result == 'skipped')
     runs-on: ubuntu-24.04
     permissions:
       contents: read
@@ -812,7 +812,7 @@ jobs:
 
   oci:
     needs: [plan, bind-linux, smoke-linux, suite-linux, suite-node]
-    if: always() && needs.plan.outputs.oci == 'run' && (needs.smoke-linux.result == 'success' || needs.smoke-linux.result == 'skipped') && (needs.bind-linux.result == 'success' || needs.bind-linux.result == 'skipped') && (needs.suite-linux.result == 'success' || needs.suite-linux.result == 'skipped') && (needs.suite-node.result == 'success' || needs.suite-node.result == 'skipped')
+    if: always() && needs.plan.result == 'success' && needs.plan.outputs.oci == 'run' && (needs.smoke-linux.result == 'success' || needs.smoke-linux.result == 'skipped') && (needs.bind-linux.result == 'success' || needs.bind-linux.result == 'skipped') && (needs.suite-linux.result == 'success' || needs.suite-linux.result == 'skipped') && (needs.suite-node.result == 'success' || needs.suite-node.result == 'skipped')
     runs-on: ubuntu-24.04
     permissions:
       contents: read
@@ -854,7 +854,7 @@ jobs:
 
   chart:
     needs: [plan, suite-linux, suite-node]
-    if: always() && needs.plan.outputs.chart == 'run' && (needs.suite-linux.result == 'success' || needs.suite-linux.result == 'skipped') && (needs.suite-node.result == 'success' || needs.suite-node.result == 'skipped')
+    if: always() && needs.plan.result == 'success' && needs.plan.outputs.chart == 'run' && (needs.suite-linux.result == 'success' || needs.suite-linux.result == 'skipped') && (needs.suite-node.result == 'success' || needs.suite-node.result == 'skipped')
     runs-on: ubuntu-24.04
     permissions:
       contents: read
@@ -902,7 +902,7 @@ jobs:
 
   validate:
     needs: [plan, bind-linux, depot]
-    if: always() && needs.plan.outputs.release == 'run' && (needs.bind-linux.result == 'success' || needs.bind-linux.result == 'skipped') && needs.depot.result == 'success'
+    if: always() && needs.plan.result == 'success' && needs.plan.outputs.release == 'run' && (needs.bind-linux.result == 'success' || needs.bind-linux.result == 'skipped') && needs.depot.result == 'success'
     runs-on: ubuntu-24.04
     steps:
       - name: Check out wharf
@@ -924,7 +924,7 @@ jobs:
 
   release:
     needs: [plan, smoke-linux, smoke-windows, smoke-macos, suite-linux, suite-node, depot, validate]
-    if: always() && needs.plan.outputs.release == 'run' && needs.depot.result == 'success' && (needs.validate.result == 'success' || needs.validate.result == 'skipped') && (needs.smoke-linux.result == 'success' || needs.smoke-linux.result == 'skipped') && (needs.smoke-windows.result == 'success' || needs.smoke-windows.result == 'skipped') && (needs.smoke-macos.result == 'success' || needs.smoke-macos.result == 'skipped') && (needs.suite-linux.result == 'success' || needs.suite-linux.result == 'skipped') && (needs.suite-node.result == 'success' || needs.suite-node.result == 'skipped')
+    if: always() && needs.plan.result == 'success' && needs.plan.outputs.release == 'run' && needs.depot.result == 'success' && (needs.validate.result == 'success' || needs.validate.result == 'skipped') && (needs.smoke-linux.result == 'success' || needs.smoke-linux.result == 'skipped') && (needs.smoke-windows.result == 'success' || needs.smoke-windows.result == 'skipped') && (needs.smoke-macos.result == 'success' || needs.smoke-macos.result == 'skipped') && (needs.suite-linux.result == 'success' || needs.suite-linux.result == 'skipped') && (needs.suite-node.result == 'success' || needs.suite-node.result == 'skipped')
     runs-on: ubuntu-24.04
     steps:
       - name: Check out wharf
@@ -963,7 +963,7 @@ jobs:
 
   cfworker:
     needs: [plan, suite-linux, suite-node]
-    if: always() && needs.plan.outputs.cfworker == 'run' && (needs.suite-linux.result == 'success' || needs.suite-linux.result == 'skipped') && (needs.suite-node.result == 'success' || needs.suite-node.result == 'skipped')
+    if: always() && needs.plan.result == 'success' && needs.plan.outputs.cfworker == 'run' && (needs.suite-linux.result == 'success' || needs.suite-linux.result == 'skipped') && (needs.suite-node.result == 'success' || needs.suite-node.result == 'skipped')
     runs-on: ubuntu-24.04
     steps:
       - name: Check out wharf
@@ -1010,7 +1010,7 @@ jobs:
 
   cargo:
     needs: [plan, binary-linux, suite-linux, suite-node]
-    if: always() && needs.plan.outputs.cargo == 'run' && (needs.binary-linux.result == 'success' || needs.binary-linux.result == 'skipped') && (needs.suite-linux.result == 'success' || needs.suite-linux.result == 'skipped') && (needs.suite-node.result == 'success' || needs.suite-node.result == 'skipped')
+    if: always() && needs.plan.result == 'success' && needs.plan.outputs.cargo == 'run' && (needs.binary-linux.result == 'success' || needs.binary-linux.result == 'skipped') && (needs.suite-linux.result == 'success' || needs.suite-linux.result == 'skipped') && (needs.suite-node.result == 'success' || needs.suite-node.result == 'skipped')
     runs-on: ubuntu-24.04
     steps:
       - name: Check out wharf
