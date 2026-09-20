@@ -1,0 +1,17 @@
+{
+  "prefix": "WHARF",
+  "credential": "TOKEN|SECRET|PASSWORD|CREDENTIAL|ACCESS_KEY|API_KEY|PRIVATE_KEY|SIGNING_KEY",
+  "types": {
+    "attempt": "string",
+    "commit": "string",
+    "marker": "string",
+    "name": "string",
+    "repository": "string",
+    "run": "string",
+    "source": "string",
+    "steps": "string",
+    "tree": "string",
+    "wharf": "string"
+  },
+  "defaults": {}
+}

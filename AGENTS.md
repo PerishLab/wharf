@@ -30,6 +30,14 @@ other; `lib` has no import cycles. Only `lib/content/resources.py` knows where f
   4 nested blocks, 10 entries per directory and 3 levels below a top-level directory.
 - Words claimed elsewhere in perish.code are listed in `resources/vocabulary.json`
   and must not name anything here.
+- A script takes its parameters through `lib/parameters.py`, never from `argparse`
+  defaults or `os.environ` directly. Each parameter declares its type once in
+  `resources/parameters.json`; a value is taken from the flag, else `WHARF_<NAME>`,
+  else the `-c <path>` TOML file, else the declared default, and a value set
+  nowhere refuses naming all four. A value set but empty refuses too. Credentials
+  never pass through this layer: a parameter or configuration key shaped like one
+  refuses. Flags are for people and the environment is for CI, so a workflow `run:`
+  stays a bare `python3 -B -m scripts.<name> <action>`.
 - Third-party Python dependencies are allowed only when locked to exact versions and
   hashes. Actions are official `actions/*` only, pinned by SHA in
   `resources/actions.json` together with the `runs.using` of that SHA's
