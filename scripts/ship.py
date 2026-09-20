@@ -206,14 +206,6 @@ def published_release(held):
     return releasing.Release(held["repository"], held["marker"], held["commit"], held["wharf"])
 
 
-def rendered(document, published, held, directory):
-    name = plan.product(document["context"])
-    binary = bind.Artifact(directory, name, targeted(BUILD["primary"])["target"]).file
-    managers = place()
-    releasing.render(published, binary, held["source"], str(managers))
-    return managers
-
-
 def release_plan(held):
     published = published_release(held)
     return decided(releasing.published(published), {"channel": releasing.channel(published.marker)})
@@ -224,7 +216,8 @@ def run_release(held):
     context = document["context"]
     published = releasing.Release(context["repository"], context["marker"], context["commit"], held["wharf"])
     directories = {target["target"]: bound(bucket, document, target["name"]) for target in BUILD["targets"]}
-    managers = rendered(document, published, held, directories[targeted(BUILD["primary"])["target"]])
+    managers = place()
+    releasing.render(published, str(managers))
     return releasing.publish(published, releasing.Contents(directories, managers), r2.writer(releasing.place(published)[1], "RELEASES"))
 
 

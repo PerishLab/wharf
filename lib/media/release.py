@@ -1,16 +1,12 @@
 import hashlib
 import json
-import os
-import subprocess
-import tempfile
 import urllib.error
 import urllib.request
 from dataclasses import dataclass
 from pathlib import Path
 
-from lib.content import canonical, implementation, marker, resources
+from lib.content import canonical, fill, implementation, marker, resources
 from lib.media import archive
-from lib.process import run
 from lib.refusal import Conflict, Refusal
 
 LAYOUT = resources.read_json("releases.json")
@@ -18,6 +14,8 @@ JSON = "application/json; charset=utf-8"
 MIMES = {"tar.gz": "application/gzip", "zip": "application/zip"}
 MANAGERS = {"unix": ("manage.sh", "text/x-shellscript; charset=utf-8"), "windows": ("manage.ps1", "text/plain; charset=utf-8")}
 CANONICAL = "canonical"
+PROBE = "exact-v"
+TEMPLATES = {"unix": "manager/unix.sh.in", "windows": "manager/windows.ps1.in"}
 
 
 @dataclass(frozen=True)
@@ -66,23 +64,71 @@ def objects(name, bound, authority):
     return staged
 
 
-def render(release, binary, source, output):
+def archived(name, target, spec):
+    return f"{name}-{target}.{spec['format']}"
+
+
+def platforms(name):
+    lines = []
+    for target, spec in LAYOUT["targets"].items():
+        systems = [system for system in spec["systems"] if not system.startswith("Windows:")]
+        if systems:
+            lines.append(f"    {'|'.join(systems)})\n      ARCHIVE={archived(name, target, spec)}\n      ARTIFACT={spec['key']}\n      ARCHIVE_ROOT=\n      FORMAT={spec['format']}\n      ;;")
+    return "\n".join(lines)
+
+
+def windowed(name):
+    for target, spec in LAYOUT["targets"].items():
+        if spec["format"] == "zip":
+            return {"windows_archive": archived(name, target, spec), "windows_key": spec["key"], "windows_root": ""}
+    return None
+
+
+def named(name, held, channel):
+    return {
+        "product": name,
+        "environment": name.upper().replace("-", "_"),
+        "public_url": LAYOUT["authority"].replace("{name}", name),
+        "default_channel": channel,
+        "default_version": held,
+        "binaries": name,
+        "version_probe": PROBE,
+        "unix_platforms": platforms(name),
+        "windows_archive": "",
+        "windows_key": "",
+        "windows_root": "",
+    }
+
+
+def written(output, platform, body):
+    path = Path(output) / MANAGERS[platform][0]
+    path.write_text(body)
+    if platform == "unix":
+        path.chmod(0o755)
+    return path
+
+
+def filled(name, held, marker, output):
+    values = named(name, held, channel(marker))
+    written(output, "unix", fill.fill(resources.read_bytes(TEMPLATES["unix"]).decode(), values))
+    windows = windowed(name)
+    if windows is not None:
+        written(output, "windows", fill.fill(resources.read_bytes(TEMPLATES["windows"]).decode(), {**values, **windows}))
+    return output
+
+
+def render(release, output):
     output = Path(output)
     if output.exists():
         raise Refusal(f"output {output} already exists")
-    step = resources.read_json("managers.json").get(release.repository)
-    if not step:
-        output.mkdir(parents=True)
-        return {"action": "ship.release.managers", "step": None}
-    Path(binary).chmod(0o755)
-    argv = [str(Path(binary).resolve()), *(part.replace("{marker}", release.marker).replace("{out}", str(output.resolve())) for part in step)]
-    with tempfile.TemporaryDirectory() as home:
-        try:
-            run(argv, source, {"HOME": home, "PATH": os.environ.get("PATH", "/usr/bin:/bin")})
-        except subprocess.CalledProcessError as failure:
-            detail = (failure.stderr or failure.stdout or "").strip()[:500]
-            raise Refusal(f"{' '.join(step)} exited {failure.returncode}: {detail}")
-    return {"action": "ship.release.managers", "step": " ".join(step), "files": sorted(str(path.relative_to(output)) for path in output.rglob("*") if path.is_file())}
+    name = release.repository.split("/", 1)[1]
+    output.mkdir(parents=True)
+    filled(name, release.marker, release.marker, output)
+    if channel(release.marker) == "stable":
+        rooted = output / CANONICAL
+        rooted.mkdir()
+        filled(name, "", release.marker, rooted)
+    return {"action": "ship.release.managers", "files": sorted(str(path.relative_to(output)) for path in output.rglob("*") if path.is_file())}
 
 
 def scripts(directory, authority, rooted):
@@ -106,7 +152,7 @@ def managed(release, managers, authority):
 
 
 def generator(release):
-    template = canonical.digest(implementation.resourced(["lib.media.release"], ["releases.json", "managers.json"]))
+    template = canonical.digest(implementation.resourced(["lib.media.release"], ["releases.json", *TEMPLATES.values()]))
     return {"version": f"wharf {release.wharf[:12]}", "template": template, "origin": {"kind": "source-built", "repository": LAYOUT["writer"], "commit": release.wharf}}
 
 

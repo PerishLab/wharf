@@ -3,8 +3,29 @@
   "authority": "https://releases.{name}.perish.uk",
   "writer": "https://github.com/PerishLab/wharf",
   "targets": {
-    "x86_64-unknown-linux-gnu": {"key": "linux-x64", "format": "tar.gz"},
-    "aarch64-apple-darwin": {"key": "darwin-arm64", "format": "tar.gz"},
-    "x86_64-pc-windows-msvc": {"key": "windows-x64", "format": "zip"}
+    "x86_64-unknown-linux-gnu": {
+      "key": "linux-x64",
+      "format": "tar.gz",
+      "systems": [
+        "Linux:x86_64",
+        "Linux:amd64"
+      ]
+    },
+    "aarch64-apple-darwin": {
+      "key": "darwin-arm64",
+      "format": "tar.gz",
+      "systems": [
+        "Darwin:arm64",
+        "Darwin:aarch64"
+      ]
+    },
+    "x86_64-pc-windows-msvc": {
+      "key": "windows-x64",
+      "format": "zip",
+      "systems": [
+        "Windows:x86_64",
+        "Windows:amd64"
+      ]
+    }
   }
 }

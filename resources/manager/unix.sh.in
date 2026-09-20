@@ -1,0 +1,723 @@
+#!/usr/bin/env sh
+set -eu
+
+COMMAND=${{1:-install}}
+[ $# -gt 0 ] && shift || true
+case "$COMMAND" in
+  -h|--help|help)
+    COMMAND=install
+    set -- --help
+    ;;
+esac
+
+CANONICAL_PUBLIC_URL={public_url}
+DEFAULT_INSTALL_ROOT="$HOME/.local/share/{product}"
+DEFAULT_BIN_DIR="$HOME/.local/bin"
+INSTALL_ROOT_EXPLICIT=false
+BIN_DIR_EXPLICIT=false
+[ "${{{environment}_INSTALL_ROOT+x}}" = x ] && INSTALL_ROOT_EXPLICIT=true
+[ "${{{environment}_LOCAL_BIN_DIR+x}}" = x ] && BIN_DIR_EXPLICIT=true
+
+CHANNEL=${{{environment}_CHANNEL:-{default_channel}}}
+VERSION=${{{environment}_VERSION:-{default_version}}}
+PUBLIC_URL=${{{environment}_RELEASES_PUBLIC_URL:-$CANONICAL_PUBLIC_URL}}
+INSTALL_ROOT=${{{environment}_INSTALL_ROOT:-$DEFAULT_INSTALL_ROOT}}
+LOCAL_BIN_DIR=${{{environment}_LOCAL_BIN_DIR:-$DEFAULT_BIN_DIR}}
+BINARIES="{binaries}"
+MARKER={product}-manager-v1
+ROOT_MARKER=.{product}-manager
+VERSION_MARKER=.{product}-manager
+
+usage() {{
+  cat <<'EOF'
+{product} manager
+
+Usage:
+  manage.sh install [--channel <channel>] [--version vX.Y.Z[-<channel>.N]]
+  manage.sh update [--channel <channel>] [--version vX.Y.Z[-<channel>.N]]
+  manage.sh uninstall [--channel <channel>] [--version vX.Y.Z[-<channel>.N]]
+
+Stable from the canonical release authority is the only moving intent and the
+only source admitted to the default install and bin paths. Every non-stable
+channel requires an exact version plus explicit, isolated --install-root and
+--bin-dir values. A non-canonical --public-url requires the same isolation.
+
+Install and update leave one manager-owned version on disk. Selected binaries
+are staged and verified before the entrypoints change; only old seats carrying
+matching ownership markers are swept. An explicit stable --version is a
+deliberate rollback, while implicit stable never moves backwards.
+
+Options:
+  --public-url <url>     release seal and artifact authority
+  --install-root <path>  versioned install root
+  --bin-dir <path>       directory for the {product} link
+
+Environment:
+  {environment}_RELEASES_PUBLIC_URL
+  {environment}_CHANNEL
+  {environment}_VERSION
+  {environment}_INSTALL_ROOT
+  {environment}_LOCAL_BIN_DIR
+EOF
+}}
+
+while [ $# -gt 0 ]; do
+  case "$1" in
+    --channel) CHANNEL=${{2:-}}; shift 2 ;;
+    --channel=*) CHANNEL=${{1#--channel=}}; shift ;;
+    --version) VERSION=${{2:-}}; shift 2 ;;
+    --version=*) VERSION=${{1#--version=}}; shift ;;
+    --public-url) PUBLIC_URL=${{2:-}}; shift 2 ;;
+    --public-url=*) PUBLIC_URL=${{1#--public-url=}}; shift ;;
+    --install-root)
+      INSTALL_ROOT=${{2:-}}
+      INSTALL_ROOT_EXPLICIT=true
+      shift 2
+      ;;
+    --install-root=*)
+      INSTALL_ROOT=${{1#--install-root=}}
+      INSTALL_ROOT_EXPLICIT=true
+      shift
+      ;;
+    --bin-dir)
+      LOCAL_BIN_DIR=${{2:-}}
+      BIN_DIR_EXPLICIT=true
+      shift 2
+      ;;
+    --bin-dir=*)
+      LOCAL_BIN_DIR=${{1#--bin-dir=}}
+      BIN_DIR_EXPLICIT=true
+      shift
+      ;;
+    -h|--help|help) usage; exit 0 ;;
+    *) echo "unknown argument: $1" >&2; exit 1 ;;
+  esac
+done
+
+for value in "$CHANNEL" "$PUBLIC_URL" "$INSTALL_ROOT" "$LOCAL_BIN_DIR"; do
+  [ -n "$value" ] || {{ echo "manager option cannot be empty" >&2; exit 1; }}
+done
+printf '%s\n' "$CHANNEL" | grep -Eq '^[a-z][a-z0-9-]*$' || {{
+  echo "invalid channel: $CHANNEL" >&2
+  exit 1
+}}
+PUBLIC_URL=${{PUBLIC_URL%/}}
+
+normalize_version() {{
+  normalized=$(printf 'v%s' "$(printf '%s' "$1" | sed 's/^v//')")
+  printf '%s\n' "$normalized" |
+    grep -Eq '^v[0-9]+\.[0-9]+\.[0-9]+(-[a-z][a-z0-9-]*\.[1-9][0-9]*)?$' || {{
+      echo "invalid {product} version: $1" >&2
+      exit 1
+    }}
+  printf '%s' "$normalized"
+}}
+
+belongs() {{
+  held=$1
+  if [ "$CHANNEL" = stable ]; then
+    printf '%s\n' "$held" | grep -Eq '^v[0-9]+\.[0-9]+\.[0-9]+$'
+  else
+    printf '%s\n' "$held" |
+      grep -Eq "^v[0-9]+\\.[0-9]+\\.[0-9]+-${{CHANNEL}}\\.[1-9][0-9]*$"
+  fi
+}}
+
+case "$COMMAND" in
+  install|update)
+    if [ -z "$VERSION" ] &&
+      {{ [ "$CHANNEL" != stable ] || [ "$PUBLIC_URL" != "$CANONICAL_PUBLIC_URL" ]; }}; then
+      echo "$CHANNEL from $PUBLIC_URL requires an exact version" >&2
+      exit 1
+    fi
+    if [ -n "$VERSION" ]; then
+      VERSION=$(normalize_version "$VERSION")
+      belongs "$VERSION" || {{
+        echo "version $VERSION does not belong to channel $CHANNEL" >&2
+        exit 1
+      }}
+    fi
+    ;;
+  uninstall)
+    if [ -n "$VERSION" ]; then
+      VERSION=$(normalize_version "$VERSION")
+      belongs "$VERSION" || {{
+        echo "version $VERSION does not belong to channel $CHANNEL" >&2
+        exit 1
+      }}
+    fi
+    ;;
+  *) echo "unknown command: $COMMAND" >&2; exit 1 ;;
+esac
+
+lexical_path() {{
+  case "$1" in
+    /*) absolute=$1 ;;
+    *) absolute=$PWD/$1 ;;
+  esac
+  printf '%s\n' "$absolute" | awk -F/ '
+    {{
+      top = 0
+      for (i = 1; i <= NF; i++) {{
+        part = $i
+        if (part == "" || part == ".") continue
+        if (part == "..") {{
+          if (top > 0) top--
+          continue
+        }}
+        held[++top] = part
+      }}
+      if (top == 0) {{
+        print "/"
+        next
+      }}
+      out = ""
+      for (i = 1; i <= top; i++) out = out "/" held[i]
+      print out
+    }}
+  '
+}}
+
+canonical_path() {{
+  probe=$(lexical_path "$1")
+  suffix=
+  while [ ! -e "$probe" ]; do
+    leaf=$(basename "$probe")
+    suffix="/$leaf$suffix"
+    probe=$(dirname "$probe")
+  done
+  if [ -d "$probe" ]; then
+    resolved=$(CDPATH= cd -P -- "$probe" && pwd)
+  else
+    parent=$(dirname "$probe")
+    leaf=$(basename "$probe")
+    resolved="$(CDPATH= cd -P -- "$parent" && pwd)/$leaf"
+  fi
+  printf '%s%s' "$resolved" "$suffix"
+}}
+
+overlap() {{
+  left=$1
+  right=$2
+  [ "$left" = "$right" ] && return 0
+  case "$left/" in "$right/"*) return 0 ;; esac
+  case "$right/" in "$left/"*) return 0 ;; esac
+  return 1
+}}
+
+INSTALL_ROOT=$(canonical_path "$INSTALL_ROOT")
+LOCAL_BIN_DIR=$(canonical_path "$LOCAL_BIN_DIR")
+DEFAULT_INSTALL_ROOT=$(canonical_path "$DEFAULT_INSTALL_ROOT")
+DEFAULT_BIN_DIR=$(canonical_path "$DEFAULT_BIN_DIR")
+
+if [ "$COMMAND" = install ] || [ "$COMMAND" = update ] || [ -n "$VERSION" ]; then
+  overlap "$INSTALL_ROOT" "$LOCAL_BIN_DIR" && {{
+    echo "install root and bin directory must be disjoint" >&2
+    exit 1
+  }}
+fi
+
+if [ "$COMMAND" = install ] || [ "$COMMAND" = update ]; then
+  isolated=false
+  [ "$CHANNEL" = stable ] && [ "$PUBLIC_URL" = "$CANONICAL_PUBLIC_URL" ] ||
+    isolated=true
+  if [ "$isolated" = true ]; then
+    [ "$INSTALL_ROOT_EXPLICIT" = true ] && [ "$BIN_DIR_EXPLICIT" = true ] || {{
+      echo "$CHANNEL from $PUBLIC_URL requires explicit --install-root and --bin-dir isolation" >&2
+      exit 1
+    }}
+    for actual in "$INSTALL_ROOT" "$LOCAL_BIN_DIR"; do
+      for protected in "$DEFAULT_INSTALL_ROOT" "$DEFAULT_BIN_DIR"; do
+        overlap "$actual" "$protected" && {{
+          echo "isolated path $actual overlaps stable default seat $protected" >&2
+          exit 1
+        }}
+      done
+    done
+  fi
+fi
+
+if [ "$COMMAND" = uninstall ] && [ -n "$VERSION" ] && [ "$CHANNEL" != stable ]; then
+  [ "$INSTALL_ROOT_EXPLICIT" = true ] && [ "$BIN_DIR_EXPLICIT" = true ] || {{
+    echo "$CHANNEL uninstall requires explicit --install-root and --bin-dir isolation" >&2
+    exit 1
+  }}
+  for actual in "$INSTALL_ROOT" "$LOCAL_BIN_DIR"; do
+    for protected in "$DEFAULT_INSTALL_ROOT" "$DEFAULT_BIN_DIR"; do
+      overlap "$actual" "$protected" && {{
+        echo "isolated path $actual overlaps stable default seat $protected" >&2
+        exit 1
+      }}
+    done
+  done
+fi
+
+release_version() {{
+  sed -n 's/.*"releaseVersion"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' "$1" |
+    head -n 1
+}}
+
+release_channel() {{
+  sed -n 's/.*"channel"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' "$1" |
+    head -n 1
+}}
+
+release_schema() {{
+  sed -n 's/.*"schema"[[:space:]]*:[[:space:]]*\([0-9][0-9]*\).*/\1/p' "$1" |
+    head -n 1
+}}
+
+object_string() {{
+  object=$1
+  field=$2
+  metadata=$3
+  awk -v object="\"$object\"" -v field="\"$field\"" '
+    $0 ~ object "[[:space:]]*:" {{ inside = 1 }}
+    inside && $0 ~ field "[[:space:]]*:" {{
+      line = $0
+      sub(".*" field "[[:space:]]*:[[:space:]]*\"", "", line)
+      sub("\".*", "", line)
+      print line
+      exit
+    }}
+    inside && /}}/ {{ exit }}
+  ' "$metadata"
+}}
+
+platform() {{
+  ARCHIVE=
+  ARTIFACT=
+  ARCHIVE_ROOT=
+  FORMAT=
+  case "$(uname -s):$(uname -m)" in
+{unix_platforms}
+    *) echo "unsupported platform: $(uname -s) $(uname -m)" >&2; exit 1 ;;
+  esac
+}}
+
+sha256() {{
+  if command -v sha256sum >/dev/null 2>&1; then
+    sha256sum "$1" | awk '{{print $1}}'
+  else
+    shasum -a 256 "$1" | awk '{{print $1}}'
+  fi
+}}
+
+root_owned() {{
+  [ -f "$INSTALL_ROOT/$ROOT_MARKER" ] &&
+    [ "$(sed -n '1p' "$INSTALL_ROOT/$ROOT_MARKER")" = "$MARKER" ] &&
+    [ "$(sed -n '2p' "$INSTALL_ROOT/$ROOT_MARKER")" = "authority=$PUBLIC_URL" ] &&
+    [ "$(sed -n '3p' "$INSTALL_ROOT/$ROOT_MARKER")" = "channel=$CHANNEL" ]
+}}
+
+version_owned() {{
+  seat=$1
+  [ -d "$INSTALL_ROOT/$seat" ] &&
+    [ ! -L "$INSTALL_ROOT/$seat" ] &&
+    [ -f "$INSTALL_ROOT/$seat/$VERSION_MARKER" ] &&
+    [ "$(sed -n '1p' "$INSTALL_ROOT/$seat/$VERSION_MARKER")" = "$MARKER" ] &&
+    [ "$(sed -n '2p' "$INSTALL_ROOT/$seat/$VERSION_MARKER")" = "authority=$PUBLIC_URL" ] &&
+    [ "$(sed -n '3p' "$INSTALL_ROOT/$seat/$VERSION_MARKER")" = "channel=$CHANNEL" ] &&
+    [ "$(sed -n '4p' "$INSTALL_ROOT/$seat/$VERSION_MARKER")" = "version=$seat" ]
+}}
+
+legacy_root_owned() {{
+  [ -f "$INSTALL_ROOT/$ROOT_MARKER" ] &&
+    [ "$(awk 'END {{ print NR }}' "$INSTALL_ROOT/$ROOT_MARKER")" = 1 ] &&
+    [ "$(sed -n '1p' "$INSTALL_ROOT/$ROOT_MARKER")" = "$MARKER" ]
+}}
+
+legacy_version_owned() {{
+  seat=$1
+  printf '%s\n' "$seat" | grep -Eq '^v[0-9]+\.[0-9]+\.[0-9]+$' &&
+    [ -d "$INSTALL_ROOT/$seat" ] &&
+    [ ! -L "$INSTALL_ROOT/$seat" ] &&
+    [ -f "$INSTALL_ROOT/$seat/$VERSION_MARKER" ] &&
+    [ "$(awk 'END {{ print NR }}' "$INSTALL_ROOT/$seat/$VERSION_MARKER")" = 2 ] &&
+    [ "$(sed -n '1p' "$INSTALL_ROOT/$seat/$VERSION_MARKER")" = "$MARKER" ] &&
+    [ "$(sed -n '2p' "$INSTALL_ROOT/$seat/$VERSION_MARKER")" = "version=$seat" ]
+}}
+
+adopt_legacy_stable() {{
+  [ "$CHANNEL" = stable ] && [ "$PUBLIC_URL" = "$CANONICAL_PUBLIC_URL" ] || return 0
+  legacy_root=false
+  current_root=false
+  legacy_root_owned && legacy_root=true
+  root_owned && current_root=true
+  [ "$legacy_root" = true ] || [ "$current_root" = true ] || return 0
+
+  matched=
+  matches=0
+  for path in "$INSTALL_ROOT"/v*; do
+    [ -d "$path" ] && [ ! -L "$path" ] || continue
+    seat=$(basename "$path")
+    legacy_seat=false
+    current_seat=false
+    legacy_version_owned "$seat" && legacy_seat=true
+    version_owned "$seat" && current_seat=true
+    recoverable=false
+    if [ "$legacy_root" = true ] &&
+      {{ [ "$legacy_seat" = true ] || [ "$current_seat" = true ]; }}; then
+      recoverable=true
+    fi
+    if [ "$current_root" = true ] && [ "$legacy_seat" = true ]; then
+      recoverable=true
+    fi
+    [ "$recoverable" = true ] || continue
+
+    entry_match=true
+    for name in $BINARIES; do
+      entry="$LOCAL_BIN_DIR/$name"
+      [ -L "$entry" ] &&
+        [ "$(readlink "$entry" || true)" = "$path/$name" ] || entry_match=false
+    done
+    [ "$entry_match" = true ] || continue
+    matched=$seat
+    matches=$((matches + 1))
+  done
+  [ "$matches" -eq 1 ] || return 0
+
+  if ! version_owned "$matched"; then
+    MIGRATION_MARKER="$INSTALL_ROOT/$matched/.$VERSION_MARKER-migrate-$$"
+    printf '%s\nauthority=%s\nchannel=%s\nversion=%s\n' \
+      "$MARKER" "$PUBLIC_URL" "$CHANNEL" "$matched" > "$MIGRATION_MARKER"
+    mv -f "$MIGRATION_MARKER" "$INSTALL_ROOT/$matched/$VERSION_MARKER"
+    MIGRATION_MARKER=
+  fi
+  if ! root_owned; then
+    MIGRATION_MARKER="$INSTALL_ROOT/.$ROOT_MARKER-migrate-$$"
+    printf '%s\nauthority=%s\nchannel=%s\n' \
+      "$MARKER" "$PUBLIC_URL" "$CHANNEL" > "$MIGRATION_MARKER"
+    mv -f "$MIGRATION_MARKER" "$INSTALL_ROOT/$ROOT_MARKER"
+    MIGRATION_MARKER=
+  fi
+  printf 'adopted legacy stable {product} %s at %s\n' "$matched" "$INSTALL_ROOT"
+}}
+
+ensure_root() {{
+  if [ -e "$INSTALL_ROOT" ]; then
+    [ -d "$INSTALL_ROOT" ] || {{
+      echo "install root is not a directory: $INSTALL_ROOT" >&2
+      exit 1
+    }}
+    root_owned || {{
+      echo "refusing unowned install root: $INSTALL_ROOT" >&2
+      exit 1
+    }}
+    return
+  fi
+  mkdir -p "$INSTALL_ROOT"
+  printf '%s\nauthority=%s\nchannel=%s\n' \
+    "$MARKER" "$PUBLIC_URL" "$CHANNEL" > "$INSTALL_ROOT/$ROOT_MARKER"
+}}
+
+entry_owned() {{
+  name=$1
+  entry="$LOCAL_BIN_DIR/$name"
+  [ -L "$entry" ] || return 1
+  target=$(readlink "$entry" || true)
+  case "$target" in
+    "$INSTALL_ROOT"/v*/"$name")
+      seat=$(basename "$(dirname "$target")")
+      root_owned && version_owned "$seat"
+      ;;
+    *) return 1 ;;
+  esac
+}}
+
+installed_version() {{
+  held=
+  for name in $BINARIES; do
+    entry_owned "$name" || return 0
+    found=$(basename "$(dirname "$(readlink "$LOCAL_BIN_DIR/$name")")")
+    if [ -n "$held" ] && [ "$found" != "$held" ]; then
+      return 0
+    fi
+    held=$found
+  done
+  printf '%s' "$held"
+}}
+
+stable_order() {{
+  left=$(printf '%s' "$1" | sed 's/^v//')
+  right=$(printf '%s' "$2" | sed 's/^v//')
+  awk -v left="$left" -v right="$right" 'BEGIN {{
+    split(left, a, ".")
+    split(right, b, ".")
+    for (i = 1; i <= 3; i++) {{
+      if ((a[i] + 0) < (b[i] + 0)) {{ print -1; exit }}
+      if ((a[i] + 0) > (b[i] + 0)) {{ print 1; exit }}
+    }}
+    print 0
+  }}'
+}}
+
+WORK_TMP=
+STAGE=
+ENTRY_STAGE=
+MIGRATION_MARKER=
+LOCK_DIR="${{INSTALL_ROOT}}.{product}-lock"
+LOCK_HELD=false
+cleanup() {{
+  [ -z "$WORK_TMP" ] || rm -rf "$WORK_TMP"
+  [ -z "$STAGE" ] || rm -rf "$STAGE"
+  [ -z "$ENTRY_STAGE" ] || rm -f "$ENTRY_STAGE"
+  [ -z "$MIGRATION_MARKER" ] || rm -f "$MIGRATION_MARKER"
+  if [ "$LOCK_HELD" = true ]; then
+    rm -rf "$LOCK_DIR"
+  fi
+}}
+trap cleanup EXIT
+trap 'exit 130' INT
+trap 'exit 143' TERM
+
+acquire_lock() {{
+  mkdir -p "$(dirname "$LOCK_DIR")"
+  mkdir "$LOCK_DIR" 2>/dev/null || {{
+    echo "another {product} manager owns $LOCK_DIR" >&2
+    exit 1
+  }}
+  LOCK_HELD=true
+  printf 'pid=%s\n' "$$" > "$LOCK_DIR/owner"
+}}
+
+old_versions() {{
+  current=$1
+  [ -d "$INSTALL_ROOT" ] || return 0
+  for path in "$INSTALL_ROOT"/v*; do
+    [ -d "$path" ] || continue
+    seat=$(basename "$path")
+    [ "$seat" != "$current" ] || continue
+    version_owned "$seat" || continue
+    printf '%s\n' "$seat"
+  done
+}}
+
+install_{product}() {{
+  explicit_version=false
+  [ -z "$VERSION" ] || explicit_version=true
+  acquire_lock
+  adopt_legacy_stable
+  WORK_TMP=$(mktemp -d)
+
+  if [ -z "$VERSION" ]; then
+    curl -fsSL --retry 8 --retry-all-errors --retry-delay 5 \
+      "$PUBLIC_URL/v1/channels/stable.json" -o "$WORK_TMP/stable.json"
+    [ "$(release_schema "$WORK_TMP/stable.json")" = 1 ] &&
+      [ "$(release_channel "$WORK_TMP/stable.json")" = stable ] || {{
+        echo "stable pointer is not canonical" >&2
+        exit 1
+      }}
+    VERSION=$(release_version "$WORK_TMP/stable.json")
+    [ -n "$VERSION" ] || {{
+      echo "failed to resolve latest {product} version" >&2
+      exit 1
+    }}
+  fi
+  VERSION=$(normalize_version "$VERSION")
+  belongs "$VERSION" || {{
+    echo "version $VERSION does not belong to channel $CHANNEL" >&2
+    exit 1
+  }}
+
+  seal="$WORK_TMP/seal.json"
+  curl -fsSL --retry 8 --retry-all-errors --retry-delay 5 \
+    "$PUBLIC_URL/v1/releases/$CHANNEL/$VERSION/seal.json" -o "$seal"
+  held_version=$(release_version "$seal")
+  held_channel=$(release_channel "$seal")
+  held_schema=$(release_schema "$seal")
+  [ "$held_schema" = 1 ] || {{
+    echo "release seal schema mismatch: expected 1 got $held_schema" >&2
+    exit 1
+  }}
+  [ "$held_version" = "$VERSION" ] || {{
+    echo "release seal version mismatch: expected $VERSION got $held_version" >&2
+    exit 1
+  }}
+  [ "$held_channel" = "$CHANNEL" ] || {{
+    echo "release seal channel mismatch: expected $CHANNEL got $held_channel" >&2
+    exit 1
+  }}
+
+  if [ "$CHANNEL" = stable ] && [ "$explicit_version" = false ] && root_owned; then
+    current=$(installed_version)
+    if [ -n "$current" ] && [ "$(stable_order "$current" "$VERSION")" -gt 0 ]; then
+      printf 'kept newer stable {product} %s; latest resolved to %s\n' "$current" "$VERSION"
+      return
+    fi
+  fi
+
+  platform
+  expected=$(object_string "$ARTIFACT" sha256 "$seal")
+  printf '%s\n' "$expected" | grep -Eq '^[0-9a-f]{{64}}$' || {{
+    echo "release seal missing $ARTIFACT sha256" >&2
+    exit 1
+  }}
+  artifact_url=$(object_string "$ARTIFACT" url "$seal")
+  [ -n "$artifact_url" ] || {{
+    echo "release seal missing $ARTIFACT url" >&2
+    exit 1
+  }}
+  curl -fsSL --retry 8 --retry-all-errors --retry-delay 5 \
+    "$artifact_url" -o "$WORK_TMP/$ARCHIVE"
+  actual=$(sha256 "$WORK_TMP/$ARCHIVE")
+  [ "$actual" = "$expected" ] || {{
+    echo "checksum mismatch for $ARCHIVE: expected $expected got $actual" >&2
+    exit 1
+  }}
+
+  mkdir -p "$WORK_TMP/unpacked"
+  case "$FORMAT" in
+    tar.gz) tar -xzf "$WORK_TMP/$ARCHIVE" -C "$WORK_TMP/unpacked" ;;
+    *) echo "unsupported archive format on Unix: $FORMAT" >&2; exit 1 ;;
+  esac
+  unpacked="$WORK_TMP/unpacked"
+  [ -z "$ARCHIVE_ROOT" ] || unpacked="$unpacked/$ARCHIVE_ROOT"
+  for name in $BINARIES; do
+    candidate="$unpacked/$name"
+    [ -f "$candidate" ] || {{ echo "archive missing $name" >&2; exit 1; }}
+    chmod +x "$candidate"
+    staged_version=$("$candidate" --version)
+    plain_version=${{VERSION#v}}
+    base_version=${{plain_version%%-*}}
+    case "{version_probe}" in
+      exact-v) expected_version="$name $VERSION" ;;
+      exact) expected_version="$name $plain_version" ;;
+      base) expected_version="$name $base_version" ;;
+      *) echo "invalid generated version probe" >&2; exit 1 ;;
+    esac
+    [ "$staged_version" = "$expected_version" ] || {{
+      echo "binary version mismatch: expected $expected_version got $staged_version" >&2
+      exit 1
+    }}
+    entry="$LOCAL_BIN_DIR/$name"
+    if [ -L "$entry" ]; then
+      entry_owned "$name" || {{
+        echo "refusing unowned {product} link: $entry" >&2
+        exit 1
+      }}
+    elif [ -e "$entry" ]; then
+      echo "refusing unowned {product} entrypoint: $entry" >&2
+      exit 1
+    fi
+  done
+  ensure_root
+
+  target="$INSTALL_ROOT/$VERSION"
+  if [ -e "$target" ]; then
+    version_owned "$VERSION" || {{
+      echo "refusing unowned version seat: $target" >&2
+      exit 1
+    }}
+    for name in $BINARIES; do
+      cmp -s "$target/$name" "$unpacked/$name" || {{
+        echo "refusing immutable version drift at $target/$name" >&2
+        exit 1
+      }}
+    done
+  else
+    STAGE="$INSTALL_ROOT/.{product}-stage-$$"
+    mkdir "$STAGE"
+    for name in $BINARIES; do
+      cp "$unpacked/$name" "$STAGE/$name"
+      chmod +x "$STAGE/$name"
+    done
+    printf '%s\nauthority=%s\nchannel=%s\nversion=%s\n' \
+      "$MARKER" "$PUBLIC_URL" "$CHANNEL" "$VERSION" > "$STAGE/$VERSION_MARKER"
+    mv "$STAGE" "$target"
+    STAGE=
+  fi
+
+  mkdir -p "$LOCAL_BIN_DIR"
+  for name in $BINARIES; do
+    entry="$LOCAL_BIN_DIR/$name"
+    ENTRY_STAGE="$LOCAL_BIN_DIR/.$name-link-$$"
+    rm -f "$ENTRY_STAGE"
+    ln -s "$target/$name" "$ENTRY_STAGE"
+    mv -f "$ENTRY_STAGE" "$entry"
+    ENTRY_STAGE=
+    "$entry" --version
+  done
+  if [ "{product}" = plumb ]; then
+    "$LOCAL_BIN_DIR/plumb" configuration install
+  fi
+
+  old_versions "$VERSION" | while IFS= read -r old; do
+    [ -n "$old" ] || continue
+    rm -rf "$INSTALL_ROOT/$old"
+    printf 'swept {product} %s from %s\n' "$old" "$INSTALL_ROOT"
+  done
+  printf 'installed {product} %s to %s\n' "$VERSION" "$LOCAL_BIN_DIR"
+}}
+
+uninstall_{product}() {{
+  acquire_lock
+  adopt_legacy_stable
+  if [ -n "$VERSION" ]; then
+    target="$INSTALL_ROOT/$VERSION"
+    proven=false
+    if [ -e "$target" ]; then
+      root_owned && version_owned "$VERSION" || {{
+        echo "refusing unowned version seat: $target" >&2
+        exit 1
+      }}
+      proven=true
+    fi
+    for name in $BINARIES; do
+      entry="$LOCAL_BIN_DIR/$name"
+      if [ "$proven" = true ] &&
+        [ -L "$entry" ] &&
+        [ "$(readlink "$entry" || true)" = "$target/$name" ]; then
+        rm -f "$entry"
+      fi
+    done
+    [ ! -e "$target" ] || rm -rf "$target"
+    printf 'removed {product} %s from %s\n' "$VERSION" "$INSTALL_ROOT"
+    return
+  fi
+
+  [ ! -e "$INSTALL_ROOT" ] || root_owned || {{
+    echo "refusing unowned install root: $INSTALL_ROOT" >&2
+    exit 1
+  }}
+  for name in $BINARIES; do
+    entry="$LOCAL_BIN_DIR/$name"
+    if [ -L "$entry" ]; then
+      entry_owned "$name" || {{
+        echo "refusing unowned {product} link: $entry" >&2
+        exit 1
+      }}
+      rm -f "$entry"
+    elif [ -e "$entry" ]; then
+      echo "refusing unowned {product} entrypoint: $entry" >&2
+      exit 1
+    fi
+  done
+  if [ -d "$INSTALL_ROOT" ]; then
+    for path in "$INSTALL_ROOT"/v*; do
+      [ -d "$path" ] || continue
+      seat=$(basename "$path")
+      version_owned "$seat" || continue
+      rm -rf "$path"
+    done
+    held=false
+    for path in "$INSTALL_ROOT"/* "$INSTALL_ROOT"/.[!.]* "$INSTALL_ROOT"/..?*; do
+      [ -e "$path" ] || [ -L "$path" ] || continue
+      [ "$path" = "$INSTALL_ROOT/$ROOT_MARKER" ] && continue
+      held=true
+    done
+    if [ "$held" = false ]; then
+      rm -f "$INSTALL_ROOT/$ROOT_MARKER"
+      rmdir "$INSTALL_ROOT"
+    else
+      echo "preserved unowned content under $INSTALL_ROOT" >&2
+    fi
+  fi
+  rmdir "$LOCAL_BIN_DIR" 2>/dev/null || true
+  printf 'removed {product} from %s and %s\n' "$INSTALL_ROOT" "$LOCAL_BIN_DIR"
+}}
+
+case "$COMMAND" in
+  install|update) install_{product} ;;
+  uninstall) uninstall_{product} ;;
+esac

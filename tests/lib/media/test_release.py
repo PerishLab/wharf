@@ -1,13 +1,16 @@
 import hashlib
 import io
 import json
+import os
 import tarfile
 import tempfile
 import unittest
 import zipfile
 from pathlib import Path
 
+from lib.content import resources
 from lib.media import archive, release
+from lib.media.release import CANONICAL
 from lib.refusal import Refusal
 from tests.lib.store.memory import Memory
 
@@ -139,28 +142,56 @@ class Publish(unittest.TestCase):
 class Render(unittest.TestCase):
     def setUp(self):
         self.root = Path(tempfile.mkdtemp())
-        self.binary = self.root / "plumb"
-        self.binary.write_text('#!/bin/sh\n[ "$1 $2 $3" = "release managers --version" ] || exit 3\nmkdir "$6" && printf "%s %s " "$4" "$HOME" > "$6/manage.sh" && pwd >> "$6/manage.sh"\n')
 
-    def test_runs_the_declared_step_in_a_clean_home_at_the_source(self):
-        held = release.Release("PerishLab/plumb", "v0.38.0-rc.2", "a" * 40, "b" * 40)
-        result = release.render(held, self.binary, self.root, self.root / "out")
-        self.assertEqual(result["files"], ["manage.sh"])
-        body = (self.root / "out" / "manage.sh").read_text()
-        self.assertTrue(body.startswith("v0.38.0-rc.2 /"))
-        self.assertNotIn(str(Path.home()), body.split()[1])
-        self.assertEqual(body.split()[2], str(self.root.resolve()))
+    def render(self, repository, marker):
+        held = release.Release(repository, marker, "a" * 40, "b" * 40)
+        out = self.root / marker
+        return release.render(held, out), out
 
-    def test_an_undeclared_product_renders_nothing(self):
-        held = release.Release("PerishLab/other", "v1.0.0", "a" * 40, "b" * 40)
-        self.assertIsNone(release.render(held, self.binary, self.root, self.root / "out")["step"])
-        self.assertEqual(list((self.root / "out").iterdir()), [])
+    def test_a_prerelease_carries_the_pinned_scripts_alone(self):
+        result, out = self.render("PerishLab/concord", "v0.12.9-rc.2")
+        self.assertEqual(result["files"], ["manage.ps1", "manage.sh"])
+        self.assertIn("VERSION=${CONCORD_VERSION:-v0.12.9-rc.2}", (out / "manage.sh").read_text())
+        self.assertIn("CHANNEL=${CONCORD_CHANNEL:-rc}", (out / "manage.sh").read_text())
 
-    def test_a_failing_step_refuses(self):
-        self.binary.write_text("#!/bin/sh\necho broken >&2\nexit 4\n")
-        held = release.Release("PerishLab/plumb", "v1.0.0", "a" * 40, "b" * 40)
-        with self.assertRaisesRegex(Refusal, "exited 4: broken"):
-            release.render(held, self.binary, self.root, self.root / "out")
+    def test_a_stable_carries_the_canonical_scripts_beside_the_pinned_ones(self):
+        result, out = self.render("PerishLab/concord", "v0.12.9")
+        self.assertEqual(result["files"], ["canonical/manage.ps1", "canonical/manage.sh", "manage.ps1", "manage.sh"])
+        self.assertIn("VERSION=${CONCORD_VERSION:-v0.12.9}", (out / "manage.sh").read_text())
+        self.assertIn("VERSION=${CONCORD_VERSION:-}", (out / CANONICAL / "manage.sh").read_text())
+        self.assertIn("CHANNEL=${CONCORD_CHANNEL:-stable}", (out / CANONICAL / "manage.sh").read_text())
+
+    def test_the_product_it_names_is_the_one_being_released(self):
+        _, out = self.render("PerishLab/concord", "v0.12.9")
+        body = (out / "manage.sh").read_text()
+        self.assertIn('BINARIES="concord"', body)
+        self.assertIn("https://releases.concord.perish.uk", body)
+        self.assertNotIn("releases.plumb.perish.uk", body)
+
+    def test_it_offers_the_platforms_this_repository_publishes_and_no_others(self):
+        _, out = self.render("PerishLab/concord", "v0.12.9")
+        body = (out / "manage.sh").read_text()
+        for target, spec in release.LAYOUT["targets"].items():
+            for system in spec["systems"]:
+                self.assertEqual(system in body, not system.startswith("Windows:"), system)
+            self.assertEqual(f"concord-{target}.{spec['format']}" in body, spec["format"] != "zip", target)
+        self.assertNotIn("darwin-x64", body)
+
+    def test_the_unix_script_is_executable_and_the_windows_one_is_not(self):
+        _, out = self.render("PerishLab/concord", "v0.12.9")
+        self.assertTrue(os.access(out / "manage.sh", os.X_OK))
+        self.assertFalse(os.access(out / "manage.ps1", os.X_OK))
+
+    def test_an_output_that_exists_refuses(self):
+        (self.root / "v1.0.0").mkdir()
+        with self.assertRaisesRegex(Refusal, "already exists"):
+            self.render("PerishLab/concord", "v1.0.0")
+
+    def test_what_the_seal_calls_its_template_covers_the_scripts_it_publishes(self):
+        held = release.implementation.resourced(["lib.media.release"], ["releases.json", *release.TEMPLATES.values()])
+        for name in release.TEMPLATES.values():
+            self.assertEqual(held[f"resource:{name}"], hashlib.sha256(resources.read_bytes(name)).hexdigest())
+        self.assertEqual(release.generator(release.Release("PerishLab/concord", "v0.12.9", "a" * 40, "b" * 40))["template"], release.canonical.digest(held))
 
 
 class Order(unittest.TestCase):

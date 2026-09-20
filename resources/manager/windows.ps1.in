@@ -1,0 +1,668 @@
+$ErrorActionPreference = 'Stop'
+
+$arguments = @()
+for ($index = 0; $index -lt $args.Length; $index++) {{
+    if ($args[$index] -eq '-' -and $index + 1 -lt $args.Length -and $args[$index + 1] -match '^-?[A-Za-z]') {{
+        $name = $args[$index + 1] -replace '^-', ''
+        $arguments += "--$name"
+        $index++
+        continue
+    }}
+    $arguments += $args[$index]
+}}
+
+$command = if ($arguments.Length -gt 0) {{ $arguments[0] }} else {{ 'install' }}
+[string[]]$rest = @()
+if ($arguments.Length -gt 1) {{
+    [string[]]$rest = $arguments[1..($arguments.Length - 1)]
+}}
+if ($command -in @('-h', '-help', '--help', 'help')) {{
+    $command = 'install'
+    [string[]]$rest = @('--help')
+}}
+
+$canonicalPublicUrl = '{public_url}'
+$defaultInstallBase = if ($env:LOCALAPPDATA) {{
+    $env:LOCALAPPDATA
+}}
+elseif ($HOME) {{
+    Join-Path $HOME '.local/share'
+}}
+else {{
+    '.'
+}}
+$defaultBinBase = if ($env:USERPROFILE) {{ $env:USERPROFILE }} elseif ($HOME) {{ $HOME }} else {{ '.' }}
+$defaultInstallRoot = Join-Path $defaultInstallBase '{product}'
+$defaultBinDir = Join-Path $defaultBinBase '.local/bin'
+$installRootExplicit = $null -ne [Environment]::GetEnvironmentVariable('{environment}_INSTALL_ROOT')
+$binDirExplicit = $null -ne [Environment]::GetEnvironmentVariable('{environment}_LOCAL_BIN_DIR')
+$channel = if ($env:{environment}_CHANNEL) {{ $env:{environment}_CHANNEL }} else {{ '{default_channel}' }}
+$version = if ($env:{environment}_VERSION) {{ $env:{environment}_VERSION }} else {{ '{default_version}' }}
+$publicUrl = if ($env:{environment}_RELEASES_PUBLIC_URL) {{ $env:{environment}_RELEASES_PUBLIC_URL }} else {{ $canonicalPublicUrl }}
+$installRoot = if ($env:{environment}_INSTALL_ROOT) {{ $env:{environment}_INSTALL_ROOT }} else {{ $defaultInstallRoot }}
+$localBinDir = if ($env:{environment}_LOCAL_BIN_DIR) {{ $env:{environment}_LOCAL_BIN_DIR }} else {{ $defaultBinDir }}
+$marker = '{product}-manager-v1'
+$markerName = '.{product}-manager'
+
+function Show-Help {{
+    @'
+{product} manager
+
+Usage:
+  manage.ps1 install [--channel <channel>] [--version vX.Y.Z[-<channel>.N]]
+  manage.ps1 update [--channel <channel>] [--version vX.Y.Z[-<channel>.N]]
+  manage.ps1 uninstall [--channel <channel>] [--version vX.Y.Z[-<channel>.N]]
+
+Stable from the canonical release authority is the only moving intent and the
+only source admitted to the default install and bin paths. Every non-stable
+channel requires an exact version plus explicit, isolated --install-root and
+--bin-dir values. A non-canonical --public-url requires the same isolation.
+
+Install and update leave one manager-owned version on disk. The selected binary
+is staged and verified before the entrypoint changes; only old seats carrying
+matching ownership markers are swept. An explicit stable --version is a
+deliberate rollback, while implicit stable never moves backwards.
+
+Options:
+  --public-url <url>     release seal and artifact authority
+  --install-root <path>  versioned install root
+  --bin-dir <path>       directory for the {product} executable
+
+Environment:
+  {environment}_RELEASES_PUBLIC_URL
+  {environment}_CHANNEL
+  {environment}_VERSION
+  {environment}_INSTALL_ROOT
+  {environment}_LOCAL_BIN_DIR
+'@ | Write-Output
+}}
+
+for ($index = 0; $index -lt $rest.Length; $index++) {{
+    switch -Regex ($rest[$index]) {{
+        '^--channel$' {{
+            if ($index + 1 -ge $rest.Length) {{ throw '--channel requires a value' }}
+            $index++; $channel = $rest[$index]; continue
+        }}
+        '^--channel=(.+)$' {{ $channel = $Matches[1]; continue }}
+        '^--version$' {{
+            if ($index + 1 -ge $rest.Length) {{ throw '--version requires a value' }}
+            $index++; $version = $rest[$index]; continue
+        }}
+        '^--version=(.+)$' {{ $version = $Matches[1]; continue }}
+        '^--public-url$' {{
+            if ($index + 1 -ge $rest.Length) {{ throw '--public-url requires a value' }}
+            $index++; $publicUrl = $rest[$index]; continue
+        }}
+        '^--public-url=(.+)$' {{ $publicUrl = $Matches[1]; continue }}
+        '^--install-root$' {{
+            if ($index + 1 -ge $rest.Length) {{ throw '--install-root requires a value' }}
+            $index++; $installRoot = $rest[$index]; $installRootExplicit = $true; continue
+        }}
+        '^--install-root=(.+)$' {{
+            $installRoot = $Matches[1]; $installRootExplicit = $true; continue
+        }}
+        '^--bin-dir$' {{
+            if ($index + 1 -ge $rest.Length) {{ throw '--bin-dir requires a value' }}
+            $index++; $localBinDir = $rest[$index]; $binDirExplicit = $true; continue
+        }}
+        '^--bin-dir=(.+)$' {{
+            $localBinDir = $Matches[1]; $binDirExplicit = $true; continue
+        }}
+        '^(-h|-help|--help|help)$' {{
+            Show-Help
+            exit 0
+        }}
+        default {{ throw "unknown argument: $($rest[$index])" }}
+    }}
+}}
+
+foreach ($value in @($channel, $publicUrl, $installRoot, $localBinDir)) {{
+    if ([string]::IsNullOrWhiteSpace($value)) {{
+        throw 'manager option cannot be empty'
+    }}
+}}
+if ($channel -notmatch '^[a-z][a-z0-9-]*$') {{
+    throw "invalid channel: $channel"
+}}
+$publicUrl = $publicUrl.TrimEnd('/')
+
+function Normalize-Version {{
+    param([string]$Value)
+    $normalized = "v$($Value.Trim().TrimStart('v'))"
+    if ($normalized -notmatch '^v[0-9]+\.[0-9]+\.[0-9]+(-[a-z][a-z0-9-]*\.[1-9][0-9]*)?$') {{
+        throw "invalid {product} version: $Value"
+    }}
+    return $normalized
+}}
+
+function Test-VersionBelongs {{
+    param([string]$Value)
+    if ($channel -eq 'stable') {{
+        return $Value -match '^v[0-9]+\.[0-9]+\.[0-9]+$'
+    }}
+    return $Value -match "^v[0-9]+\.[0-9]+\.[0-9]+-$([regex]::Escape($channel))\.[1-9][0-9]*$"
+}}
+
+if ($command -in @('install', 'update')) {{
+    if ([string]::IsNullOrWhiteSpace($version) -and
+        ($channel -ne 'stable' -or $publicUrl -cne $canonicalPublicUrl)) {{
+        throw "$channel from $publicUrl requires an exact version"
+    }}
+    if (![string]::IsNullOrWhiteSpace($version)) {{
+        $version = Normalize-Version $version
+        if (!(Test-VersionBelongs $version)) {{
+            throw "version $version does not belong to channel $channel"
+        }}
+    }}
+}}
+elseif ($command -eq 'uninstall') {{
+    if (![string]::IsNullOrWhiteSpace($version)) {{
+        $version = Normalize-Version $version
+        if (!(Test-VersionBelongs $version)) {{
+            throw "version $version does not belong to channel $channel"
+        }}
+    }}
+}}
+else {{
+    throw "unknown command: $command"
+}}
+
+function Resolve-CanonicalPath {{
+    param([string]$Value)
+    $absolute = [System.IO.Path]::GetFullPath($Value)
+    $tail = [System.Collections.Generic.List[string]]::new()
+    $probe = $absolute
+    while (!(Test-Path -LiteralPath $probe)) {{
+        $leaf = [System.IO.Path]::GetFileName($probe)
+        if ([string]::IsNullOrEmpty($leaf)) {{
+            break
+        }}
+        $tail.Insert(0, $leaf)
+        $parent = [System.IO.Path]::GetDirectoryName($probe)
+        if ([string]::IsNullOrEmpty($parent) -or $parent -eq $probe) {{
+            break
+        }}
+        $probe = $parent
+    }}
+    $resolved = (Resolve-Path -LiteralPath $probe).ProviderPath
+    foreach ($part in $tail) {{
+        $resolved = Join-Path $resolved $part
+    }}
+    return $resolved.TrimEnd(
+        [System.IO.Path]::DirectorySeparatorChar,
+        [System.IO.Path]::AltDirectorySeparatorChar
+    )
+}}
+
+$installRoot = Resolve-CanonicalPath $installRoot
+$localBinDir = Resolve-CanonicalPath $localBinDir
+$defaultInstallRoot = Resolve-CanonicalPath $defaultInstallRoot
+$defaultBinDir = Resolve-CanonicalPath $defaultBinDir
+$pathComparison = if ([System.IO.Path]::DirectorySeparatorChar -eq '\') {{
+    [System.StringComparison]::OrdinalIgnoreCase
+}}
+else {{
+    [System.StringComparison]::Ordinal
+}}
+
+function Test-PathOverlap {{
+    param([string]$Left, [string]$Right)
+    if ($Left.Equals($Right, $pathComparison)) {{
+        return $true
+    }}
+    $separator = [System.IO.Path]::DirectorySeparatorChar
+    return $Left.StartsWith("$Right$separator", $pathComparison) -or
+        $Right.StartsWith("$Left$separator", $pathComparison)
+}}
+
+if ($command -in @('install', 'update') -or ![string]::IsNullOrWhiteSpace($version)) {{
+    if (Test-PathOverlap $installRoot $localBinDir) {{
+        throw 'install root and bin directory must be disjoint'
+    }}
+}}
+
+if ($command -in @('install', 'update')) {{
+    $isolated = $channel -ne 'stable' -or $publicUrl -cne $canonicalPublicUrl
+    if ($isolated) {{
+        if (!$installRootExplicit -or !$binDirExplicit) {{
+            throw "$channel from $publicUrl requires explicit --install-root and --bin-dir isolation"
+        }}
+        foreach ($actual in @($installRoot, $localBinDir)) {{
+            foreach ($protected in @($defaultInstallRoot, $defaultBinDir)) {{
+                if (Test-PathOverlap $actual $protected) {{
+                    throw "isolated path $actual overlaps stable default seat $protected"
+                }}
+            }}
+        }}
+    }}
+}}
+
+if ($command -eq 'uninstall' -and ![string]::IsNullOrWhiteSpace($version) -and $channel -ne 'stable') {{
+    if (!$installRootExplicit -or !$binDirExplicit) {{
+        throw "$channel uninstall requires explicit --install-root and --bin-dir isolation"
+    }}
+    foreach ($actual in @($installRoot, $localBinDir)) {{
+        foreach ($protected in @($defaultInstallRoot, $defaultBinDir)) {{
+            if (Test-PathOverlap $actual $protected) {{
+                throw "isolated path $actual overlaps stable default seat $protected"
+            }}
+        }}
+    }}
+}}
+
+function Root-Owned {{
+    $path = Join-Path $installRoot $markerName
+    if (![System.IO.File]::Exists($path)) {{
+        return $false
+    }}
+    $lines = @(Get-Content -LiteralPath $path)
+    return $lines.Length -ge 3 -and
+        $lines[0] -eq $marker -and
+        $lines[1] -ceq "authority=$publicUrl" -and
+        $lines[2] -ceq "channel=$channel"
+}}
+
+function Version-Owned {{
+    param([string]$Seat)
+    $root = Join-Path $installRoot $Seat
+    if (![System.IO.Directory]::Exists($root)) {{
+        return $false
+    }}
+    $item = Get-Item -Force -LiteralPath $root
+    if (($item.Attributes -band [System.IO.FileAttributes]::ReparsePoint) -ne 0) {{
+        return $false
+    }}
+    $path = Join-Path $root $markerName
+    if (![System.IO.File]::Exists($path)) {{
+        return $false
+    }}
+    $lines = @(Get-Content -LiteralPath $path)
+    return $lines.Length -ge 4 -and
+        $lines[0] -eq $marker -and
+        $lines[1] -ceq "authority=$publicUrl" -and
+        $lines[2] -ceq "channel=$channel" -and
+        $lines[3] -ceq "version=$Seat"
+}}
+
+function Ensure-Root {{
+    if ([System.IO.Directory]::Exists($installRoot)) {{
+        if (!(Root-Owned)) {{
+            throw "refusing unowned install root: $installRoot"
+        }}
+        return
+    }}
+    if ([System.IO.File]::Exists($installRoot)) {{
+        throw "install root is not a directory: $installRoot"
+    }}
+    New-Item -ItemType Directory -Force -Path $installRoot | Out-Null
+    Set-Content -LiteralPath (Join-Path $installRoot $markerName) -Value @(
+        $marker,
+        "authority=$publicUrl",
+        "channel=$channel"
+    )
+}}
+
+function File-Hash {{
+    param([string]$Path)
+    return (Get-FileHash -LiteralPath $Path -Algorithm SHA256).Hash.ToLowerInvariant()
+}}
+
+function Set-Manager-Marker {{
+    param([string]$Path, [string[]]$Lines)
+    $nextMarker = "$Path.$([System.Guid]::NewGuid().ToString('N')).tmp"
+    try {{
+        Set-Content -LiteralPath $nextMarker -Value $Lines
+        Move-Item -Force -LiteralPath $nextMarker -Destination $Path
+    }}
+    finally {{
+        Remove-Item -Force -ErrorAction SilentlyContinue -LiteralPath $nextMarker
+    }}
+}}
+
+function Legacy-Root-Owned {{
+    $path = Join-Path $installRoot $markerName
+    if (![System.IO.File]::Exists($path)) {{
+        return $false
+    }}
+    $lines = @(Get-Content -LiteralPath $path)
+    return $lines.Length -eq 1 -and $lines[0] -eq $marker
+}}
+
+function Legacy-Version-Owned {{
+    param([string]$Seat)
+    if ($Seat -notmatch '^v[0-9]+\.[0-9]+\.[0-9]+$') {{
+        return $false
+    }}
+    $root = Join-Path $installRoot $Seat
+    if (![System.IO.Directory]::Exists($root)) {{
+        return $false
+    }}
+    $item = Get-Item -Force -LiteralPath $root
+    if (($item.Attributes -band [System.IO.FileAttributes]::ReparsePoint) -ne 0) {{
+        return $false
+    }}
+    $path = Join-Path $root $markerName
+    if (![System.IO.File]::Exists($path)) {{
+        return $false
+    }}
+    $lines = @(Get-Content -LiteralPath $path)
+    return $lines.Length -eq 2 -and
+        $lines[0] -eq $marker -and
+        $lines[1] -ceq "version=$Seat"
+}}
+
+function Adopt-Legacy-Stable {{
+    if ($channel -ne 'stable' -or $publicUrl -cne $canonicalPublicUrl) {{
+        return
+    }}
+    $legacyRoot = Legacy-Root-Owned
+    $currentRoot = Root-Owned
+    if (!$legacyRoot -and !$currentRoot) {{
+        return
+    }}
+
+    $entry = Join-Path $localBinDir '{product}.exe'
+    if (![System.IO.File]::Exists($entry)) {{
+        return
+    }}
+    $entryItem = Get-Item -Force -LiteralPath $entry
+    if (($entryItem.Attributes -band [System.IO.FileAttributes]::ReparsePoint) -ne 0) {{
+        return
+    }}
+    $entryHash = File-Hash $entry
+    $candidates = @()
+    foreach ($found in @(Get-ChildItem -LiteralPath $installRoot -Directory -ErrorAction SilentlyContinue)) {{
+        $legacySeat = Legacy-Version-Owned $found.Name
+        $currentSeat = Version-Owned $found.Name
+        $recoverable = ($legacyRoot -and ($legacySeat -or $currentSeat)) -or
+            ($currentRoot -and $legacySeat)
+        if (!$recoverable) {{
+            continue
+        }}
+        $candidate = Join-Path $found.FullName '{product}.exe'
+        if (![System.IO.File]::Exists($candidate)) {{
+            continue
+        }}
+        $candidateItem = Get-Item -Force -LiteralPath $candidate
+        if (($candidateItem.Attributes -band [System.IO.FileAttributes]::ReparsePoint) -ne 0) {{
+            continue
+        }}
+        if ((File-Hash $candidate) -eq $entryHash) {{
+            $candidates += $found.Name
+        }}
+    }}
+    if ($candidates.Length -ne 1) {{
+        return
+    }}
+
+    $seat = $candidates[0]
+    if (!(Version-Owned $seat)) {{
+        Set-Manager-Marker (Join-Path (Join-Path $installRoot $seat) $markerName) @(
+            $marker,
+            "authority=$publicUrl",
+            "channel=$channel",
+            "version=$seat"
+        )
+    }}
+    if (!(Root-Owned)) {{
+        Set-Manager-Marker (Join-Path $installRoot $markerName) @(
+            $marker,
+            "authority=$publicUrl",
+            "channel=$channel"
+        )
+    }}
+    Write-Output "adopted legacy stable {product} $seat at $installRoot"
+}}
+
+function Entry-Version {{
+    $entry = Join-Path $localBinDir '{product}.exe'
+    if (![System.IO.File]::Exists($entry) -or !(Root-Owned)) {{
+        return ''
+    }}
+    $entryHash = File-Hash $entry
+    foreach ($found in @(Get-ChildItem -LiteralPath $installRoot -Directory -ErrorAction SilentlyContinue)) {{
+        if (!(Version-Owned $found.Name)) {{
+            continue
+        }}
+        $candidate = Join-Path $found.FullName '{product}.exe'
+        if ([System.IO.File]::Exists($candidate) -and (File-Hash $candidate) -eq $entryHash) {{
+            return $found.Name
+        }}
+    }}
+    return ''
+}}
+
+$script:LockStream = $null
+$script:LockPath = "${{installRoot}}.{product}-lock"
+function Acquire-Lock {{
+    $parent = [System.IO.Path]::GetDirectoryName($script:LockPath)
+    if (![string]::IsNullOrEmpty($parent)) {{
+        New-Item -ItemType Directory -Force -Path $parent | Out-Null
+    }}
+    try {{
+        $script:LockStream = [System.IO.File]::Open(
+            $script:LockPath,
+            [System.IO.FileMode]::CreateNew,
+            [System.IO.FileAccess]::Write,
+            [System.IO.FileShare]::None
+        )
+    }}
+    catch [System.IO.IOException] {{
+        throw "another {product} manager owns $($script:LockPath)"
+    }}
+}}
+
+function Release-Lock {{
+    if ($null -ne $script:LockStream) {{
+        $script:LockStream.Dispose()
+        $script:LockStream = $null
+        Remove-Item -Force -ErrorAction SilentlyContinue $script:LockPath
+    }}
+}}
+
+function Install-Product {{
+    $explicitVersion = ![string]::IsNullOrWhiteSpace($version)
+    Acquire-Lock
+    $tmpdir = $null
+    $stage = $null
+    $next = $null
+    try {{
+        Adopt-Legacy-Stable
+        $tmpdir = Join-Path ([System.IO.Path]::GetTempPath()) ("{product}-" + [System.Guid]::NewGuid().ToString('N'))
+        New-Item -ItemType Directory -Path $tmpdir | Out-Null
+
+        $resolvedVersion = $version
+        if ([string]::IsNullOrWhiteSpace($resolvedVersion)) {{
+            $latest = Invoke-RestMethod -Uri "$publicUrl/v1/channels/stable.json"
+            if ($latest.schema -ne 1 -or $latest.channel -ne 'stable') {{
+                throw 'stable pointer is not canonical'
+            }}
+            $resolvedVersion = $latest.releaseVersion
+            if ([string]::IsNullOrWhiteSpace($resolvedVersion)) {{
+                throw 'failed to resolve latest {product} version'
+            }}
+        }}
+        $resolvedVersion = Normalize-Version $resolvedVersion
+        if (!(Test-VersionBelongs $resolvedVersion)) {{
+            throw "version $resolvedVersion does not belong to channel $channel"
+        }}
+
+        $seal = Invoke-RestMethod -Uri "$publicUrl/v1/releases/$channel/$resolvedVersion/seal.json"
+        if ($seal.schema -ne 1) {{
+            throw "release seal schema mismatch: expected 1 got $($seal.schema)"
+        }}
+        if ((Normalize-Version $seal.releaseVersion) -ne $resolvedVersion) {{
+            throw "release seal version mismatch: expected $resolvedVersion got $($seal.releaseVersion)"
+        }}
+        if ($seal.channel -ne $channel) {{
+            throw "release seal channel mismatch: expected $channel got $($seal.channel)"
+        }}
+
+        if ($channel -eq 'stable' -and !$explicitVersion -and (Root-Owned)) {{
+            $current = Entry-Version
+            if (![string]::IsNullOrWhiteSpace($current)) {{
+                $currentVersion = [version]$current.TrimStart('v')
+                $targetVersion = [version]$resolvedVersion.TrimStart('v')
+                if ($currentVersion -gt $targetVersion) {{
+                    Write-Output "kept newer stable {product} $current; latest resolved to $resolvedVersion"
+                    return
+                }}
+            }}
+        }}
+
+        $archive = '{windows_archive}'
+        $expected = $seal.artifacts.'{windows_key}'.sha256
+        if ($expected -notmatch '^[0-9a-f]{{64}}$') {{
+            throw 'release seal missing {windows_key} sha256'
+        }}
+        $artifactUrl = $seal.artifacts.'{windows_key}'.url
+        if ([string]::IsNullOrWhiteSpace($artifactUrl)) {{
+            throw 'release seal missing {windows_key} url'
+        }}
+        $archivePath = Join-Path $tmpdir $archive
+        Invoke-WebRequest -Uri $artifactUrl -OutFile $archivePath
+        $actual = File-Hash $archivePath
+        if ($actual -ne $expected) {{
+            throw "checksum mismatch for ${{archive}}: expected $expected got $actual"
+        }}
+
+        $unpacked = Join-Path $tmpdir 'unpacked'
+        Expand-Archive -LiteralPath $archivePath -DestinationPath $unpacked -Force
+        if ('{windows_root}' -ne '') {{
+            $unpacked = Join-Path $unpacked '{windows_root}'
+        }}
+        $candidate = Join-Path $unpacked '{product}.exe'
+        if (![System.IO.File]::Exists($candidate)) {{
+            throw 'archive missing {product}.exe'
+        }}
+        $stagedVersion = (& $candidate --version | Out-String).Trim()
+        $plainVersion = $resolvedVersion.TrimStart('v')
+        $baseVersion = $plainVersion.Split('-')[0]
+        $expectedVersion = switch ('{version_probe}') {{
+            'exact-v' {{ "{product} $resolvedVersion" }}
+            'exact' {{ "{product} $plainVersion" }}
+            'base' {{ "{product} $baseVersion" }}
+            default {{ throw 'invalid generated version probe' }}
+        }}
+        if ($stagedVersion -cne $expectedVersion) {{
+            throw "binary version mismatch: expected $expectedVersion got $stagedVersion"
+        }}
+
+        $binPath = Join-Path $localBinDir '{product}.exe'
+        if ([System.IO.File]::Exists($binPath) -and [string]::IsNullOrWhiteSpace((Entry-Version))) {{
+            throw "refusing unowned {product} entrypoint: $binPath"
+        }}
+        Ensure-Root
+
+        $target = Join-Path $installRoot $resolvedVersion
+        if ([System.IO.Directory]::Exists($target)) {{
+            if (!(Version-Owned $resolvedVersion)) {{
+                throw "refusing unowned version seat: $target"
+            }}
+            if ((File-Hash (Join-Path $target '{product}.exe')) -ne (File-Hash $candidate)) {{
+                throw "refusing immutable version drift at $target"
+            }}
+        }}
+        else {{
+            $stage = Join-Path $installRoot (".{product}-stage-" + [System.Guid]::NewGuid().ToString('N'))
+            New-Item -ItemType Directory -Path $stage | Out-Null
+            Copy-Item -LiteralPath $candidate -Destination (Join-Path $stage '{product}.exe')
+            Set-Content -LiteralPath (Join-Path $stage $markerName) -Value @(
+                $marker,
+                "authority=$publicUrl",
+                "channel=$channel",
+                "version=$resolvedVersion"
+            )
+            Move-Item -LiteralPath $stage -Destination $target
+            $stage = $null
+        }}
+
+        New-Item -ItemType Directory -Force -Path $localBinDir | Out-Null
+        $next = Join-Path $localBinDir (".{product}-" + [System.Guid]::NewGuid().ToString('N') + '.exe')
+        Copy-Item -LiteralPath (Join-Path $target '{product}.exe') -Destination $next
+        Move-Item -Force -LiteralPath $next -Destination $binPath
+        $next = $null
+        & $binPath --version
+        if ('{product}' -eq 'plumb') {{
+            & $binPath configuration install
+        }}
+
+        foreach ($found in @(Get-ChildItem -LiteralPath $installRoot -Directory)) {{
+            if ($found.Name -eq $resolvedVersion -or !(Version-Owned $found.Name)) {{
+                continue
+            }}
+            Remove-Item -Recurse -Force -LiteralPath $found.FullName
+            Write-Output "swept {product} $($found.Name) from $installRoot"
+        }}
+        Write-Output "installed {product} $resolvedVersion to $binPath"
+    }}
+    finally {{
+        if ($null -ne $stage) {{
+            Remove-Item -Recurse -Force -ErrorAction SilentlyContinue $stage
+        }}
+        if ($null -ne $next) {{
+            Remove-Item -Force -ErrorAction SilentlyContinue $next
+        }}
+        if ($null -ne $tmpdir) {{
+            Remove-Item -Recurse -Force -ErrorAction SilentlyContinue $tmpdir
+        }}
+        Release-Lock
+    }}
+}}
+
+function Uninstall-Product {{
+    Acquire-Lock
+    try {{
+        Adopt-Legacy-Stable
+        $entry = Join-Path $localBinDir '{product}.exe'
+        if (![string]::IsNullOrWhiteSpace($version)) {{
+            $target = Join-Path $installRoot $version
+            if ([System.IO.Directory]::Exists($target)) {{
+                if (!(Root-Owned) -or !(Version-Owned $version)) {{
+                    throw "refusing unowned version seat: $target"
+                }}
+                if ((Entry-Version) -eq $version) {{
+                    Remove-Item -Force -LiteralPath $entry
+                }}
+                Remove-Item -Recurse -Force -LiteralPath $target
+            }}
+            Write-Output "removed {product} $version from $installRoot"
+            return
+        }}
+
+        if ([System.IO.Directory]::Exists($installRoot) -and !(Root-Owned)) {{
+            throw "refusing unowned install root: $installRoot"
+        }}
+        if ([System.IO.File]::Exists($entry)) {{
+            if ([string]::IsNullOrWhiteSpace((Entry-Version))) {{
+                throw "refusing unowned {product} entrypoint: $entry"
+            }}
+            Remove-Item -Force -LiteralPath $entry
+        }}
+        if ([System.IO.Directory]::Exists($installRoot)) {{
+            foreach ($found in @(Get-ChildItem -LiteralPath $installRoot -Directory)) {{
+                if (Version-Owned $found.Name) {{
+                    Remove-Item -Recurse -Force -LiteralPath $found.FullName
+                }}
+            }}
+            $held = @(Get-ChildItem -Force -LiteralPath $installRoot |
+                Where-Object {{ $_.Name -ne $markerName }})
+            if ($held.Length -eq 0) {{
+                Remove-Item -Force -LiteralPath (Join-Path $installRoot $markerName)
+                Remove-Item -Force -LiteralPath $installRoot
+            }}
+            else {{
+                [Console]::Error.WriteLine("preserved unowned content under $installRoot")
+            }}
+        }}
+        Write-Output "removed {product} from $installRoot and $entry"
+    }}
+    finally {{
+        Release-Lock
+    }}
+}}
+
+switch ($command) {{
+    {{ $_ -in @('install', 'update') }} {{ Install-Product }}
+    'uninstall' {{ Uninstall-Product }}
+}}

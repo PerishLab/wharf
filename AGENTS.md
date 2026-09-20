@@ -145,6 +145,22 @@ must reproduce byte for byte and every reader must test against.
   reports itself as unreliable and is not used: what proves a signature is smoke,
   which runs the bound binary on the platform it was built for.
 
+## Managers
+
+A release carries the scripts that install it, and this repository renders them:
+`resources/manager/` holds one template per platform, filled with what the
+release already knows — the product, its authority, the platforms this
+repository publishes and the version being released. A stable release renders a
+second pair with no version pinned, which is what the authority serves at its
+root, and whose moving intent is stable alone.
+
+Rendering belongs here because the scripts are clients of the layout here: they
+read the channel pointer, the seal and the objects by the names
+`resources/releases.json` gives them. It belongs here for a second reason — the
+generator a seal names covers the implementation and the resources it read, so
+a script rendered anywhere else would be published under a claim that does not
+reach it.
+
 ## Depot
 
 Depot generations are marker-bound blobs of one kind (`configuration`, `skill`,
