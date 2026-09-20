@@ -38,6 +38,9 @@ other; `lib` has no import cycles. Only `lib/content/resources.py` knows where f
   never pass through this layer: a parameter or configuration key shaped like one
   refuses. Flags are for people and the environment is for CI, so a workflow `run:`
   stays a bare `python3 -B -m scripts.<name> <action>`.
+- A release marker has one shape, owned by `lib/content/marker.py`, which also
+  says what channel a marker is on and how two markers order. Nothing else
+  matches a marker with a pattern of its own.
 - Third-party Python dependencies are allowed only when locked to exact versions and
   hashes. Actions are official `actions/*` only, pinned by SHA in
   `resources/actions.json` together with the `runs.using` of that SHA's

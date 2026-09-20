@@ -1,18 +1,17 @@
 import json
 import re
 
-from lib.content import canonical
+from lib.content import canonical, marker
 from lib.refusal import Refusal
 
 SCHEMA = 1
-MARKER = re.compile(r"v\d+\.\d+\.\d+(-(alpha|beta|rc)\.[1-9]\d*)?")
 NAMED = re.compile(r"[A-Za-z0-9._-]+/[A-Za-z0-9._-]+")
 
 
 def named(context):
     if not NAMED.fullmatch(context["repository"]):
         raise Refusal(f"repository {context['repository']!r} is not owner/name")
-    if not MARKER.fullmatch(context["marker"]):
+    if not marker.holds(context["marker"]):
         raise Refusal(f"marker {context['marker']!r} is malformed")
     return f"plan/{context['repository']}/{context['marker']}"
 

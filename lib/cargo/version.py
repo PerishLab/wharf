@@ -2,15 +2,14 @@ import re
 from pathlib import Path
 
 from lib.cargo import manifest
+from lib.content import marker as held
 from lib.refusal import Refusal
 
 UNVERSIONED = "0.0.0"
 
 
 def marker(value):
-    if not re.fullmatch(r"v\d+\.\d+\.\d+(-(alpha|beta|rc)\.[1-9]\d*)?", value):
-        raise Refusal(f"marker {value!r} is not a release marker")
-    return value.removeprefix("v")
+    return held.version(value)
 
 
 def replace(path, pattern, replacement):

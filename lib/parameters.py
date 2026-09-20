@@ -10,6 +10,7 @@ CATALOG = resources.read_json("parameters.json")
 PREFIX = CATALOG["prefix"]
 TYPES = CATALOG["types"]
 DEFAULTS = CATALOG["defaults"]
+SHAPES_DECLARED = {name: re.compile(shape) for name, shape in CATALOG["shapes"].items()}
 CREDENTIAL = re.compile(CATALOG["credential"])
 SHAPES = {"string": str, "bool": bool, "int": int, "strings": list}
 LENGTH = 72
@@ -39,7 +40,7 @@ def cast(name, value):
         raise Refusal(f"parameter {name} is {value!r}, which is neither true nor false")
     if kind == "int" and not re.fullmatch(r"-?[0-9]+", value):
         raise Refusal(f"parameter {name} is {value!r}, which is not an integer")
-    return {"bool": lambda text: text == "true", "int": int, "strings": lines}.get(kind, str)(value)
+    return held(name, {"bool": lambda text: text == "true", "int": int, "strings": lines}.get(kind, str)(value))
 
 
 def lines(value):
@@ -52,6 +53,13 @@ def shaped(name, value):
         raise Refusal(f"parameter {name} must be {kind}")
     if kind == "strings" and not all(isinstance(item, str) for item in value):
         raise Refusal(f"parameter {name} must be strings")
+    return held(name, value)
+
+
+def held(name, value):
+    shape = SHAPES_DECLARED.get(name)
+    if shape and not shape.fullmatch(str(value)):
+        raise Refusal(f"parameter {name} is {value!r}, which is not {shape.pattern}")
     return value
 
 

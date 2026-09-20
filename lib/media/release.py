@@ -1,7 +1,6 @@
 import hashlib
 import json
 import os
-import re
 import subprocess
 import tempfile
 import urllib.error
@@ -9,7 +8,7 @@ import urllib.request
 from dataclasses import dataclass
 from pathlib import Path
 
-from lib.content import canonical, implementation, resources
+from lib.content import canonical, implementation, marker, resources
 from lib.media import archive
 from lib.process import run
 from lib.refusal import Conflict, Refusal
@@ -17,8 +16,6 @@ from lib.refusal import Conflict, Refusal
 LAYOUT = resources.read_json("releases.json")
 JSON = "application/json; charset=utf-8"
 MIMES = {"tar.gz": "application/gzip", "zip": "application/zip"}
-MARKER = re.compile(r"v(\d+)\.(\d+)\.(\d+)(?:-(alpha|beta|rc)\.([1-9]\d*))?")
-STAGES = {"alpha": 0, "beta": 1, "rc": 2}
 MANAGERS = {"unix": ("manage.sh", "text/x-shellscript; charset=utf-8"), "windows": ("manage.ps1", "text/plain; charset=utf-8")}
 CANONICAL = "canonical"
 
@@ -42,17 +39,12 @@ def place(release):
     return name, LAYOUT["bucket"].format(name=name), LAYOUT["authority"].format(name=name)
 
 
-def channel(marker):
-    matched = MARKER.fullmatch(marker)
-    if not matched:
-        raise Refusal(f"marker {marker!r} is not a release marker")
-    return matched.group(4) or "stable"
+def channel(held):
+    return marker.channel(held)
 
 
-def order(marker):
-    matched = MARKER.fullmatch(marker)
-    stage = (1, 0) if matched.group(4) is None else (0, STAGES[matched.group(4)], int(matched.group(5)))
-    return tuple(int(part) for part in matched.group(1, 2, 3)) + stage
+def order(held):
+    return marker.order(held)
 
 
 def remote(authority, key, body, mime):
@@ -152,10 +144,10 @@ def lead(bucket, rooted, moved, marker):
     return {**moved, "managers": sorted(key for key, _, _ in rooted.values())}
 
 
-def advance(bucket, key, body, marker):
+def advance(bucket, key, body, held):
     if bucket.exists(key):
         current = json.loads(bucket.get(key))["releaseVersion"]
-        if MARKER.fullmatch(current) and order(current) >= order(marker):
+        if marker.holds(current) and order(current) >= order(held):
             return {"pointer": key, "state": "kept", "current": current}
     bucket.put(key, body, {"Content-Type": JSON})
     return {"pointer": key, "state": "advanced"}

@@ -5,7 +5,7 @@ import urllib.error
 import urllib.request
 from dataclasses import dataclass
 
-from lib.content import canonical, resources
+from lib.content import canonical, marker, resources
 from lib.refusal import Conflict, Refusal
 
 FORMAT = 3
@@ -105,9 +105,6 @@ def settle(bucket, key, body, mime):
             raise Refusal(f"{key} already holds different bytes")
 
 
-def channel_of(marker):
-    matched = re.fullmatch(r"v\d+\.\d+\.\d+(?:-(alpha|beta|rc)\.[1-9]\d*)?", marker)
-    if not matched:
-        raise Refusal(f"marker {marker!r} is not a release marker")
-    return matched.group(1) or "stable"
+def channel_of(held):
+    return marker.channel(held)
 

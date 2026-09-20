@@ -26,12 +26,25 @@ class Taken(unittest.TestCase):
         self.assertEqual(parameters.acted("plan", plan.ACTIONS, ["record", "--marker", "v1"]), ("record", ["--marker", "v1"]))
 
     def test_an_unknown_action_refuses(self):
-        with self.assertRaisesRegex(Refusal, "plan takes one action: record"):
+        with self.assertRaisesRegex(Refusal, "plan takes one action: check, record"):
             parameters.acted("plan", plan.ACTIONS, ["invent"])
 
     def test_every_build_target_states_its_name_target_and_runner(self):
         self.assertEqual(sorted(plan.BUILD["targets"][0]), ["name", "runner", "target"])
         self.assertEqual([target["name"] for target in plan.BUILD["targets"]], ["linux", "windows", "macos"])
+
+
+class Checked(unittest.TestCase):
+    def test_a_well_formed_request_names_its_channel(self):
+        self.assertEqual(plan.check({"repository": "PerishLab/plumb", "marker": "v0.38.3-rc.7"})["channel"], "rc")
+
+    def test_a_malformed_marker_refuses(self):
+        with self.assertRaisesRegex(Refusal, "not a release marker"):
+            plan.check({"repository": "PerishLab/plumb", "marker": "v0.38.3-rc.0"})
+
+    def test_the_repository_shape_is_enforced_by_the_parameter_layer(self):
+        self.assertIn("repository", parameters.SHAPES_DECLARED)
+        self.assertTrue(parameters.SHAPES_DECLARED["repository"].fullmatch("PerishLab/plumb"))
 
 
 class Matrices(unittest.TestCase):

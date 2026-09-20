@@ -5,7 +5,7 @@ from pathlib import Path
 
 from lib import parameters
 from lib.cargo import basis
-from lib.content import implementation, resources
+from lib.content import implementation, marker, resources
 from lib.media import cfworker, node
 from lib.refusal import Refusal
 from lib.store import plan, r2, workload
@@ -20,6 +20,7 @@ MEDIA = ("npm", "oci", "chart", "cargo", "release")
 IDENTITY = ("repository", "marker", "commit", "tree")
 CONTEXT = IDENTITY + ("wharf", "run", "attempt")
 TAKEN = IDENTITY + ("wharf", "run", "attempt", "source", "steps")
+CHECKED = ("repository", "marker")
 
 
 def decided(bucket, held, modules):
@@ -87,14 +88,18 @@ def record(held):
     return dict(recorded, decided=emit(matrices(entries), entries))
 
 
-ACTIONS = {"record": record}
+def check(held):
+    return {"repository": held["repository"], "marker": held["marker"], "channel": marker.channel(held["marker"])}
+
+
+ACTIONS = {"record": record, "check": check}
 
 
 def main(argv=None):
     given = sys.argv[1:] if argv is None else argv
     try:
         action, rest = parameters.acted("plan", ACTIONS, given)
-        values, origins = parameters.resolve(action, TAKEN, rest)
+        values, origins = parameters.resolve(action, TAKEN if action == "record" else CHECKED, rest)
         print("\n".join(parameters.report(values, origins)), file=sys.stderr)
         result = ACTIONS[action](values)
     except Refusal as refusal:

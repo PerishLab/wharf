@@ -21,15 +21,15 @@ def written(body):
 
 class Priority(unittest.TestCase):
     def test_a_flag_outranks_the_environment(self):
-        values, origins = resolved(NAMES, ["--marker", "v1", "--repository", "o/r"], {"WHARF_MARKER": "v2"})
+        values, origins = resolved(NAMES, ["--marker", "v1", "--repository", "PerishLab/plumb"], {"WHARF_MARKER": "v2"})
         self.assertEqual(values["marker"], "v1")
         self.assertEqual(origins["marker"], "flag")
 
     def test_the_environment_outranks_the_configuration(self):
-        path = written('marker = "v3"\nrepository = "o/r"\n')
+        path = written('marker = "v3"\nrepository = "PerishLab/plumb"\n')
         values, origins = resolved(NAMES, ["-c", path], {"WHARF_MARKER": "v2"})
         self.assertEqual((values["marker"], origins["marker"]), ("v2", "environment"))
-        self.assertEqual((values["repository"], origins["repository"]), ("o/r", "configuration"))
+        self.assertEqual((values["repository"], origins["repository"]), ("PerishLab/plumb", "configuration"))
 
     def test_the_configuration_outranks_the_default(self):
         path = written('source = "../elsewhere"\n')
@@ -43,9 +43,9 @@ class Priority(unittest.TestCase):
         self.assertEqual((values["source"], origins["source"]), ("../product", "default"))
 
     def test_an_action_section_overlays_the_top_level_key_by_key(self):
-        path = written('marker = "v1"\nrepository = "o/r"\n\n[record]\nmarker = "v9"\n')
+        path = written('marker = "v1"\nrepository = "PerishLab/plumb"\n\n[record]\nmarker = "v9"\n')
         values, origins = resolved(NAMES, ["-c", path], {})
-        self.assertEqual(values, {"marker": "v9", "repository": "o/r"})
+        self.assertEqual(values, {"marker": "v9", "repository": "PerishLab/plumb"})
         self.assertEqual(origins["repository"], "configuration")
 
 
@@ -74,8 +74,23 @@ class Absence(unittest.TestCase):
 
     def test_an_empty_flag_value_is_refused_rather_than_eating_the_next_token(self):
         with self.assertRaises(Refusal) as refused:
-            resolved(NAMES, ["--marker=", "--repository", "o/r"], {})
+            resolved(NAMES, ["--marker=", "--repository", "PerishLab/plumb"], {})
         self.assertIn("marker is set to an empty value", str(refused.exception))
+
+
+class Shape(unittest.TestCase):
+    def test_a_value_the_declared_shape_refuses_is_refused_wherever_it_came_from(self):
+        for argv, environ in ((["--repository", "Elsewhere/plumb"], {}), ([], {"WHARF_REPOSITORY": "Elsewhere/plumb"})):
+            with self.assertRaisesRegex(Refusal, "which is not PerishLab/"):
+                resolved(("repository",), argv, environ)
+
+    def test_a_value_of_the_declared_shape_passes(self):
+        values, _ = resolved(("repository",), ["--repository", "PerishLab/wharf"], {})
+        self.assertEqual(values["repository"], "PerishLab/wharf")
+
+    def test_a_shape_is_anchored_at_both_ends(self):
+        with self.assertRaisesRegex(Refusal, "which is not PerishLab/"):
+            resolved(("repository",), ["--repository", "notPerishLab/plumb/x"], {})
 
 
 class Credentials(unittest.TestCase):
@@ -140,7 +155,7 @@ class Shape(unittest.TestCase):
 
     def test_a_declared_parameter_this_action_does_not_take_refuses(self):
         with self.assertRaises(Refusal) as refused:
-            resolved(NAMES, ["--marker", "v1", "--repository", "o/r", "--tree", "t"], {})
+            resolved(NAMES, ["--marker", "v1", "--repository", "PerishLab/plumb", "--tree", "t"], {})
         self.assertIn("not taken by this action: tree", str(refused.exception))
 
     def test_a_scalar_given_twice_refuses(self):
@@ -186,8 +201,8 @@ class Report(unittest.TestCase):
         self.assertLess(len(parameters.report(values, origins)[0]), 140)
 
     def test_every_resolved_parameter_is_shown_with_where_it_came_from(self):
-        values, origins = resolved(NAMES, ["--marker", "v1"], {"WHARF_REPOSITORY": "o/r"})
-        self.assertEqual(parameters.report(values, origins), ["marker: 'v1' (flag)", "repository: 'o/r' (environment)"])
+        values, origins = resolved(NAMES, ["--marker", "v1"], {"WHARF_REPOSITORY": "PerishLab/plumb"})
+        self.assertEqual(parameters.report(values, origins), ["marker: 'v1' (flag)", "repository: 'PerishLab/plumb' (environment)"])
 
 
 if __name__ == "__main__":
