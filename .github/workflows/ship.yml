@@ -365,18 +365,19 @@ jobs:
 
       - name: Record the plan this run decided
         env:
-          REPOSITORY: ${{ inputs.repository }}
-          MARKER: ${{ inputs.marker }}
-          COMMIT: ${{ steps.source.outputs.commit }}
-          TREE: ${{ steps.source.outputs.tree }}
-          WHARF: ${{ github.sha }}
-          RUN: ${{ github.run_id }}
-          ATTEMPT: ${{ github.run_attempt }}
-          STEPS: ${{ toJSON(steps) }}
+          WHARF_SOURCE: ../product
+          WHARF_REPOSITORY: ${{ inputs.repository }}
+          WHARF_MARKER: ${{ inputs.marker }}
+          WHARF_COMMIT: ${{ steps.source.outputs.commit }}
+          WHARF_TREE: ${{ steps.source.outputs.tree }}
+          WHARF_WHARF: ${{ github.sha }}
+          WHARF_RUN: ${{ github.run_id }}
+          WHARF_ATTEMPT: ${{ github.run_attempt }}
+          WHARF_STEPS: ${{ toJSON(steps) }}
           WHARF_R2_ENDPOINT: ${{ vars.WHARF_R2_ENDPOINT }}
           WHARF_R2_ACCESS_KEY_ID: ${{ secrets.WHARF_R2_ACCESS_KEY_ID }}
           WHARF_R2_SECRET_ACCESS_KEY: ${{ secrets.WHARF_R2_SECRET_ACCESS_KEY }}
-        run: python3 -B -m scripts.plan record --source ../product --name "${REPOSITORY#*/}" --repository "$REPOSITORY" --marker "$MARKER" --commit "$COMMIT" --tree "$TREE" --wharf "$WHARF" --run "$RUN" --attempt "$ATTEMPT" --steps STEPS
+        run: python3 -B -m scripts.plan record
 
   binary-linux:
     needs: plan

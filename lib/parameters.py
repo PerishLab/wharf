@@ -12,6 +12,7 @@ TYPES = CATALOG["types"]
 DEFAULTS = CATALOG["defaults"]
 CREDENTIAL = re.compile(CATALOG["credential"])
 SHAPES = {"string": str, "bool": bool, "int": int, "strings": list}
+LENGTH = 72
 
 
 def declared(name):
@@ -151,5 +152,16 @@ def resolve(action, names, argv, environ=None):
     return {name: value for name, (value, _) in found.items()}, {name: origin for name, (_, origin) in found.items()}
 
 
+def shown(value):
+    text = repr(value)
+    return text if len(text) <= LENGTH else f"{text[:LENGTH]}... ({len(text)} characters)"
+
+
 def report(values, origins):
-    return [f"{name}: {values[name]!r} ({origins[name]})" for name in sorted(origins)]
+    return [f"{name}: {shown(values[name])} ({origins[name]})" for name in sorted(origins)]
+
+
+def acted(prog, actions, argv):
+    if not argv or argv[0] not in actions:
+        raise Refusal(f"{prog} takes one action: {', '.join(sorted(actions))}")
+    return argv[0], argv[1:]

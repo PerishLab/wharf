@@ -1,22 +1,27 @@
-import argparse
 import json
-import os
 import sys
 
-from lib.content import implementation
+from lib import parameters
 from lib.cargo import basis
+from lib.content import implementation, resources
 from lib.media import cfworker, node
 from lib.refusal import Refusal
 from lib.store import plan, r2, workload
 
-TARGETS = (
-    ("linux", "x86_64-unknown-linux-gnu", "ubuntu-24.04"),
-    ("windows", "x86_64-pc-windows-msvc", "windows-2025"),
-    ("macos", "aarch64-apple-darwin", "macos-15"),
-)
-RUNNER = "ubuntu-24.04"
+BUILD = resources.read_json("build.json")
+RUNNER = BUILD["runner"]
 REPORTED = ("key", "decision")
 MEDIA = ("npm", "oci", "chart", "cargo", "release")
+IDENTITY = ("repository", "marker", "commit", "tree")
+CONTEXT = IDENTITY + ("wharf", "run", "attempt")
+TAKEN = IDENTITY + ("wharf", "run", "attempt", "source", "steps")
+
+
+def named(repository):
+    owner, _, name = repository.partition("/")
+    if not owner or not name:
+        raise Refusal(f"repository {repository} is not owner/name")
+    return name
 
 
 def decided(bucket, held, modules):
@@ -24,28 +29,26 @@ def decided(bucket, held, modules):
     return {"key": key, "decision": "skip" if workload.reusable(bucket, key) else "run"}
 
 
-def carried(published):
-    return {"decision": "skip" if published else "run"}
-
-
-def binaries(args, bucket, entries):
-    identity = {field: getattr(args, field) for field in ("repository", "marker", "commit", "tree")}
-    for name, target, runner in TARGETS:
-        built = decided(bucket, basis.resolve(args.source, args.name, target, runner), (["lib.cargo.basis", "lib.cargo.build"], []))
+def binaries(held, bucket, entries):
+    identity = {field: held[field] for field in IDENTITY}
+    name = named(held["repository"])
+    for target in BUILD["targets"]:
+        built = decided(bucket, basis.resolve(held["source"], name, target["target"], target["runner"]), (["lib.cargo.basis", "lib.cargo.build"], []))
         bound = decided(
             bucket,
             {"entry": {"kind": "binary-identity", "binary": built["key"]}, "identity": identity},
             (["lib.identity.bind"], ["identity/format.json"]),
         )
-        entries[f"binary-{name}"] = built
-        entries[f"bind-{name}"] = bound
-        entries[f"smoke-{name}"] = decided(bucket, {"entry": {"kind": "binary-smoke", "binary": bound["key"]}}, (["lib.identity.smoke"], []))
+        entries[f"binary-{target['name']}"] = built
+        entries[f"bind-{target['name']}"] = bound
+        entries[f"smoke-{target['name']}"] = decided(bucket, {"entry": {"kind": "binary-smoke", "binary": bound["key"]}}, (["lib.identity.smoke"], []))
 
 
-def suites(args, bucket, entries):
-    entries["suite-linux"] = decided(bucket, basis.suite(args.source, RUNNER), (["lib.cargo.basis", "lib.cargo.suite"], []))
-    entries["suite-node"] = decided(bucket, node.basis(args.source, RUNNER), (["lib.media.node"], []))
-    entries["cfworker"] = decided(bucket, cfworker.basis(args.source, RUNNER), (["lib.media.cfworker"], []))
+def suites(held, bucket, entries):
+    source = held["source"]
+    entries["suite-linux"] = decided(bucket, basis.suite(source, RUNNER), (["lib.cargo.basis", "lib.cargo.suite"], []))
+    entries["suite-node"] = decided(bucket, node.basis(source, RUNNER), (["lib.media.node"], []))
+    entries["cfworker"] = decided(bucket, cfworker.basis(source, RUNNER), (["lib.media.cfworker"], []))
 
 
 def media(observed, entries):
@@ -67,32 +70,27 @@ def settled(entries, observed):
         raise Refusal("the recorded plan disagrees with the steps that produced it: " + "; ".join(drift))
 
 
-def record(args):
+def record(held):
     bucket = r2.configured()
     entries = {}
-    observed = reported(os.environ.get(args.steps, ""))
-    binaries(args, bucket, entries)
-    suites(args, bucket, entries)
+    observed = reported(held["steps"])
+    binaries(held, bucket, entries)
+    suites(held, bucket, entries)
     media(observed, entries)
     settled(entries, observed)
-    context = {field: getattr(args, field) for field in ("repository", "marker", "commit", "tree", "wharf", "run", "attempt")}
-    return plan.record(bucket, context, entries, node.declared(args.source))
+    return plan.record(bucket, {field: held[field] for field in CONTEXT}, entries, node.declared(held["source"]))
 
 
-def parser():
-    root = argparse.ArgumentParser(prog="plan")
-    actions = root.add_subparsers(dest="action", required=True)
-    command = actions.add_parser("record")
-    for option in ("source", "name", "repository", "marker", "commit", "tree", "wharf", "run", "attempt", "steps"):
-        command.add_argument(f"--{option}", required=True)
-    command.set_defaults(handler=record)
-    return root
+ACTIONS = {"record": record}
 
 
 def main(argv=None):
-    args = parser().parse_args(argv)
+    given = sys.argv[1:] if argv is None else argv
     try:
-        result = args.handler(args)
+        action, rest = parameters.acted("plan", ACTIONS, given)
+        values, origins = parameters.resolve(action, TAKEN, rest)
+        print("\n".join(parameters.report(values, origins)), file=sys.stderr)
+        result = ACTIONS[action](values)
     except Refusal as refusal:
         print(f"plan: refused: {refusal}", file=sys.stderr)
         return 2

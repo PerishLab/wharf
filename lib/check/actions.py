@@ -3,7 +3,7 @@ from pathlib import Path
 
 from lib.content import resources
 
-LOCKED = resources.read_json("actions.json")
+LOCKED = resources.read_json("check/actions.json")
 PINNED = LOCKED["pinned"]
 RUNTIMES = LOCKED["runtimes"]
 USES = re.compile(r"uses:\s*([^\s@]+)@(\S+)")

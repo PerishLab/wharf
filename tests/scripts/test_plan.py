@@ -1,5 +1,6 @@
 import unittest
 
+from lib import parameters
 from lib.refusal import Refusal
 from scripts import plan
 
@@ -11,6 +12,29 @@ STEPS = """
 }
 """
 PLANNED = {"binary-linux": {"key": "aaa", "decision": "run"}, "npm": {"decision": "skip"}}
+
+
+class Taken(unittest.TestCase):
+    def test_every_parameter_this_script_takes_is_declared(self):
+        self.assertEqual([name for name in plan.TAKEN if name not in parameters.TYPES], [])
+
+    def test_the_action_word_is_taken_before_the_parameters(self):
+        self.assertEqual(parameters.acted("plan", plan.ACTIONS, ["record", "--marker", "v1"]), ("record", ["--marker", "v1"]))
+
+    def test_an_unknown_action_refuses(self):
+        with self.assertRaisesRegex(Refusal, "plan takes one action: record"):
+            parameters.acted("plan", plan.ACTIONS, ["invent"])
+
+    def test_the_product_name_comes_from_the_repository(self):
+        self.assertEqual(plan.named("PerishLab/plumb"), "plumb")
+
+    def test_a_repository_that_is_not_owner_and_name_refuses(self):
+        with self.assertRaisesRegex(Refusal, "is not owner/name"):
+            plan.named("plumb")
+
+    def test_every_build_target_states_its_name_target_and_runner(self):
+        self.assertEqual(sorted(plan.BUILD["targets"][0]), ["name", "runner", "target"])
+        self.assertEqual([target["name"] for target in plan.BUILD["targets"]], ["linux", "windows", "macos"])
 
 
 class Reported(unittest.TestCase):

@@ -170,7 +170,21 @@ class Shape(unittest.TestCase):
         self.assertIn("--marker was given without a value", str(refused.exception))
 
 
+class Action(unittest.TestCase):
+    def test_the_first_word_is_the_action(self):
+        self.assertEqual(parameters.acted("plan", {"record": None}, ["record", "--marker", "v1"]), ("record", ["--marker", "v1"]))
+
+    def test_no_word_at_all_refuses(self):
+        with self.assertRaisesRegex(Refusal, "plan takes one action: record"):
+            parameters.acted("plan", {"record": None}, [])
+
+
 class Report(unittest.TestCase):
+    def test_a_long_value_is_abbreviated_rather_than_flooding_the_log(self):
+        values, origins = resolved(("steps",), [], {"WHARF_STEPS": "x" * 500})
+        self.assertIn("(502 characters)", parameters.report(values, origins)[0])
+        self.assertLess(len(parameters.report(values, origins)[0]), 140)
+
     def test_every_resolved_parameter_is_shown_with_where_it_came_from(self):
         values, origins = resolved(NAMES, ["--marker", "v1"], {"WHARF_REPOSITORY": "o/r"})
         self.assertEqual(parameters.report(values, origins), ["marker: 'v1' (flag)", "repository: 'o/r' (environment)"])

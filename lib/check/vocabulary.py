@@ -4,7 +4,7 @@ from pathlib import Path
 
 from lib.content import resources
 
-VOCABULARY = resources.read_json("vocabulary.json")
+VOCABULARY = resources.read_json("check/vocabulary.json")
 CLAIMED = VOCABULARY["claimed"]
 EXTERNAL = set(VOCABULARY["external"])
 

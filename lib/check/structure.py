@@ -2,7 +2,7 @@ from pathlib import Path
 
 from lib.content import resources
 
-RULES = resources.read_json("structure.json")
+RULES = resources.read_json("check/structure.json")
 
 
 def top(paths):
