@@ -14,6 +14,7 @@ SHAPES_DECLARED = {name: re.compile(shape) for name, shape in CATALOG["shapes"].
 CREDENTIAL = re.compile(CATALOG["credential"])
 SHAPES = {"string": str, "bool": bool, "int": int, "strings": list}
 LENGTH = 72
+OUTPUT = "GITHUB_OUTPUT"
 
 
 def declared(name):
@@ -167,6 +168,15 @@ def shown(value):
 
 def report(values, origins):
     return [f"{name}: {shown(values[name])} ({origins[name]})" for name in sorted(origins)]
+
+
+def answer(held):
+    path = os.environ.get(OUTPUT)
+    if not path:
+        raise Refusal(f"{OUTPUT} is not set, so there is nowhere to answer the caller")
+    with Path(path).open("a") as file:
+        file.write("".join(f"{name}={value}\n" for name, value in sorted(held.items())))
+    return held
 
 
 def acted(prog, actions, argv):

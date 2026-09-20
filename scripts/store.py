@@ -1,52 +1,36 @@
-import argparse
 import json
 import sys
-from pathlib import Path
 
+from lib import parameters
 from lib.refusal import Refusal
-from lib.store import r2, trigger, workload
+from lib.store import plan, r2, trigger
+
+CONTEXT = ("repository", "marker", "wharf", "run", "attempt", "actor")
+IDENTITY = ("commit", "tree")
 
 
-def reusable(args):
-    return {"key": args.key, "reusable": workload.reusable(r2.configured(), args.key)}
+def identified(bucket, context):
+    held = plan.standing_for(bucket, context)
+    return {field: held["context"][field] if held else None for field in IDENTITY}
 
 
-def publish(args):
-    produced = workload.Produced(Path(args.dir), json.loads(Path(args.basis).read_text()), json.loads(Path(args.context).read_text()))
-    return workload.publish(r2.configured(), args.key, produced)
+def record(held):
+    bucket = r2.configured()
+    context = {field: held[field] for field in CONTEXT}
+    return trigger.record(bucket, dict(context, **identified(bucket, context)), json.loads(held["needs"]))
 
 
-def fetch(args):
-    return workload.fetch(r2.configured(), args.key, args.dir)
-
-
-def record(args):
-    context = json.loads(Path(args.context).read_text())
-    needs = json.loads(Path(args.needs).read_text())
-    return trigger.record(r2.configured(), context, needs)
-
-
-def command(actions, name, handler, options):
-    parser = actions.add_parser(name)
-    for option in options:
-        parser.add_argument(f"--{option}", required=True)
-    parser.set_defaults(handler=handler)
-
-
-def parser():
-    root = argparse.ArgumentParser(prog="store")
-    actions = root.add_subparsers(dest="action", required=True)
-    command(actions, "reusable", reusable, ["key"])
-    command(actions, "publish", publish, ["key", "dir", "basis", "context"])
-    command(actions, "fetch", fetch, ["key", "dir"])
-    command(actions, "trigger", record, ["context", "needs"])
-    return root
+ACTIONS = {"trigger": (record, [*CONTEXT, "needs"])}
 
 
 def main(argv=None):
-    args = parser().parse_args(argv)
+    given = sys.argv[1:] if argv is None else argv
     try:
-        result = args.handler(args)
+        action, rest = parameters.acted("store", ACTIONS, given)
+        handler, names = ACTIONS[action]
+        values, origins = parameters.resolve(action, names, rest)
+        print("\n".join(parameters.report(values, origins)), file=sys.stderr)
+        result = handler(values)
     except Refusal as refusal:
         print(f"store: refused: {refusal}", file=sys.stderr)
         return 2

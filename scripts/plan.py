@@ -1,12 +1,11 @@
 import json
-import os
 import sys
-from pathlib import Path
 
 from lib import parameters
 from lib.cargo import basis
 from lib.content import implementation, marker, resources
 from lib.media import cfworker, node
+from lib.process import git
 from lib.refusal import Refusal
 from lib.store import plan, r2, workload
 
@@ -14,13 +13,13 @@ BUILD = resources.read_json("build.json")
 RUNNER = BUILD["runner"]
 FAMILIES = ("binary", "bind", "smoke")
 SINGLE = ("suite-linux", "suite-node", "cfworker")
-OUTPUT = "GITHUB_OUTPUT"
 REPORTED = ("key", "decision")
 MEDIA = ("npm", "oci", "chart", "cargo", "release")
 IDENTITY = ("repository", "marker", "commit", "tree")
 CONTEXT = IDENTITY + ("wharf", "run", "attempt")
 TAKEN = IDENTITY + ("wharf", "run", "attempt", "source", "steps")
 CHECKED = ("repository", "marker")
+SOURCED = ("source",)
 
 
 def decided(bucket, held, modules):
@@ -68,13 +67,14 @@ def matrices(entries):
 
 
 def emit(held, entries):
-    path = os.environ.get(OUTPUT)
-    if not path:
-        raise Refusal(f"{OUTPUT} is not set, so there is nowhere to tell the runner what to do")
-    lines = [f"{family}={json.dumps(targets, separators=(',', ':'))}" for family, targets in sorted(held.items())]
-    lines += [f"{name}={entries[name]['decision']}" for name in SINGLE]
-    Path(path).write_text(Path(path).read_text() + "\n".join(lines) + "\n")
-    return dict({family: [target["name"] for target in targets] for family, targets in held.items()}, **{name: entries[name]["decision"] for name in SINGLE})
+    answered = {family: json.dumps(targets, separators=(",", ":")) for family, targets in held.items()}
+    answered.update({name: entries[name]["decision"] for name in SINGLE})
+    parameters.answer(answered)
+    return answered
+
+
+def source(held):
+    return parameters.answer({field: git(held["source"], "rev-parse", "HEAD" if field == "commit" else "HEAD^{tree}") for field in ("commit", "tree")})
 
 
 def record(held):
@@ -92,14 +92,14 @@ def check(held):
     return {"repository": held["repository"], "marker": held["marker"], "channel": marker.channel(held["marker"])}
 
 
-ACTIONS = {"record": record, "check": check}
+ACTIONS = {"record": record, "check": check, "source": source}
 
 
 def main(argv=None):
     given = sys.argv[1:] if argv is None else argv
     try:
         action, rest = parameters.acted("plan", ACTIONS, given)
-        values, origins = parameters.resolve(action, TAKEN if action == "record" else CHECKED, rest)
+        values, origins = parameters.resolve(action, {"record": TAKEN, "check": CHECKED, "source": SOURCED}[action], rest)
         print("\n".join(parameters.report(values, origins)), file=sys.stderr)
         result = ACTIONS[action](values)
     except Refusal as refusal:

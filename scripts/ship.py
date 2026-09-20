@@ -115,7 +115,7 @@ def run_smoke(held):
 
 
 def node_engines(held):
-    return node.declared(held["source"])
+    return parameters.answer(node.declared(held["source"]))
 
 
 def node_suite(held):
@@ -127,9 +127,13 @@ def node_suite(held):
     return workload.publish(bucket, entry["key"], workload.Produced(output, held_basis, carried(held)))
 
 
+def decided(published, held):
+    return dict(parameters.answer({"decision": "skip" if published else "run"}), **held)
+
+
 def npm_plan(held):
     pending = npm.pending(held["source"], version.marker(held["marker"]))
-    return {"published": all(item["published"] for item in pending), "packages": pending}
+    return decided(all(item["published"] for item in pending), {"packages": pending})
 
 
 def npm_publish(held):
@@ -138,7 +142,7 @@ def npm_publish(held):
 
 def oci_plan(held):
     image = oci.reference(held["repository"], version.marker(held["marker"]))
-    return {"image": image, "published": oci.exists(image)}
+    return decided(oci.exists(image), {"image": image})
 
 
 def oci_publish(held):
@@ -151,7 +155,7 @@ def oci_publish(held):
 
 def chart_plan(held):
     pending = chart.pending(held["source"], held["repository"].split("/", 1)[0], version.marker(held["marker"]))
-    return {"published": all(item["published"] for item in pending), "charts": pending}
+    return decided(all(item["published"] for item in pending), {"charts": pending})
 
 
 def chart_publish(held):
@@ -172,7 +176,7 @@ def rendered(document, published, held, directory):
 
 def release_plan(held):
     published = published_release(held)
-    return {"channel": releasing.channel(published.marker), "published": releasing.published(published)}
+    return decided(releasing.published(published), {"channel": releasing.channel(published.marker)})
 
 
 def run_release(held):
@@ -195,7 +199,7 @@ def cfworker_deploy(held):
 
 def cargo_plan(held):
     pending = publish.pending(held["source"], version.marker(held["marker"]))
-    return {"published": all(item["published"] for item in pending), "packages": pending}
+    return decided(all(item["published"] for item in pending), {"packages": pending})
 
 
 def cargo_publish(held):

@@ -1,6 +1,6 @@
 import hashlib
 
-from lib.refusal import Conflict
+from lib.refusal import Conflict, Refusal
 
 
 class Memory:
@@ -17,6 +17,8 @@ class Memory:
         return key in self.objects
 
     def get(self, key):
+        if key not in self.objects:
+            raise Refusal(f"GET {key} answered 404")
         return self.objects[key]
 
     def create(self, key, body, headers=None):

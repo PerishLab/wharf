@@ -47,8 +47,6 @@ jobs:
       chart: ${{ steps.chart.outputs.decision }}
       release: ${{ steps.release.outputs.decision }}
       cargo: ${{ steps.cargo.outputs.decision }}
-      commit: ${{ steps.source.outputs.commit }}
-      tree: ${{ steps.source.outputs.tree }}
     steps:
       - name: Check out wharf
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
@@ -72,9 +70,9 @@ jobs:
 
       - name: Identify source
         id: source
-        run: |
-          echo "commit=$(git -C ../product rev-parse HEAD)" >> "$GITHUB_OUTPUT"
-          echo "tree=$(git -C ../product rev-parse 'HEAD^{tree}')" >> "$GITHUB_OUTPUT"
+        env:
+          WHARF_SOURCE: ../product
+        run: python3 -B -m scripts.plan source
 
       - name: Sign in to the package registry
         working-directory: .
@@ -87,71 +85,49 @@ jobs:
 
       - name: engines
         id: engines
-        run: |
-          python3 -B -m scripts.ship node-engines --source ../product > ../engines.json
-          echo "node=$(python3 -c 'import json; print(json.load(open("../engines.json"))["node"])')" >> "$GITHUB_OUTPUT"
-          echo "pnpm=$(python3 -c 'import json; print(json.load(open("../engines.json"))["pnpm"])')" >> "$GITHUB_OUTPUT"
+        env:
+          WHARF_SOURCE: ../product
+        run: python3 -B -m scripts.ship node-engines
 
       - name: npm packages
         id: npm
         env:
-          MARKER: ${{ inputs.marker }}
+          WHARF_SOURCE: ../product
+          WHARF_MARKER: ${{ inputs.marker }}
           NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          published=$(python3 -B -m scripts.ship npm-plan --source ../product --marker "$MARKER" | python3 -c 'import json,sys; print(json.load(sys.stdin)["published"])')
-          decision=run
-          [ "$published" = True ] && decision=skip
-          echo "decision=$decision" >> "$GITHUB_OUTPUT"
-          echo "| npm packages | $MARKER | $decision |" >> "$GITHUB_STEP_SUMMARY"
+        run: python3 -B -m scripts.ship npm-plan
 
       - name: oci image
         id: oci
         env:
-          REPOSITORY: ${{ inputs.repository }}
-          MARKER: ${{ inputs.marker }}
-        run: |
-          published=$(python3 -B -m scripts.ship oci-plan --repository "$REPOSITORY" --marker "$MARKER" | python3 -c 'import json,sys; print(json.load(sys.stdin)["published"])')
-          decision=run
-          [ "$published" = True ] && decision=skip
-          echo "decision=$decision" >> "$GITHUB_OUTPUT"
-          echo "| oci image | $MARKER | $decision |" >> "$GITHUB_STEP_SUMMARY"
+          WHARF_REPOSITORY: ${{ inputs.repository }}
+          WHARF_MARKER: ${{ inputs.marker }}
+        run: python3 -B -m scripts.ship oci-plan
 
       - name: charts
         id: chart
         env:
-          REPOSITORY: ${{ inputs.repository }}
-          MARKER: ${{ inputs.marker }}
-        run: |
-          published=$(python3 -B -m scripts.ship chart-plan --source ../product --repository "$REPOSITORY" --marker "$MARKER" | python3 -c 'import json,sys; print(json.load(sys.stdin)["published"])')
-          decision=run
-          [ "$published" = True ] && decision=skip
-          echo "decision=$decision" >> "$GITHUB_OUTPUT"
-          echo "| charts | $MARKER | $decision |" >> "$GITHUB_STEP_SUMMARY"
+          WHARF_SOURCE: ../product
+          WHARF_REPOSITORY: ${{ inputs.repository }}
+          WHARF_MARKER: ${{ inputs.marker }}
+        run: python3 -B -m scripts.ship chart-plan
 
       - name: binary release
         id: release
         env:
-          REPOSITORY: ${{ inputs.repository }}
-          MARKER: ${{ inputs.marker }}
-          COMMIT: ${{ steps.source.outputs.commit }}
-          WHARF: ${{ github.sha }}
-        run: |
-          published=$(python3 -B -m scripts.ship release-plan --repository "$REPOSITORY" --marker "$MARKER" --commit "$COMMIT" --wharf "$WHARF" | python3 -c 'import json,sys; print(json.load(sys.stdin)["published"])')
-          decision=run
-          [ "$published" = True ] && decision=skip
-          echo "decision=$decision" >> "$GITHUB_OUTPUT"
-          echo "| binary release | $MARKER | $decision |" >> "$GITHUB_STEP_SUMMARY"
+          WHARF_REPOSITORY: ${{ inputs.repository }}
+          WHARF_MARKER: ${{ inputs.marker }}
+          WHARF_COMMIT: ${{ steps.source.outputs.commit }}
+          WHARF_WHARF: ${{ github.sha }}
+        run: python3 -B -m scripts.ship release-plan
 
       - name: cargo packages
         id: cargo
         env:
-          MARKER: ${{ inputs.marker }}
-        run: |
-          published=$(python3 -B -m scripts.ship cargo-plan --source ../product --marker "$MARKER" | python3 -c 'import json,sys; print(json.load(sys.stdin)["published"])')
-          decision=run
-          [ "$published" = True ] && decision=skip
-          echo "decision=$decision" >> "$GITHUB_OUTPUT"
-          echo "| cargo packages | $MARKER | $decision |" >> "$GITHUB_STEP_SUMMARY"
+          WHARF_SOURCE: ../product
+          WHARF_MARKER: ${{ inputs.marker }}
+          WHARF_CARGO_TOKEN: ${{ secrets.WHARF_CARGO_TOKEN }}
+        run: python3 -B -m scripts.ship cargo-plan
 
       - name: Record the plan this run decided
         id: plan
@@ -631,18 +607,13 @@ jobs:
 
       - name: Write the trigger record
         env:
-          NEEDS: ${{ toJSON(needs) }}
-          REPOSITORY: ${{ inputs.repository }}
-          MARKER: ${{ inputs.marker }}
-          COMMIT: ${{ needs.plan.outputs.commit }}
-          TREE: ${{ needs.plan.outputs.tree }}
-          ACTOR: ${{ github.triggering_actor }}
-          WHARF: ${{ github.sha }}
-          RUN: ${{ github.run_id }}
-          ATTEMPT: ${{ github.run_attempt }}
+          WHARF_NEEDS: ${{ toJSON(needs) }}
+          WHARF_REPOSITORY: ${{ inputs.repository }}
+          WHARF_MARKER: ${{ inputs.marker }}
+          WHARF_ACTOR: ${{ github.triggering_actor }}
+          WHARF_WHARF: ${{ github.sha }}
+          WHARF_RUN: ${{ github.run_id }}
+          WHARF_ATTEMPT: ${{ github.run_attempt }}
           WHARF_R2_ACCESS_KEY_ID: ${{ secrets.WHARF_R2_ACCESS_KEY_ID }}
           WHARF_R2_SECRET_ACCESS_KEY: ${{ secrets.WHARF_R2_SECRET_ACCESS_KEY }}
-        run: |
-          printf '%s' "$NEEDS" > ../needs.json
-          python3 -c 'import json,os; json.dump({f: os.environ[e] for f, e in {"repository": "REPOSITORY", "marker": "MARKER", "commit": "COMMIT", "tree": "TREE", "wharf": "WHARF", "run": "RUN", "attempt": "ATTEMPT", "actor": "ACTOR"}.items()}, open("../context.json", "w"))'
-          python3 -B -m scripts.store trigger --context ../context.json --needs ../needs.json
+        run: python3 -B -m scripts.store trigger

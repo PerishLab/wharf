@@ -1,3 +1,4 @@
+import json
 import os
 import tempfile
 import unittest
@@ -69,19 +70,19 @@ class Matrices(unittest.TestCase):
     def test_the_matrices_are_written_where_the_runner_reads_them(self):
         path = Path(tempfile.mkdtemp()) / "output"
         path.write_text("")
-        with mock.patch.dict(os.environ, {plan.OUTPUT: str(path)}):
+        with mock.patch.dict(os.environ, {parameters.OUTPUT: str(path)}):
             entries = self.entries(["binary-macos", "cfworker"])
             named = plan.emit(plan.matrices(entries), entries)
-        self.assertEqual(named["binary"], ["linux", "windows"])
+        self.assertEqual(json.loads(named["binary"]), [target for target in plan.BUILD["targets"] if target["name"] != "macos"])
         self.assertEqual(named["cfworker"], "skip")
         self.assertIn('bind=[{"name":"linux"', path.read_text())
         self.assertIn("cfworker=skip", path.read_text())
         self.assertEqual(len(path.read_text().splitlines()), len(plan.FAMILIES) + len(plan.SINGLE))
 
-    def test_nowhere_to_write_the_matrices_refuses(self):
+    def test_nowhere_to_answer_the_caller_refuses(self):
         with mock.patch.dict(os.environ, {}, clear=True):
             with self.assertRaisesRegex(Refusal, "GITHUB_OUTPUT is not set"):
-                plan.emit({}, {})
+                parameters.answer({})
 
 
 class Reported(unittest.TestCase):
