@@ -94,7 +94,7 @@ def record(held):
     media(observed, entries)
     engines = node.declared(held["source"]) if node.carried(held["source"]) else {}
     recorded = plan.record(bucket, {field: held[field] for field in CONTEXT}, entries, engines)
-    return dict(recorded, decided=emit(matrices(entries), entries))
+    return dict(recorded, decided=emit(matrices(entries), entries), entry={name: entries[name]["decision"] for name in sorted(entries)})
 
 
 def check(held):

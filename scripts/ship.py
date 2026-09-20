@@ -92,7 +92,7 @@ def run_binary(held):
     output = place()
     build.build(build.Build(Path(held["source"]), name, target["target"], output))
     if dependencies is not None and dependencies["decision"] == "run":
-        depended(bucket, held, target, dependencies)
+        print(json.dumps(depended(bucket, held, target, dependencies), sort_keys=True), file=sys.stderr)
     return workload.publish(bucket, entry["key"], workload.Produced(output, held_basis, carried(held)))
 
 
