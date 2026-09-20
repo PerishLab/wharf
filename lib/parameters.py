@@ -134,7 +134,7 @@ def chosen(name, given, held, environ):
     if name in held:
         return shaped(name, held[name]), "configuration"
     if name in DEFAULTS:
-        return shaped(name, DEFAULTS[name]), "default"
+        return (None if DEFAULTS[name] is None else shaped(name, DEFAULTS[name])), "default"
     return None, None
 
 

@@ -5,10 +5,10 @@ import unittest
 from unittest import mock
 from pathlib import Path
 
-from lib.check import actions, files, imports, source, structure, vocabulary
+from lib.check import actions, commands, files, imports, source, structure, vocabulary
 from lib.process import git
 
-CHECKS = (structure, source, imports, vocabulary, actions)
+CHECKS = (structure, source, imports, vocabulary, actions, commands)
 
 
 def findings(root):

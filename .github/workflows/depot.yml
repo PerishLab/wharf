@@ -69,13 +69,11 @@ jobs:
 
       - name: Inherit the generation
         env:
-          REPOSITORY: ${{ inputs.repository }}
-          MARKER: ${{ inputs.marker }}
-          KIND: ${{ inputs.kind }}
+          WHARF_SOURCE: ../product
+          WHARF_REPOSITORY: ${{ inputs.repository }}
+          WHARF_MARKER: ${{ inputs.marker }}
+          WHARF_KIND: ${{ inputs.kind }}
           WHARF_R2_ENDPOINT: ${{ vars.WHARF_R2_ENDPOINT }}
           WHARF_DEPOT_ACCESS_KEY_ID: ${{ secrets.WHARF_DEPOT_ACCESS_KEY_ID }}
           WHARF_DEPOT_SECRET_ACCESS_KEY: ${{ secrets.WHARF_DEPOT_SECRET_ACCESS_KEY }}
-        run: |
-          set -o pipefail
-          python3 -B -m scripts.depot patch --repository "$REPOSITORY" --marker "$MARKER" --kind "$KIND" --source ../product | tee ../depot.json
-          echo "| $KIND | $MARKER | $(python3 -c 'import json; d=json.load(open("../depot.json")); print(d["state"], d["generation"][:12])') |" >> "$GITHUB_STEP_SUMMARY"
+        run: python3 -B -m scripts.depot patch

@@ -3,12 +3,16 @@
   "credential": "TOKEN|SECRET|PASSWORD|CREDENTIAL|ACCESS_KEY|API_KEY|PRIVATE_KEY|SIGNING_KEY",
   "types": {
     "actor": "string",
+    "against": "string",
     "attempt": "string",
     "basis": "string",
     "binary-key": "string",
     "commit": "string",
     "dir": "string",
     "expect": "string",
+    "from": "string",
+    "full": "bool",
+    "kind": "string",
     "linux": "string",
     "macos": "string",
     "managers": "string",
@@ -16,6 +20,8 @@
     "name": "string",
     "needs": "string",
     "output": "string",
+    "put": "strings",
+    "remove": "strings",
     "repository": "string",
     "run": "string",
     "runner": "string",
@@ -27,7 +33,14 @@
     "windows": "string"
   },
   "shapes": {
-    "repository": "PerishLab/[A-Za-z0-9._-]+"
+    "repository": "PerishLab/[A-Za-z0-9._-]+",
+    "kind": "configuration|skill|changelog"
   },
-  "defaults": {}
+  "defaults": {
+    "against": null,
+    "from": null,
+    "full": false,
+    "put": [],
+    "remove": []
+  }
 }

@@ -1,0 +1,9 @@
+{
+  "shape": "python3 -B -m scripts.<name> <action>",
+  "command": "python3 -B -m scripts\\.([a-z]+) ([a-z-]+)",
+  "prepared": [
+    "git config --global core.autocrlf false",
+    "npm install --global \"pnpm@$PNPM\"",
+    "printf '%s' \"$TOKEN\" | docker login ghcr.io --username \"$ACTOR\" --password-stdin\nprintf '%s' \"$TOKEN\" | helm registry login ghcr.io --username \"$ACTOR\" --password-stdin"
+  ]
+}
