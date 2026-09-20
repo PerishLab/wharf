@@ -11,7 +11,7 @@ from lib.store import plan, r2, workload
 
 BUILD = resources.read_json("build.json")
 RUNNER = BUILD["runner"]
-FAMILIES = ("binary", "bind", "smoke")
+FAMILIES = ("binary", "smoke")
 SINGLE = ("suite-linux", "suite-node", "cfworker")
 REPORTED = ("key", "decision")
 MEDIA = ("npm", "oci", "chart", "cargo", "release")
@@ -68,9 +68,14 @@ def matrices(entries):
     return {family: [target for target in BUILD["targets"] if entries[f"{family}-{target['name']}"]["decision"] == "run"] for family in FAMILIES}
 
 
+def binding(entries):
+    return "run" if any(entries[f"bind-{target['name']}"]["decision"] == "run" for target in BUILD["targets"]) else "skip"
+
+
 def emit(held, entries):
     answered = {family: json.dumps(targets, separators=(",", ":")) for family, targets in held.items()}
     answered.update({name: entries[name]["decision"] if name in entries else "skip" for name in SINGLE})
+    answered["bind"] = binding(entries)
     parameters.answer(answered)
     return answered
 

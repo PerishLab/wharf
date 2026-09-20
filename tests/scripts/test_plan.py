@@ -50,14 +50,18 @@ class Checked(unittest.TestCase):
 
 class Matrices(unittest.TestCase):
     def entries(self, decisions):
-        held = {f"{family}-{name}": {"decision": "run"} for family in plan.FAMILIES for name in ("linux", "windows", "macos")}
+        held = {f"{family}-{name}": {"decision": "run"} for family in plan.FAMILIES + ("bind",) for name in ("linux", "windows", "macos")}
         held.update({name: {"decision": "run"} for name in plan.SINGLE})
         return dict(held, **{name: {"decision": "skip"} for name in decisions})
 
     def test_only_what_the_plan_decided_to_run_reaches_the_matrix(self):
         held = plan.matrices(self.entries(["binary-windows", "binary-macos"]))
         self.assertEqual([target["name"] for target in held["binary"]], ["linux"])
-        self.assertEqual([target["name"] for target in held["bind"]], ["linux", "windows", "macos"])
+        self.assertEqual([target["name"] for target in held["smoke"]], ["linux", "windows", "macos"])
+
+    def test_binding_is_one_job_the_plan_starts_when_any_target_needs_it(self):
+        self.assertEqual(plan.binding(self.entries(["bind-linux", "bind-windows"])), "run")
+        self.assertEqual(plan.binding(self.entries([f"bind-{name}" for name in ("linux", "windows", "macos")])), "skip")
 
     def test_a_matrix_entry_carries_the_target_and_the_runner_the_job_needs(self):
         held = plan.matrices(self.entries([]))
@@ -75,9 +79,9 @@ class Matrices(unittest.TestCase):
             named = plan.emit(plan.matrices(entries), entries)
         self.assertEqual(json.loads(named["binary"]), [target for target in plan.BUILD["targets"] if target["name"] != "macos"])
         self.assertEqual(named["cfworker"], "skip")
-        self.assertIn('bind=[{"name":"linux"', path.read_text())
+        self.assertIn("bind=run", path.read_text())
         self.assertIn("cfworker=skip", path.read_text())
-        self.assertEqual(len(path.read_text().splitlines()), len(plan.FAMILIES) + len(plan.SINGLE))
+        self.assertEqual(len(path.read_text().splitlines()), len(plan.FAMILIES) + len(plan.SINGLE) + 1)
 
     def test_nowhere_to_answer_the_caller_refuses(self):
         with mock.patch.dict(os.environ, {}, clear=True):
@@ -91,7 +95,8 @@ class Carried(unittest.TestCase):
         path = Path(tempfile.mkdtemp()) / "output"
         path.write_text("")
         with mock.patch.dict(os.environ, {parameters.OUTPUT: str(path)}):
-            answered = plan.emit(plan.matrices({f"{family}-{name}": {"decision": "skip"} for family in plan.FAMILIES for name in ("linux", "windows", "macos")}), entries)
+            nothing = {f"{family}-{name}": {"decision": "skip"} for family in plan.FAMILIES + ("bind",) for name in ("linux", "windows", "macos")}
+            answered = plan.emit(plan.matrices(nothing), nothing | entries)
         self.assertEqual(answered["suite-node"], "skip")
         self.assertEqual(answered["cfworker"], "skip")
         self.assertIn("suite-node=skip", path.read_text())

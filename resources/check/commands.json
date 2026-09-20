@@ -4,6 +4,7 @@
   "prepared": [
     "git config --global core.autocrlf false",
     "npm install --global \"pnpm@$PNPM\"",
-    "printf '%s' \"$TOKEN\" | docker login ghcr.io --username \"$ACTOR\" --password-stdin\nprintf '%s' \"$TOKEN\" | helm registry login ghcr.io --username \"$ACTOR\" --password-stdin"
+    "printf '%s' \"$TOKEN\" | docker login ghcr.io --username \"$ACTOR\" --password-stdin\nprintf '%s' \"$TOKEN\" | helm registry login ghcr.io --username \"$ACTOR\" --password-stdin",
+    "curl -fsSLO https://github.com/indygreg/apple-platform-rs/releases/download/apple-codesign%2F0.29.0/apple-codesign-0.29.0-x86_64-unknown-linux-musl.tar.gz\necho \"dbe85cedd8ee4217b64e9a0e4c2aef92ab8bcaaa41f20bde99781ff02e600002  apple-codesign-0.29.0-x86_64-unknown-linux-musl.tar.gz\" | sha256sum -c -\ntar xzf apple-codesign-0.29.0-x86_64-unknown-linux-musl.tar.gz\nsudo install -m 0755 apple-codesign-0.29.0-x86_64-unknown-linux-musl/rcodesign /usr/local/bin/rcodesign"
   ]
 }

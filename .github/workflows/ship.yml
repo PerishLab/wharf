@@ -195,32 +195,25 @@ jobs:
 
   bind:
     needs: [plan, binary]
-    if: always() && needs.plan.result == 'success' && needs.plan.outputs.bind != '[]' && (needs.binary.result == 'success' || needs.binary.result == 'skipped')
-    strategy:
-      fail-fast: false
-      matrix:
-        include: ${{ fromJSON(needs.plan.outputs.bind) }}
-    name: bind ${{ matrix.name }}
-    runs-on: ${{ matrix.runner }}
-    defaults:
-      run:
-        shell: bash
-        working-directory: wharf
+    if: always() && needs.plan.result == 'success' && needs.plan.outputs.bind == 'run' && (needs.binary.result == 'success' || needs.binary.result == 'skipped')
+    runs-on: ubuntu-24.04
     steps:
-      - name: Keep checkouts byte-identical
-        if: runner.os == 'Windows'
-        working-directory: .
-        run: git config --global core.autocrlf false
-
       - name: Check out wharf
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
           path: wharf
           persist-credentials: false
 
+      - name: Prepare the pinned Mach-O signer
+        working-directory: .
+        run: |
+          curl -fsSLO https://github.com/indygreg/apple-platform-rs/releases/download/apple-codesign%2F0.29.0/apple-codesign-0.29.0-x86_64-unknown-linux-musl.tar.gz
+          echo "dbe85cedd8ee4217b64e9a0e4c2aef92ab8bcaaa41f20bde99781ff02e600002  apple-codesign-0.29.0-x86_64-unknown-linux-musl.tar.gz" | sha256sum -c -
+          tar xzf apple-codesign-0.29.0-x86_64-unknown-linux-musl.tar.gz
+          sudo install -m 0755 apple-codesign-0.29.0-x86_64-unknown-linux-musl/rcodesign /usr/local/bin/rcodesign
+
       - name: Bind and record the release identity
         env:
-          WHARF_TARGET: ${{ matrix.target }}
           WHARF_REPOSITORY: ${{ inputs.repository }}
           WHARF_MARKER: ${{ inputs.marker }}
           WHARF_WHARF: ${{ github.sha }}

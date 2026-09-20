@@ -79,10 +79,12 @@ passed down twice.
 
 The plan also tells the runner what to start: one matrix per target family and
 one decision per single job, written to the runner's output file. Skipping is
-absence from a matrix, not a condition on a job that exists. Whether a medium
-is already published stays with the step that can ask its registry, because
-asking needs that registry's credentials and one step holding all of them would
-be the widest credential in the run; the plan records what those steps report.
+absence from a matrix, not a condition on a job that exists. A single job that
+covers several targets takes them from the plan it already reads, and refuses
+when the plan decided none of them. Whether a medium is already published stays
+with the step that can ask its registry, because asking needs that registry's
+credentials and one step holding all of them would be the widest credential in
+the run; the plan records what those steps report.
 
 Every run attempt writes one trigger record at
 `trigger/<owner>/<repository>/<marker>/<run>-<attempt>.json`; a run is complete only
@@ -107,6 +109,17 @@ must reproduce byte for byte and every reader must test against.
   `{repository, marker, commit, tree}`; `workload` is the key of the unbound binary.
 - A product with prefix `P` builds with `P_BUILD_TARGET` and `P_BUILD_CHANNEL=unbound`;
   such an executable refuses to run commands until bound.
+- Binding reads and writes the region as file content and never executes the binary,
+  so one Linux job binds every target the plan decided to run. Smoke stays on the
+  target platform because it runs the bound binary. The binding basis names the
+  unbound binary and the release, never the runner, so where binding happens does
+  not change its workload key.
+- Editing a Mach-O invalidates its signature, and an arm64 image with no valid
+  signature does not run, so binding one signs it ad hoc afterwards. The signer is
+  a pinned `rcodesign`, which signs the same way on every platform; one signer is
+  what keeps a key's bytes reproducible, so nothing else may sign. Its own verify
+  reports itself as unreliable and is not used: what proves a signature is smoke,
+  which runs the bound binary on the platform it was built for.
 
 ## Depot
 

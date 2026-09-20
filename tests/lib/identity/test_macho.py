@@ -1,4 +1,5 @@
 import struct
+import sys
 import unittest
 from pathlib import Path
 from unittest import mock
@@ -49,12 +50,14 @@ class Finalize(unittest.TestCase):
     def test_leaves_other_targets_untouched(self):
         self.assertIsNone(signature.finalize(Path("/x/demo"), "x86_64-unknown-linux-gnu", runner=None))
 
-    def test_requires_the_native_runner(self):
-        with mock.patch.object(signature.sys, "platform", "linux"), self.assertRaisesRegex(Refusal, "native macOS"):
-            signature.finalize(Path("/x/demo"), TARGET)
-
-    def test_signs_ad_hoc_then_verifies(self):
+    def test_signs_ad_hoc_beside_the_executable(self):
         calls = []
-        with mock.patch.object(signature.sys, "platform", "darwin"):
-            self.assertEqual(signature.finalize(Path("/x/demo"), TARGET, lambda argv, cwd: calls.append(argv)), "adhoc")
-        self.assertEqual([argv[:2] for argv in calls], [["codesign", "--force"], ["codesign", "--verify"]])
+        self.assertEqual(signature.finalize(Path("/x/demo"), TARGET, lambda argv, cwd: calls.append((argv, cwd))), "adhoc")
+        self.assertEqual(calls, [(["rcodesign", "sign", "/x/demo"], Path("/x"))])
+
+    def test_the_signer_is_the_same_one_on_every_platform(self):
+        for platform in ("linux", "darwin", "win32"):
+            calls = []
+            with self.subTest(platform=platform), mock.patch.object(sys, "platform", platform):
+                signature.finalize(Path("/x/demo"), TARGET, lambda argv, cwd: calls.append(argv))
+            self.assertEqual(calls, [["rcodesign", "sign", "/x/demo"]])
