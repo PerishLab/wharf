@@ -154,18 +154,67 @@ class Binding(unittest.TestCase):
             self.run_bind()
 
 
+class Recording(unittest.TestCase):
+    def setUp(self):
+        self.bucket = Memory()
+        self.held = dict(CONTEXT, source="../product")
+
+    def keyed(self, held, modules):
+        return ship.workload.key(held, ship.implementation.resourced(*modules))
+
+    def seed(self, name, key):
+        plan.record(self.bucket, dict(CONTEXT, commit="a" * 40, tree="b" * 40), {name: {"key": key, "decision": "run"}}, {})
+
+    def acted(self, module, action):
+        def act(request):
+            Path(request.output).mkdir(parents=True)
+            Path(request.output).joinpath("receipt.json").write_text("{}")
+            return {"action": action}
+
+        return mock.patch.object(module, action, side_effect=act)
+
+    def record(self, handler, acting, resolving):
+        with mock.patch.object(ship.r2, "configured", return_value=self.bucket), self.acted(*acting), resolving:
+            return handler(self.held)
+
+    def test_the_workspace_suite_is_recorded_under_the_key_the_plan_holds(self):
+        held_basis = {"entry": {"kind": "cargo-suite"}}
+        key = self.keyed(held_basis, (["lib.cargo.basis", "lib.cargo.suite"], []))
+        self.seed("suite-linux", key)
+        resolving = mock.patch.object(ship.basis, "suite", return_value=held_basis)
+        self.assertEqual(self.record(ship.run_suite, (ship.suite, "suite"), resolving)["key"], key)
+
+    def test_the_node_suite_is_recorded_under_the_key_the_plan_holds(self):
+        held_basis = {"entry": {"kind": "node-suite"}}
+        key = self.keyed(held_basis, (["lib.media.node"], []))
+        self.seed("suite-node", key)
+        resolving = mock.patch.object(ship.node, "basis", return_value=held_basis)
+        self.assertEqual(self.record(ship.node_suite, (ship.node, "suite"), resolving)["key"], key)
+
+    def test_the_workers_are_recorded_under_the_key_the_plan_holds(self):
+        held_basis = {"entry": {"kind": "cfworker"}}
+        key = self.keyed(held_basis, (["lib.media.cfworker"], []))
+        self.seed("cfworker", key)
+        resolving = mock.patch.object(ship.cfworker, "basis", return_value=held_basis)
+        self.assertEqual(self.record(ship.cfworker_deploy, (ship.cfworker, "deploy"), resolving)["key"], key)
+
+    def test_a_suite_the_plan_decided_to_skip_stops_the_job(self):
+        plan.record(self.bucket, dict(CONTEXT, commit="a" * 40, tree="b" * 40), {"suite-linux": {"key": "d" * 64, "decision": "skip"}}, {})
+        resolving = mock.patch.object(ship.basis, "suite", return_value={})
+        with self.assertRaisesRegex(Refusal, "decided 'skip' for suite-linux"):
+            self.record(ship.run_suite, (ship.suite, "suite"), resolving)
+
+
 class Ship(unittest.TestCase):
     def test_refusal_exits_two(self):
-        argv = ["smoke", "--dir", "/nonexistent", "--name", "demo", "--target", "x86_64-unknown-linux-gnu", "--output", "/nonexistent/out", "--expect", "demo v1.0.0"]
+        argv = ["smoke", "--target", "x86_64-unknown-linux-gnu", "--repository", "PerishLab/plumb", "--marker", "v0.38.3", "--wharf", "c" * 40, "--run", "1", "--attempt", "1"]
         with redirect_stdout(io.StringIO()), redirect_stderr(io.StringIO()) as error:
             code = ship.main(argv)
         self.assertEqual(code, 2)
         self.assertIn("refused", error.getvalue())
 
-    def test_smoke_key_is_stable(self):
-        output = io.StringIO()
-        with redirect_stdout(output):
-            ship.main(["key-smoke", "--binary-key", "a" * 64, "--basis", "/dev/null"])
-            ship.main(["key-smoke", "--binary-key", "a" * 64, "--basis", "/dev/null"])
-        keys = [line for line in output.getvalue().splitlines() if '"key"' in line]
-        self.assertEqual(len(set(keys)), 1)
+    def test_the_key_a_plan_holds_is_the_one_a_job_resolves(self):
+        held = {"entry": {"kind": "binary-smoke", "binary": "a" * 64}}
+        modules = (["lib.identity.smoke"], [])
+        first = ship.workload.key(held, ship.implementation.resourced(*modules))
+        self.assertEqual(ship.resolved({"key": first, "decision": "run"}, held, modules), first)

@@ -1,5 +1,6 @@
 {
   "runner": "ubuntu-24.04",
+  "primary": "linux",
   "targets": [
     {"name": "linux", "target": "x86_64-unknown-linux-gnu", "runner": "ubuntu-24.04"},
     {"name": "windows", "target": "x86_64-pc-windows-msvc", "runner": "windows-2025"},

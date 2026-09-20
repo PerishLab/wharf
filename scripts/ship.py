@@ -4,7 +4,7 @@ import tempfile
 from pathlib import Path
 
 from lib import parameters
-from lib.content import canonical, implementation, resources
+from lib.content import implementation, resources
 from lib.cargo import basis, build, publish, suite, version
 from lib.identity import bind
 from lib.refusal import Refusal
@@ -16,41 +16,16 @@ from lib.store import workload
 RELEASE = ("repository", "marker", "commit", "tree")
 CONTEXT = ("repository", "marker", "wharf", "run", "attempt")
 BUILD = resources.read_json("build.json")
+RUNNER = BUILD["runner"]
 
 
 def release(held):
     return bind.Release(held["repository"], held["marker"], held["commit"], held["tree"])
 
 
-def validated(held):
-    return bind.Artifact(Path(held["dir"]), held["name"], held["target"])
-
-
-def keyed(basis_held, modules, path):
-    Path(path).write_bytes(canonical.encode(basis_held))
-    return {"key": workload.key(basis_held, implementation.resourced(*modules))}
-
-
-def key_binary(held):
-    return keyed(basis.resolve(held["source"], held["name"], held["target"], held["runner"]), (["lib.cargo.basis", "lib.cargo.build"], []), held["basis"])
-
-
-def key_suite(held):
-    return keyed(basis.suite(held["source"], held["runner"]), (["lib.cargo.basis", "lib.cargo.suite"], []), held["basis"])
-
-
-def key_bind(held):
-    identity = {field: held[field] for field in RELEASE}
-    return keyed({"entry": {"kind": "binary-identity", "binary": held["binary-key"]}, "identity": identity}, (["lib.identity.bind"], ["identity/format.json"]), held["basis"])
-
-
-def key_smoke(held):
-    return keyed({"entry": {"kind": "binary-smoke", "binary": held["binary-key"]}}, (["lib.identity.smoke"], []), held["basis"])
-
-
 def targeted(target):
     for known in BUILD["targets"]:
-        if known["target"] == target:
+        if target in (known["target"], known["name"]):
             return known
     raise Refusal(f"target {target} is not one this repository builds")
 
@@ -66,11 +41,14 @@ def carried(held):
     return {field: held[field] for field in CONTEXT}
 
 
-def opened(held, family):
+def opened(held, name):
     bucket = r2.configured()
-    target = targeted(held["target"])
     document = plan.read(bucket, carried(held))
-    return bucket, document, target, plan.planned(document, f"{family}-{target['name']}")
+    return bucket, document, plan.planned(document, name)
+
+
+def bound(bucket, document, name):
+    return staged(bucket, document["entries"][f"bind-{name}"]["key"])
 
 
 def place():
@@ -84,7 +62,8 @@ def staged(bucket, key):
 
 
 def run_binary(held):
-    bucket, document, target, entry = opened(held, "binary")
+    target = targeted(held["target"])
+    bucket, document, entry = opened(held, f"binary-{target['name']}")
     name = plan.product(document["context"])
     held_basis = basis.resolve(held["source"], name, target["target"], target["runner"])
     resolved(entry, held_basis, (["lib.cargo.basis", "lib.cargo.build"], []))
@@ -94,11 +73,17 @@ def run_binary(held):
 
 
 def run_suite(held):
-    return suite.suite(suite.Suite(Path(held["source"]), Path(held["output"])))
+    bucket, _, entry = opened(held, "suite-linux")
+    held_basis = basis.suite(held["source"], RUNNER)
+    resolved(entry, held_basis, (["lib.cargo.basis", "lib.cargo.suite"], []))
+    output = place()
+    suite.suite(suite.Suite(Path(held["source"]), output))
+    return workload.publish(bucket, entry["key"], workload.Produced(output, held_basis, carried(held)))
 
 
 def run_bind(held):
-    bucket, document, target, entry = opened(held, "bind")
+    target = targeted(held["target"])
+    bucket, document, entry = opened(held, f"bind-{target['name']}")
     binary = document["entries"][f"binary-{target['name']}"]["key"]
     identity = {field: document["context"][field] for field in RELEASE}
     held_basis = {"entry": {"kind": "binary-identity", "binary": binary}, "identity": identity}
@@ -110,11 +95,15 @@ def run_bind(held):
 
 
 def validate(held):
-    return configured(validated(held), held["repository"], held["marker"])
+    bucket, document, _ = opened(held, "release")
+    target = targeted(BUILD["primary"])
+    artifact = bind.Artifact(bound(bucket, document, target["name"]), plan.product(document["context"]), target["target"])
+    return configured(artifact, held["repository"], held["marker"])
 
 
 def run_smoke(held):
-    bucket, document, target, entry = opened(held, "smoke")
+    target = targeted(held["target"])
+    bucket, document, entry = opened(held, f"smoke-{target['name']}")
     bound = document["entries"][f"bind-{target['name']}"]["key"]
     held_basis = {"entry": {"kind": "binary-smoke", "binary": bound}}
     resolved(entry, held_basis, (["lib.identity.smoke"], []))
@@ -125,16 +114,17 @@ def run_smoke(held):
     return workload.publish(bucket, entry["key"], workload.Produced(output, held_basis, carried(held)))
 
 
-def key_node(held):
-    return keyed(node.basis(held["source"], held["runner"]), (["lib.media.node"], []), held["basis"])
-
-
 def node_engines(held):
     return node.declared(held["source"])
 
 
 def node_suite(held):
-    return node.suite(node.Suite(Path(held["source"]), Path(held["output"])))
+    bucket, _, entry = opened(held, "suite-node")
+    held_basis = node.basis(held["source"], RUNNER)
+    resolved(entry, held_basis, (["lib.media.node"], []))
+    output = place()
+    node.suite(node.Suite(Path(held["source"]), output))
+    return workload.publish(bucket, entry["key"], workload.Produced(output, held_basis, carried(held)))
 
 
 def npm_plan(held):
@@ -152,9 +142,11 @@ def oci_plan(held):
 
 
 def oci_publish(held):
-    named = bind.Artifact(Path(held["dir"]), held["repository"].split("/", 1)[1], held["target"])
+    bucket, document, _ = opened(held, "oci")
+    target = targeted(BUILD["primary"])
+    artifact = bind.Artifact(bound(bucket, document, target["name"]), plan.product(document["context"]), target["target"])
     image = oci.reference(held["repository"], version.marker(held["marker"]))
-    return oci.publish(oci.Image(Path(held["source"]), named.file, named.name, image))
+    return oci.publish(oci.Image(Path(held["source"]), artifact.file, artifact.name, image))
 
 
 def chart_plan(held):
@@ -170,29 +162,35 @@ def published_release(held):
     return releasing.Release(held["repository"], held["marker"], held["commit"], held["wharf"])
 
 
+def rendered(document, published, held, directory):
+    name = plan.product(document["context"])
+    binary = bind.Artifact(directory, name, targeted(BUILD["primary"])["target"]).file
+    managers = place()
+    releasing.render(published, binary, held["source"], str(managers))
+    return managers
+
+
 def release_plan(held):
     published = published_release(held)
     return {"channel": releasing.channel(published.marker), "published": releasing.published(published)}
 
 
-def release_managers(held):
-    published = published_release(held)
-    binary = bind.Artifact(Path(held["dir"]), held["name"], "x86_64-unknown-linux-gnu").file
-    return releasing.render(published, binary, held["source"], held["output"])
-
-
-def release_publish(held):
-    published = published_release(held)
-    bound = {"x86_64-unknown-linux-gnu": held["linux"], "x86_64-pc-windows-msvc": held["windows"], "aarch64-apple-darwin": held["macos"]}
-    return releasing.publish(published, releasing.Contents(bound, Path(held["managers"])), r2.writer(releasing.place(published)[1], "RELEASES"))
-
-
-def key_cfworker(held):
-    return keyed(cfworker.basis(held["source"], held["runner"]), (["lib.media.cfworker"], []), held["basis"])
+def run_release(held):
+    bucket, document, _ = opened(held, "release")
+    context = document["context"]
+    published = releasing.Release(context["repository"], context["marker"], context["commit"], held["wharf"])
+    directories = {target["target"]: bound(bucket, document, target["name"]) for target in BUILD["targets"]}
+    managers = rendered(document, published, held, directories[targeted(BUILD["primary"])["target"]])
+    return releasing.publish(published, releasing.Contents(directories, managers), r2.writer(releasing.place(published)[1], "RELEASES"))
 
 
 def cfworker_deploy(held):
-    return cfworker.deploy(cfworker.Deploy(Path(held["source"]), Path(held["output"])))
+    bucket, _, entry = opened(held, "cfworker")
+    held_basis = cfworker.basis(held["source"], RUNNER)
+    resolved(entry, held_basis, (["lib.media.cfworker"], []))
+    output = place()
+    cfworker.deploy(cfworker.Deploy(Path(held["source"]), output))
+    return workload.publish(bucket, entry["key"], workload.Produced(output, held_basis, carried(held)))
 
 
 def cargo_plan(held):
@@ -206,29 +204,22 @@ def cargo_publish(held):
 
 
 ACTIONS = {
-    "key-binary": (key_binary, ["source", "name", "target", "runner", "basis"]),
-    "key-suite": (key_suite, ["source", "runner", "basis"]),
-    "key-bind": (key_bind, ["binary-key", *RELEASE, "basis"]),
-    "key-smoke": (key_smoke, ["binary-key", "basis"]),
     "binary": (run_binary, ["source", "target", *CONTEXT]),
-    "suite": (run_suite, ["source", "output"]),
+    "suite": (run_suite, ["source", *CONTEXT]),
     "bind": (run_bind, ["target", *CONTEXT]),
     "smoke": (run_smoke, ["target", *CONTEXT]),
-    "validate": (validate, ["dir", "name", "target", "repository", "marker"]),
-    "key-node": (key_node, ["source", "runner", "basis"]),
+    "validate": (validate, [*CONTEXT]),
     "node-engines": (node_engines, ["source"]),
-    "node-suite": (node_suite, ["source", "output"]),
+    "node-suite": (node_suite, ["source", *CONTEXT]),
     "npm-plan": (npm_plan, ["source", "marker"]),
     "npm-publish": (npm_publish, ["source", "marker"]),
     "oci-plan": (oci_plan, ["repository", "marker"]),
-    "oci-publish": (oci_publish, ["source", "dir", "target", "repository", "marker"]),
+    "oci-publish": (oci_publish, ["source", *CONTEXT]),
     "chart-plan": (chart_plan, ["source", "repository", "marker"]),
     "chart-publish": (chart_publish, ["source", "repository", "marker"]),
     "release-plan": (release_plan, ["repository", "marker", "commit", "wharf"]),
-    "release-managers": (release_managers, ["repository", "marker", "commit", "wharf", "dir", "name", "source", "output"]),
-    "release-publish": (release_publish, ["repository", "marker", "commit", "wharf", "linux", "windows", "macos", "managers"]),
-    "key-cfworker": (key_cfworker, ["source", "runner", "basis"]),
-    "cfworker-deploy": (cfworker_deploy, ["source", "output"]),
+    "release": (run_release, ["source", *CONTEXT]),
+    "cfworker-deploy": (cfworker_deploy, ["source", *CONTEXT]),
     "cargo-plan": (cargo_plan, ["source", "marker"]),
     "cargo-publish": (cargo_publish, ["source", "marker"]),
 }

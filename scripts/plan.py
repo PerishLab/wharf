@@ -1,6 +1,7 @@
 import json
 import os
 import sys
+from pathlib import Path
 
 from lib import parameters
 from lib.cargo import basis
@@ -12,6 +13,7 @@ from lib.store import plan, r2, workload
 BUILD = resources.read_json("build.json")
 RUNNER = BUILD["runner"]
 FAMILIES = ("binary", "bind", "smoke")
+SINGLE = ("suite-linux", "suite-node", "cfworker")
 OUTPUT = "GITHUB_OUTPUT"
 REPORTED = ("key", "decision")
 MEDIA = ("npm", "oci", "chart", "cargo", "release")
@@ -60,24 +62,18 @@ def reported(text):
     return {name: {field: value for field, value in (step.get("outputs") or {}).items() if field in REPORTED} for name, step in held.items()}
 
 
-def settled(entries, observed):
-    drift = plan.agreed(entries, observed)
-    if drift:
-        raise Refusal("the recorded plan disagrees with the steps that produced it: " + "; ".join(drift))
-
-
 def matrices(entries):
     return {family: [target for target in BUILD["targets"] if entries[f"{family}-{target['name']}"]["decision"] == "run"] for family in FAMILIES}
 
 
-def emit(held):
+def emit(held, entries):
     path = os.environ.get(OUTPUT)
     if not path:
-        raise Refusal(f"{OUTPUT} is not set, so there is nowhere to tell the runner what to build")
-    with open(path, "a") as file:
-        for family, targets in sorted(held.items()):
-            file.write(f"{family}={json.dumps(targets, separators=(',', ':'))}\n")
-    return {family: [target["name"] for target in targets] for family, targets in held.items()}
+        raise Refusal(f"{OUTPUT} is not set, so there is nowhere to tell the runner what to do")
+    lines = [f"{family}={json.dumps(targets, separators=(',', ':'))}" for family, targets in sorted(held.items())]
+    lines += [f"{name}={entries[name]['decision']}" for name in SINGLE]
+    Path(path).write_text(Path(path).read_text() + "\n".join(lines) + "\n")
+    return dict({family: [target["name"] for target in targets] for family, targets in held.items()}, **{name: entries[name]["decision"] for name in SINGLE})
 
 
 def record(held):
@@ -87,9 +83,8 @@ def record(held):
     binaries(held, bucket, entries)
     suites(held, bucket, entries)
     media(observed, entries)
-    settled(entries, observed)
     recorded = plan.record(bucket, {field: held[field] for field in CONTEXT}, entries, node.declared(held["source"]))
-    return dict(recorded, matrices=emit(matrices(entries)))
+    return dict(recorded, decided=emit(matrices(entries), entries))
 
 
 ACTIONS = {"record": record}

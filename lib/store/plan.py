@@ -34,16 +34,6 @@ def document(context, entries, engines):
     return {"schema": SCHEMA, "context": context, "engines": engines, "entries": {name: entries[name] for name in sorted(entries)}}
 
 
-def agreed(entries, observed):
-    drift = []
-    for name, entry in sorted(entries.items()):
-        held = observed.get(name, {})
-        for field in sorted(entry):
-            if held.get(field) != entry[field]:
-                drift.append(f"{name}.{field}: planned {entry[field]!r}, step reported {held.get(field)!r}")
-    return drift
-
-
 def read(bucket, context):
     held = json.loads(bucket.get(location(context)))
     if held.get("schema") != SCHEMA:

@@ -37,6 +37,7 @@ class Taken(unittest.TestCase):
 class Matrices(unittest.TestCase):
     def entries(self, decisions):
         held = {f"{family}-{name}": {"decision": "run"} for family in plan.FAMILIES for name in ("linux", "windows", "macos")}
+        held.update({name: {"decision": "run"} for name in plan.SINGLE})
         return dict(held, **{name: {"decision": "skip"} for name in decisions})
 
     def test_only_what_the_plan_decided_to_run_reaches_the_matrix(self):
@@ -56,15 +57,18 @@ class Matrices(unittest.TestCase):
         path = Path(tempfile.mkdtemp()) / "output"
         path.write_text("")
         with mock.patch.dict(os.environ, {plan.OUTPUT: str(path)}):
-            named = plan.emit(plan.matrices(self.entries(["binary-macos"])))
+            entries = self.entries(["binary-macos", "cfworker"])
+            named = plan.emit(plan.matrices(entries), entries)
         self.assertEqual(named["binary"], ["linux", "windows"])
+        self.assertEqual(named["cfworker"], "skip")
         self.assertIn('bind=[{"name":"linux"', path.read_text())
-        self.assertEqual(len(path.read_text().splitlines()), 3)
+        self.assertIn("cfworker=skip", path.read_text())
+        self.assertEqual(len(path.read_text().splitlines()), len(plan.FAMILIES) + len(plan.SINGLE))
 
     def test_nowhere_to_write_the_matrices_refuses(self):
         with mock.patch.dict(os.environ, {}, clear=True):
             with self.assertRaisesRegex(Refusal, "GITHUB_OUTPUT is not set"):
-                plan.emit({})
+                plan.emit({}, {})
 
 
 class Reported(unittest.TestCase):
@@ -91,12 +95,3 @@ class Media(unittest.TestCase):
             plan.media(observed, {})
 
 
-class Settled(unittest.TestCase):
-    def test_agreement_passes_quietly(self):
-        plan.settled(PLANNED, plan.reported(STEPS))
-
-    def test_disagreement_names_the_entry_and_refuses(self):
-        drifted = dict(PLANNED, npm={"decision": "run"})
-        with self.assertRaises(Refusal) as held:
-            plan.settled(drifted, plan.reported(STEPS))
-        self.assertIn("npm.decision", str(held.exception))

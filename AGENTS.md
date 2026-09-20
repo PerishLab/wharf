@@ -64,7 +64,16 @@ pointer beside it. A job addresses its own run's plan from the context it
 already has, reads its entry there rather than deciding again, and refuses if
 the plan decided to skip it. It still resolves the basis it is about to record
 and refuses when that resolves to a key other than the planned one, because a
-workload record must hash to the key it is filed under.
+workload record must hash to the key it is filed under. A job that consumes
+another job's workload reads that key from the plan too, so a key is never
+passed down twice.
+
+The plan also tells the runner what to start: one matrix per target family and
+one decision per single job, written to the runner's output file. Skipping is
+absence from a matrix, not a condition on a job that exists. Whether a medium
+is already published stays with the step that can ask its registry, because
+asking needs that registry's credentials and one step holding all of them would
+be the widest credential in the run; the plan records what those steps report.
 
 Every run attempt writes one trigger record at
 `trigger/<owner>/<repository>/<marker>/<run>-<attempt>.json`; a run is complete only

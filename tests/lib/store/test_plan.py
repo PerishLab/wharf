@@ -82,13 +82,3 @@ class Record(unittest.TestCase):
         self.assertEqual(self.bucket.get(plan.standing(CONTEXT)), self.bucket.get(plan.location(later)))
 
 
-class Agreement(unittest.TestCase):
-    def test_a_step_that_reported_another_key_is_named(self):
-        observed = {"binary-linux": {"key": "e" * 64, "decision": "run"}, "npm": {"decision": "skip"}}
-        drift = plan.agreed(ENTRIES, observed)
-        self.assertEqual(len(drift), 1)
-        self.assertIn("binary-linux.key", drift[0])
-
-    def test_a_missing_step_is_drift_and_agreement_is_silent(self):
-        self.assertTrue(plan.agreed(ENTRIES, {"npm": {"decision": "skip"}}))
-        self.assertEqual(plan.agreed(ENTRIES, ENTRIES), [])

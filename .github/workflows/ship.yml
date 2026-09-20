@@ -39,28 +39,16 @@ jobs:
       smoke: ${{ steps.plan.outputs.smoke }}
       node: ${{ steps.engines.outputs.node }}
       pnpm: ${{ steps.engines.outputs.pnpm }}
-      suite-node-key: ${{ steps.suite-node.outputs.key }}
-      suite-node: ${{ steps.suite-node.outputs.decision }}
+      suite-linux: ${{ steps.plan.outputs.suite-linux }}
+      suite-node: ${{ steps.plan.outputs.suite-node }}
+      cfworker: ${{ steps.plan.outputs.cfworker }}
       npm: ${{ steps.npm.outputs.decision }}
       oci: ${{ steps.oci.outputs.decision }}
       chart: ${{ steps.chart.outputs.decision }}
       release: ${{ steps.release.outputs.decision }}
-      cfworker-key: ${{ steps.cfworker.outputs.key }}
-      cfworker: ${{ steps.cfworker.outputs.decision }}
+      cargo: ${{ steps.cargo.outputs.decision }}
       commit: ${{ steps.source.outputs.commit }}
       tree: ${{ steps.source.outputs.tree }}
-      binary-linux-key: ${{ steps.binary-linux.outputs.key }}
-      bind-linux-key: ${{ steps.bind-linux.outputs.key }}
-      smoke-linux-key: ${{ steps.smoke-linux.outputs.key }}
-      binary-windows-key: ${{ steps.binary-windows.outputs.key }}
-      bind-windows-key: ${{ steps.bind-windows.outputs.key }}
-      smoke-windows-key: ${{ steps.smoke-windows.outputs.key }}
-      binary-macos-key: ${{ steps.binary-macos.outputs.key }}
-      bind-macos-key: ${{ steps.bind-macos.outputs.key }}
-      smoke-macos-key: ${{ steps.smoke-macos.outputs.key }}
-      suite-linux-key: ${{ steps.suite-linux.outputs.key }}
-      suite-linux: ${{ steps.suite-linux.outputs.decision }}
-      cargo: ${{ steps.cargo.outputs.decision }}
     steps:
       - name: Refuse malformed request
         working-directory: .
@@ -91,167 +79,6 @@ jobs:
           echo "commit=$(git -C ../product rev-parse HEAD)" >> "$GITHUB_OUTPUT"
           echo "tree=$(git -C ../product rev-parse 'HEAD^{tree}')" >> "$GITHUB_OUTPUT"
 
-      - name: binary x86_64-unknown-linux-gnu
-        id: binary-linux
-        env:
-          REPOSITORY: ${{ inputs.repository }}
-          WHARF_R2_ACCESS_KEY_ID: ${{ secrets.WHARF_R2_ACCESS_KEY_ID }}
-          WHARF_R2_SECRET_ACCESS_KEY: ${{ secrets.WHARF_R2_SECRET_ACCESS_KEY }}
-        run: |
-          key=$(python3 -B -m scripts.ship key-binary --source ../product --name "${REPOSITORY#*/}" --target x86_64-unknown-linux-gnu --runner ubuntu-24.04 --basis ../binary-basis.json | python3 -c 'import json,sys; print(json.load(sys.stdin)["key"])')
-          reusable=$(python3 -B -m scripts.store reusable --key "$key" | python3 -c 'import json,sys; print(json.load(sys.stdin)["reusable"])')
-          decision=run
-          [ "$reusable" = True ] && decision=skip
-          echo "key=$key" >> "$GITHUB_OUTPUT"
-          echo "decision=$decision" >> "$GITHUB_OUTPUT"
-          echo "| binary x86_64-unknown-linux-gnu | \`$key\` | $decision |" >> "$GITHUB_STEP_SUMMARY"
-
-      - name: identity x86_64-unknown-linux-gnu
-        id: bind-linux
-        env:
-          BINARY: ${{ steps.binary-linux.outputs.key }}
-          REPOSITORY: ${{ inputs.repository }}
-          MARKER: ${{ inputs.marker }}
-          COMMIT: ${{ steps.source.outputs.commit }}
-          TREE: ${{ steps.source.outputs.tree }}
-          WHARF_R2_ACCESS_KEY_ID: ${{ secrets.WHARF_R2_ACCESS_KEY_ID }}
-          WHARF_R2_SECRET_ACCESS_KEY: ${{ secrets.WHARF_R2_SECRET_ACCESS_KEY }}
-        run: |
-          key=$(python3 -B -m scripts.ship key-bind --binary-key "$BINARY" --repository "$REPOSITORY" --marker "$MARKER" --commit "$COMMIT" --tree "$TREE" --basis ../bind-basis.json | python3 -c 'import json,sys; print(json.load(sys.stdin)["key"])')
-          reusable=$(python3 -B -m scripts.store reusable --key "$key" | python3 -c 'import json,sys; print(json.load(sys.stdin)["reusable"])')
-          decision=run
-          [ "$reusable" = True ] && decision=skip
-          echo "key=$key" >> "$GITHUB_OUTPUT"
-          echo "decision=$decision" >> "$GITHUB_OUTPUT"
-          echo "| identity x86_64-unknown-linux-gnu | \`$key\` | $decision |" >> "$GITHUB_STEP_SUMMARY"
-
-      - name: smoke x86_64-unknown-linux-gnu
-        id: smoke-linux
-        env:
-          BOUND: ${{ steps.bind-linux.outputs.key }}
-          WHARF_R2_ACCESS_KEY_ID: ${{ secrets.WHARF_R2_ACCESS_KEY_ID }}
-          WHARF_R2_SECRET_ACCESS_KEY: ${{ secrets.WHARF_R2_SECRET_ACCESS_KEY }}
-        run: |
-          key=$(python3 -B -m scripts.ship key-smoke --binary-key "$BOUND" --basis ../smoke-basis.json | python3 -c 'import json,sys; print(json.load(sys.stdin)["key"])')
-          reusable=$(python3 -B -m scripts.store reusable --key "$key" | python3 -c 'import json,sys; print(json.load(sys.stdin)["reusable"])')
-          decision=run
-          [ "$reusable" = True ] && decision=skip
-          echo "key=$key" >> "$GITHUB_OUTPUT"
-          echo "decision=$decision" >> "$GITHUB_OUTPUT"
-          echo "| smoke x86_64-unknown-linux-gnu | \`$key\` | $decision |" >> "$GITHUB_STEP_SUMMARY"
-
-      - name: binary x86_64-pc-windows-msvc
-        id: binary-windows
-        env:
-          REPOSITORY: ${{ inputs.repository }}
-          WHARF_R2_ACCESS_KEY_ID: ${{ secrets.WHARF_R2_ACCESS_KEY_ID }}
-          WHARF_R2_SECRET_ACCESS_KEY: ${{ secrets.WHARF_R2_SECRET_ACCESS_KEY }}
-        run: |
-          key=$(python3 -B -m scripts.ship key-binary --source ../product --name "${REPOSITORY#*/}" --target x86_64-pc-windows-msvc --runner windows-2025 --basis ../binary-windows-basis.json | python3 -c 'import json,sys; print(json.load(sys.stdin)["key"])')
-          reusable=$(python3 -B -m scripts.store reusable --key "$key" | python3 -c 'import json,sys; print(json.load(sys.stdin)["reusable"])')
-          decision=run
-          [ "$reusable" = True ] && decision=skip
-          echo "key=$key" >> "$GITHUB_OUTPUT"
-          echo "decision=$decision" >> "$GITHUB_OUTPUT"
-          echo "| binary x86_64-pc-windows-msvc | \`$key\` | $decision |" >> "$GITHUB_STEP_SUMMARY"
-
-      - name: identity x86_64-pc-windows-msvc
-        id: bind-windows
-        env:
-          BINARY: ${{ steps.binary-windows.outputs.key }}
-          REPOSITORY: ${{ inputs.repository }}
-          MARKER: ${{ inputs.marker }}
-          COMMIT: ${{ steps.source.outputs.commit }}
-          TREE: ${{ steps.source.outputs.tree }}
-          WHARF_R2_ACCESS_KEY_ID: ${{ secrets.WHARF_R2_ACCESS_KEY_ID }}
-          WHARF_R2_SECRET_ACCESS_KEY: ${{ secrets.WHARF_R2_SECRET_ACCESS_KEY }}
-        run: |
-          key=$(python3 -B -m scripts.ship key-bind --binary-key "$BINARY" --repository "$REPOSITORY" --marker "$MARKER" --commit "$COMMIT" --tree "$TREE" --basis ../bind-windows-basis.json | python3 -c 'import json,sys; print(json.load(sys.stdin)["key"])')
-          reusable=$(python3 -B -m scripts.store reusable --key "$key" | python3 -c 'import json,sys; print(json.load(sys.stdin)["reusable"])')
-          decision=run
-          [ "$reusable" = True ] && decision=skip
-          echo "key=$key" >> "$GITHUB_OUTPUT"
-          echo "decision=$decision" >> "$GITHUB_OUTPUT"
-          echo "| identity x86_64-pc-windows-msvc | \`$key\` | $decision |" >> "$GITHUB_STEP_SUMMARY"
-
-      - name: smoke x86_64-pc-windows-msvc
-        id: smoke-windows
-        env:
-          BOUND: ${{ steps.bind-windows.outputs.key }}
-          WHARF_R2_ACCESS_KEY_ID: ${{ secrets.WHARF_R2_ACCESS_KEY_ID }}
-          WHARF_R2_SECRET_ACCESS_KEY: ${{ secrets.WHARF_R2_SECRET_ACCESS_KEY }}
-        run: |
-          key=$(python3 -B -m scripts.ship key-smoke --binary-key "$BOUND" --basis ../smoke-windows-basis.json | python3 -c 'import json,sys; print(json.load(sys.stdin)["key"])')
-          reusable=$(python3 -B -m scripts.store reusable --key "$key" | python3 -c 'import json,sys; print(json.load(sys.stdin)["reusable"])')
-          decision=run
-          [ "$reusable" = True ] && decision=skip
-          echo "key=$key" >> "$GITHUB_OUTPUT"
-          echo "decision=$decision" >> "$GITHUB_OUTPUT"
-          echo "| smoke x86_64-pc-windows-msvc | \`$key\` | $decision |" >> "$GITHUB_STEP_SUMMARY"
-
-      - name: binary aarch64-apple-darwin
-        id: binary-macos
-        env:
-          REPOSITORY: ${{ inputs.repository }}
-          WHARF_R2_ACCESS_KEY_ID: ${{ secrets.WHARF_R2_ACCESS_KEY_ID }}
-          WHARF_R2_SECRET_ACCESS_KEY: ${{ secrets.WHARF_R2_SECRET_ACCESS_KEY }}
-        run: |
-          key=$(python3 -B -m scripts.ship key-binary --source ../product --name "${REPOSITORY#*/}" --target aarch64-apple-darwin --runner macos-15 --basis ../binary-macos-basis.json | python3 -c 'import json,sys; print(json.load(sys.stdin)["key"])')
-          reusable=$(python3 -B -m scripts.store reusable --key "$key" | python3 -c 'import json,sys; print(json.load(sys.stdin)["reusable"])')
-          decision=run
-          [ "$reusable" = True ] && decision=skip
-          echo "key=$key" >> "$GITHUB_OUTPUT"
-          echo "decision=$decision" >> "$GITHUB_OUTPUT"
-          echo "| binary aarch64-apple-darwin | \`$key\` | $decision |" >> "$GITHUB_STEP_SUMMARY"
-
-      - name: identity aarch64-apple-darwin
-        id: bind-macos
-        env:
-          BINARY: ${{ steps.binary-macos.outputs.key }}
-          REPOSITORY: ${{ inputs.repository }}
-          MARKER: ${{ inputs.marker }}
-          COMMIT: ${{ steps.source.outputs.commit }}
-          TREE: ${{ steps.source.outputs.tree }}
-          WHARF_R2_ACCESS_KEY_ID: ${{ secrets.WHARF_R2_ACCESS_KEY_ID }}
-          WHARF_R2_SECRET_ACCESS_KEY: ${{ secrets.WHARF_R2_SECRET_ACCESS_KEY }}
-        run: |
-          key=$(python3 -B -m scripts.ship key-bind --binary-key "$BINARY" --repository "$REPOSITORY" --marker "$MARKER" --commit "$COMMIT" --tree "$TREE" --basis ../bind-macos-basis.json | python3 -c 'import json,sys; print(json.load(sys.stdin)["key"])')
-          reusable=$(python3 -B -m scripts.store reusable --key "$key" | python3 -c 'import json,sys; print(json.load(sys.stdin)["reusable"])')
-          decision=run
-          [ "$reusable" = True ] && decision=skip
-          echo "key=$key" >> "$GITHUB_OUTPUT"
-          echo "decision=$decision" >> "$GITHUB_OUTPUT"
-          echo "| identity aarch64-apple-darwin | \`$key\` | $decision |" >> "$GITHUB_STEP_SUMMARY"
-
-      - name: smoke aarch64-apple-darwin
-        id: smoke-macos
-        env:
-          BOUND: ${{ steps.bind-macos.outputs.key }}
-          WHARF_R2_ACCESS_KEY_ID: ${{ secrets.WHARF_R2_ACCESS_KEY_ID }}
-          WHARF_R2_SECRET_ACCESS_KEY: ${{ secrets.WHARF_R2_SECRET_ACCESS_KEY }}
-        run: |
-          key=$(python3 -B -m scripts.ship key-smoke --binary-key "$BOUND" --basis ../smoke-macos-basis.json | python3 -c 'import json,sys; print(json.load(sys.stdin)["key"])')
-          reusable=$(python3 -B -m scripts.store reusable --key "$key" | python3 -c 'import json,sys; print(json.load(sys.stdin)["reusable"])')
-          decision=run
-          [ "$reusable" = True ] && decision=skip
-          echo "key=$key" >> "$GITHUB_OUTPUT"
-          echo "decision=$decision" >> "$GITHUB_OUTPUT"
-          echo "| smoke aarch64-apple-darwin | \`$key\` | $decision |" >> "$GITHUB_STEP_SUMMARY"
-
-      - name: suite x86_64-unknown-linux-gnu
-        id: suite-linux
-        env:
-          WHARF_R2_ACCESS_KEY_ID: ${{ secrets.WHARF_R2_ACCESS_KEY_ID }}
-          WHARF_R2_SECRET_ACCESS_KEY: ${{ secrets.WHARF_R2_SECRET_ACCESS_KEY }}
-        run: |
-          key=$(python3 -B -m scripts.ship key-suite --source ../product --runner ubuntu-24.04 --basis ../suite-basis.json | python3 -c 'import json,sys; print(json.load(sys.stdin)["key"])')
-          reusable=$(python3 -B -m scripts.store reusable --key "$key" | python3 -c 'import json,sys; print(json.load(sys.stdin)["reusable"])')
-          decision=run
-          [ "$reusable" = True ] && decision=skip
-          echo "key=$key" >> "$GITHUB_OUTPUT"
-          echo "decision=$decision" >> "$GITHUB_OUTPUT"
-          echo "| suite x86_64-unknown-linux-gnu | \`$key\` | $decision |" >> "$GITHUB_STEP_SUMMARY"
-
       - name: Sign in to the package registry
         working-directory: .
         env:
@@ -267,20 +94,6 @@ jobs:
           python3 -B -m scripts.ship node-engines --source ../product > ../engines.json
           echo "node=$(python3 -c 'import json; print(json.load(open("../engines.json"))["node"])')" >> "$GITHUB_OUTPUT"
           echo "pnpm=$(python3 -c 'import json; print(json.load(open("../engines.json"))["pnpm"])')" >> "$GITHUB_OUTPUT"
-
-      - name: suite node
-        id: suite-node
-        env:
-          WHARF_R2_ACCESS_KEY_ID: ${{ secrets.WHARF_R2_ACCESS_KEY_ID }}
-          WHARF_R2_SECRET_ACCESS_KEY: ${{ secrets.WHARF_R2_SECRET_ACCESS_KEY }}
-        run: |
-          key=$(python3 -B -m scripts.ship key-node --source ../product --runner ubuntu-24.04 --basis ../node-basis.json | python3 -c 'import json,sys; print(json.load(sys.stdin)["key"])')
-          reusable=$(python3 -B -m scripts.store reusable --key "$key" | python3 -c 'import json,sys; print(json.load(sys.stdin)["reusable"])')
-          decision=run
-          [ "$reusable" = True ] && decision=skip
-          echo "key=$key" >> "$GITHUB_OUTPUT"
-          echo "decision=$decision" >> "$GITHUB_OUTPUT"
-          echo "| suite node | \`$key\` | $decision |" >> "$GITHUB_STEP_SUMMARY"
 
       - name: npm packages
         id: npm
@@ -331,20 +144,6 @@ jobs:
           [ "$published" = True ] && decision=skip
           echo "decision=$decision" >> "$GITHUB_OUTPUT"
           echo "| binary release | $MARKER | $decision |" >> "$GITHUB_STEP_SUMMARY"
-
-      - name: cfworker
-        id: cfworker
-        env:
-          WHARF_R2_ACCESS_KEY_ID: ${{ secrets.WHARF_R2_ACCESS_KEY_ID }}
-          WHARF_R2_SECRET_ACCESS_KEY: ${{ secrets.WHARF_R2_SECRET_ACCESS_KEY }}
-        run: |
-          key=$(python3 -B -m scripts.ship key-cfworker --source ../product --runner ubuntu-24.04 --basis ../cfworker-basis.json | python3 -c 'import json,sys; print(json.load(sys.stdin)["key"])')
-          reusable=$(python3 -B -m scripts.store reusable --key "$key" | python3 -c 'import json,sys; print(json.load(sys.stdin)["reusable"])')
-          decision=run
-          [ "$reusable" = True ] && decision=skip
-          echo "key=$key" >> "$GITHUB_OUTPUT"
-          echo "decision=$decision" >> "$GITHUB_OUTPUT"
-          echo "| cfworker | \`$key\` | $decision |" >> "$GITHUB_STEP_SUMMARY"
 
       - name: cargo packages
         id: cargo
@@ -516,20 +315,15 @@ jobs:
 
       - name: Test and record the workspace
         env:
-          REPOSITORY: ${{ inputs.repository }}
-          MARKER: ${{ inputs.marker }}
-          KEY: ${{ needs.plan.outputs.suite-linux-key }}
-          WHARF: ${{ github.sha }}
-          RUN: ${{ github.run_id }}
-          ATTEMPT: ${{ github.run_attempt }}
+          WHARF_SOURCE: ../product
+          WHARF_REPOSITORY: ${{ inputs.repository }}
+          WHARF_MARKER: ${{ inputs.marker }}
+          WHARF_WHARF: ${{ github.sha }}
+          WHARF_RUN: ${{ github.run_id }}
+          WHARF_ATTEMPT: ${{ github.run_attempt }}
           WHARF_R2_ACCESS_KEY_ID: ${{ secrets.WHARF_R2_ACCESS_KEY_ID }}
           WHARF_R2_SECRET_ACCESS_KEY: ${{ secrets.WHARF_R2_SECRET_ACCESS_KEY }}
-        run: |
-          key=$(python3 -B -m scripts.ship key-suite --source ../product --runner ubuntu-24.04 --basis ../basis.json | python3 -c 'import json,sys; print(json.load(sys.stdin)["key"])')
-          [ "$key" = "$KEY" ] || { echo "resolved key $key differs from planned $KEY"; exit 2; }
-          python3 -B -m scripts.ship suite --source ../product --output ../suite
-          python3 -c 'import json,os; json.dump({f: os.environ[e] for f, e in {"repository": "REPOSITORY", "marker": "MARKER", "wharf": "WHARF", "run": "RUN", "attempt": "ATTEMPT"}.items()}, open("../context.json", "w"))'
-          python3 -B -m scripts.store publish --key "$KEY" --dir ../suite --basis ../basis.json --context ../context.json
+        run: python3 -B -m scripts.ship suite
 
   suite-node:
     needs: plan
@@ -563,20 +357,15 @@ jobs:
 
       - name: Test and record the pnpm workspace
         env:
-          REPOSITORY: ${{ inputs.repository }}
-          MARKER: ${{ inputs.marker }}
-          KEY: ${{ needs.plan.outputs.suite-node-key }}
-          WHARF: ${{ github.sha }}
-          RUN: ${{ github.run_id }}
-          ATTEMPT: ${{ github.run_attempt }}
+          WHARF_SOURCE: ../product
+          WHARF_REPOSITORY: ${{ inputs.repository }}
+          WHARF_MARKER: ${{ inputs.marker }}
+          WHARF_WHARF: ${{ github.sha }}
+          WHARF_RUN: ${{ github.run_id }}
+          WHARF_ATTEMPT: ${{ github.run_attempt }}
           WHARF_R2_ACCESS_KEY_ID: ${{ secrets.WHARF_R2_ACCESS_KEY_ID }}
           WHARF_R2_SECRET_ACCESS_KEY: ${{ secrets.WHARF_R2_SECRET_ACCESS_KEY }}
-        run: |
-          key=$(python3 -B -m scripts.ship key-node --source ../product --runner ubuntu-24.04 --basis ../basis.json | python3 -c 'import json,sys; print(json.load(sys.stdin)["key"])')
-          [ "$key" = "$KEY" ] || { echo "resolved key $key differs from planned $KEY"; exit 2; }
-          python3 -B -m scripts.ship node-suite --source ../product --output ../suite
-          python3 -c 'import json,os; json.dump({f: os.environ[e] for f, e in {"repository": "REPOSITORY", "marker": "MARKER", "wharf": "WHARF", "run": "RUN", "attempt": "ATTEMPT"}.items()}, open("../context.json", "w"))'
-          python3 -B -m scripts.store publish --key "$KEY" --dir ../suite --basis ../basis.json --context ../context.json
+        run: python3 -B -m scripts.ship node-suite
 
   npm:
     needs: [plan, suite-linux, suite-node]
@@ -612,9 +401,10 @@ jobs:
 
       - name: Publish npm packages
         env:
-          MARKER: ${{ inputs.marker }}
+          WHARF_SOURCE: ../product
+          WHARF_MARKER: ${{ inputs.marker }}
           NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: python3 -B -m scripts.ship npm-publish --source ../product --marker "$MARKER"
+        run: python3 -B -m scripts.ship npm-publish
 
   oci:
     needs: [plan, bind, smoke, suite-linux, suite-node]
@@ -649,14 +439,15 @@ jobs:
 
       - name: Publish the image of the bound binary
         env:
-          REPOSITORY: ${{ inputs.repository }}
-          MARKER: ${{ inputs.marker }}
-          BOUND: ${{ needs.plan.outputs.bind-linux-key }}
+          WHARF_SOURCE: ../product
+          WHARF_REPOSITORY: ${{ inputs.repository }}
+          WHARF_MARKER: ${{ inputs.marker }}
+          WHARF_WHARF: ${{ github.sha }}
+          WHARF_RUN: ${{ github.run_id }}
+          WHARF_ATTEMPT: ${{ github.run_attempt }}
           WHARF_R2_ACCESS_KEY_ID: ${{ secrets.WHARF_R2_ACCESS_KEY_ID }}
           WHARF_R2_SECRET_ACCESS_KEY: ${{ secrets.WHARF_R2_SECRET_ACCESS_KEY }}
-        run: |
-          python3 -B -m scripts.store fetch --key "$BOUND" --dir ../bound
-          python3 -B -m scripts.ship oci-publish --source ../product --dir ../bound --target x86_64-unknown-linux-gnu --repository "$REPOSITORY" --marker "$MARKER"
+        run: python3 -B -m scripts.ship oci-publish
 
   chart:
     needs: [plan, suite-linux, suite-node]
@@ -691,9 +482,10 @@ jobs:
 
       - name: Publish charts
         env:
-          REPOSITORY: ${{ inputs.repository }}
-          MARKER: ${{ inputs.marker }}
-        run: python3 -B -m scripts.ship chart-publish --source ../product --repository "$REPOSITORY" --marker "$MARKER"
+          WHARF_SOURCE: ../product
+          WHARF_REPOSITORY: ${{ inputs.repository }}
+          WHARF_MARKER: ${{ inputs.marker }}
+        run: python3 -B -m scripts.ship chart-publish
 
   depot:
     strategy:
@@ -719,14 +511,14 @@ jobs:
 
       - name: Load the release configuration with its own binary
         env:
-          REPOSITORY: ${{ inputs.repository }}
-          MARKER: ${{ inputs.marker }}
-          BOUND: ${{ needs.plan.outputs.bind-linux-key }}
+          WHARF_REPOSITORY: ${{ inputs.repository }}
+          WHARF_MARKER: ${{ inputs.marker }}
+          WHARF_WHARF: ${{ github.sha }}
+          WHARF_RUN: ${{ github.run_id }}
+          WHARF_ATTEMPT: ${{ github.run_attempt }}
           WHARF_R2_ACCESS_KEY_ID: ${{ secrets.WHARF_R2_ACCESS_KEY_ID }}
           WHARF_R2_SECRET_ACCESS_KEY: ${{ secrets.WHARF_R2_SECRET_ACCESS_KEY }}
-        run: |
-          python3 -B -m scripts.store fetch --key "$BOUND" --dir ../bound
-          python3 -B -m scripts.ship validate --dir ../bound --name "${REPOSITORY#*/}" --target x86_64-unknown-linux-gnu --repository "$REPOSITORY" --marker "$MARKER"
+        run: python3 -B -m scripts.ship validate
 
   release:
     needs: [plan, smoke, suite-linux, suite-node, depot, validate]
@@ -749,23 +541,17 @@ jobs:
 
       - name: Publish the bound binaries and their manager scripts
         env:
-          REPOSITORY: ${{ inputs.repository }}
-          MARKER: ${{ inputs.marker }}
-          COMMIT: ${{ needs.plan.outputs.commit }}
-          WHARF: ${{ github.sha }}
-          LINUX: ${{ needs.plan.outputs.bind-linux-key }}
-          WINDOWS: ${{ needs.plan.outputs.bind-windows-key }}
-          MACOS: ${{ needs.plan.outputs.bind-macos-key }}
-          WHARF_R2_ACCESS_KEY_ID: ${{ secrets.WHARF_R2_ACCESS_KEY_ID }}
-          WHARF_R2_SECRET_ACCESS_KEY: ${{ secrets.WHARF_R2_SECRET_ACCESS_KEY }}
+          WHARF_SOURCE: ../product
           WHARF_RELEASES_ACCESS_KEY_ID: ${{ secrets.WHARF_RELEASES_ACCESS_KEY_ID }}
           WHARF_RELEASES_SECRET_ACCESS_KEY: ${{ secrets.WHARF_RELEASES_SECRET_ACCESS_KEY }}
-        run: |
-          python3 -B -m scripts.store fetch --key "$LINUX" --dir ../linux
-          python3 -B -m scripts.store fetch --key "$WINDOWS" --dir ../windows
-          python3 -B -m scripts.store fetch --key "$MACOS" --dir ../macos
-          python3 -B -m scripts.ship release-managers --repository "$REPOSITORY" --marker "$MARKER" --commit "$COMMIT" --wharf "$WHARF" --dir ../linux --name "${REPOSITORY#*/}" --source ../product --output ../managers
-          python3 -B -m scripts.ship release-publish --repository "$REPOSITORY" --marker "$MARKER" --commit "$COMMIT" --wharf "$WHARF" --linux ../linux --windows ../windows --macos ../macos --managers ../managers
+          WHARF_REPOSITORY: ${{ inputs.repository }}
+          WHARF_MARKER: ${{ inputs.marker }}
+          WHARF_WHARF: ${{ github.sha }}
+          WHARF_RUN: ${{ github.run_id }}
+          WHARF_ATTEMPT: ${{ github.run_attempt }}
+          WHARF_R2_ACCESS_KEY_ID: ${{ secrets.WHARF_R2_ACCESS_KEY_ID }}
+          WHARF_R2_SECRET_ACCESS_KEY: ${{ secrets.WHARF_R2_SECRET_ACCESS_KEY }}
+        run: python3 -B -m scripts.ship release
 
   cfworker:
     needs: [plan, suite-linux, suite-node]
@@ -798,21 +584,16 @@ jobs:
 
       - name: Deploy and record the workers
         env:
-          REPOSITORY: ${{ inputs.repository }}
-          MARKER: ${{ inputs.marker }}
-          KEY: ${{ needs.plan.outputs.cfworker-key }}
-          WHARF: ${{ github.sha }}
-          RUN: ${{ github.run_id }}
-          ATTEMPT: ${{ github.run_attempt }}
+          WHARF_SOURCE: ../product
+          WHARF_REPOSITORY: ${{ inputs.repository }}
+          WHARF_MARKER: ${{ inputs.marker }}
+          WHARF_WHARF: ${{ github.sha }}
+          WHARF_RUN: ${{ github.run_id }}
+          WHARF_ATTEMPT: ${{ github.run_attempt }}
           CLOUDFLARE_API_TOKEN: ${{ secrets.WHARF_CLOUDFLARE_TOKEN }}
           WHARF_R2_ACCESS_KEY_ID: ${{ secrets.WHARF_R2_ACCESS_KEY_ID }}
           WHARF_R2_SECRET_ACCESS_KEY: ${{ secrets.WHARF_R2_SECRET_ACCESS_KEY }}
-        run: |
-          key=$(python3 -B -m scripts.ship key-cfworker --source ../product --runner ubuntu-24.04 --basis ../basis.json | python3 -c 'import json,sys; print(json.load(sys.stdin)["key"])')
-          [ "$key" = "$KEY" ] || { echo "resolved key $key differs from planned $KEY"; exit 2; }
-          python3 -B -m scripts.ship cfworker-deploy --source ../product --output ../deployed
-          python3 -c 'import json,os; json.dump({f: os.environ[e] for f, e in {"repository": "REPOSITORY", "marker": "MARKER", "wharf": "WHARF", "run": "RUN", "attempt": "ATTEMPT"}.items()}, open("../context.json", "w"))'
-          python3 -B -m scripts.store publish --key "$KEY" --dir ../deployed --basis ../basis.json --context ../context.json
+        run: python3 -B -m scripts.ship cfworker-deploy
 
   cargo:
     needs: [plan, binary, suite-linux, suite-node]
@@ -835,9 +616,10 @@ jobs:
 
       - name: Publish cargo packages
         env:
-          MARKER: ${{ inputs.marker }}
+          WHARF_SOURCE: ../product
+          WHARF_MARKER: ${{ inputs.marker }}
           WHARF_CARGO_TOKEN: ${{ secrets.WHARF_CARGO_TOKEN }}
-        run: python3 -B -m scripts.ship cargo-publish --source ../product --marker "$MARKER"
+        run: python3 -B -m scripts.ship cargo-publish
 
   complete:
     needs: [plan, binary, bind, smoke, suite-linux, suite-node, npm, oci, chart, depot, validate, release, cfworker, cargo]
