@@ -4,8 +4,8 @@ import os
 import sys
 
 from lib import implementation
-from lib.cargo import basis, publish, version
-from lib.media import cfworker, chart, node, npm, oci, release as releasing
+from lib.cargo import basis
+from lib.media import cfworker, node
 from lib.refusal import Refusal
 from lib.store import plan, r2, workload
 
@@ -16,6 +16,7 @@ TARGETS = (
 )
 RUNNER = "ubuntu-24.04"
 REPORTED = ("key", "decision")
+MEDIA = ("npm", "oci", "chart", "cargo", "release")
 
 
 def decided(bucket, held, modules):
@@ -47,14 +48,12 @@ def suites(args, bucket, entries):
     entries["cfworker"] = decided(bucket, cfworker.basis(args.source, RUNNER), (["lib.media.cfworker"], []))
 
 
-def media(args, entries):
-    held = version.marker(args.marker)
-    owner = args.repository.split("/", 1)[0]
-    entries["npm"] = carried(all(item["published"] for item in npm.pending(args.source, held)))
-    entries["oci"] = carried(oci.exists(oci.reference(args.repository, held)))
-    entries["chart"] = carried(all(item["published"] for item in chart.pending(args.source, owner, held)))
-    entries["cargo"] = carried(all(item["published"] for item in publish.pending(args.source, held)))
-    entries["release"] = carried(releasing.published(releasing.Release(args.repository, args.marker, args.commit, args.wharf)))
+def media(observed, entries):
+    for name in MEDIA:
+        decision = observed.get(name, {}).get("decision")
+        if decision not in ("run", "skip"):
+            raise Refusal(f"step {name} reported no decision for this plan to record")
+        entries[name] = {"decision": decision}
 
 
 def reported(text):
@@ -71,15 +70,13 @@ def settled(entries, observed):
 def record(args):
     bucket = r2.configured()
     entries = {}
+    observed = reported(os.environ.get(args.steps, ""))
     binaries(args, bucket, entries)
     suites(args, bucket, entries)
-    media(args, entries)
-    observed = reported(os.environ.get(args.steps, ""))
-    if observed:
-        settled(entries, observed)
+    media(observed, entries)
+    settled(entries, observed)
     context = {field: getattr(args, field) for field in ("repository", "marker", "commit", "tree", "wharf", "run", "attempt")}
-    held = plan.record(bucket, context, entries, node.declared(args.source))
-    return dict(held, agreed=bool(observed))
+    return plan.record(bucket, context, entries, node.declared(args.source))
 
 
 def parser():

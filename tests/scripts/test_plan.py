@@ -23,6 +23,20 @@ class Reported(unittest.TestCase):
         self.assertEqual(plan.reported(""), {})
 
 
+class Media(unittest.TestCase):
+    def test_a_credentialed_check_is_recorded_as_its_step_reported_it(self):
+        entries = {}
+        observed = {name: {"decision": "skip"} for name in plan.MEDIA}
+        plan.media(observed, entries)
+        self.assertEqual(sorted(entries), sorted(plan.MEDIA))
+        self.assertEqual(entries["npm"], {"decision": "skip"})
+
+    def test_a_step_that_reported_nothing_refuses_the_record(self):
+        observed = {name: {"decision": "run"} for name in plan.MEDIA if name != "oci"}
+        with self.assertRaisesRegex(Refusal, "oci"):
+            plan.media(observed, {})
+
+
 class Settled(unittest.TestCase):
     def test_agreement_passes_quietly(self):
         plan.settled(PLANNED, plan.reported(STEPS))
