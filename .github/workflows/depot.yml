@@ -79,5 +79,6 @@ jobs:
           WHARF_DEPOT_ACCESS_KEY_ID: ${{ secrets.WHARF_DEPOT_ACCESS_KEY_ID }}
           WHARF_DEPOT_SECRET_ACCESS_KEY: ${{ secrets.WHARF_DEPOT_SECRET_ACCESS_KEY }}
         run: |
+          set -o pipefail
           python3 -B -m scripts.depot patch --repository "$REPOSITORY" --marker "$MARKER" --kind "$KIND" --source ../product | tee ../depot.json
           echo "| $KIND | $MARKER | $(python3 -c 'import json; d=json.load(open("../depot.json")); print(d["state"], d["generation"][:12])') |" >> "$GITHUB_STEP_SUMMARY"
