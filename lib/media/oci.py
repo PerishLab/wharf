@@ -31,8 +31,12 @@ def exists(image, runner=subprocess.run):
     return runner(["docker", "manifest", "inspect", image], capture_output=True).returncode == 0
 
 
+def carried(source):
+    return git(source, "ls-tree", "--name-only", "HEAD", "--", CONTAINERFILE) == CONTAINERFILE
+
+
 def context(source, binary, name):
-    if git(source, "ls-tree", "--name-only", "HEAD", "--", CONTAINERFILE) != CONTAINERFILE:
+    if not carried(source):
         raise Refusal(f"the product has no tracked {CONTAINERFILE}")
     if not Path(binary).is_file():
         raise Refusal(f"{binary} is missing")

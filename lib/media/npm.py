@@ -26,7 +26,13 @@ class Tools:
     reader: object = None
 
 
+def carried(source):
+    return git(source, "ls-tree", "--name-only", "HEAD", "--", WORKSPACE) == WORKSPACE
+
+
 def globs(source):
+    if not carried(source):
+        raise Refusal(f"{WORKSPACE} is not tracked at HEAD")
     lines = (Path(source) / WORKSPACE).read_text().splitlines()
     if "packages:" not in lines:
         raise Refusal(f"{WORKSPACE} must list its packages in block style")

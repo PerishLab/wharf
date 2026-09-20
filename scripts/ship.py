@@ -132,6 +132,8 @@ def decided(published, held):
 
 
 def npm_plan(held):
+    if not npm.carried(held["source"]):
+        return decided(True, {"packages": []})
     pending = npm.pending(held["source"], version.marker(held["marker"]))
     return decided(all(item["published"] for item in pending), {"packages": pending})
 
@@ -141,6 +143,8 @@ def npm_publish(held):
 
 
 def oci_plan(held):
+    if not oci.carried(held["source"]):
+        return decided(True, {"image": None})
     image = oci.reference(held["repository"], version.marker(held["marker"]))
     return decided(oci.exists(image), {"image": image})
 
@@ -217,7 +221,7 @@ ACTIONS = {
     "node-suite": (node_suite, ["source", *CONTEXT]),
     "npm-plan": (npm_plan, ["source", "marker"]),
     "npm-publish": (npm_publish, ["source", "marker"]),
-    "oci-plan": (oci_plan, ["repository", "marker"]),
+    "oci-plan": (oci_plan, ["source", "repository", "marker"]),
     "oci-publish": (oci_publish, ["source", *CONTEXT]),
     "chart-plan": (chart_plan, ["source", "repository", "marker"]),
     "chart-publish": (chart_publish, ["source", "repository", "marker"]),

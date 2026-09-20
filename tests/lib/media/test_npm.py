@@ -8,6 +8,19 @@ from lib.refusal import Refusal
 from tests.lib.media.repository import Repository
 
 
+class Carried(unittest.TestCase):
+    def test_a_repository_without_a_workspace_carries_no_npm_medium(self):
+        repository = Repository()
+        repository.git("rm", "-q", "pnpm-workspace.yaml")
+        repository.commit()
+        self.assertFalse(npm.carried(repository.root))
+        with self.assertRaisesRegex(Refusal, "is not tracked at HEAD"):
+            npm.publishable(repository.root)
+
+    def test_a_repository_with_one_carries_the_medium(self):
+        self.assertTrue(npm.carried(Repository().root))
+
+
 class Registry:
     def __init__(self, versions=()):
         self.versions = set(versions)

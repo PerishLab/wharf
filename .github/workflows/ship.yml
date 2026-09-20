@@ -100,6 +100,7 @@ jobs:
       - name: oci image
         id: oci
         env:
+          WHARF_SOURCE: ../product
           WHARF_REPOSITORY: ${{ inputs.repository }}
           WHARF_MARKER: ${{ inputs.marker }}
         run: python3 -B -m scripts.ship oci-plan
