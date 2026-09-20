@@ -461,20 +461,9 @@ jobs:
           WHARF_MARKER: ${{ inputs.marker }}
         run: python3 -B -m scripts.ship chart-publish
 
-  depot:
-    strategy:
-      matrix:
-        kind: [configuration, skill]
-    uses: ./.github/workflows/depot.yml
-    with:
-      repository: ${{ inputs.repository }}
-      marker: ${{ inputs.marker }}
-      kind: ${{ matrix.kind }}
-    secrets: inherit
-
   validate:
-    needs: [plan, bind, depot]
-    if: always() && needs.plan.result == 'success' && needs.plan.outputs.release == 'run' && (needs.bind.result == 'success' || needs.bind.result == 'skipped') && needs.depot.result == 'success'
+    needs: [plan, bind]
+    if: always() && needs.plan.result == 'success' && needs.plan.outputs.release == 'run' && (needs.bind.result == 'success' || needs.bind.result == 'skipped')
     runs-on: ubuntu-24.04
     steps:
       - name: Check out wharf
@@ -495,8 +484,8 @@ jobs:
         run: python3 -B -m scripts.ship validate
 
   release:
-    needs: [plan, smoke, suite-linux, suite-node, depot, validate]
-    if: always() && needs.plan.result == 'success' && needs.plan.outputs.release == 'run' && needs.depot.result == 'success' && (needs.validate.result == 'success' || needs.validate.result == 'skipped') && (needs.smoke.result == 'success' || needs.smoke.result == 'skipped') && (needs.suite-linux.result == 'success' || needs.suite-linux.result == 'skipped') && (needs.suite-node.result == 'success' || needs.suite-node.result == 'skipped')
+    needs: [plan, smoke, suite-linux, suite-node, validate]
+    if: always() && needs.plan.result == 'success' && needs.plan.outputs.release == 'run' && (needs.validate.result == 'success' || needs.validate.result == 'skipped') && (needs.smoke.result == 'success' || needs.smoke.result == 'skipped') && (needs.suite-linux.result == 'success' || needs.suite-linux.result == 'skipped') && (needs.suite-node.result == 'success' || needs.suite-node.result == 'skipped')
     runs-on: ubuntu-24.04
     steps:
       - name: Check out wharf
@@ -596,7 +585,7 @@ jobs:
         run: python3 -B -m scripts.ship cargo-publish
 
   complete:
-    needs: [plan, binary, bind, smoke, suite-linux, suite-node, npm, oci, chart, depot, validate, release, cfworker, cargo]
+    needs: [plan, binary, bind, smoke, suite-linux, suite-node, npm, oci, chart, validate, release, cfworker, cargo]
     if: always()
     runs-on: ubuntu-24.04
     steps:

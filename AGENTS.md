@@ -120,6 +120,8 @@ changes it and publishes the next one.
 - Unchanged objects are copied server-side, and the pointer is written only if it
   still holds the ETag it was read with.
 - Only prerelease markers are written. Authors edit locally through the
-  `wharf.depot` Runseal profile; CI inherits through `depot.yml`, which `ship.yml`
-  calls per kind before `release` moves a channel pointer, so an installed binary
-  always finds its generations.
+  `wharf.depot` Runseal profile, and `depot.yml` inherits one kind onto one
+  marker when it is dispatched. Ship never calls it: the two paths hold
+  different credentials and answer to different lifetimes, and a marker whose
+  generations must stand before its channel moves is held to that by `validate`,
+  which loads the release configuration with the binary being released.
