@@ -249,7 +249,7 @@ class Stepped(unittest.TestCase):
         seen = {}
         handler = lambda held: seen.update(held) or {"state": "smoked"}
         environment = {"WHARF_TARGET": "x86_64-unknown-linux-gnu", **{f"WHARF_{name.upper()}": value for name, value in dict(CONTEXT, planned="1").items()}}
-        with mock.patch.dict(ship.ACTIONS, {"smoke": (handler, ship.ACTIONS["smoke"][1])}), mock.patch.dict(os.environ, environment):
+        with mock.patch.dict(ship.ACTIONS, {"smoke": (handler, ship.ACTIONS["smoke"][1])}), mock.patch.dict(os.environ, environment), redirect_stderr(io.StringIO()):
             self.assertEqual(ship.step({"unit": "smoke"}), {"state": "smoked"})
         self.assertEqual(seen["target"], "x86_64-unknown-linux-gnu")
         self.assertEqual(seen["planned"], "1")
