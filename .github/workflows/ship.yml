@@ -465,7 +465,7 @@ jobs:
           path: wharf
           persist-credentials: false
 
-      - name: Load the release configuration with its own binary
+      - name: Load the rules the release carries with its own binary
         env:
           WHARF_REPOSITORY: ${{ inputs.repository }}
           WHARF_MARKER: ${{ inputs.marker }}

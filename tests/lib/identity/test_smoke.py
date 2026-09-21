@@ -51,7 +51,7 @@ class Configured(unittest.TestCase):
             return ""
 
         receipt = configured(self.artifact, "PerishLab/plumb", "v0.38.0-rc.1", runner)
-        self.assertEqual(calls[0][0], ["configuration", "install", "--version", "v0.38.0-rc.1"])
+        self.assertEqual(calls[0][0], ["rule", "list", "--json"])
         self.assertTrue(all(clean for _, clean in calls))
         self.assertEqual(len(receipt["steps"]), len(calls))
 
