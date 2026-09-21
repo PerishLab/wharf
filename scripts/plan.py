@@ -12,8 +12,7 @@ from lib.store import plan, r2, workload
 BUILD = resources.read_json("build.json")
 UNITS = resources.read_json("units.json")
 RUNNER = BUILD["runner"]
-FAMILIES = ("binary",)
-SINGLE = ("suite-linux", "suite-node", "cfworker")
+SINGLE = ("cfworker",)
 REPORTED = ("key", "decision")
 MEDIA = ("npm", "oci", "chart", "cargo", "release")
 IDENTITY = ("repository", "marker", "commit", "tree")
@@ -73,10 +72,6 @@ def reported(text):
     return {name: {field: value for field, value in (step.get("outputs") or {}).items() if field in REPORTED} for name, step in held.items()}
 
 
-def matrices(entries):
-    return {family: [target for target in BUILD["targets"] if entries[f"{family}-{target['name']}"]["decision"] == "run"] for family in FAMILIES}
-
-
 def unit(name):
     kind, _, target = name.partition("-")
     spec = UNITS["units"].get(name) or UNITS["units"].get(kind)
@@ -100,9 +95,8 @@ def units(entries):
     return held
 
 
-def emit(held, entries, attempt):
-    answered = {family: json.dumps(targets, separators=(",", ":")) for family, targets in held.items()}
-    answered.update({name: entries[name]["decision"] if name in entries else "skip" for name in SINGLE})
+def emit(entries, attempt):
+    answered = {name: entries[name]["decision"] if name in entries else "skip" for name in SINGLE}
     answered.update({name: json.dumps(found, separators=(",", ":")) for name, found in units(entries).items()})
     answered["planned"] = attempt
     parameters.answer(answered)
@@ -122,7 +116,7 @@ def record(held):
     media(observed, entries)
     engines = node.declared(held["source"]) if node.carried(held["source"]) else {}
     recorded = plan.record(bucket, {field: held[field] for field in CONTEXT}, entries, engines)
-    return dict(recorded, decided=emit(matrices(entries), entries, held["attempt"]), entry={name: entries[name]["decision"] for name in sorted(entries)})
+    return dict(recorded, decided=emit(entries, held["attempt"]), entry={name: entries[name]["decision"] for name in sorted(entries)})
 
 
 def check(held):

@@ -34,14 +34,11 @@ jobs:
       contents: read
       packages: read
     outputs:
-      binary: ${{ steps.plan.outputs.binary }}
       layer-1: ${{ steps.plan.outputs.layer-1 }}
       layer-2: ${{ steps.plan.outputs.layer-2 }}
       layer-3: ${{ steps.plan.outputs.layer-3 }}
       node: ${{ steps.engines.outputs.node }}
       pnpm: ${{ steps.engines.outputs.pnpm }}
-      suite-linux: ${{ steps.plan.outputs.suite-linux }}
-      suite-node: ${{ steps.plan.outputs.suite-node }}
       cfworker: ${{ steps.plan.outputs.cfworker }}
       npm: ${{ steps.npm.outputs.decision }}
       oci: ${{ steps.oci.outputs.decision }}
@@ -149,62 +146,16 @@ jobs:
           WHARF_R2_SECRET_ACCESS_KEY: ${{ secrets.WHARF_R2_SECRET_ACCESS_KEY }}
         run: python3 -B -m scripts.plan record
 
-  binary:
-    needs: plan
-    if: needs.plan.outputs.binary != '[]'
+  layer-1:
+    needs: [plan]
+    if: always() && needs.plan.result == 'success' && needs.plan.outputs.layer-1 != '[]' && !contains(needs.*.result, 'failure') && !contains(needs.*.result, 'cancelled')
     strategy:
       fail-fast: false
       matrix:
-        include: ${{ fromJSON(needs.plan.outputs.binary) }}
-    name: binary ${{ matrix.name }}
-    runs-on: ${{ matrix.runner }}
-    defaults:
-      run:
-        shell: bash
-        working-directory: wharf
-    steps:
-      - name: Keep checkouts byte-identical
-        if: runner.os == 'Windows'
-        working-directory: .
-        run: git config --global core.autocrlf false
-
-      - name: Check out wharf
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
-        with:
-          path: wharf
-          persist-credentials: false
-
-      - name: Check out product at marker
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
-        with:
-          repository: ${{ inputs.repository }}
-          ref: refs/tags/${{ inputs.marker }}
-          path: product
-          persist-credentials: false
-
-      - name: Build and record the binary
-        env:
-          WHARF_SOURCE: ../product
-          WHARF_TARGET: ${{ matrix.target }}
-          WHARF_REPOSITORY: ${{ inputs.repository }}
-          WHARF_MARKER: ${{ inputs.marker }}
-          WHARF_WHARF: ${{ github.sha }}
-          WHARF_RUN: ${{ github.run_id }}
-          WHARF_ATTEMPT: ${{ github.run_attempt }}
-          WHARF_PLANNED: ${{ needs.plan.outputs.planned }}
-          WHARF_R2_ACCESS_KEY_ID: ${{ secrets.WHARF_R2_ACCESS_KEY_ID }}
-          WHARF_R2_SECRET_ACCESS_KEY: ${{ secrets.WHARF_R2_SECRET_ACCESS_KEY }}
-        run: python3 -B -m scripts.ship binary
-
-  layer-2:
-    needs: [plan, binary]
-    if: always() && needs.plan.result == 'success' && needs.plan.outputs.layer-2 != '[]' && !contains(needs.*.result, 'failure') && !contains(needs.*.result, 'cancelled')
-    strategy:
-      fail-fast: false
-      matrix:
-        include: ${{ fromJSON(needs.plan.outputs.layer-2) }}
+        include: ${{ fromJSON(needs.plan.outputs.layer-1) }}
     name: ${{ matrix.name }}
     runs-on: ${{ matrix.runner }}
+    timeout-minutes: 45
     defaults:
       run:
         shell: bash
@@ -233,6 +184,64 @@ jobs:
         uses: ./wharf/.github/actions/prepare
         with:
           prepare: ${{ join(matrix.prepare, ' ') }}
+          node: ${{ needs.plan.outputs.node }}
+          pnpm: ${{ needs.plan.outputs.pnpm }}
+
+      - name: Run and record the unit
+        env:
+          WHARF_UNIT: ${{ matrix.action }}
+          WHARF_TARGET: ${{ matrix.target }}
+          WHARF_SOURCE: ../product
+          WHARF_REPOSITORY: ${{ inputs.repository }}
+          WHARF_MARKER: ${{ inputs.marker }}
+          WHARF_WHARF: ${{ github.sha }}
+          WHARF_RUN: ${{ github.run_id }}
+          WHARF_ATTEMPT: ${{ github.run_attempt }}
+          WHARF_PLANNED: ${{ needs.plan.outputs.planned }}
+          WHARF_R2_ACCESS_KEY_ID: ${{ secrets.WHARF_R2_ACCESS_KEY_ID }}
+          WHARF_R2_SECRET_ACCESS_KEY: ${{ secrets.WHARF_R2_SECRET_ACCESS_KEY }}
+        run: python3 -B -m scripts.ship step
+
+  layer-2:
+    needs: [plan, layer-1]
+    if: always() && needs.plan.result == 'success' && needs.plan.outputs.layer-2 != '[]' && !contains(needs.*.result, 'failure') && !contains(needs.*.result, 'cancelled')
+    strategy:
+      fail-fast: false
+      matrix:
+        include: ${{ fromJSON(needs.plan.outputs.layer-2) }}
+    name: ${{ matrix.name }}
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 45
+    defaults:
+      run:
+        shell: bash
+        working-directory: wharf
+    steps:
+      - name: Keep checkouts byte-identical
+        if: contains(matrix.prepare, 'autocrlf')
+        working-directory: .
+        run: git config --global core.autocrlf false
+
+      - name: Check out wharf
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          path: wharf
+          persist-credentials: false
+
+      - name: Check out product at marker
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          repository: ${{ inputs.repository }}
+          ref: refs/tags/${{ inputs.marker }}
+          path: product
+          persist-credentials: false
+
+      - name: Prepare the machine
+        uses: ./wharf/.github/actions/prepare
+        with:
+          prepare: ${{ join(matrix.prepare, ' ') }}
+          node: ${{ needs.plan.outputs.node }}
+          pnpm: ${{ needs.plan.outputs.pnpm }}
 
       - name: Run and record the unit
         env:
@@ -250,7 +259,7 @@ jobs:
         run: python3 -B -m scripts.ship step
 
   layer-3:
-    needs: [plan, binary, layer-2]
+    needs: [plan, layer-1, layer-2]
     if: always() && needs.plan.result == 'success' && needs.plan.outputs.layer-3 != '[]' && !contains(needs.*.result, 'failure') && !contains(needs.*.result, 'cancelled')
     strategy:
       fail-fast: false
@@ -258,6 +267,7 @@ jobs:
         include: ${{ fromJSON(needs.plan.outputs.layer-3) }}
     name: ${{ matrix.name }}
     runs-on: ${{ matrix.runner }}
+    timeout-minutes: 45
     defaults:
       run:
         shell: bash
@@ -286,6 +296,8 @@ jobs:
         uses: ./wharf/.github/actions/prepare
         with:
           prepare: ${{ join(matrix.prepare, ' ') }}
+          node: ${{ needs.plan.outputs.node }}
+          pnpm: ${{ needs.plan.outputs.pnpm }}
 
       - name: Run and record the unit
         env:
@@ -302,85 +314,9 @@ jobs:
           WHARF_R2_SECRET_ACCESS_KEY: ${{ secrets.WHARF_R2_SECRET_ACCESS_KEY }}
         run: python3 -B -m scripts.ship step
 
-  suite-linux:
-    needs: plan
-    if: needs.plan.outputs.suite-linux == 'run'
-    runs-on: ubuntu-24.04
-    timeout-minutes: 45
-    steps:
-      - name: Check out wharf
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
-        with:
-          path: wharf
-          persist-credentials: false
-
-      - name: Check out product at marker
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
-        with:
-          repository: ${{ inputs.repository }}
-          ref: refs/tags/${{ inputs.marker }}
-          path: product
-          persist-credentials: false
-
-      - name: Test and record the workspace
-        env:
-          WHARF_SOURCE: ../product
-          WHARF_REPOSITORY: ${{ inputs.repository }}
-          WHARF_MARKER: ${{ inputs.marker }}
-          WHARF_WHARF: ${{ github.sha }}
-          WHARF_RUN: ${{ github.run_id }}
-          WHARF_ATTEMPT: ${{ github.run_attempt }}
-          WHARF_PLANNED: ${{ needs.plan.outputs.planned }}
-          WHARF_R2_ACCESS_KEY_ID: ${{ secrets.WHARF_R2_ACCESS_KEY_ID }}
-          WHARF_R2_SECRET_ACCESS_KEY: ${{ secrets.WHARF_R2_SECRET_ACCESS_KEY }}
-        run: python3 -B -m scripts.ship suite
-
-  suite-node:
-    needs: plan
-    if: needs.plan.outputs.suite-node == 'run'
-    runs-on: ubuntu-24.04
-    timeout-minutes: 45
-    steps:
-      - name: Check out wharf
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
-        with:
-          path: wharf
-          persist-credentials: false
-
-      - name: Check out product at marker
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
-        with:
-          repository: ${{ inputs.repository }}
-          ref: refs/tags/${{ inputs.marker }}
-          path: product
-          persist-credentials: false
-
-      - name: Prepare the declared Node toolchain
-        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020
-        with:
-          node-version: ${{ needs.plan.outputs.node }}
-
-      - name: Prepare the declared pnpm
-        env:
-          PNPM: ${{ needs.plan.outputs.pnpm }}
-        run: npm install --global "pnpm@$PNPM"
-
-      - name: Test and record the pnpm workspace
-        env:
-          WHARF_SOURCE: ../product
-          WHARF_REPOSITORY: ${{ inputs.repository }}
-          WHARF_MARKER: ${{ inputs.marker }}
-          WHARF_WHARF: ${{ github.sha }}
-          WHARF_RUN: ${{ github.run_id }}
-          WHARF_ATTEMPT: ${{ github.run_attempt }}
-          WHARF_PLANNED: ${{ needs.plan.outputs.planned }}
-          WHARF_R2_ACCESS_KEY_ID: ${{ secrets.WHARF_R2_ACCESS_KEY_ID }}
-          WHARF_R2_SECRET_ACCESS_KEY: ${{ secrets.WHARF_R2_SECRET_ACCESS_KEY }}
-        run: python3 -B -m scripts.ship node-suite
-
   npm:
-    needs: [plan, suite-linux, suite-node]
-    if: always() && needs.plan.result == 'success' && needs.plan.outputs.npm == 'run' && (needs.suite-linux.result == 'success' || needs.suite-linux.result == 'skipped') && (needs.suite-node.result == 'success' || needs.suite-node.result == 'skipped')
+    needs: [plan, layer-1]
+    if: always() && needs.plan.result == 'success' && needs.plan.outputs.npm == 'run' && (needs.layer-1.result == 'success' || needs.layer-1.result == 'skipped')
     runs-on: ubuntu-24.04
     permissions:
       contents: read
@@ -418,8 +354,8 @@ jobs:
         run: python3 -B -m scripts.ship npm-publish
 
   oci:
-    needs: [plan, binary, layer-2, layer-3, suite-linux, suite-node]
-    if: always() && needs.plan.result == 'success' && needs.plan.outputs.oci == 'run' && (needs.binary.result == 'success' || needs.binary.result == 'skipped') && (needs.layer-2.result == 'success' || needs.layer-2.result == 'skipped') && (needs.layer-3.result == 'success' || needs.layer-3.result == 'skipped') && (needs.suite-linux.result == 'success' || needs.suite-linux.result == 'skipped') && (needs.suite-node.result == 'success' || needs.suite-node.result == 'skipped')
+    needs: [plan, layer-1, layer-2, layer-3]
+    if: always() && needs.plan.result == 'success' && needs.plan.outputs.oci == 'run' && (needs.layer-1.result == 'success' || needs.layer-1.result == 'skipped') && (needs.layer-2.result == 'success' || needs.layer-2.result == 'skipped') && (needs.layer-3.result == 'success' || needs.layer-3.result == 'skipped')
     runs-on: ubuntu-24.04
     permissions:
       contents: read
@@ -462,8 +398,8 @@ jobs:
         run: python3 -B -m scripts.ship oci-publish
 
   chart:
-    needs: [plan, suite-linux, suite-node]
-    if: always() && needs.plan.result == 'success' && needs.plan.outputs.chart == 'run' && (needs.suite-linux.result == 'success' || needs.suite-linux.result == 'skipped') && (needs.suite-node.result == 'success' || needs.suite-node.result == 'skipped')
+    needs: [plan, layer-1]
+    if: always() && needs.plan.result == 'success' && needs.plan.outputs.chart == 'run' && (needs.layer-1.result == 'success' || needs.layer-1.result == 'skipped')
     runs-on: ubuntu-24.04
     permissions:
       contents: read
@@ -500,8 +436,8 @@ jobs:
         run: python3 -B -m scripts.ship chart-publish
 
   validate:
-    needs: [plan, binary, layer-2]
-    if: always() && needs.plan.result == 'success' && needs.plan.outputs.release == 'run' && (needs.binary.result == 'success' || needs.binary.result == 'skipped') && (needs.layer-2.result == 'success' || needs.layer-2.result == 'skipped')
+    needs: [plan, layer-1, layer-2]
+    if: always() && needs.plan.result == 'success' && needs.plan.outputs.release == 'run' && (needs.layer-1.result == 'success' || needs.layer-1.result == 'skipped') && (needs.layer-2.result == 'success' || needs.layer-2.result == 'skipped')
     runs-on: ubuntu-24.04
     steps:
       - name: Check out wharf
@@ -523,8 +459,8 @@ jobs:
         run: python3 -B -m scripts.ship validate
 
   release:
-    needs: [plan, binary, layer-2, layer-3, suite-linux, suite-node, validate]
-    if: always() && needs.plan.result == 'success' && needs.plan.outputs.release == 'run' && (needs.binary.result == 'success' || needs.binary.result == 'skipped') && (needs.layer-2.result == 'success' || needs.layer-2.result == 'skipped') && (needs.validate.result == 'success' || needs.validate.result == 'skipped') && (needs.layer-3.result == 'success' || needs.layer-3.result == 'skipped') && (needs.suite-linux.result == 'success' || needs.suite-linux.result == 'skipped') && (needs.suite-node.result == 'success' || needs.suite-node.result == 'skipped')
+    needs: [plan, layer-1, layer-2, layer-3, validate]
+    if: always() && needs.plan.result == 'success' && needs.plan.outputs.release == 'run' && (needs.layer-1.result == 'success' || needs.layer-1.result == 'skipped') && (needs.layer-2.result == 'success' || needs.layer-2.result == 'skipped') && (needs.validate.result == 'success' || needs.validate.result == 'skipped') && (needs.layer-3.result == 'success' || needs.layer-3.result == 'skipped')
     runs-on: ubuntu-24.04
     steps:
       - name: Check out wharf
@@ -557,8 +493,8 @@ jobs:
         run: python3 -B -m scripts.ship release
 
   cfworker:
-    needs: [plan, suite-linux, suite-node]
-    if: always() && needs.plan.result == 'success' && needs.plan.outputs.cfworker == 'run' && (needs.suite-linux.result == 'success' || needs.suite-linux.result == 'skipped') && (needs.suite-node.result == 'success' || needs.suite-node.result == 'skipped')
+    needs: [plan, layer-1]
+    if: always() && needs.plan.result == 'success' && needs.plan.outputs.cfworker == 'run' && (needs.layer-1.result == 'success' || needs.layer-1.result == 'skipped')
     runs-on: ubuntu-24.04
     steps:
       - name: Check out wharf
@@ -600,8 +536,8 @@ jobs:
         run: python3 -B -m scripts.ship cfworker-deploy
 
   cargo:
-    needs: [plan, binary, suite-linux, suite-node]
-    if: always() && needs.plan.result == 'success' && needs.plan.outputs.cargo == 'run' && (needs.binary.result == 'success' || needs.binary.result == 'skipped') && (needs.suite-linux.result == 'success' || needs.suite-linux.result == 'skipped') && (needs.suite-node.result == 'success' || needs.suite-node.result == 'skipped')
+    needs: [plan, layer-1]
+    if: always() && needs.plan.result == 'success' && needs.plan.outputs.cargo == 'run' && (needs.layer-1.result == 'success' || needs.layer-1.result == 'skipped')
     runs-on: ubuntu-24.04
     steps:
       - name: Check out wharf
@@ -626,7 +562,7 @@ jobs:
         run: python3 -B -m scripts.ship cargo-publish
 
   complete:
-    needs: [plan, binary, layer-2, layer-3, suite-linux, suite-node, npm, oci, chart, validate, release, cfworker, cargo]
+    needs: [plan, layer-1, layer-2, layer-3, npm, oci, chart, validate, release, cfworker, cargo]
     if: always()
     runs-on: ubuntu-24.04
     steps:

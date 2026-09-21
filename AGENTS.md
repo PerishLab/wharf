@@ -103,10 +103,9 @@ deepest entry it consumes, while what publishes comes after every layer, since
 publishing is ordered by policy and never written into a basis. A layer is one
 matrix of units, each naming its action, runner and the preparations
 `.github/actions/prepare` makes before it; `resources/units.json` says which
-entries a unit covers, and the workflow runs a fixed number of layers. Families
-not yet run by layers still get one matrix per target family, and single jobs
-one decision each. Skipping is absence from a matrix, not a condition on a job
-that exists. A single job that
+entries a unit covers, and the workflow runs a fixed number of layers. What
+publishes still has a job of its own and one decision each. Skipping is absence
+from a matrix, not a condition on a job that exists. A single job that
 covers several targets takes them from the plan it already reads, and refuses
 when the plan decided none of them. Whether a medium is already published stays
 with the step that can ask its registry, because asking needs that registry's

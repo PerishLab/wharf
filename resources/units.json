@@ -4,6 +4,9 @@
     "windows": ["autocrlf"]
   },
   "units": {
+    "binary": {"action": "binary", "per": "target"},
+    "suite-linux": {"action": "suite"},
+    "suite-node": {"action": "node-suite", "prepare": ["node", "pnpm"]},
     "bind": {"action": "bind", "prepare": ["rcodesign"]},
     "smoke": {"action": "smoke", "per": "target"}
   }

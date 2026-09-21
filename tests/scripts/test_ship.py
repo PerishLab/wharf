@@ -255,5 +255,5 @@ class Stepped(unittest.TestCase):
         self.assertEqual(seen["planned"], "1")
 
     def test_a_unit_no_layer_runs_refuses(self):
-        with self.assertRaisesRegex(Refusal, "a layer runs one of bind, smoke, not cargo-publish"):
+        with self.assertRaisesRegex(Refusal, r"a layer runs one of (\w|-|, )+, not cargo-publish"):
             ship.step({"unit": "cargo-publish"})
