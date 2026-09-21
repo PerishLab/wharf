@@ -9,18 +9,18 @@ CONTEXT = ("repository", "marker", "wharf", "run", "attempt", "actor")
 IDENTITY = ("commit", "tree")
 
 
-def identified(bucket, context):
-    held = plan.standing_for(bucket, context)
+def identified(bucket, context, planned):
+    held = plan.standing_for(bucket, dict(context, attempt=planned))
     return {field: held["context"][field] if held else None for field in IDENTITY}
 
 
 def record(held):
     bucket = r2.configured()
     context = {field: held[field] for field in CONTEXT}
-    return trigger.record(bucket, dict(context, **identified(bucket, context)), json.loads(held["needs"]))
+    return trigger.record(bucket, dict(context, **identified(bucket, context, held["planned"])), json.loads(held["needs"]))
 
 
-ACTIONS = {"trigger": (record, [*CONTEXT, "needs"])}
+ACTIONS = {"trigger": (record, [*CONTEXT, "planned", "needs"])}
 
 
 def main(argv=None):

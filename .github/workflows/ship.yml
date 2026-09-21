@@ -47,6 +47,7 @@ jobs:
       chart: ${{ steps.chart.outputs.decision }}
       release: ${{ steps.release.outputs.decision }}
       cargo: ${{ steps.cargo.outputs.decision }}
+      planned: ${{ steps.plan.outputs.planned }}
     steps:
       - name: Check out wharf
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
@@ -189,6 +190,7 @@ jobs:
           WHARF_WHARF: ${{ github.sha }}
           WHARF_RUN: ${{ github.run_id }}
           WHARF_ATTEMPT: ${{ github.run_attempt }}
+          WHARF_PLANNED: ${{ needs.plan.outputs.planned }}
           WHARF_R2_ACCESS_KEY_ID: ${{ secrets.WHARF_R2_ACCESS_KEY_ID }}
           WHARF_R2_SECRET_ACCESS_KEY: ${{ secrets.WHARF_R2_SECRET_ACCESS_KEY }}
         run: python3 -B -m scripts.ship binary
@@ -219,6 +221,7 @@ jobs:
           WHARF_WHARF: ${{ github.sha }}
           WHARF_RUN: ${{ github.run_id }}
           WHARF_ATTEMPT: ${{ github.run_attempt }}
+          WHARF_PLANNED: ${{ needs.plan.outputs.planned }}
           WHARF_R2_ACCESS_KEY_ID: ${{ secrets.WHARF_R2_ACCESS_KEY_ID }}
           WHARF_R2_SECRET_ACCESS_KEY: ${{ secrets.WHARF_R2_SECRET_ACCESS_KEY }}
         run: python3 -B -m scripts.ship bind
@@ -256,6 +259,7 @@ jobs:
           WHARF_WHARF: ${{ github.sha }}
           WHARF_RUN: ${{ github.run_id }}
           WHARF_ATTEMPT: ${{ github.run_attempt }}
+          WHARF_PLANNED: ${{ needs.plan.outputs.planned }}
           WHARF_R2_ACCESS_KEY_ID: ${{ secrets.WHARF_R2_ACCESS_KEY_ID }}
           WHARF_R2_SECRET_ACCESS_KEY: ${{ secrets.WHARF_R2_SECRET_ACCESS_KEY }}
         run: python3 -B -m scripts.ship smoke
@@ -288,6 +292,7 @@ jobs:
           WHARF_WHARF: ${{ github.sha }}
           WHARF_RUN: ${{ github.run_id }}
           WHARF_ATTEMPT: ${{ github.run_attempt }}
+          WHARF_PLANNED: ${{ needs.plan.outputs.planned }}
           WHARF_R2_ACCESS_KEY_ID: ${{ secrets.WHARF_R2_ACCESS_KEY_ID }}
           WHARF_R2_SECRET_ACCESS_KEY: ${{ secrets.WHARF_R2_SECRET_ACCESS_KEY }}
         run: python3 -B -m scripts.ship suite
@@ -330,6 +335,7 @@ jobs:
           WHARF_WHARF: ${{ github.sha }}
           WHARF_RUN: ${{ github.run_id }}
           WHARF_ATTEMPT: ${{ github.run_attempt }}
+          WHARF_PLANNED: ${{ needs.plan.outputs.planned }}
           WHARF_R2_ACCESS_KEY_ID: ${{ secrets.WHARF_R2_ACCESS_KEY_ID }}
           WHARF_R2_SECRET_ACCESS_KEY: ${{ secrets.WHARF_R2_SECRET_ACCESS_KEY }}
         run: python3 -B -m scripts.ship node-suite
@@ -412,6 +418,7 @@ jobs:
           WHARF_WHARF: ${{ github.sha }}
           WHARF_RUN: ${{ github.run_id }}
           WHARF_ATTEMPT: ${{ github.run_attempt }}
+          WHARF_PLANNED: ${{ needs.plan.outputs.planned }}
           WHARF_R2_ACCESS_KEY_ID: ${{ secrets.WHARF_R2_ACCESS_KEY_ID }}
           WHARF_R2_SECRET_ACCESS_KEY: ${{ secrets.WHARF_R2_SECRET_ACCESS_KEY }}
         run: python3 -B -m scripts.ship oci-publish
@@ -472,6 +479,7 @@ jobs:
           WHARF_WHARF: ${{ github.sha }}
           WHARF_RUN: ${{ github.run_id }}
           WHARF_ATTEMPT: ${{ github.run_attempt }}
+          WHARF_PLANNED: ${{ needs.plan.outputs.planned }}
           WHARF_R2_ACCESS_KEY_ID: ${{ secrets.WHARF_R2_ACCESS_KEY_ID }}
           WHARF_R2_SECRET_ACCESS_KEY: ${{ secrets.WHARF_R2_SECRET_ACCESS_KEY }}
         run: python3 -B -m scripts.ship validate
@@ -505,6 +513,7 @@ jobs:
           WHARF_WHARF: ${{ github.sha }}
           WHARF_RUN: ${{ github.run_id }}
           WHARF_ATTEMPT: ${{ github.run_attempt }}
+          WHARF_PLANNED: ${{ needs.plan.outputs.planned }}
           WHARF_R2_ACCESS_KEY_ID: ${{ secrets.WHARF_R2_ACCESS_KEY_ID }}
           WHARF_R2_SECRET_ACCESS_KEY: ${{ secrets.WHARF_R2_SECRET_ACCESS_KEY }}
         run: python3 -B -m scripts.ship release
@@ -546,6 +555,7 @@ jobs:
           WHARF_WHARF: ${{ github.sha }}
           WHARF_RUN: ${{ github.run_id }}
           WHARF_ATTEMPT: ${{ github.run_attempt }}
+          WHARF_PLANNED: ${{ needs.plan.outputs.planned }}
           CLOUDFLARE_API_TOKEN: ${{ secrets.WHARF_CLOUDFLARE_TOKEN }}
           WHARF_R2_ACCESS_KEY_ID: ${{ secrets.WHARF_R2_ACCESS_KEY_ID }}
           WHARF_R2_SECRET_ACCESS_KEY: ${{ secrets.WHARF_R2_SECRET_ACCESS_KEY }}
@@ -597,6 +607,7 @@ jobs:
           WHARF_WHARF: ${{ github.sha }}
           WHARF_RUN: ${{ github.run_id }}
           WHARF_ATTEMPT: ${{ github.run_attempt }}
+          WHARF_PLANNED: ${{ needs.plan.outputs.planned }}
           WHARF_R2_ACCESS_KEY_ID: ${{ secrets.WHARF_R2_ACCESS_KEY_ID }}
           WHARF_R2_SECRET_ACCESS_KEY: ${{ secrets.WHARF_R2_SECRET_ACCESS_KEY }}
         run: python3 -B -m scripts.store trigger

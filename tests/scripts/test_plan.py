@@ -76,12 +76,13 @@ class Matrices(unittest.TestCase):
         path.write_text("")
         with mock.patch.dict(os.environ, {parameters.OUTPUT: str(path)}):
             entries = self.entries(["binary-macos", "cfworker"])
-            named = plan.emit(plan.matrices(entries), entries)
+            named = plan.emit(plan.matrices(entries), entries, "3")
         self.assertEqual(json.loads(named["binary"]), [target for target in plan.BUILD["targets"] if target["name"] != "macos"])
         self.assertEqual(named["cfworker"], "skip")
         self.assertIn("bind=run", path.read_text())
         self.assertIn("cfworker=skip", path.read_text())
-        self.assertEqual(len(path.read_text().splitlines()), len(plan.FAMILIES) + len(plan.SINGLE) + 1)
+        self.assertIn("planned=3", path.read_text())
+        self.assertEqual(len(path.read_text().splitlines()), len(plan.FAMILIES) + len(plan.SINGLE) + 2)
 
     def test_nowhere_to_answer_the_caller_refuses(self):
         with mock.patch.dict(os.environ, {}, clear=True):
@@ -96,7 +97,7 @@ class Carried(unittest.TestCase):
         path.write_text("")
         with mock.patch.dict(os.environ, {parameters.OUTPUT: str(path)}):
             nothing = {f"{family}-{name}": {"decision": "skip"} for family in plan.FAMILIES + ("bind",) for name in ("linux", "windows", "macos")}
-            answered = plan.emit(plan.matrices(nothing), nothing | entries)
+            answered = plan.emit(plan.matrices(nothing), nothing | entries, "1")
         self.assertEqual(answered["suite-node"], "skip")
         self.assertEqual(answered["cfworker"], "skip")
         self.assertIn("suite-node=skip", path.read_text())

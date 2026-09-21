@@ -16,6 +16,7 @@ from lib.store import workload
 DEPENDENCIES = "dependencies.tar.gz"
 RELEASE = ("repository", "marker", "commit", "tree")
 CONTEXT = ("repository", "marker", "wharf", "run", "attempt")
+PLANNED = (*CONTEXT, "planned")
 BUILD = resources.read_json("build.json")
 RUNNER = BUILD["runner"]
 
@@ -42,9 +43,13 @@ def carried(held):
     return {field: held[field] for field in CONTEXT}
 
 
+def addressed(held):
+    return dict(carried(held), attempt=held["planned"])
+
+
 def opened(held, name):
     bucket = r2.configured()
-    document = plan.read(bucket, carried(held))
+    document = plan.read(bucket, addressed(held))
     return bucket, document, plan.planned(document, name)
 
 
@@ -126,7 +131,7 @@ def bind_target(bucket, document, held, target):
 
 def run_bind(held):
     bucket = r2.configured()
-    document = plan.read(bucket, carried(held))
+    document = plan.read(bucket, addressed(held))
     return [bind_target(bucket, document, held, target) for target in binding(document)]
 
 
@@ -241,22 +246,22 @@ def cargo_publish(held):
 
 
 ACTIONS = {
-    "binary": (run_binary, ["source", "target", *CONTEXT]),
-    "suite": (run_suite, ["source", *CONTEXT]),
-    "bind": (run_bind, [*CONTEXT]),
-    "smoke": (run_smoke, ["target", *CONTEXT]),
-    "validate": (validate, [*CONTEXT]),
+    "binary": (run_binary, ["source", "target", *PLANNED]),
+    "suite": (run_suite, ["source", *PLANNED]),
+    "bind": (run_bind, [*PLANNED]),
+    "smoke": (run_smoke, ["target", *PLANNED]),
+    "validate": (validate, [*PLANNED]),
     "node-engines": (node_engines, ["source"]),
-    "node-suite": (node_suite, ["source", *CONTEXT]),
+    "node-suite": (node_suite, ["source", *PLANNED]),
     "npm-plan": (npm_plan, ["source", "marker"]),
     "npm-publish": (npm_publish, ["source", "marker"]),
     "oci-plan": (oci_plan, ["source", "repository", "marker"]),
-    "oci-publish": (oci_publish, ["source", *CONTEXT]),
+    "oci-publish": (oci_publish, ["source", *PLANNED]),
     "chart-plan": (chart_plan, ["source", "repository", "marker"]),
     "chart-publish": (chart_publish, ["source", "repository", "marker"]),
     "release-plan": (release_plan, ["repository", "marker", "commit", "wharf"]),
-    "release": (run_release, ["source", *CONTEXT]),
-    "cfworker-deploy": (cfworker_deploy, ["source", *CONTEXT]),
+    "release": (run_release, ["source", *PLANNED]),
+    "cfworker-deploy": (cfworker_deploy, ["source", *PLANNED]),
     "cargo-plan": (cargo_plan, ["source", "marker"]),
     "cargo-publish": (cargo_publish, ["source", "marker"]),
 }

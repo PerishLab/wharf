@@ -20,6 +20,7 @@
     "name": "string",
     "needs": "string",
     "output": "string",
+    "planned": "string",
     "put": "strings",
     "remove": "strings",
     "repository": "string",

@@ -73,10 +73,11 @@ def binding(entries):
     return "run" if any(entries[f"bind-{target['name']}"]["decision"] == "run" for target in BUILD["targets"]) else "skip"
 
 
-def emit(held, entries):
+def emit(held, entries, attempt):
     answered = {family: json.dumps(targets, separators=(",", ":")) for family, targets in held.items()}
     answered.update({name: entries[name]["decision"] if name in entries else "skip" for name in SINGLE})
     answered["bind"] = binding(entries)
+    answered["planned"] = attempt
     parameters.answer(answered)
     return answered
 
@@ -94,7 +95,7 @@ def record(held):
     media(observed, entries)
     engines = node.declared(held["source"]) if node.carried(held["source"]) else {}
     recorded = plan.record(bucket, {field: held[field] for field in CONTEXT}, entries, engines)
-    return dict(recorded, decided=emit(matrices(entries), entries), entry={name: entries[name]["decision"] for name in sorted(entries)})
+    return dict(recorded, decided=emit(matrices(entries), entries, held["attempt"]), entry={name: entries[name]["decision"] for name in sorted(entries)})
 
 
 def check(held):

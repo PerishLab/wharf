@@ -51,7 +51,7 @@ class Building(unittest.TestCase):
         self.bucket = Memory()
         self.basis = {"entry": {"kind": "cargo-binary", "binary": "plumb"}}
         self.key = ship.workload.key(self.basis, ship.implementation.resourced(["lib.cargo.basis", "lib.cargo.build"], []))
-        self.held = dict(CONTEXT, source="../product", target="x86_64-unknown-linux-gnu")
+        self.held = dict(CONTEXT, planned="1", source="../product", target="x86_64-unknown-linux-gnu")
 
     def stored(self, entries):
         plan.record(self.bucket, dict(CONTEXT, commit="a" * 40, tree="b" * 40), entries, {})
@@ -95,6 +95,13 @@ class Building(unittest.TestCase):
         record = json.loads(self.bucket.objects[f"workload/1/{self.key}/record.json"])
         self.assertEqual(record["context"], CONTEXT)
 
+    def test_a_failed_job_run_again_reads_the_plan_its_run_recorded(self):
+        self.stored({"binary-linux": {"key": self.key, "decision": "run"}})
+        self.held.update(attempt="2", planned="1")
+        self.assertEqual(self.run_binary()["state"], "recorded")
+        record = json.loads(self.bucket.objects[f"workload/1/{self.key}/record.json"])
+        self.assertEqual(record["context"], dict(CONTEXT, attempt="2"))
+
     def test_a_plan_that_decided_to_skip_stops_the_job(self):
         self.stored({"binary-linux": {"key": self.key, "decision": "skip"}})
         with self.assertRaisesRegex(Refusal, "decided 'skip' for binary-linux"):
@@ -110,7 +117,7 @@ class Building(unittest.TestCase):
 class Binding(unittest.TestCase):
     def setUp(self):
         self.bucket = Memory()
-        self.held = dict(CONTEXT)
+        self.held = dict(CONTEXT, planned="1")
         self.identity = {"repository": CONTEXT["repository"], "marker": CONTEXT["marker"], "commit": "a" * 40, "tree": "b" * 40}
         self.witnessed = []
         self.binaries = {"linux": "e" * 64, "windows": "f" * 64}
@@ -173,7 +180,7 @@ class Binding(unittest.TestCase):
 class Recording(unittest.TestCase):
     def setUp(self):
         self.bucket = Memory()
-        self.held = dict(CONTEXT, source="../product")
+        self.held = dict(CONTEXT, planned="1", source="../product")
 
     def keyed(self, held, modules):
         return ship.workload.key(held, ship.implementation.resourced(*modules))

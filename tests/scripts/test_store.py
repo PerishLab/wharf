@@ -13,7 +13,7 @@ NEEDS = json.dumps({"plan": {"result": "success", "outputs": {}}, "release": {"r
 class Trigger(unittest.TestCase):
     def setUp(self):
         self.bucket = Memory()
-        self.held = dict(CONTEXT, needs=NEEDS)
+        self.held = dict(CONTEXT, planned="1", needs=NEEDS)
 
     def written(self):
         with mock.patch.object(store.r2, "configured", return_value=self.bucket):
@@ -26,6 +26,13 @@ class Trigger(unittest.TestCase):
         plan.record(self.bucket, dict(CONTEXT, commit="a" * 40, tree="b" * 40), {}, {})
         self.written()
         self.assertEqual(self.recorded()["context"]["commit"], "a" * 40)
+
+    def test_a_failed_job_run_again_takes_the_identity_from_the_plan_its_run_recorded(self):
+        plan.record(self.bucket, dict(CONTEXT, commit="a" * 40, tree="b" * 40), {}, {})
+        self.held.update(attempt="2", planned="1")
+        self.written()
+        written = json.loads(self.bucket.objects["trigger/PerishLab/plumb/v0.38.3-rc.8/35498486129-2.json"])
+        self.assertEqual((written["context"]["attempt"], written["context"]["commit"]), ("2", "a" * 40))
 
     def test_a_run_whose_plan_was_never_written_still_owes_its_trigger_record(self):
         self.held["needs"] = json.dumps({"plan": {"result": "failure"}})
