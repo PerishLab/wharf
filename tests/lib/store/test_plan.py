@@ -82,3 +82,31 @@ class Record(unittest.TestCase):
         self.assertEqual(self.bucket.get(plan.standing(CONTEXT)), self.bucket.get(plan.location(later)))
 
 
+class Shaped(unittest.TestCase):
+    ENTRIES = {
+        "binary-linux": {"key": "a" * 64, "decision": "run"},
+        "dependencies-linux": {"key": "b" * 64, "decision": "skip"},
+        "bind-linux": {"key": "c" * 64, "decision": "run", "consumes": ["binary-linux"]},
+        "smoke-linux": {"key": "d" * 64, "decision": "run", "consumes": ["bind-linux"]},
+        "suite-linux": {"key": "e" * 64, "decision": "skip"},
+        "cfworker": {"key": "f" * 64, "decision": "run"},
+        "npm": {"decision": "run"},
+        "release": {"decision": "run"},
+    }
+
+    def test_an_entry_sits_one_layer_after_the_deepest_entry_it_consumes(self):
+        self.assertEqual(
+            plan.layered(self.ENTRIES)["layers"],
+            [["binary-linux", "dependencies-linux", "suite-linux"], ["bind-linux"], ["smoke-linux"]],
+        )
+
+    def test_what_publishes_comes_last_whether_or_not_it_holds_a_key(self):
+        self.assertEqual(plan.layered(self.ENTRIES)["last"], ["cfworker", "npm", "release"])
+
+    def test_a_plan_with_nothing_to_build_has_no_layers(self):
+        self.assertEqual(plan.layered({"npm": {"decision": "skip"}}), {"layers": [], "last": ["npm"]})
+
+    def test_the_recorded_plan_carries_its_shape(self):
+        bucket = Memory()
+        plan.record(bucket, CONTEXT, self.ENTRIES, {})
+        self.assertEqual(plan.read(bucket, CONTEXT)["shape"], plan.layered(self.ENTRIES))

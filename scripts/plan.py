@@ -22,34 +22,41 @@ CHECKED = ("repository", "marker")
 SOURCED = ("source",)
 
 
-def decided(bucket, held, modules):
+def referenced(held, keys):
+    if isinstance(held, dict):
+        return set().union(*(referenced(value, keys) for value in held.values()))
+    if isinstance(held, list):
+        return set().union(*(referenced(value, keys) for value in held))
+    return {keys[held]} if isinstance(held, str) and held in keys else set()
+
+
+def decided(bucket, held, modules, entries):
     key = workload.key(held, implementation.resourced(*modules))
-    return {"key": key, "decision": "skip" if workload.reusable(bucket, key) else "run"}
+    consumed = sorted(referenced(held, {entry["key"]: name for name, entry in entries.items() if "key" in entry}))
+    return {"key": key, "decision": "skip" if workload.reusable(bucket, key) else "run", **({"consumes": consumed} if consumed else {})}
 
 
 def binaries(held, bucket, entries):
     identity = {field: held[field] for field in IDENTITY}
     name = plan.product(identity)
+    cargo = (["lib.cargo.basis", "lib.cargo.build"], [])
     for target in BUILD["targets"]:
-        built = decided(bucket, basis.resolve(held["source"], name, target["target"], target["runner"]), (["lib.cargo.basis", "lib.cargo.build"], []))
-        bound = decided(
-            bucket,
-            {"entry": {"kind": "binary-identity", "binary": built["key"]}, "identity": identity},
-            (["lib.identity.bind"], ["identity/format.json"]),
-        )
-        entries[f"dependencies-{target['name']}"] = decided(bucket, basis.dependencies(held["source"], name, target["target"], target["runner"]), (["lib.cargo.basis", "lib.cargo.build"], []))
-        entries[f"binary-{target['name']}"] = built
-        entries[f"bind-{target['name']}"] = bound
-        entries[f"smoke-{target['name']}"] = decided(bucket, {"entry": {"kind": "binary-smoke", "binary": bound["key"]}}, (["lib.identity.smoke"], []))
+        known = target["name"]
+        entries[f"dependencies-{known}"] = decided(bucket, basis.dependencies(held["source"], name, target["target"], target["runner"]), cargo, entries)
+        entries[f"binary-{known}"] = decided(bucket, basis.resolve(held["source"], name, target["target"], target["runner"]), cargo, entries)
+        bound = {"entry": {"kind": "binary-identity", "binary": entries[f"binary-{known}"]["key"]}, "identity": identity}
+        entries[f"bind-{known}"] = decided(bucket, bound, (["lib.identity.bind"], ["identity/format.json"]), entries)
+        smoked = {"entry": {"kind": "binary-smoke", "binary": entries[f"bind-{known}"]["key"]}}
+        entries[f"smoke-{known}"] = decided(bucket, smoked, (["lib.identity.smoke"], []), entries)
 
 
 def suites(held, bucket, entries):
     source = held["source"]
-    entries["suite-linux"] = decided(bucket, basis.suite(source, RUNNER), (["lib.cargo.basis", "lib.cargo.suite"], []))
+    entries["suite-linux"] = decided(bucket, basis.suite(source, RUNNER), (["lib.cargo.basis", "lib.cargo.suite"], []), entries)
     if node.carried(source):
-        entries["suite-node"] = decided(bucket, node.basis(source, RUNNER), (["lib.media.node"], []))
+        entries["suite-node"] = decided(bucket, node.basis(source, RUNNER), (["lib.media.node"], []), entries)
     if cfworker.workers(source):
-        entries["cfworker"] = decided(bucket, cfworker.basis(source, RUNNER), (["lib.media.cfworker"], []))
+        entries["cfworker"] = decided(bucket, cfworker.basis(source, RUNNER), (["lib.media.cfworker"], []), entries)
 
 
 def media(observed, entries):

@@ -1,13 +1,16 @@
 import json
 import os
+import re
 import tempfile
 import unittest
 from pathlib import Path
 from unittest import mock
 
 from lib import parameters
+from lib.process import git
 from lib.refusal import Refusal
 from scripts import plan
+from tests.lib.store.memory import Memory
 
 STEPS = """
 {
@@ -127,3 +130,46 @@ class Media(unittest.TestCase):
             plan.media(observed, {})
 
 
+class Derived(unittest.TestCase):
+    HELD = {"repository": "PerishLab/plumb", "marker": "v0.38.3-rc.7", "commit": "a" * 40, "tree": "b" * 40, "source": "../product"}
+
+    def entries(self):
+        entries = {}
+        patches = (
+            mock.patch.object(plan.basis, "resolve", side_effect=lambda source, name, target, runner: {"entry": "binary", "target": target}),
+            mock.patch.object(plan.basis, "dependencies", side_effect=lambda source, name, target, runner: {"entry": "dependencies", "target": target}),
+            mock.patch.object(plan.basis, "suite", return_value={"entry": "suite"}),
+            mock.patch.object(plan.node, "carried", return_value=False),
+            mock.patch.object(plan.cfworker, "workers", return_value=[]),
+        )
+        with patches[0], patches[1], patches[2], patches[3], patches[4]:
+            plan.binaries(self.HELD, Memory(), entries)
+            plan.suites(self.HELD, Memory(), entries)
+        return entries
+
+    def test_an_entry_consumes_exactly_the_entries_whose_keys_its_basis_names(self):
+        consumed = {name: entry.get("consumes", []) for name, entry in self.entries().items()}
+        for target in ("linux", "windows", "macos"):
+            self.assertEqual(consumed[f"bind-{target}"], [f"binary-{target}"])
+            self.assertEqual(consumed[f"smoke-{target}"], [f"bind-{target}"])
+            self.assertEqual(consumed[f"binary-{target}"], [])
+            self.assertEqual(consumed[f"dependencies-{target}"], [])
+        self.assertEqual(consumed["suite-linux"], [])
+
+    def test_every_consumed_entry_is_already_a_need_of_the_job_that_consumes_it(self):
+        needs = workflow()
+        job = lambda name: "binary" if name.startswith("dependencies-") else name.rsplit("-", 1)[0] if name.split("-")[0] in ("binary", "bind", "smoke") else name
+        for name, entry in self.entries().items():
+            for consumed in entry.get("consumes", []):
+                self.assertIn(job(consumed), needs[job(name)], f"{job(name)} consumes {job(consumed)}")
+
+
+def workflow():
+    needs, current = {}, None
+    for line in (Path(git(".", "rev-parse", "--show-toplevel")) / ".github/workflows/ship.yml").read_text().splitlines():
+        if re.fullmatch(r"  [a-z-]+:", line):
+            current = line.strip().rstrip(":")
+            needs[current] = []
+        elif current and line.startswith("    needs:"):
+            needs[current] = re.findall(r"[a-z-]+", line.split(":", 1)[1])
+    return needs

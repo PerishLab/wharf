@@ -5,6 +5,7 @@ from lib.content import canonical, marker
 from lib.refusal import Refusal
 
 SCHEMA = 1
+PUBLISHED = ("npm", "oci", "chart", "cargo", "release", "cfworker")
 NAMED = re.compile(r"[A-Za-z0-9._-]+/[A-Za-z0-9._-]+")
 
 
@@ -29,8 +30,21 @@ def standing(context):
     return f"{named(context)}/latest.json"
 
 
+def depth(entries, name, held):
+    if name not in held:
+        held[name] = 1 + max((depth(entries, consumed, held) for consumed in entries[name].get("consumes", [])), default=0)
+    return held[name]
+
+
+def layered(entries):
+    held = {}
+    levels = [depth(entries, name, held) for name in entries if name not in PUBLISHED]
+    layers = [sorted(name for name in entries if name not in PUBLISHED and held[name] == level) for level in range(1, max(levels, default=0) + 1)]
+    return {"layers": layers, "last": sorted(name for name in entries if name in PUBLISHED)}
+
+
 def document(context, entries, engines):
-    return {"schema": SCHEMA, "context": context, "engines": engines, "entries": {name: entries[name] for name in sorted(entries)}}
+    return {"schema": SCHEMA, "context": context, "engines": engines, "entries": {name: entries[name] for name in sorted(entries)}, "shape": layered(entries)}
 
 
 def read(bucket, context):
@@ -59,4 +73,4 @@ def record(bucket, context, entries, engines):
     name = location(context)
     bucket.create(name, body)
     bucket.put(standing(context), body)
-    return {"plan": name, "standing": standing(context), "entries": len(held["entries"])}
+    return {"plan": name, "standing": standing(context), "entries": len(held["entries"]), "shape": held["shape"]}
