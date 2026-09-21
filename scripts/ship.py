@@ -72,9 +72,7 @@ def inherited(bucket, document, held, target):
     entry = document["entries"].get(f"dependencies-{target['name']}")
     if entry is None or entry["decision"] != "skip":
         return entry
-    restored = place()
-    workload.fetch(bucket, entry["key"], str(restored))
-    build.restore(held["source"], restored / DEPENDENCIES)
+    build.restore(held["source"], staged(bucket, entry["key"]) / DEPENDENCIES)
     return entry
 
 
@@ -137,10 +135,15 @@ def run_bind(held):
 
 
 def validate(held):
-    bucket, document, _ = opened(held, "release")
+    bucket, document, entry = opened(held, "validate")
     target = targeted(BUILD["primary"])
-    artifact = bind.Artifact(bound(bucket, document, target["name"]), plan.product(document["context"]), target["target"])
-    return configured(artifact, held["repository"], held["marker"])
+    primary = document["entries"][f"bind-{target['name']}"]["key"]
+    held_basis = {"entry": {"kind": "binary-validate", "binary": primary}}
+    resolved(entry, held_basis, (["lib.identity.smoke"], ["validators.json"]))
+    artifact = bind.Artifact(staged(bucket, primary), plan.product(document["context"]), target["target"])
+    output = place()
+    configured(artifact, str(output), {"repository": held["repository"], "marker": held["marker"]})
+    return workload.publish(bucket, entry["key"], workload.Produced(output, held_basis, carried(held)))
 
 
 def run_smoke(held):

@@ -104,7 +104,9 @@ publishing is ordered by policy and never written into a basis. A layer is one
 matrix of units, each naming its action, runner and the preparations
 `.github/actions/prepare` makes before it; `resources/units.json` says which
 entries a unit covers, and the workflow runs a fixed number of layers. What
-publishes still has a job of its own and one decision each. Skipping is absence
+publishes still has a job of its own and one decision each; every one waits for
+all the layers, and release, which moves the channel pointer people install
+from, waits for every other medium too. Skipping is absence
 from a matrix, not a condition on a job that exists. A single job that
 covers several targets takes them from the plan it already reads, and refuses
 when the plan decided none of them. Whether a medium is already published stays

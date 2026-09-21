@@ -257,3 +257,28 @@ class Stepped(unittest.TestCase):
     def test_a_unit_no_layer_runs_refuses(self):
         with self.assertRaisesRegex(Refusal, r"a layer runs one of (\w|-|, )+, not cargo-publish"):
             ship.step({"unit": "cargo-publish"})
+
+
+class Validating(unittest.TestCase):
+    def test_validation_is_recorded_under_its_own_key_from_the_primary_bound_binary(self):
+        bucket = Memory()
+        produced = Path(tempfile.mkdtemp()) / "bound"
+        produced.mkdir()
+        (produced / "plumb-x86_64-unknown-linux-gnu").write_bytes(b"a bound executable")
+        bound = "b" * 64
+        ship.workload.publish(bucket, bound, ship.workload.Produced(produced, {"entry": "bound"}, CONTEXT))
+        held_basis = {"entry": {"kind": "binary-validate", "binary": bound}}
+        key = ship.workload.key(held_basis, ship.implementation.resourced(["lib.identity.smoke"], ["validators.json"]))
+        entries = {"bind-linux": {"key": bound, "decision": "run"}, "validate": {"key": key, "decision": "run"}}
+        plan.record(bucket, dict(CONTEXT, commit="a" * 40, tree="b" * 40), entries, {})
+        seen = {}
+
+        def configure(artifact, output, release):
+            seen.update(file=artifact.file.read_bytes(), release=release)
+            Path(output).mkdir(parents=True)
+            Path(output).joinpath("receipt.json").write_text("{}")
+
+        with mock.patch.object(ship.r2, "configured", return_value=bucket), mock.patch.object(ship, "configured", side_effect=configure):
+            self.assertEqual(ship.validate(dict(CONTEXT, planned="1"))["key"], key)
+        self.assertEqual(seen["file"], b"a bound executable")
+        self.assertEqual(seen["release"], {"repository": CONTEXT["repository"], "marker": CONTEXT["marker"]})

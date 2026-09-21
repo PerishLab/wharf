@@ -8,6 +8,7 @@
     "suite-linux": {"action": "suite"},
     "suite-node": {"action": "node-suite", "prepare": ["node", "pnpm"]},
     "bind": {"action": "bind", "prepare": ["rcodesign"]},
-    "smoke": {"action": "smoke", "per": "target"}
+    "smoke": {"action": "smoke", "per": "target"},
+    "validate": {"action": "validate"}
   }
 }

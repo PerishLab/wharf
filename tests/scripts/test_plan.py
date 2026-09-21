@@ -123,6 +123,8 @@ class Derived(unittest.TestCase):
         with patches[0], patches[1], patches[2], patches[3], patches[4]:
             plan.binaries(self.HELD, Memory(), entries)
             plan.suites(self.HELD, Memory(), entries)
+        entries["release"] = {"decision": "run"}
+        plan.validation(Memory(), entries)
         return entries
 
     def test_an_entry_consumes_exactly_the_entries_whose_keys_its_basis_names(self):
@@ -133,13 +135,22 @@ class Derived(unittest.TestCase):
             self.assertEqual(consumed[f"binary-{target}"], [])
             self.assertEqual(consumed[f"dependencies-{target}"], [])
         self.assertEqual(consumed["suite-linux"], [])
+        self.assertEqual(consumed["validate"], ["bind-linux"])
+
+    def test_validation_sits_beside_smoke_and_is_not_needed_when_nothing_is_released(self):
+        self.assertIn("validate", [unit["name"] for unit in plan.units(self.entries())["layer-3"]])
+        entries = self.entries()
+        entries["release"]["decision"] = "skip"
+        entries["validate"] = {"decision": "run"}
+        plan.validation(Memory(), entries)
+        self.assertEqual(entries["validate"]["decision"], "skip")
 
     def test_a_layer_runs_one_unit_per_job_and_names_what_each_must_prepare(self):
         held = plan.units(self.entries())
         self.assertEqual([unit["name"] for unit in held["layer-1"]], ["binary linux", "binary macos", "binary windows", "suite"])
         self.assertEqual(held["layer-1"][2]["prepare"], ["autocrlf"])
         self.assertEqual(held["layer-2"], [{"name": "bind", "action": "bind", "target": "", "runner": plan.RUNNER, "prepare": ["rcodesign"]}])
-        self.assertEqual([unit["name"] for unit in held["layer-3"]], ["smoke linux", "smoke macos", "smoke windows"])
+        self.assertEqual([unit["name"] for unit in held["layer-3"]], ["smoke linux", "smoke macos", "smoke windows", "validate"])
         windows = held["layer-3"][2]
         self.assertEqual((windows["target"], windows["runner"], windows["prepare"]), ("x86_64-pc-windows-msvc", "windows-2025", ["autocrlf"]))
 
@@ -151,7 +162,7 @@ class Derived(unittest.TestCase):
 
     def test_a_unit_the_plan_decided_to_skip_is_absent_from_its_layer(self):
         entries = self.entries()
-        for name in ("smoke-linux", "smoke-macos", "bind-linux", "bind-macos", "bind-windows"):
+        for name in ("smoke-linux", "smoke-macos", "bind-linux", "bind-macos", "bind-windows", "validate"):
             entries[name]["decision"] = "skip"
         held = plan.units(entries)
         self.assertEqual(held["layer-2"], [])
@@ -164,7 +175,7 @@ class Derived(unittest.TestCase):
 
     def test_every_consumed_entry_is_already_a_need_of_the_job_that_consumes_it(self):
         needs = workflow()
-        layered = {"binary": "layer-1", "dependencies": "layer-1", "suite": "layer-1", "bind": "layer-2", "smoke": "layer-3"}
+        layered = {"binary": "layer-1", "dependencies": "layer-1", "suite": "layer-1", "bind": "layer-2", "smoke": "layer-3", "validate": "layer-3"}
         job = lambda name: layered.get(name.split("-")[0], name)
         for name, entry in self.entries().items():
             for consumed in entry.get("consumes", []):

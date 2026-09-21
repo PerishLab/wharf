@@ -35,10 +35,21 @@ def smoke(artifact, output, expect, runner=run):
     return receipt
 
 
-def configured(artifact, repository, marker, runner=run):
-    steps = resources.read_json("validators.json").get(repository, [])
-    if not steps:
-        return {"action": "ship.binary.configured", "steps": []}
+def configured(artifact, output, release, runner=run):
+    output = Path(output)
+    if output.exists():
+        raise Refusal(f"output {output} already exists")
+    steps = resources.read_json("validators.json").get(release["repository"], [])
+    marker = release["marker"]
+    if steps:
+        validated(artifact, steps, marker, runner)
+    output.mkdir(parents=True)
+    receipt = {"action": "ship.binary.configured", "steps": [" ".join(step) for step in steps]}
+    (output / "receipt.json").write_text(json.dumps(receipt, indent=2, sort_keys=True) + "\n")
+    return receipt
+
+
+def validated(artifact, steps, marker, runner):
     artifact.file.chmod(0o755)
     with tempfile.TemporaryDirectory() as home:
         env = {"HOME": home, "PATH": os.environ.get("PATH", "/usr/bin:/bin")}
@@ -49,4 +60,3 @@ def configured(artifact, repository, marker, runner=run):
             except subprocess.CalledProcessError as failure:
                 detail = (failure.stderr or failure.stdout or "").strip()[:500]
                 raise Refusal(f"{' '.join(step)} exited {failure.returncode} in a clean home: {detail}")
-    return {"action": "ship.binary.configured", "steps": [" ".join(step) for step in steps]}

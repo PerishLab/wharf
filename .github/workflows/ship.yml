@@ -315,8 +315,8 @@ jobs:
         run: python3 -B -m scripts.ship step
 
   npm:
-    needs: [plan, layer-1]
-    if: always() && needs.plan.result == 'success' && needs.plan.outputs.npm == 'run' && (needs.layer-1.result == 'success' || needs.layer-1.result == 'skipped')
+    needs: [plan, layer-1, layer-2, layer-3]
+    if: always() && needs.plan.result == 'success' && needs.plan.outputs.npm == 'run' && !contains(needs.*.result, 'failure') && !contains(needs.*.result, 'cancelled')
     runs-on: ubuntu-24.04
     permissions:
       contents: read
@@ -355,7 +355,7 @@ jobs:
 
   oci:
     needs: [plan, layer-1, layer-2, layer-3]
-    if: always() && needs.plan.result == 'success' && needs.plan.outputs.oci == 'run' && (needs.layer-1.result == 'success' || needs.layer-1.result == 'skipped') && (needs.layer-2.result == 'success' || needs.layer-2.result == 'skipped') && (needs.layer-3.result == 'success' || needs.layer-3.result == 'skipped')
+    if: always() && needs.plan.result == 'success' && needs.plan.outputs.oci == 'run' && !contains(needs.*.result, 'failure') && !contains(needs.*.result, 'cancelled')
     runs-on: ubuntu-24.04
     permissions:
       contents: read
@@ -398,8 +398,8 @@ jobs:
         run: python3 -B -m scripts.ship oci-publish
 
   chart:
-    needs: [plan, layer-1]
-    if: always() && needs.plan.result == 'success' && needs.plan.outputs.chart == 'run' && (needs.layer-1.result == 'success' || needs.layer-1.result == 'skipped')
+    needs: [plan, layer-1, layer-2, layer-3]
+    if: always() && needs.plan.result == 'success' && needs.plan.outputs.chart == 'run' && !contains(needs.*.result, 'failure') && !contains(needs.*.result, 'cancelled')
     runs-on: ubuntu-24.04
     permissions:
       contents: read
@@ -435,32 +435,9 @@ jobs:
           WHARF_MARKER: ${{ inputs.marker }}
         run: python3 -B -m scripts.ship chart-publish
 
-  validate:
-    needs: [plan, layer-1, layer-2]
-    if: always() && needs.plan.result == 'success' && needs.plan.outputs.release == 'run' && (needs.layer-1.result == 'success' || needs.layer-1.result == 'skipped') && (needs.layer-2.result == 'success' || needs.layer-2.result == 'skipped')
-    runs-on: ubuntu-24.04
-    steps:
-      - name: Check out wharf
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
-        with:
-          path: wharf
-          persist-credentials: false
-
-      - name: Load the rules the release carries with its own binary
-        env:
-          WHARF_REPOSITORY: ${{ inputs.repository }}
-          WHARF_MARKER: ${{ inputs.marker }}
-          WHARF_WHARF: ${{ github.sha }}
-          WHARF_RUN: ${{ github.run_id }}
-          WHARF_ATTEMPT: ${{ github.run_attempt }}
-          WHARF_PLANNED: ${{ needs.plan.outputs.planned }}
-          WHARF_R2_ACCESS_KEY_ID: ${{ secrets.WHARF_R2_ACCESS_KEY_ID }}
-          WHARF_R2_SECRET_ACCESS_KEY: ${{ secrets.WHARF_R2_SECRET_ACCESS_KEY }}
-        run: python3 -B -m scripts.ship validate
-
   release:
-    needs: [plan, layer-1, layer-2, layer-3, validate]
-    if: always() && needs.plan.result == 'success' && needs.plan.outputs.release == 'run' && (needs.layer-1.result == 'success' || needs.layer-1.result == 'skipped') && (needs.layer-2.result == 'success' || needs.layer-2.result == 'skipped') && (needs.validate.result == 'success' || needs.validate.result == 'skipped') && (needs.layer-3.result == 'success' || needs.layer-3.result == 'skipped')
+    needs: [plan, layer-1, layer-2, layer-3, npm, oci, chart, cargo, cfworker]
+    if: always() && needs.plan.result == 'success' && needs.plan.outputs.release == 'run' && !contains(needs.*.result, 'failure') && !contains(needs.*.result, 'cancelled')
     runs-on: ubuntu-24.04
     steps:
       - name: Check out wharf
@@ -493,8 +470,8 @@ jobs:
         run: python3 -B -m scripts.ship release
 
   cfworker:
-    needs: [plan, layer-1]
-    if: always() && needs.plan.result == 'success' && needs.plan.outputs.cfworker == 'run' && (needs.layer-1.result == 'success' || needs.layer-1.result == 'skipped')
+    needs: [plan, layer-1, layer-2, layer-3]
+    if: always() && needs.plan.result == 'success' && needs.plan.outputs.cfworker == 'run' && !contains(needs.*.result, 'failure') && !contains(needs.*.result, 'cancelled')
     runs-on: ubuntu-24.04
     steps:
       - name: Check out wharf
@@ -536,8 +513,8 @@ jobs:
         run: python3 -B -m scripts.ship cfworker-deploy
 
   cargo:
-    needs: [plan, layer-1]
-    if: always() && needs.plan.result == 'success' && needs.plan.outputs.cargo == 'run' && (needs.layer-1.result == 'success' || needs.layer-1.result == 'skipped')
+    needs: [plan, layer-1, layer-2, layer-3]
+    if: always() && needs.plan.result == 'success' && needs.plan.outputs.cargo == 'run' && !contains(needs.*.result, 'failure') && !contains(needs.*.result, 'cancelled')
     runs-on: ubuntu-24.04
     steps:
       - name: Check out wharf
@@ -562,7 +539,7 @@ jobs:
         run: python3 -B -m scripts.ship cargo-publish
 
   complete:
-    needs: [plan, layer-1, layer-2, layer-3, npm, oci, chart, validate, release, cfworker, cargo]
+    needs: [plan, layer-1, layer-2, layer-3, npm, oci, chart, release, cfworker, cargo]
     if: always()
     runs-on: ubuntu-24.04
     steps:

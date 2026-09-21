@@ -1,3 +1,4 @@
+import json
 import subprocess
 import tempfile
 import unittest
@@ -50,15 +51,18 @@ class Configured(unittest.TestCase):
             calls.append((argv[1:], env["HOME"] == cwd))
             return ""
 
-        receipt = configured(self.artifact, "PerishLab/plumb", "v0.38.0-rc.1", runner)
+        output = Path(tempfile.mkdtemp()) / "validated"
+        receipt = configured(self.artifact, str(output), {"repository": "PerishLab/plumb", "marker": "v0.38.0-rc.1"}, runner)
         self.assertEqual(calls[0][0], ["rule", "list", "--json"])
         self.assertTrue(all(clean for _, clean in calls))
         self.assertEqual(len(receipt["steps"]), len(calls))
+        self.assertEqual(json.loads((output / "receipt.json").read_text()), receipt)
 
     def test_refuses_a_failing_step_and_skips_undeclared_products(self):
         def runner(argv, cwd, env):
             raise subprocess.CalledProcessError(1, argv, stderr="catalogue does not cover every mechanism")
 
         with self.assertRaisesRegex(Refusal, "clean home"):
-            configured(self.artifact, "PerishLab/plumb", "v0.38.0", runner)
-        self.assertEqual(configured(self.artifact, "PerishLab/other", "v1.0.0", runner)["steps"], [])
+            configured(self.artifact, str(Path(tempfile.mkdtemp()) / "refused"), {"repository": "PerishLab/plumb", "marker": "v0.38.0"}, runner)
+        declared = configured(self.artifact, str(Path(tempfile.mkdtemp()) / "other"), {"repository": "PerishLab/other", "marker": "v1.0.0"}, runner)
+        self.assertEqual(declared["steps"], [])

@@ -67,6 +67,14 @@ def media(observed, entries):
         entries[name] = {"decision": decision}
 
 
+def validation(bucket, entries):
+    primary = entries[f"bind-{BUILD['primary']}"]["key"]
+    held = {"entry": {"kind": "binary-validate", "binary": primary}}
+    entries["validate"] = decided(bucket, held, (["lib.identity.smoke"], ["validators.json"]), entries)
+    if entries["release"]["decision"] == "skip":
+        entries["validate"]["decision"] = "skip"
+
+
 def reported(text):
     held = json.loads(text or "{}")
     return {name: {field: value for field, value in (step.get("outputs") or {}).items() if field in REPORTED} for name, step in held.items()}
@@ -114,6 +122,7 @@ def record(held):
     binaries(held, bucket, entries)
     suites(held, bucket, entries)
     media(observed, entries)
+    validation(bucket, entries)
     engines = node.declared(held["source"]) if node.carried(held["source"]) else {}
     recorded = plan.record(bucket, {field: held[field] for field in CONTEXT}, entries, engines)
     return dict(recorded, decided=emit(entries, held["attempt"]), entry={name: entries[name]["decision"] for name in sorted(entries)})
