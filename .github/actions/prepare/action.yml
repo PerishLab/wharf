@@ -1,0 +1,17 @@
+name: prepare
+description: Prepare the machine for one layer unit, taking only what its prepare list names
+inputs:
+  prepare:
+    description: The preparations this unit names, separated by spaces
+    required: true
+runs:
+  using: composite
+  steps:
+    - name: Prepare the pinned Mach-O signer
+      if: contains(inputs.prepare, 'rcodesign')
+      shell: bash
+      run: |
+        curl -fsSLO https://github.com/indygreg/apple-platform-rs/releases/download/apple-codesign%2F0.29.0/apple-codesign-0.29.0-x86_64-unknown-linux-musl.tar.gz
+        echo "dbe85cedd8ee4217b64e9a0e4c2aef92ab8bcaaa41f20bde99781ff02e600002  apple-codesign-0.29.0-x86_64-unknown-linux-musl.tar.gz" | sha256sum -c -
+        tar xzf apple-codesign-0.29.0-x86_64-unknown-linux-musl.tar.gz
+        sudo install -m 0755 apple-codesign-0.29.0-x86_64-unknown-linux-musl/rcodesign /usr/local/bin/rcodesign

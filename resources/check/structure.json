@@ -6,5 +6,6 @@
   "prose": [".md", ".txt", ".rst", ".adoc"],
   "hooks": [".githooks/pre-commit"],
   "workflows": ".github/workflows",
+  "actions": ".github/actions",
   "limits": {"lines": 300, "parameters": 4, "nesting": 4, "entries": 10, "depth": 3}
 }

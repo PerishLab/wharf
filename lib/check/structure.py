@@ -28,8 +28,8 @@ def placement(path):
         return f"{path}: only Python modules belong under {head}/"
     if head == ".githooks" and str(path) not in RULES["hooks"]:
         return f"{path}: only {', '.join(RULES['hooks'])} belongs under .githooks/"
-    if head == ".github" and (str(path.parent) != RULES["workflows"] or path.suffix != ".yml"):
-        return f"{path}: only workflow .yml files belong under {RULES['workflows']}/"
+    if head == ".github" and not (str(path.parent) == RULES["workflows"] and path.suffix == ".yml") and not (str(path.parent.parent) == RULES["actions"] and path.name == "action.yml"):
+        return f"{path}: only workflow .yml files under {RULES['workflows']}/ and action.yml files under {RULES['actions']}/<name>/ belong under .github/"
     return None
 
 

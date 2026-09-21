@@ -9,6 +9,7 @@ the repository; `CLAUDE.md` only points here.
 | Path | Holds |
 | --- | --- |
 | `.github/workflows/` | orchestration, one workflow per distribution path |
+| `.github/actions/` | composite actions, one directory each; `prepare` readies a machine for a layer unit |
 | `lib/` | every piece of shared logic, one module per function |
 | `scripts/` | thin entry points run as `python -m scripts.<name>` from the repository root |
 | `tests/` | tests mirroring `lib/` and `scripts/` |
@@ -95,9 +96,17 @@ builds itself can come back stale. It is packed under one fixed timestamp to
 stay byte for byte the same, and restored under one instant, because cargo
 rebuilds whatever it finds an input newer than.
 
-The plan also tells the runner what to start: one matrix per target family and
-one decision per single job, written to the runner's output file. Skipping is
-absence from a matrix, not a condition on a job that exists. A single job that
+The plan also tells the runner what to start, written to the runner's output
+file. Each entry records the entries whose keys its basis names as `consumes`,
+and the plan derives layers from that: an entry sits one layer after the
+deepest entry it consumes, while what publishes comes after every layer, since
+publishing is ordered by policy and never written into a basis. A layer is one
+matrix of units, each naming its action, runner and the preparations
+`.github/actions/prepare` makes before it; `resources/units.json` says which
+entries a unit covers, and the workflow runs a fixed number of layers. Families
+not yet run by layers still get one matrix per target family, and single jobs
+one decision each. Skipping is absence from a matrix, not a condition on a job
+that exists. A single job that
 covers several targets takes them from the plan it already reads, and refuses
 when the plan decided none of them. Whether a medium is already published stays
 with the step that can ask its registry, because asking needs that registry's

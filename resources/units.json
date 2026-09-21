@@ -1,0 +1,10 @@
+{
+  "layers": 3,
+  "prepare": {
+    "windows": ["autocrlf"]
+  },
+  "units": {
+    "bind": {"action": "bind", "prepare": ["rcodesign"]},
+    "smoke": {"action": "smoke", "per": "target"}
+  }
+}

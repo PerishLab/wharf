@@ -60,15 +60,10 @@ class Matrices(unittest.TestCase):
     def test_only_what_the_plan_decided_to_run_reaches_the_matrix(self):
         held = plan.matrices(self.entries(["binary-windows", "binary-macos"]))
         self.assertEqual([target["name"] for target in held["binary"]], ["linux"])
-        self.assertEqual([target["name"] for target in held["smoke"]], ["linux", "windows", "macos"])
-
-    def test_binding_is_one_job_the_plan_starts_when_any_target_needs_it(self):
-        self.assertEqual(plan.binding(self.entries(["bind-linux", "bind-windows"])), "run")
-        self.assertEqual(plan.binding(self.entries([f"bind-{name}" for name in ("linux", "windows", "macos")])), "skip")
 
     def test_a_matrix_entry_carries_the_target_and_the_runner_the_job_needs(self):
         held = plan.matrices(self.entries([]))
-        self.assertEqual(held["smoke"][1], {"name": "windows", "target": "x86_64-pc-windows-msvc", "runner": "windows-2025"})
+        self.assertEqual(held["binary"][1], {"name": "windows", "target": "x86_64-pc-windows-msvc", "runner": "windows-2025"})
 
     def test_a_family_with_nothing_to_do_is_an_empty_matrix(self):
         held = plan.matrices(self.entries([f"binary-{name}" for name in ("linux", "windows", "macos")]))
@@ -82,10 +77,10 @@ class Matrices(unittest.TestCase):
             named = plan.emit(plan.matrices(entries), entries, "3")
         self.assertEqual(json.loads(named["binary"]), [target for target in plan.BUILD["targets"] if target["name"] != "macos"])
         self.assertEqual(named["cfworker"], "skip")
-        self.assertIn("bind=run", path.read_text())
         self.assertIn("cfworker=skip", path.read_text())
         self.assertIn("planned=3", path.read_text())
-        self.assertEqual(len(path.read_text().splitlines()), len(plan.FAMILIES) + len(plan.SINGLE) + 2)
+        self.assertEqual([line.split("=")[0] for line in path.read_text().splitlines() if line.startswith("layer-")], ["layer-1", "layer-2", "layer-3"])
+        self.assertEqual(len(path.read_text().splitlines()), len(plan.FAMILIES) + len(plan.SINGLE) + plan.UNITS["layers"] + 1)
 
     def test_nowhere_to_answer_the_caller_refuses(self):
         with mock.patch.dict(os.environ, {}, clear=True):
@@ -156,9 +151,31 @@ class Derived(unittest.TestCase):
             self.assertEqual(consumed[f"dependencies-{target}"], [])
         self.assertEqual(consumed["suite-linux"], [])
 
+    def test_a_layer_runs_one_unit_per_job_and_names_what_each_must_prepare(self):
+        held = plan.units(self.entries())
+        self.assertEqual(held["layer-1"], [])
+        self.assertEqual(held["layer-2"], [{"name": "bind", "action": "bind", "target": "", "runner": plan.RUNNER, "prepare": ["rcodesign"]}])
+        self.assertEqual([unit["name"] for unit in held["layer-3"]], ["smoke linux", "smoke macos", "smoke windows"])
+        windows = held["layer-3"][2]
+        self.assertEqual((windows["target"], windows["runner"], windows["prepare"]), ("x86_64-pc-windows-msvc", "windows-2025", ["autocrlf"]))
+
+    def test_a_unit_the_plan_decided_to_skip_is_absent_from_its_layer(self):
+        entries = self.entries()
+        for name in ("smoke-linux", "smoke-macos", "bind-linux", "bind-macos", "bind-windows"):
+            entries[name]["decision"] = "skip"
+        held = plan.units(entries)
+        self.assertEqual(held["layer-2"], [])
+        self.assertEqual([unit["name"] for unit in held["layer-3"]], ["smoke windows"])
+
+    def test_a_plan_deeper_than_the_workflow_refuses(self):
+        entries = {f"step-{number}": {"key": str(number) * 64, "decision": "run", **({"consumes": [f"step-{number - 1}"]} if number else {})} for number in range(4)}
+        with self.assertRaisesRegex(Refusal, "derived 4 layers, the workflow runs 3"):
+            plan.units(entries)
+
     def test_every_consumed_entry_is_already_a_need_of_the_job_that_consumes_it(self):
         needs = workflow()
-        job = lambda name: "binary" if name.startswith("dependencies-") else name.rsplit("-", 1)[0] if name.split("-")[0] in ("binary", "bind", "smoke") else name
+        layered = {"bind": "layer-2", "smoke": "layer-3"}
+        job = lambda name: "binary" if name.startswith("dependencies-") else layered.get(name.split("-")[0], name.rsplit("-", 1)[0] if name.startswith("binary-") else name)
         for name, entry in self.entries().items():
             for consumed in entry.get("consumes", []):
                 self.assertIn(job(consumed), needs[job(name)], f"{job(name)} consumes {job(consumed)}")
@@ -167,9 +184,9 @@ class Derived(unittest.TestCase):
 def workflow():
     needs, current = {}, None
     for line in (Path(git(".", "rev-parse", "--show-toplevel")) / ".github/workflows/ship.yml").read_text().splitlines():
-        if re.fullmatch(r"  [a-z-]+:", line):
+        if re.fullmatch(r"  [a-z0-9-]+:", line):
             current = line.strip().rstrip(":")
             needs[current] = []
         elif current and line.startswith("    needs:"):
-            needs[current] = re.findall(r"[a-z-]+", line.split(":", 1)[1])
+            needs[current] = re.findall(r"[a-z0-9-]+", line.split(":", 1)[1])
     return needs

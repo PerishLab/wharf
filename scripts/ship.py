@@ -18,6 +18,7 @@ RELEASE = ("repository", "marker", "commit", "tree")
 CONTEXT = ("repository", "marker", "wharf", "run", "attempt")
 PLANNED = (*CONTEXT, "planned")
 BUILD = resources.read_json("build.json")
+LAYERED = sorted({spec["action"] for spec in resources.read_json("units.json")["units"].values()})
 RUNNER = BUILD["runner"]
 
 
@@ -245,6 +246,15 @@ def cargo_publish(held):
     return publish.publish(held["source"], bound["version"])
 
 
+def step(held):
+    if held["unit"] not in LAYERED:
+        raise Refusal(f"a layer runs one of {', '.join(LAYERED)}, not {held['unit']}")
+    handler, names = ACTIONS[held["unit"]]
+    values, origins = parameters.resolve(held["unit"], names, [])
+    print("\n".join(parameters.report(values, origins)), file=sys.stderr)
+    return handler(values)
+
+
 ACTIONS = {
     "binary": (run_binary, ["source", "target", *PLANNED]),
     "suite": (run_suite, ["source", *PLANNED]),
@@ -264,6 +274,7 @@ ACTIONS = {
     "cfworker-deploy": (cfworker_deploy, ["source", *PLANNED]),
     "cargo-plan": (cargo_plan, ["source", "marker"]),
     "cargo-publish": (cargo_publish, ["source", "marker"]),
+    "step": (step, ["unit"]),
 }
 
 

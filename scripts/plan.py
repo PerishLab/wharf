@@ -10,8 +10,9 @@ from lib.refusal import Refusal
 from lib.store import plan, r2, workload
 
 BUILD = resources.read_json("build.json")
+UNITS = resources.read_json("units.json")
 RUNNER = BUILD["runner"]
-FAMILIES = ("binary", "smoke")
+FAMILIES = ("binary",)
 SINGLE = ("suite-linux", "suite-node", "cfworker")
 REPORTED = ("key", "decision")
 MEDIA = ("npm", "oci", "chart", "cargo", "release")
@@ -76,14 +77,33 @@ def matrices(entries):
     return {family: [target for target in BUILD["targets"] if entries[f"{family}-{target['name']}"]["decision"] == "run"] for family in FAMILIES}
 
 
-def binding(entries):
-    return "run" if any(entries[f"bind-{target['name']}"]["decision"] == "run" for target in BUILD["targets"]) else "skip"
+def unit(name):
+    kind, _, target = name.partition("-")
+    spec = UNITS["units"].get(name) or UNITS["units"].get(kind)
+    if spec is None:
+        return None
+    if spec.get("per") != "target":
+        return {"name": spec["action"], "action": spec["action"], "target": "", "runner": RUNNER, "prepare": spec.get("prepare", [])}
+    known = next(item for item in BUILD["targets"] if item["name"] == target)
+    prepared = UNITS["prepare"].get(target, []) + spec.get("prepare", [])
+    return {"name": f"{spec['action']} {target}", "action": spec["action"], "target": known["target"], "runner": known["runner"], "prepare": prepared}
+
+
+def units(entries):
+    layers = plan.layered(entries)["layers"]
+    if len(layers) > UNITS["layers"]:
+        raise Refusal(f"the plan derived {len(layers)} layers, the workflow runs {UNITS['layers']}")
+    held = {}
+    for number in range(1, UNITS["layers"] + 1):
+        found = [unit(name) for name in (layers[number - 1] if number <= len(layers) else []) if entries[name]["decision"] == "run"]
+        held[f"layer-{number}"] = list({item["name"]: item for item in found if item}.values())
+    return held
 
 
 def emit(held, entries, attempt):
     answered = {family: json.dumps(targets, separators=(",", ":")) for family, targets in held.items()}
     answered.update({name: entries[name]["decision"] if name in entries else "skip" for name in SINGLE})
-    answered["bind"] = binding(entries)
+    answered.update({name: json.dumps(found, separators=(",", ":")) for name, found in units(entries).items()})
     answered["planned"] = attempt
     parameters.answer(answered)
     return answered

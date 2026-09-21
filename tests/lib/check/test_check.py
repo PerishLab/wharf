@@ -66,5 +66,9 @@ class Violations(unittest.TestCase):
         with mock.patch.object(actions, "PINNED", pinned):
             self.assertIn("node20", " ".join(self.found(".github/workflows/demo.yml", workflow)))
 
+    def test_an_action_belongs_in_its_own_directory_under_the_actions_seat(self):
+        self.assertEqual(self.found(".github/actions/prepare/action.yml", "name: prepare\n"), [])
+        self.assertNotEqual(self.found(".github/actions/prepare.yml", "name: prepare\n"), [])
+
     def test_accepts_the_locked_actions(self):
         self.assertTrue(all(entry["runtime"] in actions.RUNTIMES for entry in actions.PINNED.values()))

@@ -1,5 +1,6 @@
 import io
 import json
+import os
 import tempfile
 import unittest
 from pathlib import Path
@@ -241,3 +242,18 @@ class Ship(unittest.TestCase):
         modules = (["lib.identity.smoke"], [])
         first = ship.workload.key(held, ship.implementation.resourced(*modules))
         self.assertEqual(ship.resolved({"key": first, "decision": "run"}, held, modules), first)
+
+
+class Stepped(unittest.TestCase):
+    def test_a_layer_unit_runs_the_action_it_names_with_that_action_s_own_parameters(self):
+        seen = {}
+        handler = lambda held: seen.update(held) or {"state": "smoked"}
+        environment = {"WHARF_TARGET": "x86_64-unknown-linux-gnu", **{f"WHARF_{name.upper()}": value for name, value in dict(CONTEXT, planned="1").items()}}
+        with mock.patch.dict(ship.ACTIONS, {"smoke": (handler, ship.ACTIONS["smoke"][1])}), mock.patch.dict(os.environ, environment):
+            self.assertEqual(ship.step({"unit": "smoke"}), {"state": "smoked"})
+        self.assertEqual(seen["target"], "x86_64-unknown-linux-gnu")
+        self.assertEqual(seen["planned"], "1")
+
+    def test_a_unit_no_layer_runs_refuses(self):
+        with self.assertRaisesRegex(Refusal, "a layer runs one of bind, smoke, not cargo-publish"):
+            ship.step({"unit": "cargo-publish"})
