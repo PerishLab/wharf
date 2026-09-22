@@ -1,4 +1,5 @@
 {
   "source": "https://depot.{name}.perish.uk",
-  "bucket": "perish-{name}-depot"
+  "bucket": "perish-{name}-depot",
+  "yard": "perish-wharf-yard"
 }

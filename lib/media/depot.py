@@ -9,7 +9,7 @@ from lib.content import canonical, marker, resources
 from lib.refusal import Conflict, Refusal
 
 FORMAT = 3
-KINDS = {"configuration": "configurations", "changelog": "changelogs", "skill": "skills"}
+KINDS = {"changelog": "changelogs", "skill": "skills"}
 STABLE_ONLY = {"changelog"}
 LAYOUT = resources.read_json("depot.json")
 DIGEST = re.compile(r"[0-9a-f]{64}")

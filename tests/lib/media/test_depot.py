@@ -22,7 +22,7 @@ class Format(unittest.TestCase):
         self.assertEqual(depot.pretty({"a": [], "b": {"c": None}}), b'{\n  "a": [],\n  "b": {\n    "c": null\n  }\n}')
 
     def test_manifest_orders_objects_and_binds_the_release_digest(self):
-        held = depot.identity(release(), "beta", "configuration")
+        held = depot.identity(release(), "beta", "skill")
         document = depot.manifest(held, OBJECTS)
         self.assertEqual([entry["path"] for entry in document["objects"]], ["assets/hook", "rules/policy.toml"])
         self.assertEqual(list(document), ["format", "product", "channel", "version", "marker", "kind", "objects"])
@@ -30,9 +30,9 @@ class Format(unittest.TestCase):
         self.assertRegex(held["marker"]["sha256"], "^[0-9a-f]{64}$")
 
     def test_pointer_names_its_generation_route(self):
-        document = depot.manifest(depot.identity(release(), "beta", "configuration"), OBJECTS)
+        document = depot.manifest(depot.identity(release(), "beta", "skill"), OBJECTS)
         held = depot.pointer(document, BASE, None, "2026-09-18T00:00:00Z")
-        self.assertTrue(held["manifest"]["url"].endswith(f"/channels/beta/configurations/versions/v0.38.0-beta.8/generations/{held['generation']}/manifest.json"))
+        self.assertTrue(held["manifest"]["url"].endswith(f"/channels/beta/skills/versions/v0.38.0-beta.8/generations/{held['generation']}/manifest.json"))
         self.assertEqual(list(held)[-2:], ["previousGeneration", "createdAt"])
 
     def test_kind_selects_its_route_and_refuses_unknown_kinds(self):

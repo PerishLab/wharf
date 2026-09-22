@@ -173,18 +173,26 @@ reach it.
 
 ## Depot
 
-Depot generations are marker-bound blobs of one kind (`configuration`, `skill`,
-`changelog`); wharf never reads their meaning. The standing generation on Depot is
-the only source, its `previousGeneration` chain the history, and an edit pulls it,
-changes it and publishes the next one.
+Depot generations are marker-bound blobs of one kind (`skill`, `changelog`);
+wharf reads their meaning only to vet what it lodges. The standing generation on
+Depot is the only source, and its `previousGeneration` chain is the history.
 
-- A new marker's base is its own standing generation, else the highest lower
-  version on its `x.y.z` line; with neither, `--full` or `--from` is required.
-- Unchanged objects are copied server-side, and the pointer is written only if it
-  still holds the ETag it was read with.
-- Only prerelease markers are written. Authors edit locally through the
-  `wharf.depot` Runseal profile, and `depot.yml` inherits one kind onto one
-  marker when it is dispatched. Ship never calls it: the two paths hold
-  different credentials and answer to different lifetimes, and a marker whose
-  generations must stand before its channel moves is held to that by `validate`,
-  which loads the release configuration with the binary being released.
+- Everything enters through the yard: `perish-wharf-yard`, a private bucket
+  whose objects expire after seven days. Plumb consigns one JSON document per
+  consignment at `<owner>/<repository>/<marker>/<kind>/<digest>.json`, created
+  only, carrying each object's path, digest, mode and body. The yard's writer
+  reaches no Depot bucket.
+- `depot.yml` lodges one consignment. It reads it by the digest its bytes must
+  hash to, vets it — a pinned plumb proves a changelog again against the product
+  at its marker, and a skill must equal `skills/<product>` at its marker — and
+  only then writes the generation. The yard is an untrusted inbox, and expiry
+  is a floor rather than a promise, so lodge checks presence and digest every
+  time instead of trusting either.
+- A lodged generation's base is its own standing generation, else the highest
+  lower version on its `x.y.z` line, else the highest lower stable; with none,
+  it starts the product's lineage.
+- Unchanged objects are copied server-side, and the pointer is written only if
+  it still holds the ETag it was read with.
+- `depot.yml` is Depot's only writer; nothing lodges from a workstation. Ship
+  never calls it: the two paths hold different credentials and answer to
+  different lifetimes.

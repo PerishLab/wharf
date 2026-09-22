@@ -1,12 +1,14 @@
 import datetime
 import json
 import sys
+import tempfile
 
 from lib import parameters
+from lib.content import consigned
 from lib.media import depot, edit, lineage
 from lib.process import git
 from lib.refusal import Refusal
-from lib.store import r2
+from lib.store import r2, yard
 
 
 def release(held):
@@ -15,8 +17,12 @@ def release(held):
     return depot.Release(held["repository"], held["marker"], commit, tree)
 
 
+def product(release_held):
+    return release_held.repository.split("/", 1)[1].lower()
+
+
 def bucket(release_held):
-    return r2.writer(depot.LAYOUT["bucket"].format(name=release_held.repository.split("/", 1)[1].lower()), "DEPOT")
+    return r2.writer(depot.LAYOUT["bucket"].format(name=product(release_held)), "DEPOT")
 
 
 def target(release_held, kind):
@@ -27,32 +33,22 @@ def now():
     return datetime.datetime.now(datetime.UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
 
 
-def pull(held):
+def vetted(held, release_held, directory):
+    if held["kind"] == "changelog":
+        return consigned.changelog(held["source"], held["marker"], directory)
+    return consigned.skill(held["source"], held["marker"], product(release_held), directory)
+
+
+def lodge(held):
     release_held = release(held)
-    store = bucket(release_held)
-    return edit.pull(store, lineage.base(store, target(release_held, held["kind"]), held["from"]), held["dir"])
-
-
-def patch(held):
-    release_held = release(held)
-    store = bucket(release_held)
-    base = lineage.base(store, target(release_held, held["kind"]), held["from"])
-    puts = [item.split("=", 1) for item in held["put"]]
-    if any(len(item) != 2 for item in puts):
-        raise Refusal("--put takes PATH=FILE")
-    content = edit.patched(base, puts, held["remove"])
-    return dict(edit.stage(store, edit.Change(release_held, held["kind"], content, base, now())), base=base["generation"])
-
-
-def publish(held):
-    release_held = release(held)
-    store = bucket(release_held)
-    if held["full"] and held["from"]:
-        raise Refusal("--full and --from are exclusive")
-    base = None if held["full"] else lineage.base(store, target(release_held, held["kind"]), held["from"])
-    content = edit.directory(held["dir"])
-    result = edit.stage(store, edit.Change(release_held, held["kind"], content, base, now()))
-    return dict(result, base=base["generation"] if base else None)
+    document = yard.read(r2.writer(depot.LAYOUT["yard"], "DEPOT"), held)
+    with tempfile.TemporaryDirectory() as scratch:
+        directory = yard.unpack(document, scratch)
+        verdict = vetted(held, release_held, directory)
+        store = bucket(release_held)
+        base = lineage.parent(store, target(release_held, held["kind"]))
+        result = edit.stage(store, edit.Change(release_held, held["kind"], edit.directory(directory), base, now()))
+    return dict(result, base=base["generation"] if base else None, vetted=verdict, consigned=held["digest"])
 
 
 def compare(held):
@@ -66,13 +62,9 @@ def compare(held):
 
 
 ACTIONS = {
-    "pull": (pull, ["repository", "marker", "source", "kind", "dir", "from"]),
-    "patch": (patch, ["repository", "marker", "source", "kind", "from", "put", "remove"]),
-    "publish": (publish, ["repository", "marker", "source", "kind", "dir", "from", "full"]),
+    "lodge": (lodge, ["repository", "marker", "source", "kind", "digest"]),
     "diff": (compare, ["repository", "marker", "source", "kind", "against"]),
 }
-
-
 
 
 def main(argv=None):

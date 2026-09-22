@@ -12,13 +12,16 @@ on:
         required: true
         type: string
       kind:
-        description: Depot kind to inherit
+        description: Depot kind the consignment carries
         required: true
-        default: configuration
         type: choice
         options:
-          - configuration
+          - changelog
           - skill
+      digest:
+        description: sha256 of the consignment in the yard
+        required: true
+        type: string
 
 permissions:
   contents: read
@@ -32,7 +35,7 @@ defaults:
     working-directory: wharf
 
 jobs:
-  inherit:
+  lodge:
     runs-on: ubuntu-24.04
     steps:
       - name: Check out wharf
@@ -56,13 +59,22 @@ jobs:
           fetch-depth: 0
           persist-credentials: false
 
-      - name: Inherit the generation
+      - name: Prepare the pinned plumb
+        working-directory: .
+        run: |
+          curl -fsSLO https://releases.plumb.perish.uk/v1/objects/sha256/7605f9611a471e38b79cdc7704b9af4f5c04be013352ded585fa50e39e0c53e8/plumb-x86_64-unknown-linux-gnu.tar.gz
+          echo "7605f9611a471e38b79cdc7704b9af4f5c04be013352ded585fa50e39e0c53e8  plumb-x86_64-unknown-linux-gnu.tar.gz" | sha256sum -c -
+          tar xzf plumb-x86_64-unknown-linux-gnu.tar.gz
+          sudo install -m 0755 plumb /usr/local/bin/plumb
+
+      - name: Lodge the consignment
         env:
           WHARF_SOURCE: ../product
           WHARF_REPOSITORY: ${{ inputs.repository }}
           WHARF_MARKER: ${{ inputs.marker }}
           WHARF_KIND: ${{ inputs.kind }}
+          WHARF_DIGEST: ${{ inputs.digest }}
           WHARF_R2_ENDPOINT: ${{ vars.WHARF_R2_ENDPOINT }}
           WHARF_DEPOT_ACCESS_KEY_ID: ${{ secrets.WHARF_DEPOT_ACCESS_KEY_ID }}
           WHARF_DEPOT_SECRET_ACCESS_KEY: ${{ secrets.WHARF_DEPOT_SECRET_ACCESS_KEY }}
-        run: python3 -B -m scripts.depot patch
+        run: python3 -B -m scripts.depot lodge

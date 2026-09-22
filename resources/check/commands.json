@@ -5,6 +5,7 @@
     "git config --global core.autocrlf false",
     "npm install --global \"pnpm@$PNPM\"",
     "printf '%s' \"$TOKEN\" | docker login ghcr.io --username \"$ACTOR\" --password-stdin\nprintf '%s' \"$TOKEN\" | helm registry login ghcr.io --username \"$ACTOR\" --password-stdin",
-    "curl -fsSLO https://github.com/indygreg/apple-platform-rs/releases/download/apple-codesign%2F0.29.0/apple-codesign-0.29.0-x86_64-unknown-linux-musl.tar.gz\necho \"dbe85cedd8ee4217b64e9a0e4c2aef92ab8bcaaa41f20bde99781ff02e600002  apple-codesign-0.29.0-x86_64-unknown-linux-musl.tar.gz\" | sha256sum -c -\ntar xzf apple-codesign-0.29.0-x86_64-unknown-linux-musl.tar.gz\nsudo install -m 0755 apple-codesign-0.29.0-x86_64-unknown-linux-musl/rcodesign /usr/local/bin/rcodesign"
+    "curl -fsSLO https://github.com/indygreg/apple-platform-rs/releases/download/apple-codesign%2F0.29.0/apple-codesign-0.29.0-x86_64-unknown-linux-musl.tar.gz\necho \"dbe85cedd8ee4217b64e9a0e4c2aef92ab8bcaaa41f20bde99781ff02e600002  apple-codesign-0.29.0-x86_64-unknown-linux-musl.tar.gz\" | sha256sum -c -\ntar xzf apple-codesign-0.29.0-x86_64-unknown-linux-musl.tar.gz\nsudo install -m 0755 apple-codesign-0.29.0-x86_64-unknown-linux-musl/rcodesign /usr/local/bin/rcodesign",
+    "curl -fsSLO https://releases.plumb.perish.uk/v1/objects/sha256/7605f9611a471e38b79cdc7704b9af4f5c04be013352ded585fa50e39e0c53e8/plumb-x86_64-unknown-linux-gnu.tar.gz\necho \"7605f9611a471e38b79cdc7704b9af4f5c04be013352ded585fa50e39e0c53e8  plumb-x86_64-unknown-linux-gnu.tar.gz\" | sha256sum -c -\ntar xzf plumb-x86_64-unknown-linux-gnu.tar.gz\nsudo install -m 0755 plumb /usr/local/bin/plumb"
   ]
 }

@@ -85,3 +85,14 @@ def base(bucket, target, spec=None):
     if spec:
         return named(bucket, target[2], spec)
     return standing(bucket, target) or below(bucket, target)
+
+
+def parent(bucket, target):
+    own = standing(bucket, target)
+    if own:
+        return own
+    _, version, kind = target
+    below = [held for held in versions(bucket, kind) if order(held[1]) < order(version) and (line(held[1]) == line(version) or held[0] == "stable")]
+    if not below:
+        return None
+    return standing(bucket, (*max(below, key=lambda held: order(held[1])), kind))

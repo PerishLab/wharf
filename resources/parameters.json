@@ -8,6 +8,7 @@
     "basis": "string",
     "binary-key": "string",
     "commit": "string",
+    "digest": "string",
     "dir": "string",
     "expect": "string",
     "from": "string",
@@ -36,7 +37,7 @@
   },
   "shapes": {
     "repository": "PerishLab/[A-Za-z0-9._-]+",
-    "kind": "configuration|skill|changelog"
+    "kind": "skill|changelog"
   },
   "defaults": {
     "against": null,
