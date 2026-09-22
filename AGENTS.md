@@ -143,6 +143,11 @@ name is rendered from the verb and object `resources/units.json` gives it.
 A name that cannot be written as one verb over one object marks a job doing two
 things; that is how writing the seal and moving the channel came apart.
 
+One name escapes the form: a layer whose matrix is empty is skipped before its
+matrix expands, and GitHub does not evaluate the name of a skipped job, so it
+shows `matrix.name`. No expression in that name can help, and a placeholder
+unit would break skipping as absence, so it stays.
+
 ## Release identity
 
 Sources declare version `0.0.0`. A distributable binary is built unbound and receives
