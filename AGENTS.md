@@ -127,6 +127,19 @@ Every run attempt writes one trigger record at
 `trigger/<owner>/<repository>/<marker>/<run>-<attempt>.json`; a run is complete only
 when every job succeeded or was skipped by plan.
 
+How far a marker is distributed has one authority: `distribution.json` beside its
+seal on the product's release authority, at
+`v1/releases/<channel>/<marker>/distribution.json`. It records the marker's
+commit and tree, what became of each medium — binaries, npm, oci, chart, cargo,
+cfworker and the channel — and whether some run completed it. Every attempt
+merges into it and nothing moves back: a medium once published stays
+published, a completed marker stays complete, and a marker recorded at another
+commit refuses. Plumb reads it; the seal, the channel pointer, the registries,
+trigger records and GitHub's own verdict are evidence, and where they drift
+from it, a new dispatch brings them back rather than anyone editing it.
+`[record] distribution` writes it with the release bucket's credentials alone,
+apart from `[record] trigger`, which holds the workload bucket's.
+
 ## Names
 
 Every name a person reads on GitHub — a run's title, a job's, a step's — takes
@@ -138,7 +151,7 @@ name is rendered from the verb and object `resources/units.json` gives it.
 | | Within wharf |
 | --- | --- |
 | Verbs | ship, lodge, plan, build, test, bind, smoke, validate, publish, deploy, point, record, checkout, verify, identify, prepare, login, read, decide |
-| Objects | entries, binary, binaries, suite, npm, oci, chart, cargo, cfworker, channel, trigger, plan, wharf, product, request, source, registry, engines, machine, autocrlf, node, pnpm, plumb, and the Depot kinds |
+| Objects | entries, binary, binaries, suite, npm, oci, chart, cargo, cfworker, channel, distribution, trigger, plan, wharf, product, request, source, registry, engines, machine, autocrlf, node, pnpm, plumb, and the Depot kinds |
 
 A name that cannot be written as one verb over one object marks a job doing two
 things; that is how writing the seal and moving the channel came apart.

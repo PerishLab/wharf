@@ -49,6 +49,8 @@ jobs:
       channel: ${{ steps.channel.outputs.decision }}
       cargo: ${{ steps.cargo.outputs.decision }}
       planned: ${{ steps.plan.outputs.planned }}
+      commit: ${{ steps.source.outputs.commit }}
+      tree: ${{ steps.source.outputs.tree }}
     steps:
       - name: "[checkout] wharf"
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
@@ -575,9 +577,35 @@ jobs:
           WHARF_CARGO_TOKEN: ${{ secrets.WHARF_CARGO_TOKEN }}
         run: python3 -B -m scripts.ship cargo-publish
 
+  distribution:
+    name: "[record] distribution"
+    needs: [plan, layer-1, layer-2, layer-3, npm, oci, chart, release, channel, cfworker, cargo]
+    if: always() && needs.plan.result == 'success'
+    runs-on: ubuntu-24.04
+    steps:
+      - name: "[checkout] wharf"
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          path: wharf
+          persist-credentials: false
+
+      - name: "[record] distribution"
+        env:
+          WHARF_NEEDS: ${{ toJSON(needs) }}
+          WHARF_REPOSITORY: ${{ inputs.repository }}
+          WHARF_MARKER: ${{ inputs.marker }}
+          WHARF_COMMIT: ${{ needs.plan.outputs.commit }}
+          WHARF_TREE: ${{ needs.plan.outputs.tree }}
+          WHARF_WHARF: ${{ github.sha }}
+          WHARF_RUN: ${{ github.run_id }}
+          WHARF_ATTEMPT: ${{ github.run_attempt }}
+          WHARF_RELEASES_ACCESS_KEY_ID: ${{ secrets.WHARF_RELEASES_ACCESS_KEY_ID }}
+          WHARF_RELEASES_SECRET_ACCESS_KEY: ${{ secrets.WHARF_RELEASES_SECRET_ACCESS_KEY }}
+        run: python3 -B -m scripts.distribution record
+
   complete:
     name: "[record] trigger"
-    needs: [plan, layer-1, layer-2, layer-3, npm, oci, chart, release, channel, cfworker, cargo]
+    needs: [plan, layer-1, layer-2, layer-3, npm, oci, chart, release, channel, cfworker, cargo, distribution]
     if: always()
     runs-on: ubuntu-24.04
     steps:
