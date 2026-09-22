@@ -14,7 +14,7 @@ UNITS = resources.read_json("units.json")
 RUNNER = BUILD["runner"]
 SINGLE = ("cfworker",)
 REPORTED = ("key", "decision")
-MEDIA = ("npm", "oci", "chart", "cargo", "release")
+MEDIA = ("npm", "oci", "chart", "cargo", "release", "channel")
 IDENTITY = ("repository", "marker", "commit", "tree")
 CONTEXT = IDENTITY + ("wharf", "run", "attempt")
 TAKEN = IDENTITY + ("wharf", "run", "attempt", "source", "steps")
@@ -85,11 +85,12 @@ def unit(name):
     spec = UNITS["units"].get(name) or UNITS["units"].get(kind)
     if spec is None:
         return None
+    named = f"[{spec['verb']}] {spec['object']}"
     if spec.get("per") != "target":
-        return {"name": spec["action"], "action": spec["action"], "target": "", "runner": RUNNER, "prepare": spec.get("prepare", [])}
+        return {"name": named, "action": spec["action"], "target": "", "runner": RUNNER, "prepare": spec.get("prepare", [])}
     known = next(item for item in BUILD["targets"] if item["name"] == target)
     prepared = UNITS["prepare"].get(target, []) + spec.get("prepare", [])
-    return {"name": f"{spec['action']} {target}", "action": spec["action"], "target": known["target"], "runner": known["runner"], "prepare": prepared}
+    return {"name": f"{named} {target}", "action": spec["action"], "target": known["target"], "runner": known["runner"], "prepare": prepared}
 
 
 def units(entries):

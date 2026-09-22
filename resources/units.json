@@ -4,11 +4,11 @@
     "windows": ["autocrlf"]
   },
   "units": {
-    "binary": {"action": "binary", "per": "target"},
-    "suite-linux": {"action": "suite"},
-    "suite-node": {"action": "node-suite", "prepare": ["node", "pnpm"]},
-    "bind": {"action": "bind", "prepare": ["rcodesign"]},
-    "smoke": {"action": "smoke", "per": "target"},
-    "validate": {"action": "validate"}
+    "binary": {"action": "binary", "verb": "build", "object": "binary", "per": "target"},
+    "suite-linux": {"action": "suite", "verb": "test", "object": "suite linux"},
+    "suite-node": {"action": "node-suite", "verb": "test", "object": "suite node", "prepare": ["node", "pnpm"]},
+    "bind": {"action": "bind", "verb": "bind", "object": "binaries", "prepare": ["rcodesign"]},
+    "smoke": {"action": "smoke", "verb": "smoke", "object": "binary", "per": "target"},
+    "validate": {"action": "validate", "verb": "validate", "object": "binary"}
   }
 }

@@ -1,4 +1,5 @@
-name: depot
+name: lodge
+run-name: "[lodge] ${{ inputs.repository }} ${{ inputs.marker }} ${{ inputs.kind }}"
 
 on:
   workflow_dispatch:
@@ -36,21 +37,22 @@ defaults:
 
 jobs:
   lodge:
+    name: "[lodge] ${{ inputs.kind }}"
     runs-on: ubuntu-24.04
     steps:
-      - name: Check out wharf
+      - name: "[checkout] wharf"
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
           path: wharf
           persist-credentials: false
 
-      - name: Refuse a malformed request
+      - name: "[verify] request"
         env:
           WHARF_REPOSITORY: ${{ inputs.repository }}
           WHARF_MARKER: ${{ inputs.marker }}
         run: python3 -B -m scripts.plan check
 
-      - name: Check out product at marker
+      - name: "[checkout] product"
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
           repository: ${{ inputs.repository }}
@@ -59,7 +61,7 @@ jobs:
           fetch-depth: 0
           persist-credentials: false
 
-      - name: Prepare the pinned plumb
+      - name: "[prepare] plumb"
         working-directory: .
         run: |
           curl -fsSLO https://releases.plumb.perish.uk/v1/objects/sha256/7605f9611a471e38b79cdc7704b9af4f5c04be013352ded585fa50e39e0c53e8/plumb-x86_64-unknown-linux-gnu.tar.gz
@@ -67,7 +69,7 @@ jobs:
           tar xzf plumb-x86_64-unknown-linux-gnu.tar.gz
           sudo install -m 0755 plumb /usr/local/bin/plumb
 
-      - name: Lodge the consignment
+      - name: "[lodge] ${{ inputs.kind }}"
         env:
           WHARF_SOURCE: ../product
           WHARF_REPOSITORY: ${{ inputs.repository }}

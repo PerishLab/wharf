@@ -5,6 +5,7 @@ import os
 import tarfile
 import tempfile
 import unittest
+import urllib.error
 import zipfile
 from pathlib import Path
 
@@ -58,18 +59,29 @@ class Publish(unittest.TestCase):
     def setUp(self):
         self.bucket = Memory()
         self.bound = bound()
-        self.served = {}
 
     def reader(self, url):
         key = url.split(".perish.uk/", 1)[1]
         return self.bucket.get(key)
 
+    def served(self, url):
+        if not self.bucket.exists(url.split(".perish.uk/", 1)[1]):
+            raise urllib.error.HTTPError(url, 404, "Not Found", {}, None)
+        return self.reader(url)
+
     def publish(self, marker, held=None):
         held = managers(release.channel(marker) == "stable") if held is None else held
         return release.publish(release.Release("PerishLab/plumb", marker, "a" * 40, "b" * 40), release.Contents(self.bound, held), self.bucket, self.reader)
 
+    def point(self, marker, held=None):
+        held = managers(release.channel(marker) == "stable") if held is None else held
+        return release.point(release.Release("PerishLab/plumb", marker, "", "b" * 40), held, self.bucket)
+
+    def ship(self, marker):
+        return {**self.publish(marker), "pointer": self.point(marker)["pointer"]}
+
     def test_writes_the_v1_layout_plumb_can_read(self):
-        result = self.publish("v0.38.0-beta.7")
+        result = self.ship("v0.38.0-beta.7")
         self.assertEqual(result["state"], "published")
         seal = json.loads(self.bucket.get("v1/releases/beta/v0.38.0-beta.7/seal.json"))
         self.assertEqual(set(seal), SEAL_FIELDS)
@@ -81,11 +93,16 @@ class Publish(unittest.TestCase):
         self.assertEqual(seal["generator"]["origin"]["kind"], "source-built")
         pointer = json.loads(self.bucket.get("v1/channels/beta.json"))
         self.assertEqual((pointer["releaseVersion"], set(pointer["seal"])), ("v0.38.0-beta.7", REMOTE_FIELDS))
+        self.assertEqual(pointer["commit"], "a" * 40)
         self.assertIn('\n  "artifacts": {\n    "darwin-arm64": {\n      "name"', self.bucket.get("v1/releases/beta/v0.38.0-beta.7/seal.json").decode())
 
-    def test_pointer_only_moves_forward(self):
+    def test_publishing_leaves_the_channel_to_the_pointer(self):
         self.publish("v0.38.0-beta.7")
-        older = self.publish("v0.38.0-beta.6")
+        self.assertFalse(self.bucket.exists("v1/channels/beta.json"))
+
+    def test_pointer_only_moves_forward(self):
+        self.ship("v0.38.0-beta.7")
+        older = self.ship("v0.38.0-beta.6")
         self.assertEqual(older["pointer"]["state"], "kept")
         self.assertEqual(json.loads(self.bucket.get("v1/channels/beta.json"))["releaseVersion"], "v0.38.0-beta.7")
 
@@ -97,7 +114,7 @@ class Publish(unittest.TestCase):
             self.publish("v0.38.0-beta.7")
 
     def test_a_prerelease_seal_carries_its_pinned_managers_and_leaves_the_root_alone(self):
-        self.publish("v0.38.0-rc.2")
+        self.ship("v0.38.0-rc.2")
         seal = json.loads(self.bucket.get("v1/releases/rc/v0.38.0-rc.2/seal.json"))
         self.assertEqual(sorted(seal["managers"]), ["unix", "windows"])
         unix = seal["managers"]["unix"]
@@ -107,7 +124,7 @@ class Publish(unittest.TestCase):
         self.assertFalse(self.bucket.exists("manage.sh"))
 
     def test_stable_moves_the_canonical_managers_with_its_pointer(self):
-        result = self.publish("v0.38.0")
+        result = self.ship("v0.38.0")
         self.assertEqual(result["pointer"]["managers"], ["manage.ps1", "manage.sh"])
         self.assertEqual(self.bucket.get("manage.sh"), b"sh canonical")
         pointer = json.loads(self.bucket.get("v1/channels/stable.json"))
@@ -117,24 +134,47 @@ class Publish(unittest.TestCase):
         self.assertNotEqual(seal["managers"]["unix"]["url"], pointer["managers"]["unix"]["url"])
 
     def test_an_older_stable_keeps_the_root_managers(self):
-        self.publish("v0.38.1")
+        self.ship("v0.38.1")
         self.bucket.put("manage.sh", b"newer")
-        self.assertEqual(self.publish("v0.38.0")["pointer"]["state"], "kept")
+        self.assertEqual(self.ship("v0.38.0")["pointer"]["state"], "kept")
         self.assertEqual(self.bucket.get("manage.sh"), b"newer")
 
     def test_a_rerun_stable_restores_its_root_managers(self):
-        self.publish("v0.38.0")
+        self.ship("v0.38.0")
         self.bucket.put("manage.sh", b"lost")
-        self.assertEqual(self.publish("v0.38.0")["state"], "already-published")
+        self.assertEqual(self.ship("v0.38.0")["state"], "already-published")
         self.assertEqual(self.bucket.get("manage.sh"), b"sh canonical")
 
-    def test_refuses_stable_without_canonical_managers(self):
-        with self.assertRaisesRegex(Refusal, "manager scripts"):
-            self.publish("v0.38.0", managers(False))
+    def test_a_seal_whose_pointer_never_moved_is_pointed_at_later(self):
+        self.publish("v0.38.0-rc.1")
+        self.assertEqual(self.publish("v0.38.0-rc.1")["state"], "already-published")
+        self.assertEqual(self.point("v0.38.0-rc.1")["pointer"]["state"], "advanced")
+        self.assertEqual(json.loads(self.bucket.get("v1/channels/rc.json"))["releaseVersion"], "v0.38.0-rc.1")
+
+    def test_pointing_refuses_a_marker_with_no_seal(self):
+        with self.assertRaisesRegex(Refusal, "published seal"):
+            self.point("v0.38.0-rc.1")
         self.assertEqual(self.bucket.writes, [])
 
+    def test_refuses_stable_without_pinned_managers(self):
+        with self.assertRaisesRegex(Refusal, "manager scripts"):
+            self.publish("v0.38.0", Path(tempfile.mkdtemp()))
+        self.assertEqual(self.bucket.writes, [])
+
+    def test_pointing_refuses_stable_without_canonical_managers(self):
+        self.publish("v0.38.0", managers(False))
+        with self.assertRaisesRegex(Refusal, "manager scripts"):
+            self.point("v0.38.0", managers(False))
+        self.assertFalse(self.bucket.exists("v1/channels/stable.json"))
+
+    def test_a_channel_is_overtaken_only_by_a_newer_marker(self):
+        pointed = lambda marker: release.overtaken(release.Release("PerishLab/plumb", marker, "", ""), self.served)
+        self.assertFalse(pointed("v0.38.0-rc.2"))
+        self.ship("v0.38.0-rc.2")
+        self.assertEqual([pointed(held) for held in ("v0.38.0-rc.1", "v0.38.0-rc.2", "v0.38.0-rc.3")], [True, False, False])
+
     def test_rc_writes_its_own_channel(self):
-        self.publish("v0.38.0-rc.1")
+        self.ship("v0.38.0-rc.1")
         self.assertEqual(json.loads(self.bucket.get("v1/channels/rc.json"))["releaseVersion"], "v0.38.0-rc.1")
         self.assertFalse(self.bucket.exists("v1/channels/beta.json"))
 

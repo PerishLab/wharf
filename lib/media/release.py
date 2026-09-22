@@ -143,12 +143,12 @@ def scripts(directory, authority, rooted):
     return staged
 
 
-def managed(release, managers, authority):
-    pinned = scripts(managers, authority, False)
-    rooted = scripts(Path(managers) / CANONICAL, authority, True) if channel(release.marker) == "stable" else {}
-    if channel(release.marker) == "stable" and not (pinned and set(pinned) == set(rooted)):
-        raise Refusal("a stable release carries its pinned and canonical manager scripts for the same platforms")
-    return pinned, rooted
+def sealed(release):
+    return f"v1/releases/{channel(release.marker)}/{release.marker}/seal.json"
+
+
+def pointing(held):
+    return f"v1/channels/{channel(held)}.json"
 
 
 def generator(release):
@@ -159,7 +159,7 @@ def generator(release):
 def seal(release, name, held, authority):
     staged, pinned = held
     held = channel(release.marker)
-    key = f"v1/releases/{held}/{release.marker}/seal.json"
+    key = sealed(release)
     document = {
         "schema": 1,
         "product": name,
@@ -179,7 +179,7 @@ def pointer(release, name, sealed, rooted):
     held = channel(release.marker)
     managers = {platform: entry[2] for platform, entry in sorted(rooted.items())}
     document = {"schema": 1, "product": name, "channel": held, "releaseVersion": release.marker, "commit": release.commit, "seal": sealed, "managers": managers}
-    return f"v1/channels/{held}.json", json.dumps(document, indent=2).encode()
+    return pointing(release.marker), json.dumps(document, indent=2).encode()
 
 
 def lead(bucket, rooted, moved, marker):
@@ -204,35 +204,60 @@ def fetch(url):
         return response.read()
 
 
-def published(release, reader=fetch):
-    name, _, authority = place(release)
+def read(url, reader):
     try:
-        held = json.loads(reader(f"{authority}/v1/releases/{channel(release.marker)}/{release.marker}/seal.json"))
+        return json.loads(reader(url))
     except urllib.error.HTTPError as failure:
         if failure.code == 404:
-            return False
+            return {}
         raise Refusal(f"release authority answered {failure.code}")
+
+
+def published(release, reader=fetch):
+    name, _, authority = place(release)
+    held = read(f"{authority}/{sealed(release)}", reader)
     return held.get("releaseVersion") == release.marker and held.get("product") == name
+
+
+def overtaken(release, reader=fetch):
+    _, _, authority = place(release)
+    current = read(f"{authority}/{pointing(release.marker)}", reader).get("releaseVersion", "")
+    return marker.holds(current) and order(current) > order(release.marker)
 
 
 def publish(release, contents, bucket, reader=fetch):
     name, _, authority = place(release)
     staged = objects(name, contents.bound, authority)
-    pinned, rooted = managed(release, contents.managers, authority)
+    pinned = scripts(contents.managers, authority, False)
+    if channel(release.marker) == "stable" and not pinned:
+        raise Refusal("a stable release carries its pinned manager scripts")
     key, body = seal(release, name, (staged, pinned), authority)
     if bucket.exists(key):
-        held = json.loads(bucket.get(key))
-        if held["artifacts"] != json.loads(body)["artifacts"]:
+        if json.loads(bucket.get(key))["artifacts"] != json.loads(body)["artifacts"]:
             raise Refusal(f"{key} already holds different artifacts; a release is immutable")
-        moved = advance(bucket, *pointer(release, name, remote(authority, key, bucket.get(key), JSON), rooted), release.marker)
-        return {"seal": key, "state": "already-published", "pointer": lead(bucket, rooted, moved, release.marker)}
+        return {"seal": key, "state": "already-published"}
     for object_key, object_body, entry in [*staged.values(), *pinned.values()]:
         try:
             bucket.create(object_key, object_body, {"Content-Type": entry["mime"]})
         except Conflict:
             pass
     bucket.create(key, body, {"Content-Type": JSON})
-    moved = advance(bucket, *pointer(release, name, remote(authority, key, body, JSON), rooted), release.marker)
     if hashlib.sha256(reader(f"{authority}/{key}")).hexdigest() != hashlib.sha256(body).hexdigest():
         raise Refusal(f"{authority}/{key} does not serve the written seal")
-    return {"seal": key, "state": "published", "artifacts": sorted(staged), "managers": sorted(pinned), "pointer": lead(bucket, rooted, moved, release.marker)}
+    return {"seal": key, "state": "published", "artifacts": sorted(staged), "managers": sorted(pinned)}
+
+
+def point(release, managers, bucket):
+    name, _, authority = place(release)
+    key = sealed(release)
+    if not bucket.exists(key):
+        raise Refusal(f"{key} is not written; a channel points only at a published seal")
+    body = bucket.get(key)
+    held = json.loads(body)
+    stable = channel(release.marker) == "stable"
+    rooted = scripts(Path(managers) / CANONICAL, authority, True) if stable else {}
+    if stable and not (rooted and set(rooted) == set(held["managers"])):
+        raise Refusal("a stable channel carries canonical manager scripts for the platforms its seal pins")
+    committed = Release(release.repository, release.marker, held["commit"], release.wharf)
+    moved = advance(bucket, *pointer(committed, name, remote(authority, key, body, JSON), rooted), release.marker)
+    return {"seal": key, "pointer": lead(bucket, rooted, moved, release.marker)}

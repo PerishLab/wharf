@@ -5,7 +5,7 @@ from lib.content import canonical, marker
 from lib.refusal import Refusal
 
 SCHEMA = 1
-PUBLISHED = ("npm", "oci", "chart", "cargo", "release", "cfworker")
+PUBLISHED = ("npm", "oci", "chart", "cargo", "release", "channel", "cfworker")
 NAMED = re.compile(r"[A-Za-z0-9._-]+/[A-Za-z0-9._-]+")
 
 

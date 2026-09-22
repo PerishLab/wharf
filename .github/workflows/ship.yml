@@ -1,4 +1,5 @@
 name: ship
+run-name: "[ship] ${{ inputs.repository }} ${{ inputs.marker }}"
 
 on:
   workflow_dispatch:
@@ -29,6 +30,7 @@ defaults:
 
 jobs:
   plan:
+    name: "[plan] entries"
     runs-on: ubuntu-24.04
     permissions:
       contents: read
@@ -44,22 +46,23 @@ jobs:
       oci: ${{ steps.oci.outputs.decision }}
       chart: ${{ steps.chart.outputs.decision }}
       release: ${{ steps.release.outputs.decision }}
+      channel: ${{ steps.channel.outputs.decision }}
       cargo: ${{ steps.cargo.outputs.decision }}
       planned: ${{ steps.plan.outputs.planned }}
     steps:
-      - name: Check out wharf
+      - name: "[checkout] wharf"
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
           path: wharf
           persist-credentials: false
 
-      - name: Refuse a malformed request
+      - name: "[verify] request"
         env:
           WHARF_REPOSITORY: ${{ inputs.repository }}
           WHARF_MARKER: ${{ inputs.marker }}
         run: python3 -B -m scripts.plan check
 
-      - name: Check out product at marker
+      - name: "[checkout] product"
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
           repository: ${{ inputs.repository }}
@@ -67,13 +70,13 @@ jobs:
           path: product
           persist-credentials: false
 
-      - name: Identify source
+      - name: "[identify] source"
         id: source
         env:
           WHARF_SOURCE: ../product
         run: python3 -B -m scripts.plan source
 
-      - name: Sign in to the package registry
+      - name: "[login] registry"
         working-directory: .
         env:
           TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -82,13 +85,13 @@ jobs:
           printf '%s' "$TOKEN" | docker login ghcr.io --username "$ACTOR" --password-stdin
           printf '%s' "$TOKEN" | helm registry login ghcr.io --username "$ACTOR" --password-stdin
 
-      - name: engines
+      - name: "[read] engines"
         id: engines
         env:
           WHARF_SOURCE: ../product
         run: python3 -B -m scripts.ship node-engines
 
-      - name: npm packages
+      - name: "[decide] npm"
         id: npm
         env:
           WHARF_SOURCE: ../product
@@ -96,7 +99,7 @@ jobs:
           NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: python3 -B -m scripts.ship npm-plan
 
-      - name: oci image
+      - name: "[decide] oci"
         id: oci
         env:
           WHARF_SOURCE: ../product
@@ -104,7 +107,7 @@ jobs:
           WHARF_MARKER: ${{ inputs.marker }}
         run: python3 -B -m scripts.ship oci-plan
 
-      - name: charts
+      - name: "[decide] chart"
         id: chart
         env:
           WHARF_SOURCE: ../product
@@ -112,7 +115,7 @@ jobs:
           WHARF_MARKER: ${{ inputs.marker }}
         run: python3 -B -m scripts.ship chart-plan
 
-      - name: binary release
+      - name: "[decide] binaries"
         id: release
         env:
           WHARF_REPOSITORY: ${{ inputs.repository }}
@@ -121,7 +124,14 @@ jobs:
           WHARF_WHARF: ${{ github.sha }}
         run: python3 -B -m scripts.ship release-plan
 
-      - name: cargo packages
+      - name: "[decide] channel"
+        id: channel
+        env:
+          WHARF_REPOSITORY: ${{ inputs.repository }}
+          WHARF_MARKER: ${{ inputs.marker }}
+        run: python3 -B -m scripts.channel plan
+
+      - name: "[decide] cargo"
         id: cargo
         env:
           WHARF_SOURCE: ../product
@@ -129,7 +139,7 @@ jobs:
           WHARF_CARGO_TOKEN: ${{ secrets.WHARF_CARGO_TOKEN }}
         run: python3 -B -m scripts.ship cargo-plan
 
-      - name: Record the plan this run decided
+      - name: "[record] plan"
         id: plan
         env:
           WHARF_SOURCE: ../product
@@ -161,18 +171,18 @@ jobs:
         shell: bash
         working-directory: wharf
     steps:
-      - name: Keep checkouts byte-identical
+      - name: "[prepare] autocrlf"
         if: contains(matrix.prepare, 'autocrlf')
         working-directory: .
         run: git config --global core.autocrlf false
 
-      - name: Check out wharf
+      - name: "[checkout] wharf"
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
           path: wharf
           persist-credentials: false
 
-      - name: Check out product at marker
+      - name: "[checkout] product"
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
           repository: ${{ inputs.repository }}
@@ -180,14 +190,14 @@ jobs:
           path: product
           persist-credentials: false
 
-      - name: Prepare the machine
+      - name: "[prepare] machine"
         uses: ./wharf/.github/actions/prepare
         with:
           prepare: ${{ join(matrix.prepare, ' ') }}
           node: ${{ needs.plan.outputs.node }}
           pnpm: ${{ needs.plan.outputs.pnpm }}
 
-      - name: Run and record the unit
+      - name: ${{ matrix.name }}
         env:
           WHARF_UNIT: ${{ matrix.action }}
           WHARF_TARGET: ${{ matrix.target }}
@@ -217,18 +227,18 @@ jobs:
         shell: bash
         working-directory: wharf
     steps:
-      - name: Keep checkouts byte-identical
+      - name: "[prepare] autocrlf"
         if: contains(matrix.prepare, 'autocrlf')
         working-directory: .
         run: git config --global core.autocrlf false
 
-      - name: Check out wharf
+      - name: "[checkout] wharf"
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
           path: wharf
           persist-credentials: false
 
-      - name: Check out product at marker
+      - name: "[checkout] product"
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
           repository: ${{ inputs.repository }}
@@ -236,14 +246,14 @@ jobs:
           path: product
           persist-credentials: false
 
-      - name: Prepare the machine
+      - name: "[prepare] machine"
         uses: ./wharf/.github/actions/prepare
         with:
           prepare: ${{ join(matrix.prepare, ' ') }}
           node: ${{ needs.plan.outputs.node }}
           pnpm: ${{ needs.plan.outputs.pnpm }}
 
-      - name: Run and record the unit
+      - name: ${{ matrix.name }}
         env:
           WHARF_UNIT: ${{ matrix.action }}
           WHARF_TARGET: ${{ matrix.target }}
@@ -273,18 +283,18 @@ jobs:
         shell: bash
         working-directory: wharf
     steps:
-      - name: Keep checkouts byte-identical
+      - name: "[prepare] autocrlf"
         if: contains(matrix.prepare, 'autocrlf')
         working-directory: .
         run: git config --global core.autocrlf false
 
-      - name: Check out wharf
+      - name: "[checkout] wharf"
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
           path: wharf
           persist-credentials: false
 
-      - name: Check out product at marker
+      - name: "[checkout] product"
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
           repository: ${{ inputs.repository }}
@@ -292,14 +302,14 @@ jobs:
           path: product
           persist-credentials: false
 
-      - name: Prepare the machine
+      - name: "[prepare] machine"
         uses: ./wharf/.github/actions/prepare
         with:
           prepare: ${{ join(matrix.prepare, ' ') }}
           node: ${{ needs.plan.outputs.node }}
           pnpm: ${{ needs.plan.outputs.pnpm }}
 
-      - name: Run and record the unit
+      - name: ${{ matrix.name }}
         env:
           WHARF_UNIT: ${{ matrix.action }}
           WHARF_TARGET: ${{ matrix.target }}
@@ -315,6 +325,7 @@ jobs:
         run: python3 -B -m scripts.ship step
 
   npm:
+    name: "[publish] npm"
     needs: [plan, layer-1, layer-2, layer-3]
     if: always() && needs.plan.result == 'success' && needs.plan.outputs.npm == 'run' && !contains(needs.*.result, 'failure') && !contains(needs.*.result, 'cancelled')
     runs-on: ubuntu-24.04
@@ -322,13 +333,13 @@ jobs:
       contents: read
       packages: write
     steps:
-      - name: Check out wharf
+      - name: "[checkout] wharf"
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
           path: wharf
           persist-credentials: false
 
-      - name: Check out product at marker
+      - name: "[checkout] product"
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
           repository: ${{ inputs.repository }}
@@ -336,17 +347,17 @@ jobs:
           path: product
           persist-credentials: false
 
-      - name: Prepare the declared Node toolchain
+      - name: "[prepare] node"
         uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020
         with:
           node-version: ${{ needs.plan.outputs.node }}
 
-      - name: Prepare the declared pnpm
+      - name: "[prepare] pnpm"
         env:
           PNPM: ${{ needs.plan.outputs.pnpm }}
         run: npm install --global "pnpm@$PNPM"
 
-      - name: Publish npm packages
+      - name: "[publish] npm"
         env:
           WHARF_SOURCE: ../product
           WHARF_MARKER: ${{ inputs.marker }}
@@ -354,6 +365,7 @@ jobs:
         run: python3 -B -m scripts.ship npm-publish
 
   oci:
+    name: "[publish] oci"
     needs: [plan, layer-1, layer-2, layer-3]
     if: always() && needs.plan.result == 'success' && needs.plan.outputs.oci == 'run' && !contains(needs.*.result, 'failure') && !contains(needs.*.result, 'cancelled')
     runs-on: ubuntu-24.04
@@ -361,13 +373,13 @@ jobs:
       contents: read
       packages: write
     steps:
-      - name: Check out wharf
+      - name: "[checkout] wharf"
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
           path: wharf
           persist-credentials: false
 
-      - name: Check out product at marker
+      - name: "[checkout] product"
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
           repository: ${{ inputs.repository }}
@@ -375,7 +387,7 @@ jobs:
           path: product
           persist-credentials: false
 
-      - name: Sign in to the package registry
+      - name: "[login] registry"
         working-directory: .
         env:
           TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -384,7 +396,7 @@ jobs:
           printf '%s' "$TOKEN" | docker login ghcr.io --username "$ACTOR" --password-stdin
           printf '%s' "$TOKEN" | helm registry login ghcr.io --username "$ACTOR" --password-stdin
 
-      - name: Publish the image of the bound binary
+      - name: "[publish] oci"
         env:
           WHARF_SOURCE: ../product
           WHARF_REPOSITORY: ${{ inputs.repository }}
@@ -398,6 +410,7 @@ jobs:
         run: python3 -B -m scripts.ship oci-publish
 
   chart:
+    name: "[publish] chart"
     needs: [plan, layer-1, layer-2, layer-3]
     if: always() && needs.plan.result == 'success' && needs.plan.outputs.chart == 'run' && !contains(needs.*.result, 'failure') && !contains(needs.*.result, 'cancelled')
     runs-on: ubuntu-24.04
@@ -405,13 +418,13 @@ jobs:
       contents: read
       packages: write
     steps:
-      - name: Check out wharf
+      - name: "[checkout] wharf"
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
           path: wharf
           persist-credentials: false
 
-      - name: Check out product at marker
+      - name: "[checkout] product"
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
           repository: ${{ inputs.repository }}
@@ -419,7 +432,7 @@ jobs:
           path: product
           persist-credentials: false
 
-      - name: Sign in to the package registry
+      - name: "[login] registry"
         working-directory: .
         env:
           TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -428,7 +441,7 @@ jobs:
           printf '%s' "$TOKEN" | docker login ghcr.io --username "$ACTOR" --password-stdin
           printf '%s' "$TOKEN" | helm registry login ghcr.io --username "$ACTOR" --password-stdin
 
-      - name: Publish charts
+      - name: "[publish] chart"
         env:
           WHARF_SOURCE: ../product
           WHARF_REPOSITORY: ${{ inputs.repository }}
@@ -436,17 +449,18 @@ jobs:
         run: python3 -B -m scripts.ship chart-publish
 
   release:
+    name: "[publish] binaries"
     needs: [plan, layer-1, layer-2, layer-3, npm, oci, chart, cargo, cfworker]
     if: always() && needs.plan.result == 'success' && needs.plan.outputs.release == 'run' && !contains(needs.*.result, 'failure') && !contains(needs.*.result, 'cancelled')
     runs-on: ubuntu-24.04
     steps:
-      - name: Check out wharf
+      - name: "[checkout] wharf"
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
           path: wharf
           persist-credentials: false
 
-      - name: Check out product at marker
+      - name: "[checkout] product"
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
           repository: ${{ inputs.repository }}
@@ -454,7 +468,7 @@ jobs:
           path: product
           persist-credentials: false
 
-      - name: Publish the bound binaries and their manager scripts
+      - name: "[publish] binaries"
         env:
           WHARF_SOURCE: ../product
           WHARF_RELEASES_ACCESS_KEY_ID: ${{ secrets.WHARF_RELEASES_ACCESS_KEY_ID }}
@@ -469,18 +483,40 @@ jobs:
           WHARF_R2_SECRET_ACCESS_KEY: ${{ secrets.WHARF_R2_SECRET_ACCESS_KEY }}
         run: python3 -B -m scripts.ship release
 
-  cfworker:
-    needs: [plan, layer-1, layer-2, layer-3]
-    if: always() && needs.plan.result == 'success' && needs.plan.outputs.cfworker == 'run' && !contains(needs.*.result, 'failure') && !contains(needs.*.result, 'cancelled')
+  channel:
+    name: "[point] channel"
+    needs: [plan, layer-1, layer-2, layer-3, npm, oci, chart, cargo, cfworker, release]
+    if: always() && needs.plan.result == 'success' && needs.plan.outputs.channel == 'run' && !contains(needs.*.result, 'failure') && !contains(needs.*.result, 'cancelled')
     runs-on: ubuntu-24.04
     steps:
-      - name: Check out wharf
+      - name: "[checkout] wharf"
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
           path: wharf
           persist-credentials: false
 
-      - name: Check out product at marker
+      - name: "[point] channel"
+        env:
+          WHARF_RELEASES_ACCESS_KEY_ID: ${{ secrets.WHARF_RELEASES_ACCESS_KEY_ID }}
+          WHARF_RELEASES_SECRET_ACCESS_KEY: ${{ secrets.WHARF_RELEASES_SECRET_ACCESS_KEY }}
+          WHARF_REPOSITORY: ${{ inputs.repository }}
+          WHARF_MARKER: ${{ inputs.marker }}
+          WHARF_WHARF: ${{ github.sha }}
+        run: python3 -B -m scripts.channel point
+
+  cfworker:
+    name: "[deploy] cfworker"
+    needs: [plan, layer-1, layer-2, layer-3]
+    if: always() && needs.plan.result == 'success' && needs.plan.outputs.cfworker == 'run' && !contains(needs.*.result, 'failure') && !contains(needs.*.result, 'cancelled')
+    runs-on: ubuntu-24.04
+    steps:
+      - name: "[checkout] wharf"
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          path: wharf
+          persist-credentials: false
+
+      - name: "[checkout] product"
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
           repository: ${{ inputs.repository }}
@@ -488,17 +524,17 @@ jobs:
           path: product
           persist-credentials: false
 
-      - name: Prepare the declared Node toolchain
+      - name: "[prepare] node"
         uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020
         with:
           node-version: ${{ needs.plan.outputs.node }}
 
-      - name: Prepare the declared pnpm
+      - name: "[prepare] pnpm"
         env:
           PNPM: ${{ needs.plan.outputs.pnpm }}
         run: npm install --global "pnpm@$PNPM"
 
-      - name: Deploy and record the workers
+      - name: "[deploy] cfworker"
         env:
           WHARF_SOURCE: ../product
           WHARF_REPOSITORY: ${{ inputs.repository }}
@@ -513,17 +549,18 @@ jobs:
         run: python3 -B -m scripts.ship cfworker-deploy
 
   cargo:
+    name: "[publish] cargo"
     needs: [plan, layer-1, layer-2, layer-3]
     if: always() && needs.plan.result == 'success' && needs.plan.outputs.cargo == 'run' && !contains(needs.*.result, 'failure') && !contains(needs.*.result, 'cancelled')
     runs-on: ubuntu-24.04
     steps:
-      - name: Check out wharf
+      - name: "[checkout] wharf"
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
           path: wharf
           persist-credentials: false
 
-      - name: Check out product at marker
+      - name: "[checkout] product"
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
           repository: ${{ inputs.repository }}
@@ -531,7 +568,7 @@ jobs:
           path: product
           persist-credentials: false
 
-      - name: Publish cargo packages
+      - name: "[publish] cargo"
         env:
           WHARF_SOURCE: ../product
           WHARF_MARKER: ${{ inputs.marker }}
@@ -539,17 +576,18 @@ jobs:
         run: python3 -B -m scripts.ship cargo-publish
 
   complete:
-    needs: [plan, layer-1, layer-2, layer-3, npm, oci, chart, release, cfworker, cargo]
+    name: "[record] trigger"
+    needs: [plan, layer-1, layer-2, layer-3, npm, oci, chart, release, channel, cfworker, cargo]
     if: always()
     runs-on: ubuntu-24.04
     steps:
-      - name: Check out wharf
+      - name: "[checkout] wharf"
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
           path: wharf
           persist-credentials: false
 
-      - name: Write the trigger record
+      - name: "[record] trigger"
         env:
           WHARF_NEEDS: ${{ toJSON(needs) }}
           WHARF_REPOSITORY: ${{ inputs.repository }}

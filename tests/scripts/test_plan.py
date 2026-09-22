@@ -68,7 +68,7 @@ class Answered(unittest.TestCase):
 
     def test_the_layers_and_single_jobs_are_written_where_the_runner_reads_them(self):
         named, written = self.answered(self.ENTRIES)
-        self.assertEqual([unit["name"] for unit in json.loads(named["layer-1"])], ["binary linux", "suite"])
+        self.assertEqual([unit["name"] for unit in json.loads(named["layer-1"])], ["[build] binary linux", "[test] suite linux"])
         self.assertEqual(named["cfworker"], "skip")
         self.assertIn("planned=3", written)
         self.assertEqual([line.split("=")[0] for line in written.splitlines() if line.startswith("layer-")], ["layer-1", "layer-2", "layer-3"])
@@ -138,7 +138,7 @@ class Derived(unittest.TestCase):
         self.assertEqual(consumed["validate"], ["bind-linux"])
 
     def test_validation_sits_beside_smoke_and_is_not_needed_when_nothing_is_released(self):
-        self.assertIn("validate", [unit["name"] for unit in plan.units(self.entries())["layer-3"]])
+        self.assertIn("[validate] binary", [unit["name"] for unit in plan.units(self.entries())["layer-3"]])
         entries = self.entries()
         entries["release"]["decision"] = "skip"
         entries["validate"] = {"decision": "run"}
@@ -147,10 +147,10 @@ class Derived(unittest.TestCase):
 
     def test_a_layer_runs_one_unit_per_job_and_names_what_each_must_prepare(self):
         held = plan.units(self.entries())
-        self.assertEqual([unit["name"] for unit in held["layer-1"]], ["binary linux", "binary macos", "binary windows", "suite"])
+        self.assertEqual([unit["name"] for unit in held["layer-1"]], ["[build] binary linux", "[build] binary macos", "[build] binary windows", "[test] suite linux"])
         self.assertEqual(held["layer-1"][2]["prepare"], ["autocrlf"])
-        self.assertEqual(held["layer-2"], [{"name": "bind", "action": "bind", "target": "", "runner": plan.RUNNER, "prepare": ["rcodesign"]}])
-        self.assertEqual([unit["name"] for unit in held["layer-3"]], ["smoke linux", "smoke macos", "smoke windows", "validate"])
+        self.assertEqual(held["layer-2"], [{"name": "[bind] binaries", "action": "bind", "target": "", "runner": plan.RUNNER, "prepare": ["rcodesign"]}])
+        self.assertEqual([unit["name"] for unit in held["layer-3"]], ["[smoke] binary linux", "[smoke] binary macos", "[smoke] binary windows", "[validate] binary"])
         windows = held["layer-3"][2]
         self.assertEqual((windows["target"], windows["runner"], windows["prepare"]), ("x86_64-pc-windows-msvc", "windows-2025", ["autocrlf"]))
 
@@ -158,7 +158,7 @@ class Derived(unittest.TestCase):
         entries = self.entries()
         entries["suite-node"] = {"key": "e" * 64, "decision": "run"}
         suite = [unit for unit in plan.units(entries)["layer-1"] if unit["action"] == "node-suite"]
-        self.assertEqual(suite, [{"name": "node-suite", "action": "node-suite", "target": "", "runner": plan.RUNNER, "prepare": ["node", "pnpm"]}])
+        self.assertEqual(suite, [{"name": "[test] suite node", "action": "node-suite", "target": "", "runner": plan.RUNNER, "prepare": ["node", "pnpm"]}])
 
     def test_a_unit_the_plan_decided_to_skip_is_absent_from_its_layer(self):
         entries = self.entries()
@@ -166,7 +166,7 @@ class Derived(unittest.TestCase):
             entries[name]["decision"] = "skip"
         held = plan.units(entries)
         self.assertEqual(held["layer-2"], [])
-        self.assertEqual([unit["name"] for unit in held["layer-3"]], ["smoke windows"])
+        self.assertEqual([unit["name"] for unit in held["layer-3"]], ["[smoke] binary windows"])
 
     def test_a_plan_deeper_than_the_workflow_refuses(self):
         entries = {f"step-{number}": {"key": str(number) * 64, "decision": "run", **({"consumes": [f"step-{number - 1}"]} if number else {})} for number in range(4)}

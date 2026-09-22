@@ -29,7 +29,7 @@ other; `lib` has no import cycles. Only `lib/content/resources.py` knows where f
   facts that need structure live in `resources/`.
 - Keep Ectropy-level limits: at most 300 lines per file, 4 parameters per function,
   4 nested blocks, 10 entries per directory and 3 levels below a top-level directory.
-- Words claimed elsewhere in perish.code are listed in `resources/vocabulary.json`
+- Words claimed elsewhere in perish.code are listed in `resources/check/vocabulary.json`
   and must not name anything here.
 - A workflow `run:` is one `python3 -B -m scripts.<name> <action>` and nothing
   else. The action must be one that script takes, and the shape is a law the
@@ -105,10 +105,13 @@ matrix of units, each naming its action, runner and the preparations
 `.github/actions/prepare` makes before it; `resources/units.json` says which
 entries a unit covers, and the workflow runs a fixed number of layers. What
 publishes still has a job of its own and one decision each; every one waits for
-all the layers, and release, which moves the channel pointer people install
-from, waits for every other medium too. Skipping is absence
-from a matrix, not a condition on a job that exists. A single job that
-covers several targets takes them from the plan it already reads, and refuses
+all the layers. Release, which writes the seal, waits for every other medium, and
+channel, which moves the pointer people install from, waits for release, so a
+seal still stands for every medium published. Channel decides for itself: it
+runs unless the pointer already names a newer marker, so a seal whose pointer
+never moved is pointed at by the next run instead of being skipped with it.
+Skipping is absence from a matrix, not a condition on a job that exists. A
+single job that covers several targets takes them from the plan it already reads, and refuses
 when the plan decided none of them. Whether a medium is already published stays
 with the step that can ask its registry, because asking needs that registry's
 credentials and one step holding all of them would be the widest credential in
@@ -123,6 +126,22 @@ each producer is named.
 Every run attempt writes one trigger record at
 `trigger/<owner>/<repository>/<marker>/<run>-<attempt>.json`; a run is complete only
 when every job succeeded or was skipped by plan.
+
+## Names
+
+Every name a person reads on GitHub — a run's title, a job's, a step's — takes
+one form, `[<verb>] <object> [<qualifier>…]`, so the bracketed column says what
+happens and the rest says to what. A qualifier only tells instances of one kind
+apart: a target, a runner, a repository and marker, a Depot kind. A layer unit's
+name is rendered from the verb and object `resources/units.json` gives it.
+
+| | Within wharf |
+| --- | --- |
+| Verbs | ship, lodge, plan, build, test, bind, smoke, validate, publish, deploy, point, record, checkout, verify, identify, prepare, login, read, decide |
+| Objects | entries, binary, binaries, suite, npm, oci, chart, cargo, cfworker, channel, trigger, plan, wharf, product, request, source, registry, engines, machine, autocrlf, node, pnpm, plumb, and the Depot kinds |
+
+A name that cannot be written as one verb over one object marks a job doing two
+things; that is how writing the seal and moving the channel came apart.
 
 ## Release identity
 
