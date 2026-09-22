@@ -105,9 +105,10 @@ matrix of units, each naming its action, runner and the preparations
 `.github/actions/prepare` makes before it; `resources/units.json` says which
 entries a unit covers, and the workflow runs a fixed number of layers. What
 publishes still has a job of its own and one decision each; every one waits for
-all the layers. Release, which writes the seal, waits for every other medium, and
-channel, which moves the pointer people install from, waits for release, so a
-seal still stands for every medium published. Channel decides for itself: it
+all the layers. Release, which writes the seal, is one medium among them, and
+channel, which moves the pointer people install from, waits for every medium,
+so a seal says only that its binaries are published; how far the marker is
+distributed is the distribution record's to say. Channel decides for itself: it
 runs unless the pointer already names a newer marker, so a seal whose pointer
 never moved is pointed at by the next run instead of being skipped with it.
 Skipping is absence from a matrix, not a condition on a job that exists. A
@@ -131,7 +132,11 @@ How far a marker is distributed has one authority: `distribution.json` beside it
 seal on the product's release authority, at
 `v1/releases/<channel>/<marker>/distribution.json`. It records the marker's
 commit and tree, what became of each medium — binaries, npm, oci, chart, cargo,
-cfworker and the channel — and whether some run completed it. Every attempt
+cfworker and the channel — and whether some run completed it. A medium this run
+carried out is published, deployed or pointed; one the plan left alone is
+present when it is already there, none when the product has no such medium, and
+overtaken when the channel already names a newer marker, as each deciding step
+reports it; failed, cancelled and unreached say what stopped the rest. Every attempt
 merges into it and nothing moves back: a medium once published stays
 published, a completed marker stays complete, and a marker recorded at another
 commit refuses. Plumb reads it; the seal, the channel pointer, the registries,

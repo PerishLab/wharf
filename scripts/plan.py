@@ -13,7 +13,7 @@ BUILD = resources.read_json("build.json")
 UNITS = resources.read_json("units.json")
 RUNNER = BUILD["runner"]
 SINGLE = ("cfworker",)
-REPORTED = ("key", "decision")
+REPORTED = ("key", "decision", "presence")
 MEDIA = ("npm", "oci", "chart", "cargo", "release", "channel")
 IDENTITY = ("repository", "marker", "commit", "tree")
 CONTEXT = IDENTITY + ("wharf", "run", "attempt")
@@ -64,7 +64,7 @@ def media(observed, entries):
         decision = observed.get(name, {}).get("decision")
         if decision not in ("run", "skip"):
             raise Refusal(f"step {name} reported no decision for this plan to record")
-        entries[name] = {"decision": decision}
+        entries[name] = {"decision": decision, "presence": observed[name].get("presence", "present")}
 
 
 def validation(bucket, entries):
@@ -104,9 +104,15 @@ def units(entries):
     return held
 
 
+def present(entries):
+    held = {name: entries[name].get("presence", "present") if name in entries else "none" for name in MEDIA}
+    return dict(held, cfworker="present" if "cfworker" in entries else "none")
+
+
 def emit(entries, attempt):
     answered = {name: entries[name]["decision"] if name in entries else "skip" for name in SINGLE}
     answered.update({name: json.dumps(found, separators=(",", ":")) for name, found in units(entries).items()})
+    answered["presence"] = json.dumps(present(entries), separators=(",", ":"), sort_keys=True)
     answered["planned"] = attempt
     parameters.answer(answered)
     return answered

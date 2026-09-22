@@ -15,7 +15,8 @@ def released(held):
 
 def plan(held):
     overtaken = release.overtaken(released(held))
-    return dict(parameters.answer({"decision": "skip" if overtaken else "run"}), channel=release.channel(held["marker"]))
+    answered = {"decision": "skip", "presence": "overtaken"} if overtaken else {"decision": "run", "presence": "present"}
+    return dict(parameters.answer(answered), channel=release.channel(held["marker"]))
 
 
 def point(held):

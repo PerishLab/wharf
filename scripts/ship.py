@@ -172,15 +172,15 @@ def node_suite(held):
     return workload.publish(bucket, entry["key"], workload.Produced(output, held_basis, carried(held)))
 
 
-def decided(published, held):
-    return dict(parameters.answer({"decision": "skip" if published else "run"}), **held)
+def decided(published, held, carried=True):
+    return dict(parameters.answer({"decision": "skip" if published else "run", "presence": "present" if carried else "none"}), **held)
 
 
 def npm_plan(held):
     if not npm.carried(held["source"]):
-        return decided(True, {"packages": []})
+        return decided(True, {"packages": []}, False)
     pending = npm.pending(held["source"], version.marker(held["marker"]))
-    return decided(all(item["published"] for item in pending), {"packages": pending})
+    return decided(all(item["published"] for item in pending), {"packages": pending}, bool(pending))
 
 
 def npm_publish(held):
@@ -189,7 +189,7 @@ def npm_publish(held):
 
 def oci_plan(held):
     if not oci.carried(held["source"]):
-        return decided(True, {"image": None})
+        return decided(True, {"image": None}, False)
     image = oci.reference(held["repository"], version.marker(held["marker"]))
     return decided(oci.exists(image), {"image": image})
 
@@ -204,7 +204,7 @@ def oci_publish(held):
 
 def chart_plan(held):
     pending = chart.pending(held["source"], held["repository"].split("/", 1)[0], version.marker(held["marker"]))
-    return decided(all(item["published"] for item in pending), {"charts": pending})
+    return decided(all(item["published"] for item in pending), {"charts": pending}, bool(pending))
 
 
 def chart_publish(held):
@@ -241,7 +241,7 @@ def cfworker_deploy(held):
 
 def cargo_plan(held):
     pending = publish.pending(held["source"], version.marker(held["marker"]))
-    return decided(all(item["published"] for item in pending), {"packages": pending})
+    return decided(all(item["published"] for item in pending), {"packages": pending}, bool(pending))
 
 
 def cargo_publish(held):

@@ -72,11 +72,17 @@ class Answered(unittest.TestCase):
         self.assertEqual(named["cfworker"], "skip")
         self.assertIn("planned=3", written)
         self.assertEqual([line.split("=")[0] for line in written.splitlines() if line.startswith("layer-")], ["layer-1", "layer-2", "layer-3"])
-        self.assertEqual(len(written.splitlines()), len(plan.SINGLE) + plan.UNITS["layers"] + 1)
+        self.assertEqual(len(written.splitlines()), len(plan.SINGLE) + plan.UNITS["layers"] + 2)
 
     def test_a_product_with_no_worker_plans_nothing_for_it(self):
         named, _ = self.answered({"suite-linux": {"key": "a" * 64, "decision": "run"}})
         self.assertEqual(named["cfworker"], "skip")
+        self.assertEqual(json.loads(named["presence"])["cfworker"], "none")
+
+    def test_what_is_already_there_is_told_apart_from_what_the_product_lacks(self):
+        entries = {"npm": {"decision": "skip", "presence": "none"}, "release": {"decision": "skip", "presence": "present"}, "cfworker": {"key": "a" * 64, "decision": "skip"}}
+        held = plan.present(entries)
+        self.assertEqual((held["npm"], held["release"], held["cfworker"], held["oci"]), ("none", "present", "present", "none"))
 
     def test_nowhere_to_answer_the_caller_refuses(self):
         with mock.patch.dict(os.environ, {}, clear=True):
@@ -97,10 +103,11 @@ class Reported(unittest.TestCase):
 class Media(unittest.TestCase):
     def test_a_credentialed_check_is_recorded_as_its_step_reported_it(self):
         entries = {}
-        observed = {name: {"decision": "skip"} for name in plan.MEDIA}
+        observed = {name: {"decision": "skip", "presence": "none"} for name in plan.MEDIA}
+        observed["channel"] = {"decision": "skip", "presence": "overtaken"}
         plan.media(observed, entries)
         self.assertEqual(sorted(entries), sorted(plan.MEDIA))
-        self.assertEqual(entries["npm"], {"decision": "skip"})
+        self.assertEqual((entries["npm"], entries["channel"]["presence"]), ({"decision": "skip", "presence": "none"}, "overtaken"))
 
     def test_a_step_that_reported_nothing_refuses_the_record(self):
         observed = {name: {"decision": "run"} for name in plan.MEDIA if name != "oci"}

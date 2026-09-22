@@ -10,8 +10,11 @@ DECIDED = {"release": "run", "npm": "run", "oci": "skip", "chart": "skip", "carg
 KEY = "v1/releases/rc/v0.42.0-rc.1/distribution.json"
 
 
+PRESENCE = {"release": "present", "npm": "present", "oci": "none", "chart": "none", "cargo": "present", "cfworker": "present", "channel": "present"}
+
+
 def needs(**results):
-    held = {"plan": {"result": "success", "outputs": DECIDED}, "layer-1": {"result": "success"}}
+    held = {"plan": {"result": "success", "outputs": dict(DECIDED, presence=json.dumps(PRESENCE))}, "layer-1": {"result": "success"}}
     for job, decision in DECIDED.items():
         held[job] = {"result": results.get(job, "success" if decision == "run" else "skipped")}
     return held
@@ -34,7 +37,15 @@ class Record(unittest.TestCase):
     def test_each_medium_records_what_became_of_it(self):
         self.record(needs(npm="failure", channel="skipped"))
         media = self.standing()["media"]
-        self.assertEqual(media, {"binaries": "published", "npm": "failed", "oci": "skipped", "chart": "skipped", "cargo": "published", "cfworker": "skipped", "channel": "unreached"})
+        self.assertEqual(media, {"binaries": "published", "npm": "failed", "oci": "none", "chart": "none", "cargo": "published", "cfworker": "present", "channel": "unreached"})
+
+    def test_a_plan_that_told_no_presence_leaves_skipped_until_one_does(self):
+        bare = needs()
+        bare["plan"]["outputs"] = DECIDED
+        self.record(bare)
+        self.assertEqual(self.standing()["media"]["oci"], "skipped")
+        self.record(needs(), run="8")
+        self.assertEqual(self.standing()["media"]["oci"], "none")
 
     def test_a_run_whose_jobs_all_settled_is_complete(self):
         self.record(needs())

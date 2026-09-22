@@ -25,10 +25,10 @@ class Plan(unittest.TestCase):
         return held, output.read_text()
 
     def test_a_channel_not_yet_at_a_newer_marker_is_pointed(self):
-        self.assertEqual(self.decide(False), ({"decision": "run", "channel": "stable"}, "decision=run\n"))
+        self.assertEqual(self.decide(False), ({"decision": "run", "presence": "present", "channel": "stable"}, "decision=run\npresence=present\n"))
 
     def test_a_channel_already_at_a_newer_marker_is_left_alone(self):
-        self.assertEqual(self.decide(True)[1], "decision=skip\n")
+        self.assertEqual(self.decide(True)[1], "decision=skip\npresence=overtaken\n")
 
 
 class Point(unittest.TestCase):

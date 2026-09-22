@@ -49,6 +49,7 @@ jobs:
       channel: ${{ steps.channel.outputs.decision }}
       cargo: ${{ steps.cargo.outputs.decision }}
       planned: ${{ steps.plan.outputs.planned }}
+      presence: ${{ steps.plan.outputs.presence }}
       commit: ${{ steps.source.outputs.commit }}
       tree: ${{ steps.source.outputs.tree }}
     steps:
@@ -452,7 +453,7 @@ jobs:
 
   release:
     name: "[publish] binaries"
-    needs: [plan, layer-1, layer-2, layer-3, npm, oci, chart, cargo, cfworker]
+    needs: [plan, layer-1, layer-2, layer-3]
     if: always() && needs.plan.result == 'success' && needs.plan.outputs.release == 'run' && !contains(needs.*.result, 'failure') && !contains(needs.*.result, 'cancelled')
     runs-on: ubuntu-24.04
     steps:
