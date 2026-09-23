@@ -2,7 +2,6 @@
   "prefix": "WHARF",
   "credential": "TOKEN|SECRET|PASSWORD|CREDENTIAL|ACCESS_KEY|API_KEY|PRIVATE_KEY|SIGNING_KEY",
   "types": {
-    "actor": "string",
     "attempt": "string",
     "commit": "string",
     "digest": "string",

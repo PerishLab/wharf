@@ -127,9 +127,9 @@ job whose own condition was false because an ancestor failed both read as
 skipped, so a gate that admits skipped ancestors admits a failed build unless
 each producer is named.
 
-Every run attempt writes one trigger record at
-`trigger/<owner>/<repository>/<marker>/<run>-<attempt>.json`; a run is complete only
-when every job succeeded or was skipped by plan.
+A run is complete when every job succeeded or was skipped by plan, and that is
+what the distribution record carries; the run's own page keeps what each job
+did, so wharf writes no second record of its own.
 
 How far a marker is distributed has one authority: `distribution.json` beside its
 seal on the product's release authority, at
@@ -142,11 +142,11 @@ overtaken when the channel already names a newer marker, as each deciding step
 reports it; failed, cancelled and unreached say what stopped the rest. Every attempt
 merges into it and nothing moves back: a medium once published stays
 published, a completed marker stays complete, and a marker recorded at another
-commit refuses. Plumb reads it; the seal, the channel pointer, the registries,
-trigger records and GitHub's own verdict are evidence, and where they drift
+commit refuses. Plumb reads it; the seal, the channel pointer, the registries
+and GitHub's own verdict are evidence, and where they drift
 from it, a new dispatch brings them back rather than anyone editing it.
 `[record] distribution` writes it with the release bucket's credentials alone,
-apart from `[record] trigger`, which holds the workload bucket's.
+and nothing else in the run holds both those and the workload bucket's.
 
 ## Names
 
@@ -159,7 +159,7 @@ name is rendered from the verb and object `resources/units.json` gives it.
 | | Within wharf |
 | --- | --- |
 | Verbs | ship, lodge, plan, build, test, bind, smoke, validate, publish, deploy, point, record, checkout, verify, identify, prepare, login, read, decide |
-| Objects | entries, binary, binaries, suite, npm, oci, chart, cargo, cfworker, channel, distribution, trigger, plan, wharf, product, request, source, registry, engines, machine, autocrlf, node, pnpm, plumb, and the Depot kinds |
+| Objects | entries, binary, binaries, suite, npm, oci, chart, cargo, cfworker, channel, distribution, plan, wharf, product, request, source, registry, engines, machine, autocrlf, node, pnpm, plumb, and the Depot kinds |
 
 A name that cannot be written as one verb over one object marks a job doing two
 things; that is how writing the seal and moving the channel came apart.

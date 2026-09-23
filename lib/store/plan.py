@@ -54,10 +54,6 @@ def read(bucket, context):
     return held
 
 
-def standing_for(bucket, context):
-    return read(bucket, context) if bucket.exists(location(context)) else None
-
-
 def planned(document, name):
     entry = document["entries"].get(name)
     if entry is None:
