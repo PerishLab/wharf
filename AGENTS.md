@@ -169,6 +169,23 @@ matrix expands, and GitHub does not evaluate the name of a skipped job, so it
 shows `matrix.name`. No expression in that name can help, and a placeholder
 unit would break skipping as absence, so it stays.
 
+## What a release keeps
+
+These were Plumb's laws while Plumb shipped; they are kept here, beside the code
+that keeps them.
+
+- A medium is published by an explicit marker dispatch and never by a landing.
+- Every object is addressed by its digest and written create-only: an existing
+  key is left alone when the bytes match and refuses when they differ, so a
+  release is immutable and a rerun is safe.
+- A seal is read back through the product's public authority after it is
+  written, and a release that is not served as written refuses.
+- Managers, seals and channel pointers are rendered by the run that publishes
+  them; no product carries them in its source.
+- The canonical managers at the authority's root are written only when a stable
+  channel pointer names the marker that rendered them.
+- Each job holds the credentials of one bucket, and nothing in a run holds two.
+
 ## Release identity
 
 Sources declare version `0.0.0`. A distributable binary is built unbound and receives
