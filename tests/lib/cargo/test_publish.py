@@ -1,30 +1,79 @@
+import gzip
+import io
 import json
-import os
+import tarfile
 import unittest
-from unittest import mock
+from pathlib import Path
 
-from lib.cargo import publish, version
-from lib.refusal import Refusal
+from lib.cargo import publish, registry, version
+from lib.refusal import Conflict, Refusal
 from tests.lib.cargo.test_basis import Repository
 
-LOCATION = "https://git.perish.top/api/packages/PerishLab/cargo/"
+LOCATION = "https://cargo.perish.uk/"
+CONFIG = {"dl": LOCATION + "crates/{crate}/{version}/{sha256-checksum}.crate"}
+
+
+def crate(name, vers, body=""):
+    manifest = f'[package]\nname = "{name}"\nversion = "{vers}"\n{body}'.encode()
+    buffer = io.BytesIO()
+    with tarfile.open(fileobj=buffer, mode="w") as archive:
+        info = tarfile.TarInfo(f"{name}-{vers}/Cargo.toml")
+        info.size = len(manifest)
+        archive.addfile(info, io.BytesIO(manifest))
+    return gzip.compress(buffer.getvalue(), mtime=0)
+
+
+class Bucket:
+    def __init__(self):
+        self.objects = {"config.json": json.dumps(CONFIG).encode()}
+        self.conflicts = 0
+
+    def head(self, key):
+        return str(hash(self.objects[key])) if key in self.objects else None
+
+    def get(self, key):
+        return self.objects[key]
+
+    def create(self, key, body, headers=None):
+        if key in self.objects:
+            raise Conflict(key)
+        self.objects[key] = body
+
+    def conditional(self, operation):
+        held = operation.headers.get("If-Match")
+        if self.conflicts or held != self.head(operation.key):
+            self.conflicts = max(self.conflicts - 1, 0)
+            raise Conflict(operation.key)
+        self.objects[operation.key] = operation.body
 
 
 class Registry:
-    def __init__(self, released=()):
-        self.released = set(released)
+    def __init__(self):
+        self.bucket = Bucket()
         self.runs = []
+        self.stores = []
 
     def reader(self, url):
-        return "\n".join(json.dumps({"vers": vers}) for name, vers in self.released if url.endswith("/" + name))
+        held = self.bucket.objects.get(url.removeprefix(LOCATION))
+        return held.decode() if held is not None else ""
 
     def run(self, argv, cwd, env=None):
         self.runs.append((argv, env))
-        self.released.add((argv[argv.index("--package") + 1], "1.2.3-beta.1"))
+        package = argv[argv.index("--package") + 1]
+        target = Path(argv[argv.index("--target-dir") + 1]) / "package"
+        target.mkdir(parents=True, exist_ok=True)
+        (target / f"{package}-1.2.3-beta.1.crate").write_bytes(crate(package, "1.2.3-beta.1"))
         return ""
 
+    def store(self, name, role):
+        self.stores.append((name, role))
+        return self.bucket
+
     def tools(self):
-        return publish.Tools(run=self.run, reader=self.reader, sleep=lambda seconds: None)
+        return publish.Tools(run=self.run, reader=self.reader, sleep=lambda seconds: None, store=self.store)
+
+    def lines(self, package):
+        return [json.loads(line) for line in self.reader(LOCATION + registry.entry(package)).splitlines()]
 
 
 def publishing(repository):
@@ -39,29 +88,45 @@ class Publish(unittest.TestCase):
     def setUp(self):
         self.repository = Repository()
         publishing(self.repository)
+        self.registry = Registry()
 
     def test_orders_by_workspace_dependency(self):
         self.assertEqual(publish.publishable(self.repository.root), [("demo", "perish"), ("demo-cli", "perish")])
 
-    def test_publishes_pending_packages_in_order_with_token(self):
-        registry = Registry(released={("demo", "1.2.3-beta.1")})
-        with mock.patch.dict(os.environ, {publish.TOKEN: "secret"}):
-            result = publish.publish(self.repository.root, "1.2.3-beta.1", registry.tools())
+    def test_publishes_pending_packages_in_order(self):
+        self.registry.bucket.objects["de/mo/demo"] = (json.dumps({"name": "demo", "vers": "1.2.3-beta.1"}) + "\n").encode()
+        result = publish.publish(self.repository.root, "1.2.3-beta.1", self.registry.tools())
         self.assertEqual([item["state"] for item in result["packages"]], ["already-published", "published"])
-        argv, env = registry.runs[0]
-        self.assertIn("--no-verify", argv)
+        argv, env = self.registry.runs[0]
+        self.assertEqual(argv[:2], ["cargo", "package"])
         self.assertEqual(argv[argv.index("--package") + 1], "demo-cli")
-        self.assertEqual(env["CARGO_REGISTRIES_PERISH_TOKEN"], "Bearer secret")
+        self.assertEqual(env["RUSTUP_TOOLCHAIN"], "1.96.1")
+        self.assertEqual(self.registry.stores, [("perish-cargo", "CARGO")])
+        [line] = self.registry.lines("demo-cli")
+        self.assertEqual((line["name"], line["vers"], line["yanked"]), ("demo-cli", "1.2.3-beta.1", False))
+        self.assertEqual(self.registry.bucket.objects[f"crates/demo-cli/1.2.3-beta.1/{line['cksum']}.crate"], crate("demo-cli", "1.2.3-beta.1"))
 
-    def test_refuses_without_token(self):
-        with mock.patch.dict(os.environ, {publish.TOKEN: ""}), self.assertRaises(Refusal):
-            publish.publish(self.repository.root, "1.2.3-beta.1", Registry().tools())
+    def test_appends_after_a_concurrent_change(self):
+        self.registry.bucket.conflicts = 2
+        publish.publish(self.repository.root, "1.2.3-beta.1", self.registry.tools())
+        self.assertEqual([line["vers"] for line in self.registry.lines("demo")], ["1.2.3-beta.1"])
+
+    def test_keeps_standing_lines(self):
+        self.registry.bucket.objects["de/mo/demo"] = (json.dumps({"name": "demo", "vers": "1.0.0"}) + "\n").encode()
+        publish.publish(self.repository.root, "1.2.3-beta.1", self.registry.tools())
+        self.assertEqual([line["vers"] for line in self.registry.lines("demo")], ["1.0.0", "1.2.3-beta.1"])
+
+    def test_refuses_different_bytes_under_a_standing_crate(self):
+        cksum = __import__("hashlib").sha256(crate("demo", "1.2.3-beta.1")).hexdigest()
+        self.registry.bucket.objects[f"crates/demo/1.2.3-beta.1/{cksum}.crate"] = b"other"
+        with self.assertRaises(Refusal):
+            publish.publish(self.repository.root, "1.2.3-beta.1", self.registry.tools())
 
     def test_refuses_unknown_registry(self):
         self.repository.write(".cargo/config.toml", '[registries.perish]\nindex = "sparse+https://elsewhere/"\n')
         self.repository.commit()
         with self.assertRaises(Refusal):
-            publish.pending(self.repository.root, "1.2.3-beta.1", Registry().reader)
+            publish.pending(self.repository.root, "1.2.3-beta.1", self.registry.reader)
 
 
 class Inject(unittest.TestCase):

@@ -1,13 +1,18 @@
+import json
 import os
+import tempfile
 import time
 from dataclasses import dataclass
 from pathlib import Path
 
-from lib.cargo import manifest, registry, toolchain
+from lib.cargo import index, manifest, registry, toolchain
 from lib.process import run
-from lib.refusal import Refusal
+from lib.refusal import Conflict, Refusal
+from lib.store import r2
 
-TOKEN = "WHARF_CARGO_TOKEN"
+ROLE = "CARGO"
+INDEX = {"Content-Type": "text/plain; charset=utf-8", "Cache-Control": "no-cache"}
+CRATE = {"Content-Type": "application/gzip", "Cache-Control": "public, max-age=31536000, immutable"}
 
 
 @dataclass(frozen=True)
@@ -15,6 +20,7 @@ class Tools:
     run: object = run
     reader: object = registry.fetch
     sleep: object = time.sleep
+    store: object = r2.writer
 
 
 def publishable(source):
@@ -54,21 +60,55 @@ def visible(location, package, version, tools):
     raise Refusal(f"{package} {version} did not appear in the cargo index")
 
 
+def packaged(source, held, version, tools):
+    channel = toolchain.declared(source)["channel"]
+    with tempfile.TemporaryDirectory() as directory:
+        argv = ["cargo", "package", "--locked", "--no-verify", "--allow-dirty", "--registry", held["registry"], "--package", held["package"], "--target-dir", directory]
+        tools.run(argv, source, dict(os.environ, RUSTUP_TOOLCHAIN=channel))
+        return (Path(directory) / "package" / f"{held['package']}-{version}.crate").read_bytes()
+
+
+def stored(bucket, key, blob):
+    try:
+        bucket.create(key, blob, CRATE)
+    except Conflict:
+        if bucket.get(key) != blob:
+            raise Refusal(f"{key} already holds different bytes")
+
+
+def appended(bucket, key, line, tools):
+    for _ in range(5):
+        etag = bucket.head(key)
+        lines = [held for held in (bucket.get(key).decode() if etag else "").splitlines() if held.strip()]
+        if any(json.loads(held)["vers"] == line["vers"] for held in lines):
+            raise Refusal(f"{key} already lists {line['vers']}")
+        body = "".join(held + "\n" for held in lines + [json.dumps(line, separators=(",", ":"))])
+        condition = {"If-Match": etag} if etag else {"If-None-Match": "*"}
+        try:
+            bucket.conditional(r2.Operation("PUT", key, body.encode(), dict(INDEX, **condition)))
+            return
+        except Conflict:
+            tools.sleep(1)
+    raise Refusal(f"{key} kept changing while {line['name']} {line['vers']} was appended")
+
+
+def placed(source, held, version, tools):
+    location = registry.declared(source, held["registry"])
+    blob = packaged(source, held, version, tools)
+    line = index.entry(blob, held["package"], version, location)
+    bucket = tools.store(registry.bucket(held["registry"]), ROLE)
+    stored(bucket, registry.download(location, line, tools.reader), blob)
+    appended(bucket, registry.entry(held["package"]), line, tools)
+    visible(location, held["package"], version, tools)
+
+
 def publish(source, version, tools=Tools()):
     source = Path(source)
-    token = os.environ.get(TOKEN, "")
-    if not token:
-        raise Refusal(f"{TOKEN} is required to publish")
-    channel = toolchain.declared(source)["channel"]
     results = []
     for held in pending(source, version, tools.reader):
         if held["published"]:
             results.append({"package": held["package"], "state": "already-published"})
             continue
-        env = dict(os.environ, RUSTUP_TOOLCHAIN=channel)
-        env[f"CARGO_REGISTRIES_{held['registry'].upper().replace('-', '_')}_TOKEN"] = f"Bearer {token}"
-        argv = ["cargo", "publish", "--locked", "--no-verify", "--allow-dirty", "--registry", held["registry"], "--package", held["package"]]
-        tools.run(argv, source, env)
-        visible(registry.declared(source, held["registry"]), held["package"], version, tools)
+        placed(source, held, version, tools)
         results.append({"package": held["package"], "state": "published"})
     return {"version": version, "packages": results}

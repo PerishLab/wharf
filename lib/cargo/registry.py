@@ -15,7 +15,7 @@ def declared(source, name):
     config = tomllib.loads(path.read_text()) if path.is_file() else {}
     index = config.get("registries", {}).get(name, {}).get("index", "")
     location = index.removeprefix("sparse+")
-    if KNOWN.get(name) != location:
+    if KNOWN.get(name, {}).get("index") != location:
         raise Refusal(f"cargo registry {name!r} at {location!r} is not a known distribution registry")
     return location
 
@@ -31,7 +31,7 @@ def entry(name):
 
 def fetch(url):
     try:
-        with urllib.request.urlopen(url, timeout=30) as response:
+        with urllib.request.urlopen(urllib.request.Request(url, headers={"User-Agent": "wharf"}), timeout=30) as response:
             return response.read().decode()
     except urllib.error.HTTPError as failure:
         if failure.code == 404:
@@ -42,3 +42,15 @@ def fetch(url):
 def published(location, package, version, reader=fetch):
     lines = reader(location + entry(package)).splitlines()
     return any(json.loads(line)["vers"] == version for line in lines if line.strip())
+
+
+def bucket(name):
+    return KNOWN[name]["bucket"]
+
+
+def download(location, line, reader=fetch):
+    template = json.loads(reader(location + "config.json") or "{}").get("dl", "")
+    url = template.replace("{crate}", line["name"]).replace("{version}", line["vers"]).replace("{sha256-checksum}", line["cksum"])
+    if not url.startswith(location) or "{" in url:
+        raise Refusal(f"cargo registry at {location} serves no download template under itself")
+    return url.removeprefix(location)

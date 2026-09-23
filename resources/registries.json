@@ -1,6 +1,9 @@
 {
   "cargo": {
-    "perish": "https://git.perish.top/api/packages/PerishLab/cargo/"
+    "perish": {
+      "index": "https://cargo.perish.uk/",
+      "bucket": "perish-cargo"
+    }
   },
   "npm": {
     "@perishlab": "https://npm.pkg.github.com/"

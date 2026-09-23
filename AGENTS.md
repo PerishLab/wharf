@@ -233,6 +233,23 @@ generator a seal names covers the implementation and the resources it read, so
 a script rendered anywhere else would be published under a claim that does not
 reach it.
 
+## Cargo
+
+The perish cargo registry is a static sparse index on R2: `perish-cargo`, served
+at `https://cargo.perish.uk/`, which `resources/registries.json` names. Cargo reads
+it with no API at all — `config.json`, one index file per crate, and the `.crate`
+blobs — so nothing answers requests and nothing but a bucket can fail.
+
+- `[publish] cargo` packages each pending crate with `cargo package`, derives its
+  index line from the manifest the `.crate` carries, and writes the blob where
+  the served `config.json` says it is downloaded from. The key names the blob's
+  `sha256`, and it is created only.
+- The index file is appended only if it still holds the ETag it was read with,
+  and a version it already lists refuses: a published version never changes.
+- A dependency on the registry itself is recorded with no registry, so the index
+  carries no identity of its own and moves between hosts unchanged.
+- The job holds the writer of `perish-cargo` alone.
+
 ## Depot
 
 Depot generations are marker-bound blobs of one kind (`skill`, `changelog`);

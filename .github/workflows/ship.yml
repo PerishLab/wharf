@@ -139,7 +139,6 @@ jobs:
         env:
           WHARF_SOURCE: ../product
           WHARF_MARKER: ${{ inputs.marker }}
-          WHARF_CARGO_TOKEN: ${{ secrets.WHARF_CARGO_TOKEN }}
         run: python3 -B -m scripts.ship cargo-plan
 
       - name: "[record] plan"
@@ -575,7 +574,8 @@ jobs:
         env:
           WHARF_SOURCE: ../product
           WHARF_MARKER: ${{ inputs.marker }}
-          WHARF_CARGO_TOKEN: ${{ secrets.WHARF_CARGO_TOKEN }}
+          WHARF_CARGO_ACCESS_KEY_ID: ${{ secrets.WHARF_CARGO_ACCESS_KEY_ID }}
+          WHARF_CARGO_SECRET_ACCESS_KEY: ${{ secrets.WHARF_CARGO_SECRET_ACCESS_KEY }}
         run: python3 -B -m scripts.ship cargo-publish
 
   distribution:

@@ -6,6 +6,7 @@
     "wrapper": "Runseal Deno transition scripts"
   },
   "external": [
-    "--no-deps"
+    "--no-deps",
+    "deps"
   ]
 }
