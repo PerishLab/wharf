@@ -62,29 +62,9 @@ def standing(bucket, target):
     return generation(bucket, target, held["generation"]) if held else None
 
 
-def named(bucket, kind, spec):
-    if depot.DIGEST.fullmatch(spec):
-        for channel, version in versions(bucket, kind):
-            found = generation(bucket, (channel, version, kind), spec)
-            if found:
-                return found
-        raise Refusal(f"no {kind} generation {spec}")
-    channel, _, version = spec.partition("/")
-    found = standing(bucket, (channel, version, kind)) if version else None
-    if not found:
-        raise Refusal(f"--from {spec!r} names no standing generation; use <channel>/<version> or a generation digest")
-    return found
-
-
 def below(bucket, target):
     _, version, kind = target
     return standing(bucket, (*nearest(bucket, kind, version), kind))
-
-
-def base(bucket, target, spec=None):
-    if spec:
-        return named(bucket, target[2], spec)
-    return standing(bucket, target) or below(bucket, target)
 
 
 def parent(bucket, target):

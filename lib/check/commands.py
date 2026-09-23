@@ -5,6 +5,7 @@ from pathlib import Path
 from lib.content import resources
 
 LAW = resources.read_json("check/commands.json")
+LAYERED = {spec["action"] for spec in resources.read_json("units.json")["units"].values()}
 COMMAND = re.compile(LAW["command"])
 PREPARED = set(LAW["prepared"])
 RUN = re.compile(r"^(\s*)run: (.*)$")
@@ -54,9 +55,28 @@ def refused(command, known):
     return None
 
 
+def invoked(root, paths):
+    held = set()
+    for path in [path for path in paths if path.suffix in (".yml", ".yaml")]:
+        for _, command in blocks((Path(root) / path).read_text()):
+            matched = COMMAND.fullmatch(command)
+            if matched:
+                held.add(matched.groups())
+    return held
+
+
+def idle(known, called):
+    return [
+        f"scripts/{script}.py takes the action {action}, which no workflow runs"
+        for script, actions in sorted(known.items())
+        for action in sorted(actions)
+        if (script, action) not in called and not (script == "ship" and action in LAYERED)
+    ]
+
+
 def check(root, paths):
     known = entries(root, paths)
-    findings = []
+    findings = idle(known, invoked(root, paths))
     for path in [path for path in paths if path.suffix in (".yml", ".yaml")]:
         held = [(number, refused(command, known)) for number, command in blocks((Path(root) / path).read_text()) if command not in PREPARED]
         findings += [f"{path}:{number}: {finding}" for number, finding in held if finding]

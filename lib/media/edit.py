@@ -43,22 +43,6 @@ def directory(root):
     return content
 
 
-def inherited(base):
-    return {entry["path"]: (entry, None) for entry in base["document"]["objects"]} if base else {}
-
-
-def patched(base, puts, removes):
-    content = inherited(base)
-    for relative in removes:
-        if relative not in content:
-            raise Refusal(f"the base generation holds no {relative} to remove")
-        del content[relative]
-    for relative, path in puts:
-        depot.check(relative)
-        content[relative] = local(Path(path), relative)
-    return content
-
-
 def stage(bucket, change):
     held = depot.identity(change.release, depot.channel_of(change.release.marker), change.kind)
     place = (held["channel"], held["version"], held["kind"])
@@ -84,28 +68,3 @@ def stage(bucket, change):
     return {"generation": generation, "previous": written["previousGeneration"], "state": "published"}
 
 
-def pull(bucket, base, target):
-    target = Path(target)
-    if target.exists():
-        raise Refusal(f"{target} already exists")
-    for entry in base["document"]["objects"]:
-        body = bucket.get(f"{base['folder']}/objects/{entry['path']}")
-        if depot.sha(body) != entry["sha256"]:
-            raise Refusal(f"{entry['path']} drifted from its manifest")
-        path = target / entry["path"]
-        path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_bytes(body)
-        os.chmod(path, 0o755 if entry["executable"] else 0o644)
-    return {"channel": base["channel"], "version": base["version"], "generation": base["generation"], "objects": len(base["document"]["objects"])}
-
-
-def diff(left, right):
-    before = {entry["path"]: entry for entry in left["document"]["objects"]}
-    after = {entry["path"]: entry for entry in right["document"]["objects"]}
-    return {
-        "from": left["generation"],
-        "to": right["generation"],
-        "added": sorted(set(after) - set(before)),
-        "removed": sorted(set(before) - set(after)),
-        "changed": sorted(path for path in set(before) & set(after) if before[path] != after[path]),
-    }

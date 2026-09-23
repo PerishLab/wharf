@@ -57,3 +57,17 @@ class Entries(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class Idle(unittest.TestCase):
+    def test_an_action_a_workflow_runs_is_live(self):
+        self.assertEqual(commands.idle({"plan": {"record"}}, {("plan", "record")}), [])
+
+    def test_an_action_nothing_runs_is_named(self):
+        held = commands.idle({"depot": {"lodge", "diff"}}, {("depot", "lodge")})
+        self.assertEqual(held, ["scripts/depot.py takes the action diff, which no workflow runs"])
+
+    def test_a_layer_unit_ship_runs_through_step_is_live(self):
+        action = sorted(commands.LAYERED)[0]
+        self.assertEqual(commands.idle({"ship": {action}}, {("ship", "step")}), [])
+        self.assertEqual(len(commands.idle({"plan": {action}}, set())), 1)

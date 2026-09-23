@@ -1,9 +1,9 @@
 import sys
 
-from lib.check import actions, commands, files, imports, source, structure, vocabulary
+from lib.check import actions, commands, files, imports, parameters, source, structure, vocabulary
 from lib.process import git
 
-CHECKS = (structure, source, imports, vocabulary, actions, commands)
+CHECKS = (structure, source, imports, vocabulary, actions, commands, parameters)
 
 
 def main():

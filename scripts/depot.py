@@ -51,20 +51,7 @@ def lodge(held):
     return dict(result, base=base["generation"] if base else None, vetted=verdict, consigned=held["digest"])
 
 
-def compare(held):
-    release_held = release(held)
-    store = bucket(release_held)
-    own = lineage.standing(store, target(release_held, held["kind"]))
-    if not own:
-        raise Refusal(f"{release_held.marker} has no standing {held['kind']} generation")
-    against = lineage.base(store, target(release_held, held["kind"]), held["against"]) if held["against"] else lineage.below(store, target(release_held, held["kind"]))
-    return edit.diff(against, own)
-
-
-ACTIONS = {
-    "lodge": (lodge, ["repository", "marker", "source", "kind", "digest"]),
-    "diff": (compare, ["repository", "marker", "source", "kind", "against"]),
-}
+ACTIONS = {"lodge": (lodge, ["repository", "marker", "source", "kind", "digest"])}
 
 
 def main(argv=None):

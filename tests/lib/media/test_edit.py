@@ -37,44 +37,37 @@ class Edit(unittest.TestCase):
         self.assertEqual((entries["assets/hook"]["executable"], entries["rules/policy.toml"]["mediaType"]), (True, "application/toml"))
         self.assertIsNone(self.first["previous"])
 
-    def test_patch_continues_lineage_and_copies_unchanged_objects(self):
-        base = lineage.base(self.bucket, ("beta", "v0.38.0-beta.8", "skill"))
-        change = tree({"help/new.txt": (b"new", 0o644)})
-        content = edit.patched(base, [("help/new.txt", change / "help/new.txt")], ["assets/hook"])
-        result = edit.stage(self.bucket, edit.Change(release("v0.38.0-beta.8"), "skill", content, base, NOW))
-        self.assertEqual(result["previous"], self.first["generation"])
+    def lodge(self, marker, files):
+        place = (depot.channel_of(marker), marker, "skill")
+        base = lineage.parent(self.bucket, place)
+        return edit.stage(self.bucket, edit.Change(release(marker), "skill", edit.directory(tree(files)), base, NOW)), base
+
+    def test_a_second_generation_continues_lineage_and_copies_what_is_unchanged(self):
+        result, base = self.lodge("v0.38.0-beta.8", {"rules/policy.toml": (b"policy", 0o644), "help/new.txt": (b"new", 0o644)})
+        self.assertEqual((result["previous"], base["generation"]), (self.first["generation"], self.first["generation"]))
         self.assertTrue(any(key.endswith("objects/rules/policy.toml") for key in self.bucket.copies))
-        now = lineage.standing(self.bucket, ("beta", "v0.38.0-beta.8", "skill"))
-        self.assertEqual(edit.diff(base, now), {"from": base["generation"], "to": now["generation"], "added": ["help/new.txt"], "removed": ["assets/hook"], "changed": []})
+        own = lineage.standing(self.bucket, ("beta", "v0.38.0-beta.8", "skill"))
+        self.assertEqual(sorted(entry["path"] for entry in own["document"]["objects"]), ["help/new.txt", "rules/policy.toml"])
 
-    def test_new_marker_inherits_the_nearest_on_its_line(self):
-        base = lineage.base(self.bucket, ("beta", "v0.38.0-beta.9", "skill"))
-        self.assertEqual(base["version"], "v0.38.0-beta.8")
-        result = edit.stage(self.bucket, edit.Change(release("v0.38.0-beta.9"), "skill", edit.patched(base, [], []), base, NOW))
-        self.assertIsNone(result["previous"])
-        with self.assertRaisesRegex(Refusal, "--full or --from"):
-            lineage.base(self.bucket, ("beta", "v0.39.0-beta.1", "skill"))
+    def test_a_new_marker_inherits_the_nearest_on_its_line(self):
+        result, base = self.lodge("v0.38.0-beta.9", {"rules/policy.toml": (b"policy", 0o644), "assets/hook": (b"hook", 0o755)})
+        self.assertEqual((base["version"], result["previous"]), ("v0.38.0-beta.8", None))
+        own = lineage.standing(self.bucket, ("beta", "v0.38.0-beta.9", "skill"))
+        self.assertEqual(sorted(entry["path"] for entry in own["document"]["objects"]), ["assets/hook", "rules/policy.toml"])
+        self.assertIsNone(lineage.parent(self.bucket, ("beta", "v0.39.0-beta.1", "skill")))
 
-    def test_from_names_a_route_or_a_digest(self):
-        by_route = lineage.base(self.bucket, ("beta", "v0.39.0-beta.1", "skill"), "beta/v0.38.0-beta.8")
-        by_digest = lineage.base(self.bucket, ("beta", "v0.39.0-beta.1", "skill"), self.first["generation"])
-        self.assertEqual(by_route["generation"], by_digest["generation"])
+    def test_lodging_the_same_content_again_changes_nothing(self):
+        result, _ = self.lodge("v0.38.0-beta.8", {"rules/policy.toml": (b"policy", 0o644), "assets/hook": (b"hook", 0o755)})
+        self.assertEqual((result["generation"], result["state"]), (self.first["generation"], "already-published"))
 
     def test_concurrent_pointer_moves_are_refused(self):
-        base = lineage.base(self.bucket, ("beta", "v0.38.0-beta.8", "skill"))
-        content = edit.patched(base, [], ["assets/hook"])
+        content = edit.directory(tree({"rules/policy.toml": (b"policy", 0o644)}))
+        base = lineage.parent(self.bucket, ("beta", "v0.38.0-beta.8", "skill"))
         key = "channels/beta/skills/versions/v0.38.0-beta.8/latest.json"
         original = self.bucket.swap
         self.bucket.swap = lambda k, body, etag: (self.bucket.put(key, b"{}"), original(k, body, etag))
         with self.assertRaisesRegex(Refusal, "pull again"):
             edit.stage(self.bucket, edit.Change(release("v0.38.0-beta.8"), "skill", content, base, NOW))
-
-    def test_pull_materializes_bodies_and_modes(self):
-        base = lineage.base(self.bucket, ("beta", "v0.38.0-beta.8", "skill"))
-        target = Path(tempfile.mkdtemp()) / "pulled"
-        self.assertEqual(edit.pull(self.bucket, base, target)["objects"], 2)
-        self.assertTrue(os.access(target / "assets/hook", os.X_OK))
-        self.assertEqual(edit.directory(target).keys(), {"assets/hook", "rules/policy.toml"})
 
     def test_kinds_keep_separate_lineages(self):
         notes = tree({"en/INDEX.md": (b"notes", 0o644)})
@@ -90,7 +83,7 @@ class Edit(unittest.TestCase):
         self.assertEqual(lineage.parent(self.bucket, ("beta", "v0.38.0-beta.8", "skill"))["generation"], self.first["generation"])
         self.assertEqual(lineage.parent(self.bucket, ("stable", "v0.38.0", "skill"))["generation"], self.first["generation"])
         self.assertIsNone(lineage.parent(self.bucket, ("stable", "v0.39.0", "skill")))
-        stable = edit.stage(self.bucket, edit.Change(release("v0.38.0"), "skill", edit.inherited(lineage.parent(self.bucket, ("stable", "v0.38.0", "skill"))), lineage.parent(self.bucket, ("stable", "v0.38.0", "skill")), NOW))
+        stable, _ = self.lodge("v0.38.0", {"rules/policy.toml": (b"policy", 0o644)})
         self.assertEqual(lineage.parent(self.bucket, ("stable", "v0.39.0", "skill"))["generation"], stable["generation"])
         self.assertIsNone(lineage.parent(self.bucket, ("stable", "v0.37.0", "skill")))
 
@@ -99,6 +92,3 @@ class Edit(unittest.TestCase):
         self.assertLess(lineage.order("v0.38.0-rc.1"), lineage.order("v0.38.0"))
         self.assertLess(lineage.order("v0.38.0-beta.2"), lineage.order("v0.38.0-beta.10"))
 
-    def test_rejects_unanchored_paths(self):
-        with self.assertRaises(Refusal):
-            edit.patched(None, [("../escape", "/dev/null")], [])

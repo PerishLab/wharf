@@ -32,15 +32,18 @@ other; `lib` has no import cycles. Only `lib/content/resources.py` knows where f
 - Words claimed elsewhere in perish.code are listed in `resources/check/vocabulary.json`
   and must not name anything here.
 - A workflow `run:` is one `python3 -B -m scripts.<name> <action>` and nothing
-  else. The action must be one that script takes, and the shape is a law the
-  gate enforces. A step that prepares the machine rather than doing wharf's work
+  else. The action must be one that script takes, and every action a script
+  takes must be run by some workflow, or be a layer unit `resources/units.json`
+  registers; both are laws the gate enforces, so a path nothing reaches is a
+  finding rather than a leftover. A step that prepares the machine rather than doing wharf's work
   — a registry login, a toolchain install — is listed verbatim in
   `resources/check/commands.json`, so shell can only enter by being written down.
 - A script takes its parameters through `lib/parameters.py`, never from `argparse`
   defaults or `os.environ` directly. Each parameter declares its type once in
   `resources/parameters.json`; a value is taken from the flag, else `WHARF_<NAME>`,
   else the `-c <path>` TOML file, else the declared default, and a value set
-  nowhere refuses naming all four. A value set but empty refuses too. Credentials
+  nowhere refuses naming all four, and a parameter no action takes is a finding.
+  A value set but empty refuses too. Credentials
   never pass through this layer: a parameter or configuration key shaped like one
   refuses. Flags are for people and the environment is for CI. The same layer
   carries the answer back: what a script tells the runner it decided goes
