@@ -93,6 +93,12 @@ class Publish(unittest.TestCase):
     def test_orders_by_workspace_dependency(self):
         self.assertEqual(publish.publishable(self.repository.root), [("demo", "perish"), ("demo-cli", "perish")])
 
+    def test_orders_by_a_dependency_the_workspace_pins(self):
+        self.repository.edit("Cargo.toml", '[workspace.package]', '[workspace.dependencies]\ndemo = { path = "crates/lib", version = "=0.0.0" }\n\n[workspace.package]')
+        self.repository.edit("crates/cli/Cargo.toml", 'demo = { path = "../lib", version = "=0.0.0" }', 'demo.workspace = true')
+        self.repository.commit()
+        self.assertEqual(publish.publishable(self.repository.root), [("demo", "perish"), ("demo-cli", "perish")])
+
     def test_publishes_pending_packages_in_order(self):
         self.registry.bucket.objects["de/mo/demo"] = (json.dumps({"name": "demo", "vers": "1.2.3-beta.1"}) + "\n").encode()
         result = publish.publish(self.repository.root, "1.2.3-beta.1", self.registry.tools())

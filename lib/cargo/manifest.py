@@ -54,8 +54,8 @@ def owner(source, workspace, name):
     return owners[0]
 
 
-def local(workspace, current, spec):
-    target = posixpath.normpath(posixpath.join(workspace[current], spec["path"]))
+def local(workspace, current, spec, base):
+    target = posixpath.normpath(posixpath.join(base, spec["path"]))
     matches = [member for member, directory in workspace.items() if posixpath.normpath(directory) == target]
     if not matches:
         raise Refusal(f"{current} depends on path {target} outside the workspace members")
@@ -70,10 +70,22 @@ def closure(source, workspace, package):
         if current in seen:
             continue
         seen.append(current)
-        declared = read(source, f"{workspace[current]}/Cargo.toml")
-        specs = [spec for kind in KINDS for spec in declared.get(kind, {}).values()]
-        pending.extend(local(workspace, current, spec) for spec in specs if isinstance(spec, dict) and "path" in spec)
+        pending.extend(reached(source, workspace, current))
     return sorted(seen)
+
+
+def reached(source, workspace, current):
+    inherited = read(source, "Cargo.toml").get("workspace", {}).get("dependencies", {})
+    declared = read(source, f"{workspace[current]}/Cargo.toml")
+    found = []
+    for kind in KINDS:
+        for name, spec in declared.get(kind, {}).items():
+            base = workspace[current]
+            if isinstance(spec, dict) and spec.get("workspace"):
+                spec, base = inherited.get(name, {}), ""
+            if isinstance(spec, dict) and "path" in spec:
+                found.append(local(workspace, current, spec, base))
+    return found
 
 
 def unversioned(source, root, workspace):
