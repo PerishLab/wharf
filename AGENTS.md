@@ -111,7 +111,10 @@ publishes still has a job of its own and one decision each; every one waits for
 all the layers. Release, which writes the seal, is one medium among them, and
 channel, which moves the pointer people install from, waits for every medium,
 so a seal says only that its binaries are published; how far the marker is
-distributed is the distribution record's to say. Channel decides for itself: it
+distributed is the distribution record's to say. A product whose `plumb.toml`
+declares no binaries has none of that: no binary, bind, smoke or validate
+entry, no seal and no channel pointer. Binaries and channel are recorded none,
+and the distribution record alone says the marker is distributed. Channel decides for itself: it
 runs unless the pointer already names a newer marker, so a seal whose pointer
 never moved is pointed at by the next run instead of being skipped with it.
 Skipping is absence from a matrix, not a condition on a job that exists. A

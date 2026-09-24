@@ -125,6 +125,7 @@ jobs:
           WHARF_MARKER: ${{ inputs.marker }}
           WHARF_COMMIT: ${{ steps.source.outputs.commit }}
           WHARF_WHARF: ${{ github.sha }}
+          WHARF_SOURCE: ../product
         run: python3 -B -m scripts.ship release-plan
 
       - name: "[decide] channel"
@@ -132,6 +133,7 @@ jobs:
         env:
           WHARF_REPOSITORY: ${{ inputs.repository }}
           WHARF_MARKER: ${{ inputs.marker }}
+          WHARF_SOURCE: ../product
         run: python3 -B -m scripts.channel plan
 
       - name: "[decide] cargo"

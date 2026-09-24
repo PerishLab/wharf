@@ -242,3 +242,24 @@ class Order(unittest.TestCase):
         self.assertLess(release.order("v1.0.0"), release.order("v1.0.1-beta.1"))
         with self.assertRaises(Refusal):
             release.channel("1.0.0")
+
+
+class Carried(unittest.TestCase):
+    def product(self, body):
+        root = Path(tempfile.mkdtemp())
+        if body is not None:
+            (root / "plumb.toml").write_text(body)
+        return root
+
+    def test_a_product_declaring_binaries_carries_them(self):
+        self.assertTrue(release.carried(self.product('[release]\nproduct = "plumb"\nbinaries = ["plumb"]\n')))
+
+    def test_a_product_declaring_none_carries_none(self):
+        self.assertFalse(release.carried(self.product('[release]\nproduct = "locus"\n')))
+        self.assertFalse(release.carried(self.product(None)))
+
+    def test_a_product_with_no_binaries_is_present_nowhere_and_asks_no_authority(self):
+        def reader(url):
+            raise AssertionError(f"read {url}")
+        held = release.Release("PerishLab/locus", "v0.3.0", "a" * 40, "c" * 40)
+        self.assertEqual(release.presence(self.product('[release]\nproduct = "locus"\n'), held, reader), (True, False))

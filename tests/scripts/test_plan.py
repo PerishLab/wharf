@@ -152,6 +152,11 @@ class Derived(unittest.TestCase):
         plan.validation(Memory(), entries)
         self.assertEqual(entries["validate"]["decision"], "skip")
 
+    def test_a_product_with_no_binaries_plans_no_validation(self):
+        entries = {"release": {"decision": "skip"}}
+        plan.validation(Memory(), entries)
+        self.assertNotIn("validate", entries)
+
     def test_a_layer_runs_one_unit_per_job_and_names_what_each_must_prepare(self):
         held = plan.units(self.entries())
         self.assertEqual([unit["name"] for unit in held["layer-1"]], ["[build] binary linux", "[build] binary macos", "[build] binary windows", "[test] suite linux"])

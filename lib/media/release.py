@@ -1,5 +1,6 @@
 import hashlib
 import json
+import tomllib
 import urllib.error
 import urllib.request
 from dataclasses import dataclass
@@ -217,6 +218,18 @@ def published(release, reader=fetch):
     name, _, authority = place(release)
     held = read(f"{authority}/{sealed(release)}", reader)
     return held.get("releaseVersion") == release.marker and held.get("product") == name
+
+
+def carried(source):
+    path = Path(source) / "plumb.toml"
+    declared = tomllib.loads(path.read_text()).get("release", {}) if path.is_file() else {}
+    return bool(declared.get("binaries"))
+
+
+def presence(source, release, reader=fetch):
+    if not carried(source):
+        return True, False
+    return published(release, reader), True
 
 
 def overtaken(release, reader=fetch):

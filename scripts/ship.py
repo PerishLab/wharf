@@ -216,8 +216,8 @@ def published_release(held):
 
 
 def release_plan(held):
-    published = published_release(held)
-    return decided(releasing.published(published), {"channel": releasing.channel(published.marker)})
+    done, carried = releasing.presence(held["source"], published_release(held))
+    return decided(done, {"channel": releasing.channel(held["marker"])}, carried)
 
 
 def run_release(held):
@@ -272,7 +272,7 @@ ACTIONS = {
     "oci-publish": (oci_publish, ["source", *PLANNED]),
     "chart-plan": (chart_plan, ["source", "repository", "marker"]),
     "chart-publish": (chart_publish, ["source", "repository", "marker"]),
-    "release-plan": (release_plan, ["repository", "marker", "commit", "wharf"]),
+    "release-plan": (release_plan, ["repository", "marker", "commit", "wharf", "source"]),
     "release": (run_release, ["source", *PLANNED]),
     "cfworker-deploy": (cfworker_deploy, ["source", *PLANNED]),
     "cargo-plan": (cargo_plan, ["source", "marker"]),

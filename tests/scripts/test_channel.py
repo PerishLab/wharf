@@ -20,9 +20,15 @@ class Taken(unittest.TestCase):
 class Plan(unittest.TestCase):
     def decide(self, overtaken):
         output = Path(tempfile.mkdtemp()) / "output"
-        with mock.patch.dict(os.environ, {parameters.OUTPUT: str(output)}), mock.patch.object(channel.release, "overtaken", return_value=overtaken):
-            held = channel.plan(HELD)
+        with mock.patch.dict(os.environ, {parameters.OUTPUT: str(output)}), mock.patch.object(channel.release, "overtaken", return_value=overtaken), mock.patch.object(channel.release, "carried", return_value=True):
+            held = channel.plan(dict(HELD, source="../product"))
         return held, output.read_text()
+
+    def test_a_product_with_no_binaries_has_no_channel_to_point(self):
+        output = Path(tempfile.mkdtemp()) / "output"
+        with mock.patch.dict(os.environ, {parameters.OUTPUT: str(output)}), mock.patch.object(channel.release, "carried", return_value=False):
+            held = channel.plan(dict(HELD, source="../product"))
+        self.assertEqual(held, {"decision": "skip", "presence": "none", "channel": "stable"})
 
     def test_a_channel_not_yet_at_a_newer_marker_is_pointed(self):
         self.assertEqual(self.decide(False), ({"decision": "run", "presence": "present", "channel": "stable"}, "decision=run\npresence=present\n"))

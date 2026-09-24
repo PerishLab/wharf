@@ -4,7 +4,7 @@ import sys
 from lib import parameters
 from lib.cargo import basis
 from lib.content import implementation, marker, resources
-from lib.media import cfworker, node
+from lib.media import cfworker, node, release
 from lib.process import git
 from lib.refusal import Refusal
 from lib.store import plan, r2, workload
@@ -68,6 +68,8 @@ def media(observed, entries):
 
 
 def validation(bucket, entries):
+    if f"bind-{BUILD['primary']}" not in entries:
+        return
     primary = entries[f"bind-{BUILD['primary']}"]["key"]
     held = {"entry": {"kind": "binary-validate", "binary": primary}}
     entries["validate"] = decided(bucket, held, (["lib.identity.smoke"], ["validators.json"]), entries)
@@ -126,7 +128,8 @@ def record(held):
     bucket = r2.configured()
     entries = {}
     observed = reported(held["steps"])
-    binaries(held, bucket, entries)
+    if release.carried(held["source"]):
+        binaries(held, bucket, entries)
     suites(held, bucket, entries)
     media(observed, entries)
     validation(bucket, entries)

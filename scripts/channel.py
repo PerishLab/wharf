@@ -14,6 +14,8 @@ def released(held):
 
 
 def plan(held):
+    if not release.carried(held["source"]):
+        return dict(parameters.answer({"decision": "skip", "presence": "none"}), channel=release.channel(held["marker"]))
     overtaken = release.overtaken(released(held))
     answered = {"decision": "skip", "presence": "overtaken"} if overtaken else {"decision": "run", "presence": "present"}
     return dict(parameters.answer(answered), channel=release.channel(held["marker"]))
@@ -26,7 +28,7 @@ def point(held):
     return release.point(pointed, managers, r2.writer(release.place(pointed)[1], "RELEASES"))
 
 
-ACTIONS = {"plan": (plan, ["repository", "marker"]), "point": (point, ["repository", "marker", "wharf"])}
+ACTIONS = {"plan": (plan, ["repository", "marker", "source"]), "point": (point, ["repository", "marker", "wharf"])}
 
 
 def main(argv=None):
