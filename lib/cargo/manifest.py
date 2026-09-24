@@ -7,6 +7,7 @@ from lib.process import git
 from lib.refusal import Refusal
 
 KINDS = ("dependencies", "build-dependencies")
+PACKAGED = KINDS + ("dev-dependencies",)
 
 
 def object_id(source, path):
@@ -62,7 +63,7 @@ def local(workspace, current, spec, base):
     return matches[0]
 
 
-def closure(source, workspace, package):
+def closure(source, workspace, package, kinds=KINDS):
     seen = []
     pending = [package]
     while pending:
@@ -70,15 +71,15 @@ def closure(source, workspace, package):
         if current in seen:
             continue
         seen.append(current)
-        pending.extend(reached(source, workspace, current))
+        pending.extend(reached(source, workspace, current, kinds))
     return sorted(seen)
 
 
-def reached(source, workspace, current):
+def reached(source, workspace, current, kinds):
     inherited = read(source, "Cargo.toml").get("workspace", {}).get("dependencies", {})
     declared = read(source, f"{workspace[current]}/Cargo.toml")
     found = []
-    for kind in KINDS:
+    for kind in kinds:
         for name, spec in declared.get(kind, {}).items():
             base = workspace[current]
             if isinstance(spec, dict) and spec.get("workspace"):

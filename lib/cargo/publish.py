@@ -34,7 +34,7 @@ def publishable(source):
         if not isinstance(target, list) or len(target) != 1:
             raise Refusal(f"{package} must publish to exactly one named registry or declare publish = false")
         found[package] = target[0]
-    needs = {package: {member for member in manifest.closure(source, workspace, package) if member in found and member != package} for package in found}
+    needs = {package: {member for member in manifest.closure(source, workspace, package, manifest.PACKAGED) if member in found and member != package} for package in found}
     ordered = []
     while len(ordered) < len(found):
         ready = sorted(package for package in found if package not in ordered and needs[package] <= set(ordered))
