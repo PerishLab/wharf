@@ -26,6 +26,7 @@ def inject(source, version):
     manifest.unversioned(source, root, workspace)
     if not replace(source / "Cargo.toml", r'^(version\s*=\s*)"0\.0\.0"', rf'\g<1>"{version}"'):
         raise Refusal("Cargo.toml declares no workspace.package.version to bind")
+    replace(source / "Cargo.toml", r'(version\s*=\s*)"=0\.0\.0"', rf'\g<1>"={version}"')
     for directory in workspace.values():
         replace(source / directory / "Cargo.toml", r'^(version\s*=\s*)"0\.0\.0"', rf'\g<1>"{version}"')
         replace(source / directory / "Cargo.toml", r'(version\s*=\s*)"=0\.0\.0"', rf'\g<1>"={version}"')

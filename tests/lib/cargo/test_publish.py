@@ -137,6 +137,14 @@ class Inject(unittest.TestCase):
         self.assertIn('version = "1.2.3-beta.1"', (repository.root / "Cargo.toml").read_text())
         self.assertNotIn("0.0.0", (repository.root / "Cargo.lock").read_text())
 
+    def test_binds_the_members_pinned_in_workspace_dependencies(self):
+        repository = Repository()
+        repository.edit("Cargo.toml", '[workspace.package]', '[workspace.dependencies]\ndemo = { path = "crates/lib", version = "=0.0.0" }\n\n[workspace.package]')
+        repository.edit("crates/cli/Cargo.toml", 'demo = { path = "../lib", version = "=0.0.0" }', 'demo.workspace = true')
+        repository.commit()
+        version.inject(repository.root, "1.2.3-beta.1")
+        self.assertIn('version = "=1.2.3-beta.1"', (repository.root / "Cargo.toml").read_text())
+
     def test_marker_is_required(self):
         with self.assertRaises(Refusal):
             version.marker("latest")
