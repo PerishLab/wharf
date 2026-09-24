@@ -6,7 +6,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from lib.cargo import index, manifest, registry, toolchain
-from lib.process import run
+from lib.process import stream
 from lib.refusal import Conflict, Refusal
 from lib.store import r2
 
@@ -17,7 +17,7 @@ CRATE = {"Content-Type": "application/gzip", "Cache-Control": "public, max-age=3
 
 @dataclass(frozen=True)
 class Tools:
-    run: object = run
+    run: object = stream
     reader: object = registry.fetch
     sleep: object = time.sleep
     store: object = r2.writer
