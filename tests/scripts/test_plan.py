@@ -118,16 +118,17 @@ class Media(unittest.TestCase):
 class Derived(unittest.TestCase):
     HELD = {"repository": "PerishLab/plumb", "marker": "v0.38.3-rc.7", "commit": "a" * 40, "tree": "b" * 40, "source": "../product"}
 
-    def entries(self):
+    def entries(self, rust=True):
         entries = {}
         patches = (
+            mock.patch.object(plan.basis, "carried", return_value=rust),
             mock.patch.object(plan.basis, "resolve", side_effect=lambda source, name, target, runner: {"entry": "binary", "target": target}),
             mock.patch.object(plan.basis, "dependencies", side_effect=lambda source, name, target, runner: {"entry": "dependencies", "target": target}),
             mock.patch.object(plan.basis, "suite", return_value={"entry": "suite"}),
             mock.patch.object(plan.node, "carried", return_value=False),
             mock.patch.object(plan.cfworker, "workers", return_value=[]),
         )
-        with patches[0], patches[1], patches[2], patches[3], patches[4]:
+        with patches[0], patches[1], patches[2], patches[3], patches[4], patches[5]:
             plan.binaries(self.HELD, Memory(), entries)
             plan.suites(self.HELD, Memory(), entries)
         entries["release"] = {"decision": "run"}
@@ -151,6 +152,10 @@ class Derived(unittest.TestCase):
         entries["validate"] = {"decision": "run"}
         plan.validation(Memory(), entries)
         self.assertEqual(entries["validate"]["decision"], "skip")
+
+    def test_a_product_without_a_cargo_workspace_plans_no_cargo_suite(self):
+        self.assertIn("suite-linux", self.entries())
+        self.assertNotIn("suite-linux", self.entries(rust=False))
 
     def test_a_product_with_no_binaries_plans_no_validation(self):
         entries = {"release": {"decision": "skip"}}

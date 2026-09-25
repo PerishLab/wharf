@@ -114,7 +114,9 @@ so a seal says only that its binaries are published; how far the marker is
 distributed is the distribution record's to say. A product whose `plumb.toml`
 declares no binaries has none of that: no binary, bind, smoke or validate
 entry, no seal and no channel pointer. Binaries and channel are recorded none,
-and the distribution record alone says the marker is distributed. The product's
+and the distribution record alone says the marker is distributed. Suites follow
+the source that is there: a tracked `Cargo.toml` plans the cargo suite and a
+tracked root `package.json` the node suite, and neither is planned without it. The product's
 `plumb.toml` is likewise the one declaration of what else publishes: npm publishes
 exactly the packages `[release.npm]` lists and cargo exactly the crates
 `[release.cargo]` lists, each refusing a listed name its workspace does not answer

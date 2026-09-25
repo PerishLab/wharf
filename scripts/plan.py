@@ -52,7 +52,8 @@ def binaries(held, bucket, entries):
 
 def suites(held, bucket, entries):
     source = held["source"]
-    entries["suite-linux"] = decided(bucket, basis.suite(source, RUNNER), (["lib.cargo.basis", "lib.cargo.suite"], []), entries)
+    if basis.carried(source):
+        entries["suite-linux"] = decided(bucket, basis.suite(source, RUNNER), (["lib.cargo.basis", "lib.cargo.suite"], []), entries)
     if node.carried(source):
         entries["suite-node"] = decided(bucket, node.basis(source, RUNNER), (["lib.media.node"], []), entries)
     if cfworker.workers(source):

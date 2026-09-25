@@ -63,6 +63,10 @@ SUITE_WIDENED = [
 ]
 
 
+def carried(source):
+    return manifest.tracked(source, "Cargo.toml")
+
+
 def suite(source, runner):
     source = Path(source)
     root = manifest.read(source, "Cargo.toml")
