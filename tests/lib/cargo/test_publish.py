@@ -76,8 +76,12 @@ class Registry:
         return [json.loads(line) for line in self.reader(LOCATION + registry.entry(package)).splitlines()]
 
 
+DECLARED = '[release.cargo]\nregistry = "perish"\npackages = ["demo", "demo-cli"]\n'
+
+
 def publishing(repository):
     repository.write(".cargo/config.toml", f'[registries.perish]\nindex = "sparse+{LOCATION}"\n')
+    repository.write("plumb.toml", DECLARED)
     repository.edit("crates/lib/Cargo.toml", 'version.workspace = true', 'version.workspace = true\npublish = ["perish"]')
     repository.edit("crates/cli/Cargo.toml", 'version.workspace = true', 'version.workspace = true\npublish = ["perish"]')
     repository.edit("crates/other/Cargo.toml", 'version.workspace = true', 'version.workspace = true\npublish = false')
@@ -104,6 +108,25 @@ class Publish(unittest.TestCase):
         self.repository.edit("crates/cli/Cargo.toml", 'demo = { path = "../lib", version = "=0.0.0" }', '')
         self.repository.commit()
         self.assertEqual(publish.publishable(self.repository.root), [("demo-cli", "perish"), ("demo", "perish")])
+
+    def test_publishes_only_what_plumb_declares(self):
+        self.repository.edit("crates/other/Cargo.toml", "publish = false", "")
+        self.repository.commit()
+        self.assertEqual([package for package, _ in publish.publishable(self.repository.root)], ["demo", "demo-cli"])
+        self.repository.write("plumb.toml", "[release]\n")
+        self.repository.commit()
+        self.assertEqual(publish.publishable(self.repository.root), [])
+
+    def test_refuses_a_declaration_the_workspace_does_not_answer(self):
+        cases = (
+            (DECLARED.replace('"demo-cli"', '"gone"'), "not a workspace member"),
+            (DECLARED.replace('"demo-cli"', '"other"'), "does not publish to perish"),
+        )
+        for body, reason in cases:
+            with self.subTest(reason), self.assertRaisesRegex(Refusal, reason):
+                self.repository.write("plumb.toml", body)
+                self.repository.commit()
+                publish.publishable(self.repository.root)
 
     def test_publishes_pending_packages_in_order(self):
         self.registry.bucket.objects["de/mo/demo"] = (json.dumps({"name": "demo", "vers": "1.2.3-beta.1"}) + "\n").encode()

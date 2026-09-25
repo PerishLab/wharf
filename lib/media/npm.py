@@ -9,7 +9,7 @@ import urllib.request
 from dataclasses import dataclass
 from pathlib import Path
 
-from lib.content import resources
+from lib.content import declaration, resources
 from lib.media.node import manifest
 from lib.process import git, run
 from lib.refusal import Refusal
@@ -26,12 +26,16 @@ class Tools:
     reader: object = None
 
 
+def declared(source):
+    return declaration.release(source).get("npm")
+
+
 def carried(source):
-    return git(source, "ls-tree", "--name-only", "HEAD", "--", WORKSPACE) == WORKSPACE
+    return declared(source) is not None
 
 
 def globs(source):
-    if not carried(source):
+    if git(source, "ls-tree", "--name-only", "HEAD", "--", WORKSPACE) != WORKSPACE:
         raise Refusal(f"{WORKSPACE} is not tracked at HEAD")
     lines = (Path(source) / WORKSPACE).read_text().splitlines()
     if "packages:" not in lines:
@@ -50,20 +54,33 @@ def globs(source):
 
 
 def publishable(source):
+    attachment = declared(source)
+    if attachment is None:
+        return []
+    names = attachment.get("packages", [])
+    found = {}
+    for path in workspace(source):
+        held = manifest(source, path)
+        if held.get("name") not in names:
+            continue
+        if held.get("private"):
+            raise Refusal(f"{held['name']} is declared in [release.npm] and {path} marks it private")
+        if held.get("version") != UNVERSIONED:
+            raise Refusal(f"{path} must declare version {UNVERSIONED}")
+        location = registry(source, held["name"])
+        if location != attachment.get("registry"):
+            raise Refusal(f"{held['name']} maps to {location!r}, [release.npm] declares {attachment.get('registry')!r}")
+        found[held["name"]] = {"name": held["name"], "path": path, "registry": location}
+    missing = [name for name in names if name not in found]
+    if missing:
+        raise Refusal(f"[release.npm] declares {', '.join(missing)}, which no workspace package names")
+    return [found[name] for name in names]
+
+
+def workspace(source):
     patterns = globs(source)
     listed = git(source, "ls-files", "*/package.json").splitlines()
-    found = []
-    for path in sorted(listed):
-        directory = posix_parent(path)
-        if not any(fnmatch.fnmatchcase(directory, pattern) for pattern in patterns):
-            continue
-        declared = manifest(source, path)
-        if declared.get("private"):
-            continue
-        if declared.get("version") != UNVERSIONED:
-            raise Refusal(f"{path} must declare version {UNVERSIONED}")
-        found.append({"name": declared["name"], "path": path, "registry": registry(source, declared["name"])})
-    return found
+    return [path for path in sorted(listed) if any(fnmatch.fnmatchcase(posix_parent(path), pattern) for pattern in patterns)]
 
 
 def posix_parent(path):

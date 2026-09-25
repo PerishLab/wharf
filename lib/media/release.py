@@ -1,12 +1,11 @@
 import hashlib
 import json
-import tomllib
 import urllib.error
 import urllib.request
 from dataclasses import dataclass
 from pathlib import Path
 
-from lib.content import canonical, fill, implementation, marker, resources
+from lib.content import canonical, declaration, fill, implementation, marker, resources
 from lib.media import archive
 from lib.refusal import Conflict, Refusal
 
@@ -221,9 +220,7 @@ def published(release, reader=fetch):
 
 
 def carried(source):
-    path = Path(source) / "plumb.toml"
-    declared = tomllib.loads(path.read_text()).get("release", {}) if path.is_file() else {}
-    return bool(declared.get("binaries"))
+    return bool(declaration.release(source).get("binaries"))
 
 
 def presence(source, release, reader=fetch):

@@ -8,17 +8,28 @@ from lib.refusal import Refusal
 from tests.lib.media.repository import Repository
 
 
+DECLARED = {"plumb.toml": '[release.npm]\nregistry = "https://npm.pkg.github.com/"\npackages = ["@perishlab/lib"]\n'}
+
+
+def declared(files=None):
+    return Repository(dict(DECLARED, **(files or {})))
+
+
 class Carried(unittest.TestCase):
-    def test_a_repository_without_a_workspace_carries_no_npm_medium(self):
+    def test_a_repository_declaring_no_npm_attachment_carries_no_medium(self):
         repository = Repository()
+        self.assertFalse(npm.carried(repository.root))
+        self.assertEqual(npm.publishable(repository.root), [])
+
+    def test_a_declared_attachment_carries_the_medium(self):
+        self.assertTrue(npm.carried(declared().root))
+
+    def test_a_declared_attachment_needs_the_workspace(self):
+        repository = declared()
         repository.git("rm", "-q", "pnpm-workspace.yaml")
         repository.commit()
-        self.assertFalse(npm.carried(repository.root))
         with self.assertRaisesRegex(Refusal, "is not tracked at HEAD"):
             npm.publishable(repository.root)
-
-    def test_a_repository_with_one_carries_the_medium(self):
-        self.assertTrue(npm.carried(Repository().root))
 
 
 class Registry:
@@ -38,9 +49,9 @@ class Registry:
 
 class Npm(unittest.TestCase):
     def setUp(self):
-        self.repository = Repository()
+        self.repository = declared()
 
-    def test_lists_public_workspace_packages_with_their_registry(self):
+    def test_lists_the_declared_packages_with_their_registry(self):
         held = npm.publishable(self.repository.root)
         self.assertEqual(held, [{"name": "@perishlab/lib", "path": "packages/lib/package.json", "registry": "https://npm.pkg.github.com/"}])
 
@@ -52,7 +63,21 @@ class Npm(unittest.TestCase):
         )
         for files in cases:
             with self.subTest(files), self.assertRaises(Refusal):
-                npm.publishable(Repository(files).root)
+                npm.publishable(declared(files).root)
+
+    def test_publishes_only_what_plumb_declares(self):
+        undeclared = {"packages/more/package.json": json.dumps({"name": "@perishlab/more", "version": "0.0.0"})}
+        self.assertEqual([item["name"] for item in npm.publishable(declared(undeclared).root)], ["@perishlab/lib"])
+
+    def test_refuses_a_declaration_the_workspace_does_not_answer(self):
+        cases = (
+            ({"plumb.toml": DECLARED["plumb.toml"].replace("@perishlab/lib", "@perishlab/gone")}, "no workspace package names"),
+            ({"packages/lib/package.json": json.dumps({"name": "@perishlab/lib", "version": "0.0.0", "private": True})}, "marks it private"),
+            ({"plumb.toml": DECLARED["plumb.toml"].replace("https://npm.pkg.github.com/", "https://git.example/npm/")}, "declares"),
+        )
+        for files, reason in cases:
+            with self.subTest(reason), self.assertRaisesRegex(Refusal, reason):
+                npm.publishable(declared(files).root)
 
     def test_channel_follows_the_prerelease(self):
         self.assertEqual(npm.channel("1.2.3-beta.4"), "beta")
@@ -63,7 +88,7 @@ class Npm(unittest.TestCase):
         tools = npm.Tools(run=registry.run, reader=registry.reader)
         with mock.patch.dict(os.environ, {npm.TOKEN: "secret"}):
             first = npm.publish(self.repository.root, "1.2.3-beta.4", tools)
-            second = npm.publish(Repository().root, "1.2.3-beta.4", tools)
+            second = npm.publish(declared().root, "1.2.3-beta.4", tools)
         self.assertEqual([item["state"] for item in first["packages"]], ["published"])
         self.assertEqual([item["state"] for item in second["packages"]], ["already-published"])
         argv, env = next(run for run in registry.runs if run[0][:2] == ["pnpm", "publish"])

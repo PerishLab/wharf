@@ -6,6 +6,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from lib.cargo import index, manifest, registry, toolchain
+from lib.content import declaration
 from lib.process import stream
 from lib.refusal import Conflict, Refusal
 from lib.store import r2
@@ -25,15 +26,17 @@ class Tools:
 
 def publishable(source):
     source = Path(source)
+    attachment = declaration.release(source).get("cargo")
+    if attachment is None:
+        return []
     workspace = manifest.members(source, manifest.read(source, "Cargo.toml"))
-    found = {}
-    for package, directory in workspace.items():
-        target = manifest.read(source, f"{directory}/Cargo.toml")["package"].get("publish", True)
-        if target is False:
-            continue
-        if not isinstance(target, list) or len(target) != 1:
-            raise Refusal(f"{package} must publish to exactly one named registry or declare publish = false")
-        found[package] = target[0]
+    found = {package: attachment["registry"] for package in attachment.get("packages", [])}
+    for package, name in found.items():
+        if package not in workspace:
+            raise Refusal(f"[release.cargo] declares {package}, which is not a workspace member")
+        target = manifest.read(source, f"{workspace[package]}/Cargo.toml")["package"].get("publish", True)
+        if target is not True and (not isinstance(target, list) or name not in target):
+            raise Refusal(f"{package} is declared in [release.cargo] and its Cargo.toml does not publish to {name}")
     needs = {package: {member for member in manifest.closure(source, workspace, package, manifest.PACKAGED) if member in found and member != package} for package in found}
     ordered = []
     while len(ordered) < len(found):

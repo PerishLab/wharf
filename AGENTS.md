@@ -114,7 +114,13 @@ so a seal says only that its binaries are published; how far the marker is
 distributed is the distribution record's to say. A product whose `plumb.toml`
 declares no binaries has none of that: no binary, bind, smoke or validate
 entry, no seal and no channel pointer. Binaries and channel are recorded none,
-and the distribution record alone says the marker is distributed. Channel decides for itself: it
+and the distribution record alone says the marker is distributed. The product's
+`plumb.toml` is likewise the one declaration of what else publishes: npm publishes
+exactly the packages `[release.npm]` lists and cargo exactly the crates
+`[release.cargo]` lists, each refusing a listed name its workspace does not answer
+or will not publish there; a package or crate it does not list is never published,
+and native files keep only the configuration their ecosystem reads, such as the
+`.npmrc` scope map and the cargo registry index. Channel decides for itself: it
 runs unless the pointer already names a newer marker, so a seal whose pointer
 never moved is pointed at by the next run instead of being skipped with it.
 Skipping is absence from a matrix, not a condition on a job that exists. A
