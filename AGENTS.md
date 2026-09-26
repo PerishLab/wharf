@@ -198,6 +198,13 @@ that keeps them.
 - The canonical managers at the authority's root are written only when a stable
   channel pointer names the marker that rendered them.
 - Each job holds the credentials of one bucket, and nothing in a run holds two.
+- A job reads the product through `.github/actions/product`. The Wharf GitHub
+  App (`WHARF_APP_CLIENT_ID`, `WHARF_APP_PRIVATE_KEY`) is installed only on the
+  private products wharf releases; the action mints a token scoped to the one
+  repository being released, contents read alone, for that job, and checks out
+  without persisting it. A public product the App is not installed on is read
+  with the run's own token. This reads source and writes nothing, so it is not a
+  bucket credential.
 
 ## Release identity
 

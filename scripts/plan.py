@@ -20,6 +20,7 @@ CONTEXT = IDENTITY + ("wharf", "run", "attempt")
 TAKEN = IDENTITY + ("wharf", "run", "attempt", "source", "steps")
 CHECKED = ("repository", "marker")
 SOURCED = ("source",)
+NAMED = ("repository",)
 
 
 def referenced(held, keys):
@@ -143,18 +144,23 @@ def record(held):
     return dict(recorded, decided=emit(entries, held["attempt"]), entry={name: entries[name]["decision"] for name in sorted(entries)})
 
 
+def named(held):
+    owner, _, name = held["repository"].partition("/")
+    return parameters.answer({"owner": owner, "name": name})
+
+
 def check(held):
     return {"repository": held["repository"], "marker": held["marker"], "channel": marker.channel(held["marker"])}
 
 
-ACTIONS = {"record": record, "check": check, "source": source}
+ACTIONS = {"record": record, "check": check, "source": source, "named": named}
 
 
 def main(argv=None):
     given = sys.argv[1:] if argv is None else argv
     try:
         action, rest = parameters.acted("plan", ACTIONS, given)
-        values, origins = parameters.resolve(action, {"record": TAKEN, "check": CHECKED, "source": SOURCED}[action], rest)
+        values, origins = parameters.resolve(action, {"record": TAKEN, "check": CHECKED, "source": SOURCED, "named": NAMED}[action], rest)
         print("\n".join(parameters.report(values, origins)), file=sys.stderr)
         result = ACTIONS[action](values)
     except Refusal as refusal:

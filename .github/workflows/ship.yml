@@ -66,12 +66,12 @@ jobs:
         run: python3 -B -m scripts.plan check
 
       - name: "[checkout] product"
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        uses: ./wharf/.github/actions/product
         with:
           repository: ${{ inputs.repository }}
-          ref: refs/tags/${{ inputs.marker }}
-          path: product
-          persist-credentials: false
+          marker: ${{ inputs.marker }}
+          client-id: ${{ vars.WHARF_APP_CLIENT_ID }}
+          private-key: ${{ secrets.WHARF_APP_PRIVATE_KEY }}
 
       - name: "[identify] source"
         id: source
@@ -187,12 +187,12 @@ jobs:
           persist-credentials: false
 
       - name: "[checkout] product"
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        uses: ./wharf/.github/actions/product
         with:
           repository: ${{ inputs.repository }}
-          ref: refs/tags/${{ inputs.marker }}
-          path: product
-          persist-credentials: false
+          marker: ${{ inputs.marker }}
+          client-id: ${{ vars.WHARF_APP_CLIENT_ID }}
+          private-key: ${{ secrets.WHARF_APP_PRIVATE_KEY }}
 
       - name: "[prepare] machine"
         uses: ./wharf/.github/actions/prepare
@@ -243,12 +243,12 @@ jobs:
           persist-credentials: false
 
       - name: "[checkout] product"
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        uses: ./wharf/.github/actions/product
         with:
           repository: ${{ inputs.repository }}
-          ref: refs/tags/${{ inputs.marker }}
-          path: product
-          persist-credentials: false
+          marker: ${{ inputs.marker }}
+          client-id: ${{ vars.WHARF_APP_CLIENT_ID }}
+          private-key: ${{ secrets.WHARF_APP_PRIVATE_KEY }}
 
       - name: "[prepare] machine"
         uses: ./wharf/.github/actions/prepare
@@ -299,12 +299,12 @@ jobs:
           persist-credentials: false
 
       - name: "[checkout] product"
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        uses: ./wharf/.github/actions/product
         with:
           repository: ${{ inputs.repository }}
-          ref: refs/tags/${{ inputs.marker }}
-          path: product
-          persist-credentials: false
+          marker: ${{ inputs.marker }}
+          client-id: ${{ vars.WHARF_APP_CLIENT_ID }}
+          private-key: ${{ secrets.WHARF_APP_PRIVATE_KEY }}
 
       - name: "[prepare] machine"
         uses: ./wharf/.github/actions/prepare
@@ -344,12 +344,12 @@ jobs:
           persist-credentials: false
 
       - name: "[checkout] product"
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        uses: ./wharf/.github/actions/product
         with:
           repository: ${{ inputs.repository }}
-          ref: refs/tags/${{ inputs.marker }}
-          path: product
-          persist-credentials: false
+          marker: ${{ inputs.marker }}
+          client-id: ${{ vars.WHARF_APP_CLIENT_ID }}
+          private-key: ${{ secrets.WHARF_APP_PRIVATE_KEY }}
 
       - name: "[prepare] node"
         uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020
@@ -384,12 +384,12 @@ jobs:
           persist-credentials: false
 
       - name: "[checkout] product"
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        uses: ./wharf/.github/actions/product
         with:
           repository: ${{ inputs.repository }}
-          ref: refs/tags/${{ inputs.marker }}
-          path: product
-          persist-credentials: false
+          marker: ${{ inputs.marker }}
+          client-id: ${{ vars.WHARF_APP_CLIENT_ID }}
+          private-key: ${{ secrets.WHARF_APP_PRIVATE_KEY }}
 
       - name: "[login] registry"
         working-directory: .
@@ -429,12 +429,12 @@ jobs:
           persist-credentials: false
 
       - name: "[checkout] product"
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        uses: ./wharf/.github/actions/product
         with:
           repository: ${{ inputs.repository }}
-          ref: refs/tags/${{ inputs.marker }}
-          path: product
-          persist-credentials: false
+          marker: ${{ inputs.marker }}
+          client-id: ${{ vars.WHARF_APP_CLIENT_ID }}
+          private-key: ${{ secrets.WHARF_APP_PRIVATE_KEY }}
 
       - name: "[login] registry"
         working-directory: .
@@ -465,12 +465,12 @@ jobs:
           persist-credentials: false
 
       - name: "[checkout] product"
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        uses: ./wharf/.github/actions/product
         with:
           repository: ${{ inputs.repository }}
-          ref: refs/tags/${{ inputs.marker }}
-          path: product
-          persist-credentials: false
+          marker: ${{ inputs.marker }}
+          client-id: ${{ vars.WHARF_APP_CLIENT_ID }}
+          private-key: ${{ secrets.WHARF_APP_PRIVATE_KEY }}
 
       - name: "[publish] binaries"
         env:
@@ -521,12 +521,12 @@ jobs:
           persist-credentials: false
 
       - name: "[checkout] product"
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        uses: ./wharf/.github/actions/product
         with:
           repository: ${{ inputs.repository }}
-          ref: refs/tags/${{ inputs.marker }}
-          path: product
-          persist-credentials: false
+          marker: ${{ inputs.marker }}
+          client-id: ${{ vars.WHARF_APP_CLIENT_ID }}
+          private-key: ${{ secrets.WHARF_APP_PRIVATE_KEY }}
 
       - name: "[prepare] node"
         uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020
@@ -565,12 +565,12 @@ jobs:
           persist-credentials: false
 
       - name: "[checkout] product"
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        uses: ./wharf/.github/actions/product
         with:
           repository: ${{ inputs.repository }}
-          ref: refs/tags/${{ inputs.marker }}
-          path: product
-          persist-credentials: false
+          marker: ${{ inputs.marker }}
+          client-id: ${{ vars.WHARF_APP_CLIENT_ID }}
+          private-key: ${{ secrets.WHARF_APP_PRIVATE_KEY }}
 
       - name: "[publish] cargo"
         env:

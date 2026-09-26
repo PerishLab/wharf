@@ -29,8 +29,14 @@ class Taken(unittest.TestCase):
     def test_the_action_word_is_taken_before_the_parameters(self):
         self.assertEqual(parameters.acted("plan", plan.ACTIONS, ["record", "--marker", "v1"]), ("record", ["--marker", "v1"]))
 
+    def test_named_answers_the_owner_and_name_a_token_is_scoped_to(self):
+        output = Path(tempfile.mkdtemp()) / "output"
+        with mock.patch.dict(os.environ, {parameters.OUTPUT: str(output)}):
+            plan.named({"repository": "PerishLab/hardrig"})
+        self.assertEqual(output.read_text(), "name=hardrig\nowner=PerishLab\n")
+
     def test_an_unknown_action_refuses(self):
-        with self.assertRaisesRegex(Refusal, "plan takes one action: check, record"):
+        with self.assertRaisesRegex(Refusal, "plan takes one action: check, named, record, source"):
             parameters.acted("plan", plan.ACTIONS, ["invent"])
 
     def test_every_build_target_states_its_name_target_and_runner(self):

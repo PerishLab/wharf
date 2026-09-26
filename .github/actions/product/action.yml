@@ -1,0 +1,50 @@
+name: product
+description: Check out the product at its marker, reading a private repository through the Wharf App
+inputs:
+  repository:
+    description: The product repository, owner/name
+    required: true
+  marker:
+    description: The marker to check out
+    required: true
+  client-id:
+    description: The Wharf App's client id
+    required: true
+  private-key:
+    description: The Wharf App's private key
+    required: true
+  fetch-depth:
+    description: How much history to fetch
+    required: false
+    default: "1"
+runs:
+  using: composite
+  steps:
+    - name: Name the product repository
+      id: named
+      shell: bash
+      working-directory: wharf
+      env:
+        WHARF_REPOSITORY: ${{ inputs.repository }}
+      run: python3 -B -m scripts.plan named
+
+    - name: Mint a token that reads this repository alone
+      id: token
+      continue-on-error: true
+      uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1
+      with:
+        client-id: ${{ inputs.client-id }}
+        private-key: ${{ inputs.private-key }}
+        owner: ${{ steps.named.outputs.owner }}
+        repositories: ${{ steps.named.outputs.name }}
+        permission-contents: read
+
+    - name: Check out the product
+      uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      with:
+        repository: ${{ inputs.repository }}
+        ref: refs/tags/${{ inputs.marker }}
+        path: product
+        fetch-depth: ${{ inputs.fetch-depth }}
+        persist-credentials: false
+        token: ${{ steps.token.outputs.token || github.token }}

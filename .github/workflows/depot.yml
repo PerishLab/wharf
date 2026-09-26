@@ -53,13 +53,13 @@ jobs:
         run: python3 -B -m scripts.plan check
 
       - name: "[checkout] product"
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        uses: ./wharf/.github/actions/product
         with:
           repository: ${{ inputs.repository }}
-          ref: refs/tags/${{ inputs.marker }}
-          path: product
+          marker: ${{ inputs.marker }}
+          client-id: ${{ vars.WHARF_APP_CLIENT_ID }}
+          private-key: ${{ secrets.WHARF_APP_PRIVATE_KEY }}
           fetch-depth: 0
-          persist-credentials: false
 
       - name: "[prepare] plumb"
         working-directory: .
