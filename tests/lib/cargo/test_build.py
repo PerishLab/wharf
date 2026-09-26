@@ -4,6 +4,7 @@ import json
 import shutil
 import tempfile
 import unittest
+import unittest.mock
 from pathlib import Path
 
 from lib import process
@@ -86,6 +87,15 @@ class Build(unittest.TestCase):
         self.assertEqual(fetch[argv_target := fetch.index("--target") + 1], "x86_64-unknown-linux-gnu")
         self.assertIn("--offline", next(argv for argv, _ in cargo.calls if argv[:2] == ["cargo", "build"]))
         self.assertNotIn("--offline", fetch)
+
+    def test_a_windows_build_compiles_vendored_openssl_with_native_perl(self):
+        perl = Path(tempfile.mkdtemp()) / "perl.exe"
+        perl.write_text("")
+        request = build.Build(Path("."), "demo", "x86_64-pc-windows-msvc", Path("out"))
+        with unittest.mock.patch.object(build, "NATIVE_PERL", perl):
+            self.assertEqual(build.environment(request, "1.96.1")["OPENSSL_SRC_PERL"], str(perl))
+            linux = build.Build(Path("."), "demo", "x86_64-unknown-linux-gnu", Path("out"))
+            self.assertNotIn("OPENSSL_SRC_PERL", build.environment(linux, "1.96.1"))
 
     def test_refuses_malformed_target_before_side_effects(self):
         cargo = Cargo([("plumb-cli", ["plumb"])])

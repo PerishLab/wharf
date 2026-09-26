@@ -17,6 +17,7 @@ from lib.refusal import Refusal
 TRIPLE = re.compile(r"^[a-z0-9_]+(-[a-z0-9_]+){2,3}$")
 HASHED = re.compile(r"-[0-9a-f]{8,}$")
 PROBED = ".rustc_info.json"
+NATIVE_PERL = Path("C:/Strawberry/perl/bin/perl.exe")
 
 
 @dataclass(frozen=True)
@@ -70,6 +71,8 @@ def environment(request, channel):
     env = dict(os.environ, RUSTUP_TOOLCHAIN=channel)
     env[f"{prefix}_BUILD_TARGET"] = request.target
     env[f"{prefix}_BUILD_CHANNEL"] = "unbound"
+    if request.target.endswith("-windows-msvc") and NATIVE_PERL.is_file():
+        env.setdefault("OPENSSL_SRC_PERL", str(NATIVE_PERL))
     return env
 
 
