@@ -3,7 +3,7 @@ import subprocess
 import tempfile
 from pathlib import Path
 
-from lib.content import resources
+from lib.content import declaration, resources
 from lib.process import git, run
 from lib.refusal import Refusal
 
@@ -16,16 +16,20 @@ def repository(owner):
 
 
 def charts(source):
-    listed = git(source, "ls-files", f"{ROOT}/*/Chart.yaml").splitlines()
-    found = []
-    for path in sorted(listed):
+    attachment = declaration.release(source).get("chart")
+    if attachment is None:
+        return []
+    wanted = attachment.get("chart", "").rsplit("/", 1)[-1]
+    for path in sorted(git(source, "ls-files", f"{ROOT}/*/Chart.yaml").splitlines()):
         text = (Path(source) / path).read_text()
         name = re.search(r"^name:\s*(\S+)\s*$", text, re.M)
+        if not name or name.group(1) != wanted:
+            continue
         declared = re.search(r"^version:\s*[\"']?([^\"'\s]+)", text, re.M)
-        if not name or not declared or declared.group(1) != "0.0.0":
-            raise Refusal(f"{path} must declare a name and version 0.0.0")
-        found.append({"name": name.group(1), "path": path.rsplit("/", 1)[0]})
-    return found
+        if not declared or declared.group(1) != "0.0.0":
+            raise Refusal(f"{path} must declare version 0.0.0")
+        return [{"name": wanted, "path": path.rsplit("/", 1)[0]}]
+    raise Refusal(f"[release.chart] declares {wanted!r}, which no {ROOT}/*/Chart.yaml names")
 
 
 def exists(owner, name, version, runner=subprocess.run):
