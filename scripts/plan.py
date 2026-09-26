@@ -40,7 +40,11 @@ def binaries(held, bucket, entries):
     identity = {field: held[field] for field in IDENTITY}
     name = plan.product(identity)
     cargo = (["lib.cargo.basis", "lib.cargo.build"], [])
-    for target in BUILD["targets"]:
+    declared = release.targets(held["source"])
+    primary = next(target["target"] for target in BUILD["targets"] if target["name"] == BUILD["primary"])
+    if primary not in declared:
+        raise Refusal(f"a released binary is validated on {primary}, which plumb.toml does not declare")
+    for target in (target for target in BUILD["targets"] if target["target"] in declared):
         known = target["name"]
         entries[f"dependencies-{known}"] = decided(bucket, basis.dependencies(held["source"], name, target["target"], target["runner"]), cargo, entries)
         entries[f"binary-{known}"] = decided(bucket, basis.resolve(held["source"], name, target["target"], target["runner"]), cargo, entries)

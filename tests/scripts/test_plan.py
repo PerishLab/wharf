@@ -122,13 +122,14 @@ class Derived(unittest.TestCase):
         entries = {}
         patches = (
             mock.patch.object(plan.basis, "carried", return_value=rust),
+            mock.patch.object(plan.release, "targets", return_value=list(plan.release.LAYOUT["targets"])),
             mock.patch.object(plan.basis, "resolve", side_effect=lambda source, name, target, runner: {"entry": "binary", "target": target}),
             mock.patch.object(plan.basis, "dependencies", side_effect=lambda source, name, target, runner: {"entry": "dependencies", "target": target}),
             mock.patch.object(plan.basis, "suite", return_value={"entry": "suite"}),
             mock.patch.object(plan.node, "carried", return_value=False),
             mock.patch.object(plan.cfworker, "workers", return_value=[]),
         )
-        with patches[0], patches[1], patches[2], patches[3], patches[4], patches[5]:
+        with patches[0], patches[1], patches[2], patches[3], patches[4], patches[5], patches[6]:
             plan.binaries(self.HELD, Memory(), entries)
             plan.suites(self.HELD, Memory(), entries)
         entries["release"] = {"decision": "run"}
@@ -152,6 +153,17 @@ class Derived(unittest.TestCase):
         entries["validate"] = {"decision": "run"}
         plan.validation(Memory(), entries)
         self.assertEqual(entries["validate"]["decision"], "skip")
+
+    def test_only_declared_targets_are_planned_and_the_primary_is_required(self):
+        resolve = mock.patch.object(plan.basis, "resolve", return_value={"entry": "binary"})
+        depend = mock.patch.object(plan.basis, "dependencies", return_value={"entry": "dependencies"})
+        with resolve, depend, mock.patch.object(plan.release, "targets", return_value=["x86_64-unknown-linux-gnu"]):
+            entries = {}
+            plan.binaries(self.HELD, Memory(), entries)
+        self.assertEqual(sorted(name for name in entries if name.startswith("binary-")), ["binary-linux"])
+        with resolve, depend, mock.patch.object(plan.release, "targets", return_value=["aarch64-apple-darwin"]):
+            with self.assertRaisesRegex(plan.Refusal, "validated on x86_64-unknown-linux-gnu"):
+                plan.binaries(self.HELD, Memory(), {})
 
     def test_a_product_without_a_cargo_workspace_plans_no_cargo_suite(self):
         self.assertIn("suite-linux", self.entries())

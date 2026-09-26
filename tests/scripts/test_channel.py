@@ -1,3 +1,4 @@
+import json
 import os
 import tempfile
 import unittest
@@ -45,6 +46,8 @@ class Point(unittest.TestCase):
             seen.update(marker=release.marker, wharf=release.wharf, files=sorted(path.name for path in Path(managers).rglob("*") if path.is_file()))
             return {"pointer": "moved"}
 
-        with mock.patch.object(channel.r2, "writer", return_value="bucket"), mock.patch.object(channel.release, "point", side_effect=point):
+        bucket = mock.Mock()
+        bucket.get.return_value = json.dumps({"artifacts": {key: {} for key in ("linux-x64", "darwin-arm64", "windows-x64")}}).encode()
+        with mock.patch.object(channel.r2, "writer", return_value=bucket), mock.patch.object(channel.release, "point", side_effect=point):
             self.assertEqual(channel.point(HELD), {"pointer": "moved"})
         self.assertEqual(seen, {"marker": "v0.38.0", "wharf": "c" * 40, "files": ["manage.ps1", "manage.ps1", "manage.sh", "manage.sh"]})

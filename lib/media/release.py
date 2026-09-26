@@ -50,9 +50,22 @@ def remote(authority, key, body, mime):
     return {"name": name, "mime": mime, "sha256": hashlib.sha256(body).hexdigest(), "size": len(body), "url": f"{authority}/{key}"}
 
 
+def targets(source):
+    declared = declaration.release(source).get("targets", [])
+    unknown = [target for target in declared if target not in LAYOUT["targets"]]
+    if unknown:
+        raise Refusal(f"plumb.toml declares targets wharf does not build: {', '.join(unknown)}")
+    return [target for target in LAYOUT["targets"] if target in declared]
+
+
+def sealed_targets(seal):
+    return [target for target, spec in LAYOUT["targets"].items() if spec["key"] in seal["artifacts"]]
+
+
 def objects(name, bound, authority):
     staged = {}
-    for target, spec in sorted(LAYOUT["targets"].items()):
+    for target in sorted(bound):
+        spec = LAYOUT["targets"][target]
         suffix = ".exe" if "windows" in target else ""
         source = Path(bound[target]) / f"{name}-{target}{suffix}"
         if not source.is_file():
@@ -68,23 +81,25 @@ def archived(name, target, spec):
     return f"{name}-{target}.{spec['format']}"
 
 
-def platforms(name):
+def platforms(name, held):
     lines = []
-    for target, spec in LAYOUT["targets"].items():
+    for target in held:
+        spec = LAYOUT["targets"][target]
         systems = [system for system in spec["systems"] if not system.startswith("Windows:")]
         if systems:
             lines.append(f"    {'|'.join(systems)})\n      ARCHIVE={archived(name, target, spec)}\n      ARTIFACT={spec['key']}\n      ARCHIVE_ROOT=\n      FORMAT={spec['format']}\n      ;;")
     return "\n".join(lines)
 
 
-def windowed(name):
-    for target, spec in LAYOUT["targets"].items():
+def windowed(name, held):
+    for target in held:
+        spec = LAYOUT["targets"][target]
         if spec["format"] == "zip":
             return {"windows_archive": archived(name, target, spec), "windows_key": spec["key"], "windows_root": ""}
     return None
 
 
-def named(name, held, channel):
+def named(name, held, channel, targets):
     return {
         "product": name,
         "environment": name.upper().replace("-", "_"),
@@ -93,7 +108,7 @@ def named(name, held, channel):
         "default_version": held,
         "binaries": name,
         "version_probe": PROBE,
-        "unix_platforms": platforms(name),
+        "unix_platforms": platforms(name, targets),
         "windows_archive": "",
         "windows_key": "",
         "windows_root": "",
@@ -108,26 +123,25 @@ def written(output, platform, body):
     return path
 
 
-def filled(name, held, marker, output):
-    values = named(name, held, channel(marker))
+def filled(values, windows, output):
     written(output, "unix", fill.fill(resources.read_bytes(TEMPLATES["unix"]).decode(), values))
-    windows = windowed(name)
     if windows is not None:
         written(output, "windows", fill.fill(resources.read_bytes(TEMPLATES["windows"]).decode(), {**values, **windows}))
     return output
 
 
-def render(release, output):
+def render(release, output, targets):
     output = Path(output)
     if output.exists():
         raise Refusal(f"output {output} already exists")
     name = release.repository.split("/", 1)[1]
     output.mkdir(parents=True)
-    filled(name, release.marker, release.marker, output)
+    windows = windowed(name, targets)
+    filled(named(name, release.marker, channel(release.marker), targets), windows, output)
     if channel(release.marker) == "stable":
         rooted = output / CANONICAL
         rooted.mkdir()
-        filled(name, "", release.marker, rooted)
+        filled(named(name, "", channel(release.marker), targets), windows, rooted)
     return {"action": "ship.release.managers", "files": sorted(str(path.relative_to(output)) for path in output.rglob("*") if path.is_file())}
 
 

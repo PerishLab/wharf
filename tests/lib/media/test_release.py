@@ -183,10 +183,10 @@ class Render(unittest.TestCase):
     def setUp(self):
         self.root = Path(tempfile.mkdtemp())
 
-    def render(self, repository, marker):
+    def render(self, repository, marker, targets=tuple(release.LAYOUT["targets"])):
         held = release.Release(repository, marker, "a" * 40, "b" * 40)
         out = self.root / marker
-        return release.render(held, out), out
+        return release.render(held, out, list(targets)), out
 
     def test_a_prerelease_carries_the_pinned_scripts_alone(self):
         result, out = self.render("PerishLab/concord", "v0.12.9-rc.2")
@@ -216,6 +216,24 @@ class Render(unittest.TestCase):
                 self.assertEqual(system in body, not system.startswith("Windows:"), system)
             self.assertEqual(f"concord-{target}.{spec['format']}" in body, spec["format"] != "zip", target)
         self.assertNotIn("darwin-x64", body)
+
+    def test_it_offers_only_the_targets_it_was_handed(self):
+        result, out = self.render("PerishLab/dynet", "v0.1.0", ["x86_64-unknown-linux-gnu"])
+        self.assertEqual(result["files"], ["canonical/manage.sh", "manage.sh"])
+        body = (out / "manage.sh").read_text()
+        self.assertIn("dynet-x86_64-unknown-linux-gnu.tar.gz", body)
+        self.assertNotIn("Darwin:arm64", body)
+
+    def test_declared_targets_follow_plumb_toml_and_refuse_what_wharf_does_not_build(self):
+        root = Path(tempfile.mkdtemp())
+        (root / "plumb.toml").write_text('[release]\ntargets = ["x86_64-pc-windows-msvc", "x86_64-unknown-linux-gnu"]\n')
+        self.assertEqual(release.targets(root), ["x86_64-unknown-linux-gnu", "x86_64-pc-windows-msvc"])
+        (root / "plumb.toml").write_text('[release]\ntargets = ["x86_64-apple-darwin"]\n')
+        with self.assertRaisesRegex(Refusal, "does not build"):
+            release.targets(root)
+
+    def test_a_seal_names_the_targets_it_carries(self):
+        self.assertEqual(release.sealed_targets({"artifacts": {"linux-x64": {}, "windows-x64": {}}}), ["x86_64-unknown-linux-gnu", "x86_64-pc-windows-msvc"])
 
     def test_the_unix_script_is_executable_and_the_windows_one_is_not(self):
         _, out = self.render("PerishLab/concord", "v0.12.9")

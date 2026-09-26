@@ -112,7 +112,9 @@ all the layers. Release, which writes the seal, is one medium among them, and
 channel, which moves the pointer people install from, waits for every medium,
 so a seal says only that its binaries are published; how far the marker is
 distributed is the distribution record's to say. A product whose `plumb.toml`
-declares no binaries has none of that: no binary, bind, smoke or validate
+declares binaries builds, binds and releases them for exactly the targets its
+`[release].targets` lists, which must include the primary Linux target smoke
+and validation run on, and its managers offer only those; one that declares no binaries has none of that: no binary, bind, smoke or validate
 entry, no seal and no channel pointer. Binaries and channel are recorded none,
 and the distribution record alone says the marker is distributed. Suites follow
 the source that is there: a tracked `Cargo.toml` plans the cargo suite and a

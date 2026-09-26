@@ -24,8 +24,10 @@ def plan(held):
 def point(held):
     pointed = released(held)
     managers = Path(tempfile.mkdtemp()) / "managers"
-    release.render(pointed, str(managers))
-    return release.point(pointed, managers, r2.writer(release.place(pointed)[1], "RELEASES"))
+    bucket = r2.writer(release.place(pointed)[1], "RELEASES")
+    seal = json.loads(bucket.get(release.sealed(pointed)))
+    release.render(pointed, str(managers), release.sealed_targets(seal))
+    return release.point(pointed, managers, bucket)
 
 
 ACTIONS = {"plan": (plan, ["repository", "marker", "source"]), "point": (point, ["repository", "marker", "wharf"])}

@@ -224,9 +224,9 @@ def run_release(held):
     bucket, document, _ = opened(held, "release")
     context = document["context"]
     published = releasing.Release(context["repository"], context["marker"], context["commit"], held["wharf"])
-    directories = {target["target"]: bound(bucket, document, target["name"]) for target in BUILD["targets"]}
+    directories = {target["target"]: bound(bucket, document, target["name"]) for target in BUILD["targets"] if f"bind-{target['name']}" in document["entries"]}
     managers = place()
-    releasing.render(published, str(managers))
+    releasing.render(published, str(managers), list(directories))
     return releasing.publish(published, releasing.Contents(directories, managers), r2.writer(releasing.place(published)[1], "RELEASES"))
 
 
