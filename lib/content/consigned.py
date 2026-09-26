@@ -1,8 +1,5 @@
-import io
 import subprocess
-import tarfile
 
-from lib.media import depot, edit
 from lib.refusal import Refusal
 
 
@@ -13,25 +10,15 @@ def changelog(source, marker, directory):
     return result.stdout.strip()
 
 
-def carried(source, marker, product):
-    root = f"skills/{product}"
-    result = subprocess.run(["git", "-C", str(source), "archive", "--format=tar", f"refs/tags/{marker}", root], capture_output=True)
-    if result.returncode != 0:
-        raise Refusal(f"{marker} carries no {root}: {result.stderr.decode(errors='replace').strip()}")
-    held = {}
-    with tarfile.open(fileobj=io.BytesIO(result.stdout)) as archive:
-        for member in archive.getmembers():
-            if member.isfile():
-                relative = member.name.removeprefix(f"{root}/")
-                held[relative] = (depot.sha(archive.extractfile(member).read()), bool(member.mode & 0o111))
-    return held
+BRIEF = "SKILL.md"
+CAP = 3072
 
 
-def skill(source, marker, product, directory):
-    expected = carried(source, marker, product)
-    found = {relative: (entry["sha256"], entry["executable"]) for relative, (entry, _) in edit.directory(directory).items()}
-    if found != expected:
-        drifted = sorted(set(found.items()) ^ set(expected.items()))
-        raise Refusal(f"the consigned skill differs from skills/{product} at {marker}: {', '.join(path for path, _ in drifted)}")
-    return f"skill matches skills/{product} at {marker}"
-
+def skill(directory):
+    brief = directory / BRIEF
+    if not brief.is_file():
+        raise Refusal(f"the consigned skill carries no {BRIEF}")
+    size = brief.stat().st_size
+    if size > CAP:
+        raise Refusal(f"the consigned {BRIEF} carries {size} bytes where plumb's rule://seat/wayfinder caps {CAP}")
+    return f"skill carries a {BRIEF} of {size} bytes"

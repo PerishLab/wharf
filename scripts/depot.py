@@ -2,6 +2,7 @@ import datetime
 import json
 import sys
 import tempfile
+from pathlib import Path
 
 from lib import parameters
 from lib.content import consigned
@@ -36,7 +37,7 @@ def now():
 def vetted(held, release_held, directory):
     if held["kind"] == "changelog":
         return consigned.changelog(held["source"], held["marker"], directory)
-    return consigned.skill(held["source"], held["marker"], product(release_held), directory)
+    return consigned.skill(Path(directory))
 
 
 def lodge(held):

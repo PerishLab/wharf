@@ -283,8 +283,9 @@ Depot is the only source, and its `previousGeneration` chain is the history.
   reaches no Depot bucket.
 - `depot.yml` lodges one consignment. It reads it by the digest its bytes must
   hash to, vets it — a pinned plumb proves a changelog again against the product
-  at its marker, and a skill must equal `skills/<product>` at its marker — and
-  only then writes the generation. The yard is an untrusted inbox, and expiry
+  at its marker, and a skill must carry a `SKILL.md` within plumb's wayfinder
+  cap, since skills are written for their release and no product tree carries
+  one — and only then writes the generation. The yard is an untrusted inbox, and expiry
   is a floor rather than a promise, so lodge checks presence and digest every
   time instead of trusting either.
 - A lodged generation's base is its own standing generation, else the highest
