@@ -5,7 +5,7 @@ import tempfile
 from dataclasses import dataclass
 from pathlib import Path
 
-from lib.content import resources
+from lib.content import declaration, resources
 from lib.process import git, run
 from lib.refusal import Refusal
 
@@ -32,12 +32,16 @@ def exists(image, runner=subprocess.run):
 
 
 def carried(source):
-    return git(source, "ls-tree", "--name-only", "HEAD", "--", CONTAINERFILE) == CONTAINERFILE
+    if declaration.release(source).get("oci") is None:
+        return False
+    if git(source, "ls-tree", "--name-only", "HEAD", "--", CONTAINERFILE) != CONTAINERFILE:
+        raise Refusal(f"[release.oci] is declared and the product has no tracked {CONTAINERFILE}")
+    return True
 
 
 def context(source, binary, name):
     if not carried(source):
-        raise Refusal(f"the product has no tracked {CONTAINERFILE}")
+        raise Refusal("the product declares no image")
     if not Path(binary).is_file():
         raise Refusal(f"{binary} is missing")
     directory = Path(tempfile.mkdtemp())

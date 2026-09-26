@@ -120,8 +120,9 @@ and the distribution record alone says the marker is distributed. Suites follow
 the source that is there: a tracked `Cargo.toml` plans the cargo suite and a
 tracked root `package.json` the node suite, and neither is planned without it. The product's
 `plumb.toml` is likewise the one declaration of what else publishes: npm publishes
-exactly the packages `[release.npm]` lists and cargo exactly the crates
-`[release.cargo]` lists, each refusing a listed name its workspace does not answer
+exactly the packages `[release.npm]` lists, cargo exactly the crates
+`[release.cargo]` lists, chart exactly the chart `[release.chart]` names and
+oci an image only where `[release.oci]` is declared, each refusing a listed name its workspace does not answer
 or will not publish there; a package or crate it does not list is never published,
 and native files keep only the configuration their ecosystem reads, such as the
 `.npmrc` scope map and the cargo registry index. Channel decides for itself: it
