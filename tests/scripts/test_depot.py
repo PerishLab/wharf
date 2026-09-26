@@ -14,7 +14,7 @@ from tests.lib.store.test_yard import consign, entry
 class Lodge(unittest.TestCase):
     def setUp(self):
         self.buckets = {}
-        self.repository = Repository({"skills/demo/SKILL.md": "# demo\n"})
+        self.repository = Repository()
         for marker in ("v1.0.0", "v1.1.0"):
             self.repository.git("tag", "-a", marker, "-m", marker)
         patcher = mock.patch.object(depot.r2, "writer", side_effect=lambda name, role: self.buckets.setdefault(name, Memory()))
@@ -40,7 +40,7 @@ class Lodge(unittest.TestCase):
         standing = lineage.standing(self.buckets["perish-demo-depot"], ("stable", "v1.1.0", "changelog"))
         self.assertEqual(standing["generation"], second["generation"])
 
-    def test_a_drifted_skill_writes_nothing_to_depot(self):
-        with self.assertRaisesRegex(Refusal, "differs from skills/demo"):
-            self.lodged("v1.0.0", "skill", [entry("SKILL.md", b"# other\n")])
+    def test_a_skill_without_a_brief_writes_nothing_to_depot(self):
+        with self.assertRaisesRegex(Refusal, "carries no SKILL.md"):
+            self.lodged("v1.0.0", "skill", [entry("PATHS.md", b"# paths\n")])
         self.assertEqual(self.buckets.get("perish-demo-depot", Memory()).writes, [])
