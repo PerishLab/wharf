@@ -12,6 +12,7 @@ CONTEXT = {"repository": "PerishLab/santi", "marker": "v0.1.0-rc.2", "wharf": "c
 LINUX = "x86_64-unknown-linux-gnu"
 SANTI = f'[release]\nbinaries = ["santi", "santi-api"]\ntargets = ["{LINUX}"]\n[release.binary.santi-api]\ninstall = false\n'
 DEB = '[release.deb]\nbinary = "santi-api"\nroot = "packaging/deb"\n'
+DEB_FILE = "santi-api_0.1.0~rc.2_amd64.deb"
 
 
 class Seeded(unittest.TestCase):
@@ -66,18 +67,18 @@ class Units(Seeded):
         seen = {}
 
         def built(request):
-            seen.update(binary=Path(request.bound).read_bytes(), product=request.product, version=request.version, declared=request.declared)
+            seen.update(binary=Path(request.bound).read_bytes(), version=request.version, declared=request.declared)
             Path(request.output).mkdir(parents=True)
-            Path(request.output).joinpath(ship.package.named(request.product)).write_bytes(b"deb")
+            Path(request.output).joinpath(ship.package.named(request.declared.binary, request.version)).write_bytes(b"deb")
 
         with self.configured(), mock.patch.object(ship.package, "basis", return_value=held_basis) as basis, mock.patch.object(ship.package, "build", side_effect=built):
             self.assertEqual(ship.run_deb(self.held)["key"], key)
         self.assertEqual(basis.call_args.args[2:], (bound, "0.1.0~rc.2"))
-        self.assertEqual(seen, {"binary": b"server", "product": "santi", "version": "0.1.0~rc.2", "declared": ship.package.Declared("santi-api", "packaging/deb")})
+        self.assertEqual(seen, {"binary": b"server", "version": "0.1.0~rc.2", "declared": ship.package.Declared("santi-api", "packaging/deb")})
 
     def test_the_deb_is_verified_from_its_recorded_workload(self):
         self.declare(SANTI + DEB)
-        deb = self.recorded("d" * 64, {f"santi-{LINUX}.deb": b"deb"})
+        deb = self.recorded("d" * 64, {DEB_FILE: b"deb"})
         key = self.key({"entry": {"kind": "deb-verify", "deb": deb}}, ship.VERIFYING)
         self.planned({"deb": {"key": deb, "decision": "skip"}, "verify-deb": {"key": key, "decision": "run"}})
         seen = {}
@@ -108,7 +109,7 @@ class Released(Seeded):
 
     def test_the_seal_carries_the_installed_executables_and_the_verified_deb(self):
         self.declare(SANTI + DEB)
-        deb = self.recorded("d" * 64, {f"santi-{LINUX}.deb": b"deb"})
+        deb = self.recorded("d" * 64, {DEB_FILE: b"deb"})
         verified = self.recorded("e" * 64, {"receipt.json": b"{}"})
         seen = self.release({"deb": {"key": deb, "decision": "skip"}, "verify-deb": {"key": verified, "decision": "run"}})
         self.assertEqual(seen, {"installed": {LINUX: ["santi"]}, "placed": {"deb": b"deb"}})
@@ -124,7 +125,7 @@ class Released(Seeded):
 
     def test_a_deb_with_no_recorded_verification_refuses(self):
         self.declare(SANTI + DEB)
-        deb = self.recorded("d" * 64, {f"santi-{LINUX}.deb": b"deb"})
+        deb = self.recorded("d" * 64, {DEB_FILE: b"deb"})
         with self.assertRaisesRegex(ship.Refusal, "no recorded verification"):
             self.release({"deb": {"key": deb, "decision": "skip"}, "verify-deb": {"key": "e" * 64, "decision": "run"}})
         self.assertEqual(json.loads(self.bucket.get(f"workload/1/{deb}/record.json"))["key"], deb)

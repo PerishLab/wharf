@@ -43,7 +43,7 @@ class Docker:
 
 class Verified(unittest.TestCase):
     def setUp(self):
-        self.deb = Path(tempfile.mkdtemp()) / "santi-x86_64-unknown-linux-gnu.deb"
+        self.deb = Path(tempfile.mkdtemp()) / "santi-api_0.1.0~rc.2_amd64.deb"
         self.deb.write_bytes(b"deb")
         self.output = Path(tempfile.mkdtemp()) / "verified"
 
@@ -60,8 +60,8 @@ class Verified(unittest.TestCase):
         self.assertEqual(docker.calls[1], ["docker", "run", "-d", "--platform", "linux/amd64", IMAGE, "sleep", "infinity"])
         self.assertIn("@sha256:", IMAGE)
         self.assertTrue(IMAGE.startswith("docker.io/library/ubuntu:24.04@sha256:"))
-        self.assertEqual(docker.calls[2], ["docker", "cp", str(self.deb), "container:/tmp/santi-x86_64-unknown-linux-gnu.deb"])
-        self.assertEqual(docker.inside()[:3], [["apt-get", "update"], ["apt-get", "install", "-y", "--no-install-recommends", "adduser"], ["dpkg", "-i", "/tmp/santi-x86_64-unknown-linux-gnu.deb"]])
+        self.assertEqual(docker.calls[2], ["docker", "cp", str(self.deb), "container:/tmp/santi-api_0.1.0~rc.2_amd64.deb"])
+        self.assertEqual(docker.inside()[:3], [["apt-get", "update"], ["apt-get", "install", "-y", "--no-install-recommends", "adduser"], ["dpkg", "-i", "/tmp/santi-api_0.1.0~rc.2_amd64.deb"]])
         self.assertIn(["/usr/bin/santi-api", "--version"], docker.inside())
         self.assertNotIn("systemctl", json.dumps(docker.calls))
         self.assertEqual(docker.calls[-1], ["docker", "rm", "-f", "container"])
@@ -71,7 +71,7 @@ class Verified(unittest.TestCase):
     def test_a_package_with_no_depends_asks_apt_for_nothing(self):
         docker = Docker()
         self.verify(docker, self.check(depends=()))
-        self.assertEqual(docker.inside()[0], ["dpkg", "-i", "/tmp/santi-x86_64-unknown-linux-gnu.deb"])
+        self.assertEqual(docker.inside()[0], ["dpkg", "-i", "/tmp/santi-api_0.1.0~rc.2_amd64.deb"])
 
     def test_every_mismatch_refuses_and_the_container_is_removed(self):
         cases = {

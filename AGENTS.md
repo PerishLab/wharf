@@ -152,7 +152,7 @@ reaches people only through a placement. A placement names the executable it
 carries, else the one named like the product, else the first: `[release.oci]`
 builds its image from it, and `[release.deb]` packs it at
 `/usr/bin/<executable>` with its declared root into
-`<product>-x86_64-unknown-linux-gnu.deb`. wharf owns that package's `Version`
+`<Package>_<Version>_amd64.deb`, named after the executable. wharf owns that package's `Version`
 (`vX.Y.Z-rc.N` is `X.Y.Z~rc.N`), `Architecture` and `conffiles`, which list
 everything under `/etc`, and packs it at `SOURCE_DATE_EPOCH=0` with one
 compressor thread, the fixed instant every archive here uses, so a rerun
@@ -162,7 +162,14 @@ repeats the bytes. `[verify] deb` installs it with a strict `dpkg -i` in the
 marker its executable reports, starting nothing. It enters the seal as
 `linux-x64-deb`, written by `[publish] binaries` with the credentials that job
 already holds, which refuses a declared deb whose verification is not
-recorded. wharf publishes placements; it never deploys them.
+recorded. wharf publishes placements; it never deploys them, and keeps no apt
+repository: a host takes the deb by reading `v1/channels/<channel>.json`, the
+seal it names, and that seal's `artifacts.linux-x64-deb` URL. A product
+carries at most one deb and one image, the image named after the repository
+whatever executable it carries, and the deb is built for amd64 alone; a second
+server placement or architecture is a new declaration, not a second table
+today. plumb is the one gate on a declaration's shape, so wharf does not
+repeat its checks, such as the systemd unit a deb must carry.
 
 A job that consumes another job's workload names every job that produced one in
 its `needs`, not only the last of them. A job the plan left nothing to do and a

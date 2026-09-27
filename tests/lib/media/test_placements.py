@@ -74,14 +74,14 @@ class Sealed(unittest.TestCase):
             self.assertEqual(held.getnames(), ["santi", "santi-api"])
 
     def test_the_deb_enters_the_seal_beside_the_archives(self):
-        deb = Path(tempfile.mkdtemp()) / f"santi-{LINUX}.deb"
+        deb = Path(tempfile.mkdtemp()) / f"santi-api_0.1.0~rc.2_amd64.deb"
         deb.write_bytes(b"!<arch>\n")
         installed = {LINUX: ["santi"]}
         seal = self.publish("PerishLab/santi", release.Contents(bound({LINUX: ["santi", "santi-api"]}), managers(), installed, {"deb": deb}))
         self.assertEqual(sorted(seal["artifacts"]), ["linux-x64", "linux-x64-deb"])
         entry = seal["artifacts"]["linux-x64-deb"]
         digest = hashlib.sha256(b"!<arch>\n").hexdigest()
-        self.assertEqual(entry, {"name": f"santi-{LINUX}.deb", "mime": "application/vnd.debian.binary-package", "sha256": digest, "size": 8, "url": f"https://releases.santi.perish.uk/v1/objects/sha256/{digest}/santi-{LINUX}.deb"})
+        self.assertEqual(entry, {"name": f"santi-api_0.1.0~rc.2_amd64.deb", "mime": "application/vnd.debian.binary-package", "sha256": digest, "size": 8, "url": f"https://releases.santi.perish.uk/v1/objects/sha256/{digest}/santi-api_0.1.0~rc.2_amd64.deb"})
         self.assertEqual(self.member(entry), b"!<arch>\n")
         self.assertEqual(release.sealed_targets(seal), [LINUX])
 

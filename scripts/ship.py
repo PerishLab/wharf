@@ -199,7 +199,7 @@ def run_deb(held):
     resolved(entry, held_basis, DEBIAN)
     executable = bind.Artifact(staged(bucket, binary), held_deb.binary, PRIMARY["target"]).file
     output = place()
-    package.build(package.Package(Path(held["source"]), held_deb, executable, product, debian(context["marker"]), output))
+    package.build(package.Package(Path(held["source"]), held_deb, executable, debian(context["marker"]), output))
     return workload.publish(bucket, entry["key"], workload.Produced(output, held_basis, carried(held)))
 
 
@@ -212,22 +212,23 @@ def run_verify(held):
     held_basis = {"entry": {"kind": "deb-verify", "deb": deb}}
     resolved(entry, held_basis, VERIFYING)
     depends, units = tuple(package.depends(held["source"], held_deb)), package.units(held["source"], held_deb)
-    check = verify.Check(staged(bucket, deb) / package.named(product), held_deb.binary, debian(context["marker"]), context["marker"], depends, units)
+    check = verify.Check(staged(bucket, deb) / package.named(held_deb.binary, debian(context["marker"])), held_deb.binary, debian(context["marker"]), context["marker"], depends, units)
     output = place()
     verify.verify(check, str(output))
     return workload.publish(bucket, entry["key"], workload.Produced(output, held_basis, carried(held)))
 
 
 def placements(bucket, document, source):
-    product = plan.product(document["context"])
-    if debianized(source, product, False) is None:
+    context = document["context"]
+    held_deb = debianized(source, plan.product(context), False)
+    if held_deb is None:
         return {}
     entries = document["entries"]
     if "deb" not in entries or "verify-deb" not in entries:
         raise Refusal("plumb.toml declares a deb this run's plan did not build and verify")
     if not workload.reusable(bucket, entries["verify-deb"]["key"]):
         raise Refusal("the deb this release carries has no recorded verification")
-    return {"deb": staged(bucket, entries["deb"]["key"]) / package.named(product)}
+    return {"deb": staged(bucket, entries["deb"]["key"]) / package.named(held_deb.binary, debian(context["marker"]))}
 
 
 def run_release(held):

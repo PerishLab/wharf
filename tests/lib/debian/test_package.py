@@ -74,7 +74,7 @@ class Built(unittest.TestCase):
 
     def build(self, root=None):
         output = Path(tempfile.mkdtemp()) / "deb"
-        held = package.Package(root or self.repository.root, package.Declared("santi-api", "packaging/deb"), self.binary, "santi", "0.1.0~rc.2", output)
+        held = package.Package(root or self.repository.root, package.Declared("santi-api", "packaging/deb"), self.binary, "0.1.0~rc.2", output)
         return package.build(held), output
 
     def members(self, path):
@@ -91,12 +91,12 @@ class Built(unittest.TestCase):
         subprocess.run(["git", "clone", "-q", str(self.repository.root), str(clone)], check=True)
         second, two = self.build(clone)
         self.assertEqual(first["sha256"], second["sha256"])
-        self.assertEqual((one / "santi-x86_64-unknown-linux-gnu.deb").read_bytes(), (two / "santi-x86_64-unknown-linux-gnu.deb").read_bytes())
+        self.assertEqual((one / "santi-api_0.1.0~rc.2_amd64.deb").read_bytes(), (two / "santi-api_0.1.0~rc.2_amd64.deb").read_bytes())
 
     def test_the_package_carries_the_executable_the_payload_and_wharf_s_control(self):
         receipt, output = self.build()
         deb = output / receipt["file"]
-        self.assertEqual(receipt["file"], "santi-x86_64-unknown-linux-gnu.deb")
+        self.assertEqual(receipt["file"], "santi-api_0.1.0~rc.2_amd64.deb")
         self.assertEqual([self.field(deb, name) for name in ("Package", "Version", "Architecture")], ["santi-api", "0.1.0~rc.2", "amd64"])
         members = self.members(deb)
         binary = members["usr/bin/santi-api"]
@@ -136,7 +136,7 @@ class Mocked(unittest.TestCase):
         binary = Path(tempfile.mkdtemp()) / "santi-api"
         binary.write_bytes(b"elf")
         output = Path(tempfile.mkdtemp()) / "deb"
-        package.build(package.Package(Repository(ROOT).root, package.Declared("santi-api", "packaging/deb"), binary, "santi", "0.1.0", output), runner)
+        package.build(package.Package(Repository(ROOT).root, package.Declared("santi-api", "packaging/deb"), binary, "0.1.0", output), runner)
         argv, env = next((argv, env) for argv, env in calls if "--build" in argv)
         self.assertEqual(argv[:5], ["dpkg-deb", "--root-owner-group", "--threads-max=1", "-Zxz", "--build"])
         self.assertEqual((env["SOURCE_DATE_EPOCH"], env["TZ"], env["LC_ALL"]), ("0", "UTC", "C"))

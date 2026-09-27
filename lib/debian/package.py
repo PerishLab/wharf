@@ -31,13 +31,12 @@ class Package:
     source: Path
     declared: Declared
     bound: Path
-    product: str
     version: str
     output: Path
 
 
-def named(product):
-    return f"{product}-{PLACEMENT['target']}.{PLACEMENT['format']}"
+def named(binary, version):
+    return f"{binary}_{version}_{PLACEMENT['architecture']}.{PLACEMENT['format']}"
 
 
 def declared(source, binary):
@@ -141,7 +140,7 @@ def build(package, runner=run):
         directory = Path(held) / "package"
         conffiles = staged(package, listed, directory)
         output.mkdir(parents=True)
-        file = output / named(package.product)
+        file = output / named(package.declared.binary, package.version)
         env = dict(os.environ, SOURCE_DATE_EPOCH=str(EPOCH), TZ="UTC", LC_ALL="C")
         runner(["dpkg-deb", "--root-owner-group", "--threads-max=1", "-Zxz", "--build", str(directory), str(file)], held, env)
     body = file.read_bytes()
