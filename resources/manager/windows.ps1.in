@@ -43,6 +43,8 @@ $installRoot = if ($env:{environment}_INSTALL_ROOT) {{ $env:{environment}_INSTAL
 $localBinDir = if ($env:{environment}_LOCAL_BIN_DIR) {{ $env:{environment}_LOCAL_BIN_DIR }} else {{ $defaultBinDir }}
 $marker = '{product}-manager-v1'
 $markerName = '.{product}-manager'
+$binaries = @({windows_binaries})
+$primary = $binaries[0]
 
 function Show-Help {{
     @'
@@ -58,15 +60,15 @@ only source admitted to the default install and bin paths. Every non-stable
 channel requires an exact version plus explicit, isolated --install-root and
 --bin-dir values. A non-canonical --public-url requires the same isolation.
 
-Install and update leave one manager-owned version on disk. The selected binary
-is staged and verified before the entrypoint changes; only old seats carrying
+Install and update leave one manager-owned version on disk. Selected binaries
+are staged and verified before the entrypoints change; only old seats carrying
 matching ownership markers are swept. An explicit stable --version is a
 deliberate rollback, while implicit stable never moves backwards.
 
 Options:
   --public-url <url>     release seal and artifact authority
   --install-root <path>  versioned install root
-  --bin-dir <path>       directory for the {product} executable
+  --bin-dir <path>       directory for the {product} executables
 
 Environment:
   {environment}_RELEASES_PUBLIC_URL
@@ -361,7 +363,7 @@ function Adopt-Legacy-Stable {{
         return
     }}
 
-    $entry = Join-Path $localBinDir '{product}.exe'
+    $entry = Join-Path $localBinDir "$primary.exe"
     if (![System.IO.File]::Exists($entry)) {{
         return
     }}
@@ -379,7 +381,7 @@ function Adopt-Legacy-Stable {{
         if (!$recoverable) {{
             continue
         }}
-        $candidate = Join-Path $found.FullName '{product}.exe'
+        $candidate = Join-Path $found.FullName "$primary.exe"
         if (![System.IO.File]::Exists($candidate)) {{
             continue
         }}
@@ -414,8 +416,8 @@ function Adopt-Legacy-Stable {{
     Write-Output "adopted legacy stable {product} $seat at $installRoot"
 }}
 
-function Entry-Version {{
-    $entry = Join-Path $localBinDir '{product}.exe'
+function Entry-Version-Of([string]$Name) {{
+    $entry = Join-Path $localBinDir "$Name.exe"
     if (![System.IO.File]::Exists($entry) -or !(Root-Owned)) {{
         return ''
     }}
@@ -424,12 +426,16 @@ function Entry-Version {{
         if (!(Version-Owned $found.Name)) {{
             continue
         }}
-        $candidate = Join-Path $found.FullName '{product}.exe'
+        $candidate = Join-Path $found.FullName "$Name.exe"
         if ([System.IO.File]::Exists($candidate) -and (File-Hash $candidate) -eq $entryHash) {{
             return $found.Name
         }}
     }}
     return ''
+}}
+
+function Entry-Version {{
+    return Entry-Version-Of $primary
 }}
 
 $script:LockStream = $null
@@ -531,26 +537,27 @@ function Install-Product {{
         if ('{windows_root}' -ne '') {{
             $unpacked = Join-Path $unpacked '{windows_root}'
         }}
-        $candidate = Join-Path $unpacked '{product}.exe'
-        if (![System.IO.File]::Exists($candidate)) {{
-            throw 'archive missing {product}.exe'
-        }}
-        $stagedVersion = (& $candidate --version | Out-String).Trim()
         $plainVersion = $resolvedVersion.TrimStart('v')
         $baseVersion = $plainVersion.Split('-')[0]
-        $expectedVersion = switch ('{version_probe}') {{
-            'exact-v' {{ "{product} $resolvedVersion" }}
-            'exact' {{ "{product} $plainVersion" }}
-            'base' {{ "{product} $baseVersion" }}
-            default {{ throw 'invalid generated version probe' }}
-        }}
-        if ($stagedVersion -cne $expectedVersion) {{
-            throw "binary version mismatch: expected $expectedVersion got $stagedVersion"
-        }}
-
-        $binPath = Join-Path $localBinDir '{product}.exe'
-        if ([System.IO.File]::Exists($binPath) -and [string]::IsNullOrWhiteSpace((Entry-Version))) {{
-            throw "refusing unowned {product} entrypoint: $binPath"
+        foreach ($name in $binaries) {{
+            $candidate = Join-Path $unpacked "$name.exe"
+            if (![System.IO.File]::Exists($candidate)) {{
+                throw "archive missing $name.exe"
+            }}
+            $stagedVersion = (& $candidate --version | Out-String).Trim()
+            $expectedVersion = switch ('{version_probe}') {{
+                'exact-v' {{ "$name $resolvedVersion" }}
+                'exact' {{ "$name $plainVersion" }}
+                'base' {{ "$name $baseVersion" }}
+                default {{ throw 'invalid generated version probe' }}
+            }}
+            if ($stagedVersion -cne $expectedVersion) {{
+                throw "binary version mismatch: expected $expectedVersion got $stagedVersion"
+            }}
+            $entry = Join-Path $localBinDir "$name.exe"
+            if ([System.IO.File]::Exists($entry) -and [string]::IsNullOrWhiteSpace((Entry-Version-Of $name))) {{
+                throw "refusing unowned {product} entrypoint: $entry"
+            }}
         }}
         Ensure-Root
 
@@ -559,14 +566,18 @@ function Install-Product {{
             if (!(Version-Owned $resolvedVersion)) {{
                 throw "refusing unowned version seat: $target"
             }}
-            if ((File-Hash (Join-Path $target '{product}.exe')) -ne (File-Hash $candidate)) {{
-                throw "refusing immutable version drift at $target"
+            foreach ($name in $binaries) {{
+                if ((File-Hash (Join-Path $target "$name.exe")) -ne (File-Hash (Join-Path $unpacked "$name.exe"))) {{
+                    throw "refusing immutable version drift at $target"
+                }}
             }}
         }}
         else {{
             $stage = Join-Path $installRoot (".{product}-stage-" + [System.Guid]::NewGuid().ToString('N'))
             New-Item -ItemType Directory -Path $stage | Out-Null
-            Copy-Item -LiteralPath $candidate -Destination (Join-Path $stage '{product}.exe')
+            foreach ($name in $binaries) {{
+                Copy-Item -LiteralPath (Join-Path $unpacked "$name.exe") -Destination (Join-Path $stage "$name.exe")
+            }}
             Set-Content -LiteralPath (Join-Path $stage $markerName) -Value @(
                 $marker,
                 "authority=$publicUrl",
@@ -578,13 +589,16 @@ function Install-Product {{
         }}
 
         New-Item -ItemType Directory -Force -Path $localBinDir | Out-Null
-        $next = Join-Path $localBinDir (".{product}-" + [System.Guid]::NewGuid().ToString('N') + '.exe')
-        Copy-Item -LiteralPath (Join-Path $target '{product}.exe') -Destination $next
-        Move-Item -Force -LiteralPath $next -Destination $binPath
-        $next = $null
-        & $binPath --version
+        foreach ($name in $binaries) {{
+            $binPath = Join-Path $localBinDir "$name.exe"
+            $next = Join-Path $localBinDir (".$name-" + [System.Guid]::NewGuid().ToString('N') + '.exe')
+            Copy-Item -LiteralPath (Join-Path $target "$name.exe") -Destination $next
+            Move-Item -Force -LiteralPath $next -Destination $binPath
+            $next = $null
+            & $binPath --version
+        }}
         if ('{product}' -eq 'plumb') {{
-            & $binPath configuration install
+            & (Join-Path $localBinDir 'plumb.exe') configuration install
         }}
 
         foreach ($found in @(Get-ChildItem -LiteralPath $installRoot -Directory)) {{
@@ -594,7 +608,7 @@ function Install-Product {{
             Remove-Item -Recurse -Force -LiteralPath $found.FullName
             Write-Output "swept {product} $($found.Name) from $installRoot"
         }}
-        Write-Output "installed {product} $resolvedVersion to $binPath"
+        Write-Output "installed {product} $resolvedVersion to $localBinDir"
     }}
     finally {{
         if ($null -ne $stage) {{
@@ -614,15 +628,16 @@ function Uninstall-Product {{
     Acquire-Lock
     try {{
         Adopt-Legacy-Stable
-        $entry = Join-Path $localBinDir '{product}.exe'
         if (![string]::IsNullOrWhiteSpace($version)) {{
             $target = Join-Path $installRoot $version
             if ([System.IO.Directory]::Exists($target)) {{
                 if (!(Root-Owned) -or !(Version-Owned $version)) {{
                     throw "refusing unowned version seat: $target"
                 }}
-                if ((Entry-Version) -eq $version) {{
-                    Remove-Item -Force -LiteralPath $entry
+                foreach ($name in $binaries) {{
+                    if ((Entry-Version-Of $name) -eq $version) {{
+                        Remove-Item -Force -LiteralPath (Join-Path $localBinDir "$name.exe")
+                    }}
                 }}
                 Remove-Item -Recurse -Force -LiteralPath $target
             }}
@@ -633,11 +648,17 @@ function Uninstall-Product {{
         if ([System.IO.Directory]::Exists($installRoot) -and !(Root-Owned)) {{
             throw "refusing unowned install root: $installRoot"
         }}
-        if ([System.IO.File]::Exists($entry)) {{
-            if ([string]::IsNullOrWhiteSpace((Entry-Version))) {{
+        foreach ($name in $binaries) {{
+            $entry = Join-Path $localBinDir "$name.exe"
+            if ([System.IO.File]::Exists($entry) -and [string]::IsNullOrWhiteSpace((Entry-Version-Of $name))) {{
                 throw "refusing unowned {product} entrypoint: $entry"
             }}
-            Remove-Item -Force -LiteralPath $entry
+        }}
+        foreach ($name in $binaries) {{
+            $entry = Join-Path $localBinDir "$name.exe"
+            if ([System.IO.File]::Exists($entry)) {{
+                Remove-Item -Force -LiteralPath $entry
+            }}
         }}
         if ([System.IO.Directory]::Exists($installRoot)) {{
             foreach ($found in @(Get-ChildItem -LiteralPath $installRoot -Directory)) {{
@@ -655,7 +676,7 @@ function Uninstall-Product {{
                 [Console]::Error.WriteLine("preserved unowned content under $installRoot")
             }}
         }}
-        Write-Output "removed {product} from $installRoot and $entry"
+        Write-Output "removed {product} from $installRoot and $localBinDir"
     }}
     finally {{
         Release-Lock

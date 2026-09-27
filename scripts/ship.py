@@ -4,12 +4,14 @@ import tempfile
 from pathlib import Path
 
 from lib import parameters
-from lib.content import implementation, resources
-from lib.cargo import basis, build, publish, suite, version
+from lib.content import executables, implementation, resources
+from lib.cargo import basis, build, suite
+from lib.debian import package, verify
+from lib.debian.version import debian
 from lib.identity import bind
 from lib.refusal import Refusal
 from lib.identity.smoke import configured, smoke
-from lib.media import cfworker, chart, node, npm, oci, release as releasing
+from lib.media import cfworker, node, release as releasing
 from lib.store import plan, r2
 from lib.store import workload
 
@@ -20,10 +22,18 @@ PLANNED = (*CONTEXT, "planned")
 BUILD = resources.read_json("build.json")
 LAYERED = sorted({spec["action"] for spec in resources.read_json("units.json")["units"].values()})
 RUNNER = BUILD["runner"]
+PRIMARY = next(target for target in BUILD["targets"] if target["name"] == BUILD["primary"])
+CARGO = (["lib.cargo.basis", "lib.cargo.build"], [])
+DEBIAN = (["lib.debian.package"], ["releases.json"])
+VERIFYING = (["lib.debian.verify"], ["build.json"])
 
 
-def release(held):
-    return bind.Release(held["repository"], held["marker"], held["commit"], held["tree"])
+def declared(source):
+    return executables.declared(source, releasing.targets(source))
+
+
+def built(held, target):
+    return executables.built(declared(held["source"]), target["target"])
 
 
 def targeted(target):
@@ -77,9 +87,8 @@ def inherited(bucket, document, held, target):
 
 
 def depended(bucket, held, target, entry):
-    name = plan.product(carried(held))
-    held_basis = basis.dependencies(held["source"], name, target["target"], target["runner"])
-    resolved(entry, held_basis, (["lib.cargo.basis", "lib.cargo.build"], []))
+    held_basis = basis.dependencies(held["source"], built(held, target), target["target"], target["runner"])
+    resolved(entry, held_basis, CARGO)
     output = place()
     output.mkdir(parents=True)
     build.archive(held["source"], output / DEPENDENCIES)
@@ -89,12 +98,12 @@ def depended(bucket, held, target, entry):
 def run_binary(held):
     target = targeted(held["target"])
     bucket, document, entry = opened(held, f"binary-{target['name']}")
-    name = plan.product(document["context"])
-    held_basis = basis.resolve(held["source"], name, target["target"], target["runner"])
-    resolved(entry, held_basis, (["lib.cargo.basis", "lib.cargo.build"], []))
+    names = built(held, target)
+    held_basis = basis.resolve(held["source"], names, target["target"], target["runner"])
+    resolved(entry, held_basis, CARGO)
     dependencies = inherited(bucket, document, held, target)
     output = place()
-    build.build(build.Build(Path(held["source"]), name, target["target"], output))
+    build.build(build.Build(Path(held["source"]), plan.product(document["context"]), tuple(names), target["target"], output))
     if dependencies is not None and dependencies["decision"] == "run":
         print(json.dumps(depended(bucket, held, target, dependencies), sort_keys=True), file=sys.stderr)
     return workload.publish(bucket, entry["key"], workload.Produced(output, held_basis, carried(held)))
@@ -136,11 +145,11 @@ def run_bind(held):
 
 def validate(held):
     bucket, document, entry = opened(held, "validate")
-    target = targeted(BUILD["primary"])
-    primary = document["entries"][f"bind-{target['name']}"]["key"]
+    primary = document["entries"][f"bind-{PRIMARY['name']}"]["key"]
     held_basis = {"entry": {"kind": "binary-validate", "binary": primary}}
     resolved(entry, held_basis, (["lib.identity.smoke"], ["validators.json"]))
-    artifact = bind.Artifact(staged(bucket, primary), plan.product(document["context"]), target["target"])
+    name = executables.primary(declared(held["source"]), plan.product(document["context"]))
+    artifact = bind.Artifact(staged(bucket, primary), name, PRIMARY["target"])
     output = place()
     configured(artifact, str(output), {"repository": held["repository"], "marker": held["marker"]})
     return workload.publish(bucket, entry["key"], workload.Produced(output, held_basis, carried(held)))
@@ -152,15 +161,11 @@ def run_smoke(held):
     bound = document["entries"][f"bind-{target['name']}"]["key"]
     held_basis = {"entry": {"kind": "binary-smoke", "binary": bound}}
     resolved(entry, held_basis, (["lib.identity.smoke"], []))
-    name = plan.product(document["context"])
     output = place()
-    artifact = bind.Artifact(staged(bucket, bound), name, target["target"])
-    smoke(artifact, str(output), f"{name} {document['context']['marker']}")
+    directory = staged(bucket, bound)
+    artifacts = [bind.Artifact(directory, name, target["target"]) for name in bind.executables(directory, target["target"])]
+    smoke(artifacts, str(output), document["context"]["marker"])
     return workload.publish(bucket, entry["key"], workload.Produced(output, held_basis, carried(held)))
-
-
-def node_engines(held):
-    return parameters.answer(node.declared(held["source"]) if node.carried(held["source"]) else {})
 
 
 def node_suite(held):
@@ -172,52 +177,58 @@ def node_suite(held):
     return workload.publish(bucket, entry["key"], workload.Produced(output, held_basis, carried(held)))
 
 
-def decided(published, held, carried=True):
-    return dict(parameters.answer({"decision": "skip" if published else "run", "presence": "present" if carried else "none"}), **held)
+def debianized(source, product, required=True):
+    listed = declared(source)
+    binary = executables.placed(source, "deb", listed, product)
+    if binary is None and required:
+        raise Refusal("the plan holds a deb the product does not declare")
+    if binary is None:
+        return None
+    if binary not in executables.built(listed, PRIMARY["target"]):
+        raise Refusal(f"[release.deb] carries {binary}, which is not built for {PRIMARY['target']}")
+    return package.declared(source, binary)
 
 
-def npm_plan(held):
-    if not npm.carried(held["source"]):
-        return decided(True, {"packages": []}, False)
-    pending = npm.pending(held["source"], version.marker(held["marker"]))
-    return decided(all(item["published"] for item in pending), {"packages": pending}, bool(pending))
+def run_deb(held):
+    bucket, document, entry = opened(held, "deb")
+    context = document["context"]
+    product = plan.product(context)
+    held_deb = debianized(held["source"], product)
+    binary = document["entries"][f"bind-{PRIMARY['name']}"]["key"]
+    held_basis = package.basis(held["source"], held_deb, binary, debian(context["marker"]))
+    resolved(entry, held_basis, DEBIAN)
+    executable = bind.Artifact(staged(bucket, binary), held_deb.binary, PRIMARY["target"]).file
+    output = place()
+    package.build(package.Package(Path(held["source"]), held_deb, executable, debian(context["marker"]), output))
+    return workload.publish(bucket, entry["key"], workload.Produced(output, held_basis, carried(held)))
 
 
-def npm_publish(held):
-    return npm.publish(held["source"], version.marker(held["marker"]))
+def run_verify(held):
+    bucket, document, entry = opened(held, "verify-deb")
+    context = document["context"]
+    product = plan.product(context)
+    held_deb = debianized(held["source"], product)
+    deb = document["entries"]["deb"]["key"]
+    held_basis = {"entry": {"kind": "deb-verify", "deb": deb}}
+    resolved(entry, held_basis, VERIFYING)
+    depends, units = tuple(package.depends(held["source"], held_deb)), package.units(held["source"], held_deb)
+    check = verify.Check(staged(bucket, deb) / package.named(held_deb.binary, debian(context["marker"])), held_deb.binary, debian(context["marker"]), context["marker"], depends, units)
+    output = place()
+    verify.verify(check, str(output))
+    return workload.publish(bucket, entry["key"], workload.Produced(output, held_basis, carried(held)))
 
 
-def oci_plan(held):
-    if not oci.carried(held["source"]):
-        return decided(True, {"image": None}, False)
-    image = oci.reference(held["repository"], version.marker(held["marker"]))
-    return decided(oci.exists(image), {"image": image})
-
-
-def oci_publish(held):
-    bucket, document, _ = opened(held, "oci")
-    target = targeted(BUILD["primary"])
-    artifact = bind.Artifact(bound(bucket, document, target["name"]), plan.product(document["context"]), target["target"])
-    image = oci.reference(held["repository"], version.marker(held["marker"]))
-    return oci.publish(oci.Image(Path(held["source"]), artifact.file, artifact.name, image))
-
-
-def chart_plan(held):
-    pending = chart.pending(held["source"], held["repository"].split("/", 1)[0], version.marker(held["marker"]))
-    return decided(all(item["published"] for item in pending), {"charts": pending}, bool(pending))
-
-
-def chart_publish(held):
-    return chart.publish(held["source"], held["repository"].split("/", 1)[0], version.marker(held["marker"]))
-
-
-def published_release(held):
-    return releasing.Release(held["repository"], held["marker"], held["commit"], held["wharf"])
-
-
-def release_plan(held):
-    done, carried = releasing.presence(held["source"], published_release(held))
-    return decided(done, {"channel": releasing.channel(held["marker"])}, carried)
+def placements(bucket, document, source):
+    context = document["context"]
+    held_deb = debianized(source, plan.product(context), False)
+    if held_deb is None:
+        return {}
+    entries = document["entries"]
+    if "deb" not in entries or "verify-deb" not in entries:
+        raise Refusal("plumb.toml declares a deb this run's plan did not build and verify")
+    if not workload.reusable(bucket, entries["verify-deb"]["key"]):
+        raise Refusal("the deb this release carries has no recorded verification")
+    return {"deb": staged(bucket, entries["deb"]["key"]) / package.named(held_deb.binary, debian(context["marker"]))}
 
 
 def run_release(held):
@@ -225,9 +236,13 @@ def run_release(held):
     context = document["context"]
     published = releasing.Release(context["repository"], context["marker"], context["commit"], held["wharf"])
     directories = {target["target"]: bound(bucket, document, target["name"]) for target in BUILD["targets"] if f"bind-{target['name']}" in document["entries"]}
+    listed = declared(held["source"])
+    installed = {target: executables.installed(listed, target) for target in directories}
+    placed = placements(bucket, document, held["source"])
     managers = place()
-    releasing.render(published, str(managers), list(directories))
-    return releasing.publish(published, releasing.Contents(directories, managers), r2.writer(releasing.place(published)[1], "RELEASES"))
+    releasing.render(published, str(managers), installed)
+    contents = releasing.Contents(directories, managers, installed, placed)
+    return releasing.publish(published, contents, r2.writer(releasing.place(published)[1], "RELEASES"))
 
 
 def cfworker_deploy(held):
@@ -237,16 +252,6 @@ def cfworker_deploy(held):
     output = place()
     cfworker.deploy(cfworker.Deploy(Path(held["source"]), output))
     return workload.publish(bucket, entry["key"], workload.Produced(output, held_basis, carried(held)))
-
-
-def cargo_plan(held):
-    pending = publish.proven(held["source"], release(held))
-    return decided(all(item["published"] for item in pending), {"packages": pending}, bool(pending))
-
-
-def cargo_publish(held):
-    bound = version.inject(held["source"], release(held))
-    return publish.publish(held["source"], bound["version"])
 
 
 def step(held):
@@ -263,20 +268,12 @@ ACTIONS = {
     "suite": (run_suite, ["source", *PLANNED]),
     "bind": (run_bind, [*PLANNED]),
     "smoke": (run_smoke, ["target", *PLANNED]),
-    "validate": (validate, [*PLANNED]),
-    "node-engines": (node_engines, ["source"]),
+    "validate": (validate, ["source", *PLANNED]),
     "node-suite": (node_suite, ["source", *PLANNED]),
-    "npm-plan": (npm_plan, ["source", "marker"]),
-    "npm-publish": (npm_publish, ["source", "marker"]),
-    "oci-plan": (oci_plan, ["source", "repository", "marker"]),
-    "oci-publish": (oci_publish, ["source", *PLANNED]),
-    "chart-plan": (chart_plan, ["source", "repository", "marker"]),
-    "chart-publish": (chart_publish, ["source", "repository", "marker"]),
-    "release-plan": (release_plan, ["repository", "marker", "commit", "wharf", "source"]),
+    "deb": (run_deb, ["source", *PLANNED]),
+    "deb-verify": (run_verify, ["source", *PLANNED]),
     "release": (run_release, ["source", *PLANNED]),
     "cfworker-deploy": (cfworker_deploy, ["source", *PLANNED]),
-    "cargo-plan": (cargo_plan, ["source", *RELEASE]),
-    "cargo-publish": (cargo_publish, ["source", *RELEASE]),
     "step": (step, ["unit"]),
 }
 

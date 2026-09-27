@@ -113,7 +113,7 @@ class Repository:
         self.git("commit", "-q", "--allow-empty", "-m", "change")
 
     def key(self):
-        held = basis.resolve(self.root, "demo", "x86_64-unknown-linux-gnu", "ubuntu-24.04")
+        held = basis.resolve(self.root, ["demo"], "x86_64-unknown-linux-gnu", "ubuntu-24.04")
         return workload.key(held, implementation.digest("lib.cargo.basis", "lib.cargo.build"))
 
 
@@ -128,8 +128,8 @@ class Key(unittest.TestCase):
         return self.repository.key() != self.base
 
     def test_resolves_entry_group_from_convention(self):
-        held = basis.resolve(self.repository.root, "demo", "x86_64-unknown-linux-gnu", "ubuntu-24.04")
-        self.assertEqual(held["entry"]["package"], "demo-cli")
+        held = basis.resolve(self.repository.root, ["demo"], "x86_64-unknown-linux-gnu", "ubuntu-24.04")
+        self.assertEqual((held["entry"]["packages"], held["entry"]["binaries"]), (["demo-cli"], ["demo"]))
         self.assertEqual(sorted(held["members"]), ["crates/cli", "crates/lib"])
         self.assertEqual([entry[0] for entry in held["lock"]], ["demo", "demo-cli", "itoa"])
 
@@ -170,9 +170,23 @@ class Key(unittest.TestCase):
         with self.assertRaises(Refusal):
             self.repository.key()
 
+    def test_several_executables_reach_the_union_of_their_members(self):
+        self.repository.write("crates/api/Cargo.toml", '[package]\nname = "demo-api"\nversion.workspace = true\n\n[dependencies]\nother = { path = "../other" }\n')
+        self.repository.write("crates/api/src/main.rs", "fn main() {}\n")
+        self.repository.edit("Cargo.lock", 'name = "demo-cli"', 'name = "demo-api"\nversion = "0.0.0"\ndependencies = ["other"]\n\n[[package]]\nname = "demo-cli"')
+        self.repository.commit()
+        held = basis.resolve(self.repository.root, ["demo", "demo-api"], "x86_64-unknown-linux-gnu", "ubuntu-24.04")
+        self.assertEqual((held["entry"]["packages"], held["entry"]["binaries"]), (["demo-cli", "demo-api"], ["demo", "demo-api"]))
+        self.assertEqual(sorted(held["members"]), ["crates/api", "crates/cli", "crates/lib", "crates/other"])
+        self.assertEqual([entry[0] for entry in held["lock"]], ["demo", "demo-api", "demo-cli", "itoa", "other", "ryu"])
+
+    def test_refuses_no_executable(self):
+        with self.assertRaisesRegex(Refusal, "at least one executable"):
+            basis.resolve(self.repository.root, [], "x86_64-unknown-linux-gnu", "ubuntu-24.04")
+
     def test_refuses_an_unknown_binary(self):
         with self.assertRaises(Refusal):
-            basis.resolve(self.repository.root, "missing", "x86_64-unknown-linux-gnu", "ubuntu-24.04")
+            basis.resolve(self.repository.root, ["missing"], "x86_64-unknown-linux-gnu", "ubuntu-24.04")
 
 
 class SuiteBasis(unittest.TestCase):
@@ -201,7 +215,7 @@ class Dependencies(unittest.TestCase):
         self.repository = Repository()
 
     def held(self):
-        return basis.dependencies(self.repository.root, "demo", "x86_64-unknown-linux-gnu", "ubuntu-24.04")
+        return basis.dependencies(self.repository.root, ["demo"], "x86_64-unknown-linux-gnu", "ubuntu-24.04")
 
     def key(self):
         return workload.key(self.held(), implementation.digest("lib.cargo.basis", "lib.cargo.build"))
@@ -229,7 +243,7 @@ class Dependencies(unittest.TestCase):
         self.assertNotEqual(self.key(), before)
 
     def test_the_target_and_the_runner_are_part_of_what_is_built(self):
-        self.assertNotEqual(self.key(), workload.key(basis.dependencies(self.repository.root, "demo", "aarch64-apple-darwin", "macos-15"), implementation.digest("lib.cargo.basis", "lib.cargo.build")))
+        self.assertNotEqual(self.key(), workload.key(basis.dependencies(self.repository.root, ["demo"], "aarch64-apple-darwin", "macos-15"), implementation.digest("lib.cargo.basis", "lib.cargo.build")))
 
     def test_it_is_not_the_binary_under_another_name(self):
         self.assertNotEqual(self.key(), self.repository.key())

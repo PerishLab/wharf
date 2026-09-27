@@ -39,6 +39,7 @@ jobs:
       layer-1: ${{ steps.plan.outputs.layer-1 }}
       layer-2: ${{ steps.plan.outputs.layer-2 }}
       layer-3: ${{ steps.plan.outputs.layer-3 }}
+      layer-4: ${{ steps.plan.outputs.layer-4 }}
       node: ${{ steps.engines.outputs.node }}
       pnpm: ${{ steps.engines.outputs.pnpm }}
       cfworker: ${{ steps.plan.outputs.cfworker }}
@@ -92,7 +93,7 @@ jobs:
         id: engines
         env:
           WHARF_SOURCE: ../product
-        run: python3 -B -m scripts.ship node-engines
+        run: python3 -B -m scripts.media node-engines
 
       - name: "[decide] npm"
         id: npm
@@ -100,7 +101,7 @@ jobs:
           WHARF_SOURCE: ../product
           WHARF_MARKER: ${{ inputs.marker }}
           NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: python3 -B -m scripts.ship npm-plan
+        run: python3 -B -m scripts.media npm-plan
 
       - name: "[decide] oci"
         id: oci
@@ -108,7 +109,7 @@ jobs:
           WHARF_SOURCE: ../product
           WHARF_REPOSITORY: ${{ inputs.repository }}
           WHARF_MARKER: ${{ inputs.marker }}
-        run: python3 -B -m scripts.ship oci-plan
+        run: python3 -B -m scripts.media oci-plan
 
       - name: "[decide] chart"
         id: chart
@@ -116,7 +117,7 @@ jobs:
           WHARF_SOURCE: ../product
           WHARF_REPOSITORY: ${{ inputs.repository }}
           WHARF_MARKER: ${{ inputs.marker }}
-        run: python3 -B -m scripts.ship chart-plan
+        run: python3 -B -m scripts.media chart-plan
 
       - name: "[decide] binaries"
         id: release
@@ -126,7 +127,7 @@ jobs:
           WHARF_COMMIT: ${{ steps.source.outputs.commit }}
           WHARF_WHARF: ${{ github.sha }}
           WHARF_SOURCE: ../product
-        run: python3 -B -m scripts.ship release-plan
+        run: python3 -B -m scripts.media release-plan
 
       - name: "[decide] channel"
         id: channel
@@ -144,7 +145,7 @@ jobs:
           WHARF_MARKER: ${{ inputs.marker }}
           WHARF_COMMIT: ${{ steps.source.outputs.commit }}
           WHARF_TREE: ${{ steps.source.outputs.tree }}
-        run: python3 -B -m scripts.ship cargo-plan
+        run: python3 -B -m scripts.media cargo-plan
 
       - name: "[record] plan"
         id: plan
@@ -343,9 +344,69 @@ jobs:
           WHARF_PACKAGES_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: python3 -B -m scripts.ship step
 
+  layer-4:
+    needs: [plan, layer-1, layer-2, layer-3]
+    if: always() && needs.plan.result == 'success' && needs.plan.outputs.layer-4 != '[]' && !contains(needs.*.result, 'failure') && !contains(needs.*.result, 'cancelled')
+    strategy:
+      fail-fast: false
+      matrix:
+        include: ${{ fromJSON(needs.plan.outputs.layer-4) }}
+    name: ${{ matrix.name }}
+    runs-on: ${{ matrix.runner }}
+    permissions:
+      contents: read
+      packages: read
+    timeout-minutes: 45
+    defaults:
+      run:
+        shell: bash
+        working-directory: wharf
+    steps:
+      - name: "[prepare] autocrlf"
+        if: contains(matrix.prepare, 'autocrlf')
+        working-directory: .
+        run: git config --global core.autocrlf false
+
+      - name: "[checkout] wharf"
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          path: wharf
+          persist-credentials: false
+
+      - name: "[checkout] product"
+        uses: ./wharf/.github/actions/product
+        with:
+          repository: ${{ inputs.repository }}
+          marker: ${{ inputs.marker }}
+          client-id: ${{ vars.WHARF_APP_CLIENT_ID }}
+          private-key: ${{ secrets.WHARF_APP_PRIVATE_KEY }}
+
+      - name: "[prepare] machine"
+        uses: ./wharf/.github/actions/prepare
+        with:
+          prepare: ${{ join(matrix.prepare, ' ') }}
+          node: ${{ needs.plan.outputs.node }}
+          pnpm: ${{ needs.plan.outputs.pnpm }}
+
+      - name: ${{ matrix.name }}
+        env:
+          WHARF_UNIT: ${{ matrix.action }}
+          WHARF_TARGET: ${{ matrix.target }}
+          WHARF_SOURCE: ../product
+          WHARF_REPOSITORY: ${{ inputs.repository }}
+          WHARF_MARKER: ${{ inputs.marker }}
+          WHARF_WHARF: ${{ github.sha }}
+          WHARF_RUN: ${{ github.run_id }}
+          WHARF_ATTEMPT: ${{ github.run_attempt }}
+          WHARF_PLANNED: ${{ needs.plan.outputs.planned }}
+          WHARF_R2_ACCESS_KEY_ID: ${{ secrets.WHARF_R2_ACCESS_KEY_ID }}
+          WHARF_R2_SECRET_ACCESS_KEY: ${{ secrets.WHARF_R2_SECRET_ACCESS_KEY }}
+          WHARF_PACKAGES_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: python3 -B -m scripts.ship step
+
   npm:
     name: "[publish] npm"
-    needs: [plan, layer-1, layer-2, layer-3]
+    needs: [plan, layer-1, layer-2, layer-3, layer-4]
     if: always() && needs.plan.result == 'success' && needs.plan.outputs.npm == 'run' && !contains(needs.*.result, 'failure') && !contains(needs.*.result, 'cancelled')
     runs-on: ubuntu-24.04
     permissions:
@@ -381,11 +442,11 @@ jobs:
           WHARF_SOURCE: ../product
           WHARF_MARKER: ${{ inputs.marker }}
           NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: python3 -B -m scripts.ship npm-publish
+        run: python3 -B -m scripts.media npm-publish
 
   oci:
     name: "[publish] oci"
-    needs: [plan, layer-1, layer-2, layer-3]
+    needs: [plan, layer-1, layer-2, layer-3, layer-4]
     if: always() && needs.plan.result == 'success' && needs.plan.outputs.oci == 'run' && !contains(needs.*.result, 'failure') && !contains(needs.*.result, 'cancelled')
     runs-on: ubuntu-24.04
     permissions:
@@ -426,11 +487,11 @@ jobs:
           WHARF_PLANNED: ${{ needs.plan.outputs.planned }}
           WHARF_R2_ACCESS_KEY_ID: ${{ secrets.WHARF_R2_ACCESS_KEY_ID }}
           WHARF_R2_SECRET_ACCESS_KEY: ${{ secrets.WHARF_R2_SECRET_ACCESS_KEY }}
-        run: python3 -B -m scripts.ship oci-publish
+        run: python3 -B -m scripts.media oci-publish
 
   chart:
     name: "[publish] chart"
-    needs: [plan, layer-1, layer-2, layer-3]
+    needs: [plan, layer-1, layer-2, layer-3, layer-4]
     if: always() && needs.plan.result == 'success' && needs.plan.outputs.chart == 'run' && !contains(needs.*.result, 'failure') && !contains(needs.*.result, 'cancelled')
     runs-on: ubuntu-24.04
     permissions:
@@ -465,11 +526,11 @@ jobs:
           WHARF_SOURCE: ../product
           WHARF_REPOSITORY: ${{ inputs.repository }}
           WHARF_MARKER: ${{ inputs.marker }}
-        run: python3 -B -m scripts.ship chart-publish
+        run: python3 -B -m scripts.media chart-publish
 
   release:
     name: "[publish] binaries"
-    needs: [plan, layer-1, layer-2, layer-3]
+    needs: [plan, layer-1, layer-2, layer-3, layer-4]
     if: always() && needs.plan.result == 'success' && needs.plan.outputs.release == 'run' && !contains(needs.*.result, 'failure') && !contains(needs.*.result, 'cancelled')
     runs-on: ubuntu-24.04
     steps:
@@ -504,7 +565,7 @@ jobs:
 
   channel:
     name: "[point] channel"
-    needs: [plan, layer-1, layer-2, layer-3, npm, oci, chart, cargo, cfworker, release]
+    needs: [plan, layer-1, layer-2, layer-3, layer-4, npm, oci, chart, cargo, cfworker, release]
     if: always() && needs.plan.result == 'success' && needs.plan.outputs.channel == 'run' && !contains(needs.*.result, 'failure') && !contains(needs.*.result, 'cancelled')
     runs-on: ubuntu-24.04
     steps:
@@ -514,8 +575,17 @@ jobs:
           path: wharf
           persist-credentials: false
 
+      - name: "[checkout] product"
+        uses: ./wharf/.github/actions/product
+        with:
+          repository: ${{ inputs.repository }}
+          marker: ${{ inputs.marker }}
+          client-id: ${{ vars.WHARF_APP_CLIENT_ID }}
+          private-key: ${{ secrets.WHARF_APP_PRIVATE_KEY }}
+
       - name: "[point] channel"
         env:
+          WHARF_SOURCE: ../product
           WHARF_RELEASES_ACCESS_KEY_ID: ${{ secrets.WHARF_RELEASES_ACCESS_KEY_ID }}
           WHARF_RELEASES_SECRET_ACCESS_KEY: ${{ secrets.WHARF_RELEASES_SECRET_ACCESS_KEY }}
           WHARF_REPOSITORY: ${{ inputs.repository }}
@@ -525,7 +595,7 @@ jobs:
 
   cfworker:
     name: "[deploy] cfworker"
-    needs: [plan, layer-1, layer-2, layer-3]
+    needs: [plan, layer-1, layer-2, layer-3, layer-4]
     if: always() && needs.plan.result == 'success' && needs.plan.outputs.cfworker == 'run' && !contains(needs.*.result, 'failure') && !contains(needs.*.result, 'cancelled')
     runs-on: ubuntu-24.04
     permissions:
@@ -573,7 +643,7 @@ jobs:
 
   cargo:
     name: "[publish] cargo"
-    needs: [plan, layer-1, layer-2, layer-3]
+    needs: [plan, layer-1, layer-2, layer-3, layer-4]
     if: always() && needs.plan.result == 'success' && needs.plan.outputs.cargo == 'run' && !contains(needs.*.result, 'failure') && !contains(needs.*.result, 'cancelled')
     runs-on: ubuntu-24.04
     steps:
@@ -600,11 +670,11 @@ jobs:
           WHARF_TREE: ${{ needs.plan.outputs.tree }}
           WHARF_CARGO_ACCESS_KEY_ID: ${{ secrets.WHARF_CARGO_ACCESS_KEY_ID }}
           WHARF_CARGO_SECRET_ACCESS_KEY: ${{ secrets.WHARF_CARGO_SECRET_ACCESS_KEY }}
-        run: python3 -B -m scripts.ship cargo-publish
+        run: python3 -B -m scripts.media cargo-publish
 
   distribution:
     name: "[record] distribution"
-    needs: [plan, layer-1, layer-2, layer-3, npm, oci, chart, release, channel, cfworker, cargo]
+    needs: [plan, layer-1, layer-2, layer-3, layer-4, npm, oci, chart, release, channel, cfworker, cargo]
     if: always() && needs.plan.result == 'success'
     runs-on: ubuntu-24.04
     steps:

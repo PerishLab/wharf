@@ -11,6 +11,7 @@ from lib.process import git
 from lib.refusal import Refusal
 from scripts import plan
 from tests.lib.store.memory import Memory
+from tests.scripts import test_placements
 
 STEPS = """
 {
@@ -77,7 +78,7 @@ class Answered(unittest.TestCase):
         self.assertEqual([unit["name"] for unit in json.loads(named["layer-1"])], ["[build] binary linux", "[test] suite linux"])
         self.assertEqual(named["cfworker"], "skip")
         self.assertIn("planned=3", written)
-        self.assertEqual([line.split("=")[0] for line in written.splitlines() if line.startswith("layer-")], ["layer-1", "layer-2", "layer-3"])
+        self.assertEqual([line.split("=")[0] for line in written.splitlines() if line.startswith("layer-")], ["layer-1", "layer-2", "layer-3", "layer-4"])
         self.assertEqual(len(written.splitlines()), len(plan.SINGLE) + plan.UNITS["layers"] + 2)
 
     def test_a_product_with_no_worker_plans_nothing_for_it(self):
@@ -121,16 +122,25 @@ class Media(unittest.TestCase):
             plan.media(observed, {})
 
 
+def product(body):
+    root = Path(tempfile.mkdtemp())
+    (root / "plumb.toml").write_text(body)
+    return str(root)
+
+
+PLUMB = '[release]\nproduct = "plumb"\nbinaries = ["plumb"]\ntargets = ["x86_64-unknown-linux-gnu", "aarch64-apple-darwin", "x86_64-pc-windows-msvc"]\n'
+
+
 class Derived(unittest.TestCase):
-    HELD = {"repository": "PerishLab/plumb", "marker": "v0.38.3-rc.7", "commit": "a" * 40, "tree": "b" * 40, "source": "../product"}
+    HELD = {"repository": "PerishLab/plumb", "marker": "v0.38.3-rc.7", "commit": "a" * 40, "tree": "b" * 40, "source": product(PLUMB)}
 
     def entries(self, rust=True):
         entries = {}
         patches = (
             mock.patch.object(plan.basis, "carried", return_value=rust),
             mock.patch.object(plan.release, "targets", return_value=list(plan.release.LAYOUT["targets"])),
-            mock.patch.object(plan.basis, "resolve", side_effect=lambda source, name, target, runner: {"entry": "binary", "target": target}),
-            mock.patch.object(plan.basis, "dependencies", side_effect=lambda source, name, target, runner: {"entry": "dependencies", "target": target}),
+            mock.patch.object(plan.basis, "resolve", side_effect=lambda source, names, target, runner: {"entry": "binary", "target": target}),
+            mock.patch.object(plan.basis, "dependencies", side_effect=lambda source, names, target, runner: {"entry": "dependencies", "target": target}),
             mock.patch.object(plan.basis, "suite", return_value={"entry": "suite"}),
             mock.patch.object(plan.node, "carried", return_value=False),
             mock.patch.object(plan.cfworker, "workers", return_value=[]),
@@ -203,16 +213,22 @@ class Derived(unittest.TestCase):
         self.assertEqual(held["layer-2"], [])
         self.assertEqual([unit["name"] for unit in held["layer-3"]], ["[smoke] binary windows"])
 
+    def test_a_single_executable_product_plans_the_entries_it_always_did(self):
+        self.assertEqual(sorted(self.entries()), sorted([
+            *(f"{kind}-{target}" for kind in ("dependencies", "binary", "bind", "smoke") for target in ("linux", "windows", "macos")),
+            "suite-linux", "release", "validate",
+        ]))
+
     def test_a_plan_deeper_than_the_workflow_refuses(self):
-        entries = {f"step-{number}": {"key": str(number) * 64, "decision": "run", **({"consumes": [f"step-{number - 1}"]} if number else {})} for number in range(4)}
-        with self.assertRaisesRegex(Refusal, "derived 4 layers, the workflow runs 3"):
+        entries = {f"step-{number}": {"key": str(number) * 64, "decision": "run", **({"consumes": [f"step-{number - 1}"]} if number else {})} for number in range(5)}
+        with self.assertRaisesRegex(Refusal, "derived 5 layers, the workflow runs 4"):
             plan.units(entries)
 
     def test_every_consumed_entry_is_already_a_need_of_the_job_that_consumes_it(self):
         needs = workflow()
-        layered = {"binary": "layer-1", "dependencies": "layer-1", "suite": "layer-1", "bind": "layer-2", "smoke": "layer-3", "validate": "layer-3"}
+        layered = {"binary": "layer-1", "dependencies": "layer-1", "suite": "layer-1", "bind": "layer-2", "smoke": "layer-3", "validate": "layer-3", "deb": "layer-3", "verify": "layer-4"}
         job = lambda name: layered.get(name.split("-")[0], name)
-        for name, entry in self.entries().items():
+        for name, entry in {**self.entries(), **test_placements.Placed().entries(test_placements.Placed.SANTI)}.items():
             for consumed in entry.get("consumes", []):
                 self.assertIn(job(consumed), needs[job(name)], f"{job(name)} consumes {job(consumed)}")
 

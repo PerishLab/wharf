@@ -17,6 +17,13 @@ def answering(version, failing=None):
     return runner
 
 
+def named(marker):
+    def runner(argv, cwd):
+        name = Path(argv[0]).name.rsplit("-x86_64", 1)[0]
+        return f"{name} {marker}\n" if argv[1] == "--version" else f"Usage: {name}\n"
+    return runner
+
+
 class Smoke(unittest.TestCase):
     def setUp(self):
         self.directory = Path(tempfile.mkdtemp())
@@ -25,17 +32,34 @@ class Smoke(unittest.TestCase):
         self.output = self.directory / "out"
 
     def test_records_surfaces_when_version_matches(self):
-        receipt = smoke(self.artifact, self.output, "demo v1.0.0", answering("demo v1.0.0"))
-        self.assertEqual(receipt["surfaces"]["--version"], "demo v1.0.0")
+        receipt = smoke([self.artifact], self.output, "v1.0.0", answering("demo v1.0.0"))
+        self.assertEqual(receipt["binaries"][0]["surfaces"]["--version"], "demo v1.0.0")
         self.assertTrue((self.output / "receipt.json").is_file())
+
+    def test_every_executable_reports_its_own_name_and_the_marker(self):
+        (self.directory / "demo-api-x86_64-unknown-linux-gnu").write_bytes(b"binary")
+        server = Artifact(self.directory, "demo-api", "x86_64-unknown-linux-gnu")
+        receipt = smoke([self.artifact, server], self.output, "v1.0.0-rc.2", named("v1.0.0-rc.2"))
+        self.assertEqual([held["expect"] for held in receipt["binaries"]], ["demo v1.0.0-rc.2", "demo-api v1.0.0-rc.2"])
+
+    def test_an_executable_reporting_the_product_s_name_refuses(self):
+        (self.directory / "demo-api-x86_64-unknown-linux-gnu").write_bytes(b"binary")
+        server = Artifact(self.directory, "demo-api", "x86_64-unknown-linux-gnu")
+        with self.assertRaisesRegex(Refusal, "expected 'demo-api v1.0.0'"):
+            smoke([self.artifact, server], self.output, "v1.0.0", answering("demo v1.0.0"))
+        self.assertFalse(self.output.exists())
 
     def test_refuses_unexpected_version(self):
         with self.assertRaises(Refusal):
-            smoke(self.artifact, self.output, "demo v1.0.0", answering("demo unbound"))
+            smoke([self.artifact], self.output, "v1.0.0", answering("demo unbound"))
 
     def test_refuses_failing_surface(self):
         with self.assertRaises(Refusal):
-            smoke(self.artifact, self.output, "demo v1.0.0", answering("demo v1.0.0", failing="--help"))
+            smoke([self.artifact], self.output, "v1.0.0", answering("demo v1.0.0", failing="--help"))
+
+    def test_refuses_nothing_to_smoke(self):
+        with self.assertRaisesRegex(Refusal, "at least one"):
+            smoke([], self.output, "v1.0.0", answering("demo v1.0.0"))
 
 
 class Configured(unittest.TestCase):

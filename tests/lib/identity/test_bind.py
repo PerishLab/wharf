@@ -1,5 +1,7 @@
 import struct
+import tempfile
 import unittest
+from pathlib import Path
 
 from lib.identity import bind, elf, format, region
 from lib.refusal import Refusal
@@ -97,3 +99,36 @@ class Identity(unittest.TestCase):
     def test_digest_is_stable(self):
         release = bind.Release("PerishLab/plumb", "v1.0.0", "a" * 40, "b" * 40)
         self.assertEqual(bind.digest(release), bind.digest(bind.Release(*vars(release).values())))
+
+
+class Performed(unittest.TestCase):
+    TARGET = "x86_64-unknown-linux-gnu"
+
+    def built(self, names, prefix="SANTI"):
+        directory = Path(tempfile.mkdtemp()) / "built"
+        directory.mkdir()
+        for name in names:
+            (directory / f"{name}-{self.TARGET}").write_bytes(executable(region(prefix, self.TARGET)))
+        (directory / "receipt.json").write_text("{}")
+        return directory
+
+    def test_every_executable_built_for_the_target_is_found(self):
+        self.assertEqual(bind.executables(self.built(["santi-api", "santi"]), self.TARGET), ["santi", "santi-api"])
+        with self.assertRaisesRegex(Refusal, "no executable built for"):
+            bind.executables(self.built(["santi"]), "aarch64-apple-darwin")
+
+    def test_every_executable_is_bound_to_the_product_identity(self):
+        directory = self.built(["santi", "santi-api"])
+        output = Path(tempfile.mkdtemp()) / "bound"
+        release = bind.Release("PerishLab/santi", "v0.1.0-rc.1", "a" * 40, "b" * 40)
+        receipt = bind.perform(bind.Artifact(directory, "santi", self.TARGET), release, "4" * 64, str(output))
+        self.assertEqual([held["file"] for held in receipt["binaries"]], [f"santi-{self.TARGET}", f"santi-api-{self.TARGET}"])
+        for name in ("santi", "santi-api"):
+            self.assertEqual(bind.inspect((output / f"{name}-{self.TARGET}").read_bytes())[1]["product"], "santi")
+        self.assertEqual(sorted(path.name for path in output.iterdir()), ["receipt.json", f"santi-api-{self.TARGET}", f"santi-{self.TARGET}"])
+
+    def test_an_executable_compiled_under_another_prefix_refuses(self):
+        directory = self.built(["santi-api"], prefix="SANTI_API")
+        release = bind.Release("PerishLab/santi", "v0.1.0", "a" * 40, "b" * 40)
+        with self.assertRaises(Refusal):
+            bind.perform(bind.Artifact(directory, "santi", self.TARGET), release, "4" * 64, str(Path(tempfile.mkdtemp()) / "bound"))

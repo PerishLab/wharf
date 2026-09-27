@@ -114,8 +114,8 @@ so a seal says only that its binaries are published; how far the marker is
 distributed is the distribution record's to say. A product whose `plumb.toml`
 declares binaries builds, binds and releases them for exactly the targets its
 `[release].targets` lists, which must include the primary Linux target smoke
-and validation run on, and its managers offer only those; one that declares no binaries has none of that: no binary, bind, smoke or validate
-entry, no seal and no channel pointer. Binaries and channel are recorded none,
+and validation run on, and its managers offer only those; one that declares no binaries has none of that: no binary, bind, smoke, validate
+or deb entry, no seal and no channel pointer. Binaries and channel are recorded none,
 and the distribution record alone says the marker is distributed. Suites follow
 the source that is there: a tracked `Cargo.toml` plans the cargo suite and a
 tracked root `package.json` the node suite, and neither is planned without it. The product's
@@ -139,6 +139,37 @@ when the plan decided none of them. Whether a medium is already published stays
 with the step that can ask its registry, because asking needs that registry's
 credentials and one step holding all of them would be the widest credential in
 the run; the plan records what those steps report.
+
+A release is one marker and one seal over every executable `[release].binaries`
+lists. `[release.binary.<name>]` may narrow an executable to a subset of
+`[release].targets` or set `install = false`. A target is still one binary
+workload, built by one cargo build of every executable that declares it, so no
+entry is named after an executable; each carries the product's identity
+prefix, is bound as the product, and smokes as `<executable> <marker>`. A
+platform archive holds that platform's installed executables and the managers
+install exactly those; one not installed still builds, binds and smokes, and
+reaches people only through a placement. A placement names the executable it
+carries, else the one named like the product, else the first: `[release.oci]`
+builds its image from it, and `[release.deb]` packs it at
+`/usr/bin/<executable>` with its declared root into
+`<Package>_<Version>_amd64.deb`, named after the executable. wharf owns that package's `Version`
+(`vX.Y.Z-rc.N` is `X.Y.Z~rc.N`), `Architecture` and `conffiles`, which list
+everything under `/etc`, and packs it at `SOURCE_DATE_EPOCH=0` with one
+compressor thread, the fixed instant every archive here uses, so a rerun
+repeats the bytes. `[verify] deb` installs it with a strict `dpkg -i` in the
+`ubuntu:24.04` image `resources/build.json` pins by digest, after only the
+`Depends` it declares, and checks its version, its files, its units and the
+marker its executable reports, starting nothing. It enters the seal as
+`linux-x64-deb`, written by `[publish] binaries` with the credentials that job
+already holds, which refuses a declared deb whose verification is not
+recorded. wharf publishes placements; it never deploys them, and keeps no apt
+repository: a host takes the deb by reading `v1/channels/<channel>.json`, the
+seal it names, and that seal's `artifacts.linux-x64-deb` URL. A product
+carries at most one deb and one image, the image named after the repository
+whatever executable it carries, and the deb is built for amd64 alone; a second
+server placement or architecture is a new declaration, not a second table
+today. plumb is the one gate on a declaration's shape, so wharf does not
+repeat its checks, such as the systemd unit a deb must carry.
 
 A job that consumes another job's workload names every job that produced one in
 its `needs`, not only the last of them. A job the plan left nothing to do and a
@@ -178,7 +209,7 @@ name is rendered from the verb and object `resources/units.json` gives it.
 | | Within wharf |
 | --- | --- |
 | Verbs | ship, lodge, plan, build, test, bind, smoke, validate, publish, deploy, point, record, checkout, verify, identify, prepare, login, read, decide |
-| Objects | entries, binary, binaries, suite, npm, oci, chart, cargo, cfworker, channel, distribution, plan, wharf, product, request, source, registry, engines, machine, autocrlf, node, pnpm, plumb, and the Depot kinds |
+| Objects | entries, binary, binaries, deb, suite, npm, oci, chart, cargo, cfworker, channel, distribution, plan, wharf, product, request, source, registry, engines, machine, autocrlf, node, pnpm, plumb, and the Depot kinds |
 
 A name that cannot be written as one verb over one object marks a job doing two
 things; that is how writing the seal and moving the channel came apart.
@@ -236,7 +267,9 @@ must reproduce byte for byte and every reader must test against.
 - The binding `digest` is `sha256` over the canonical release
   `{repository, marker, commit, tree}`; `workload` is the key of the unbound binary.
 - A product with prefix `P` builds with `P_BUILD_TARGET` and `P_BUILD_CHANNEL=unbound`;
-  such an executable refuses to run commands until bound.
+  such an executable refuses to run commands until bound. Every executable of a
+  release takes the product's prefix and is bound with the product's name, not
+  its own.
 - Binding reads and writes the region as file content and never executes the binary,
   so one Linux job binds every target the plan decided to run. Smoke stays on the
   target platform because it runs the bound binary. The binding basis names the

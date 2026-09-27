@@ -30,6 +30,8 @@ class Release:
 class Contents:
     bound: dict
     managers: Path
+    installed: dict
+    placed: dict
 
 
 def place(release):
@@ -62,18 +64,19 @@ def sealed_targets(seal):
     return [target for target, spec in LAYOUT["targets"].items() if spec["key"] in seal["artifacts"]]
 
 
-def objects(name, bound, authority):
+def objects(name, contents, authority):
     staged = {}
-    for target in sorted(bound):
+    for target in sorted(target for target in contents.bound if contents.installed.get(target)):
         spec = LAYOUT["targets"][target]
-        suffix = ".exe" if "windows" in target else ""
-        source = Path(bound[target]) / f"{name}-{target}{suffix}"
-        if not source.is_file():
-            raise Refusal(f"{source} is missing")
-        body = archive.pack(f"{name}{suffix}", source.read_bytes(), spec["format"])
+        body = archive.pack(archive.members(contents.bound[target], target, contents.installed[target]), spec["format"])
         file = f"{name}-{target}.{spec['format']}"
         key = f"v1/objects/sha256/{hashlib.sha256(body).hexdigest()}/{file}"
         staged[spec["key"]] = (key, body, remote(authority, key, body, MIMES[spec["format"]]))
+    for kind, source in sorted(contents.placed.items()):
+        spec = LAYOUT["placements"][kind]
+        body = Path(source).read_bytes()
+        key = f"v1/objects/sha256/{hashlib.sha256(body).hexdigest()}/{Path(source).name}"
+        staged[spec["key"]] = (key, body, remote(authority, key, body, spec["mime"]))
     return staged
 
 
@@ -81,37 +84,38 @@ def archived(name, target, spec):
     return f"{name}-{target}.{spec['format']}"
 
 
-def platforms(name, held):
+def platforms(name, installed):
     lines = []
-    for target in held:
+    for target in (target for target in LAYOUT["targets"] if installed.get(target)):
         spec = LAYOUT["targets"][target]
         systems = [system for system in spec["systems"] if not system.startswith("Windows:")]
         if systems:
-            lines.append(f"    {'|'.join(systems)})\n      ARCHIVE={archived(name, target, spec)}\n      ARTIFACT={spec['key']}\n      ARCHIVE_ROOT=\n      FORMAT={spec['format']}\n      ;;")
+            lines.append(f"    {'|'.join(systems)})\n      ARCHIVE={archived(name, target, spec)}\n      ARTIFACT={spec['key']}\n      ARCHIVE_ROOT=\n      FORMAT={spec['format']}\n      BINARIES=\"{' '.join(installed[target])}\"\n      ;;")
     return "\n".join(lines)
 
 
-def windowed(name, held):
-    for target in held:
+def windowed(name, installed):
+    for target in (target for target in LAYOUT["targets"] if installed.get(target)):
         spec = LAYOUT["targets"][target]
         if spec["format"] == "zip":
-            return {"windows_archive": archived(name, target, spec), "windows_key": spec["key"], "windows_root": ""}
+            listed = ", ".join(f"'{binary}'" for binary in installed[target])
+            return {"windows_archive": archived(name, target, spec), "windows_key": spec["key"], "windows_root": "", "windows_binaries": listed}
     return None
 
 
-def named(name, held, channel, targets):
+def named(name, held, channel, installed):
     return {
         "product": name,
         "environment": name.upper().replace("-", "_"),
         "public_url": LAYOUT["authority"].replace("{name}", name),
         "default_channel": channel,
         "default_version": held,
-        "binaries": name,
         "version_probe": PROBE,
-        "unix_platforms": platforms(name, targets),
+        "unix_platforms": platforms(name, installed),
         "windows_archive": "",
         "windows_key": "",
         "windows_root": "",
+        "windows_binaries": "",
     }
 
 
@@ -130,18 +134,18 @@ def filled(values, windows, output):
     return output
 
 
-def render(release, output, targets):
+def render(release, output, installed):
     output = Path(output)
     if output.exists():
         raise Refusal(f"output {output} already exists")
     name = release.repository.split("/", 1)[1]
     output.mkdir(parents=True)
-    windows = windowed(name, targets)
-    filled(named(name, release.marker, channel(release.marker), targets), windows, output)
+    windows = windowed(name, installed)
+    filled(named(name, release.marker, channel(release.marker), installed), windows, output)
     if channel(release.marker) == "stable":
         rooted = output / CANONICAL
         rooted.mkdir()
-        filled(named(name, "", channel(release.marker), targets), windows, rooted)
+        filled(named(name, "", channel(release.marker), installed), windows, rooted)
     return {"action": "ship.release.managers", "files": sorted(str(path.relative_to(output)) for path in output.rglob("*") if path.is_file())}
 
 
@@ -251,7 +255,7 @@ def overtaken(release, reader=fetch):
 
 def publish(release, contents, bucket, reader=fetch):
     name, _, authority = place(release)
-    staged = objects(name, contents.bound, authority)
+    staged = objects(name, contents, authority)
     pinned = scripts(contents.managers, authority, False)
     if channel(release.marker) == "stable" and not pinned:
         raise Refusal("a stable release carries its pinned manager scripts")

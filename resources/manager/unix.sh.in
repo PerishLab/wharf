@@ -23,7 +23,7 @@ VERSION=${{{environment}_VERSION:-{default_version}}}
 PUBLIC_URL=${{{environment}_RELEASES_PUBLIC_URL:-$CANONICAL_PUBLIC_URL}}
 INSTALL_ROOT=${{{environment}_INSTALL_ROOT:-$DEFAULT_INSTALL_ROOT}}
 LOCAL_BIN_DIR=${{{environment}_LOCAL_BIN_DIR:-$DEFAULT_BIN_DIR}}
-BINARIES="{binaries}"
+BINARIES=
 MARKER={product}-manager-v1
 ROOT_MARKER=.{product}-manager
 VERSION_MARKER=.{product}-manager
@@ -289,6 +289,7 @@ platform() {{
   ARTIFACT=
   ARCHIVE_ROOT=
   FORMAT=
+  BINARIES=
   case "$(uname -s):$(uname -m)" in
 {unix_platforms}
     *) echo "unsupported platform: $(uname -s) $(uname -m)" >&2; exit 1 ;;
@@ -547,7 +548,6 @@ install_{product}() {{
     fi
   fi
 
-  platform
   expected=$(object_string "$ARTIFACT" sha256 "$seal")
   printf '%s\n' "$expected" | grep -Eq '^[0-9a-f]{{64}}$' || {{
     echo "release seal missing $ARTIFACT sha256" >&2
@@ -717,6 +717,7 @@ uninstall_{product}() {{
   printf 'removed {product} from %s and %s\n' "$INSTALL_ROOT" "$LOCAL_BIN_DIR"
 }}
 
+platform
 case "$COMMAND" in
   install|update) install_{product} ;;
   uninstall) uninstall_{product} ;;
