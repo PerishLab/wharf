@@ -30,18 +30,26 @@ def entry(name):
 
 
 def fetch(url):
+    return fetch_bytes(url).decode()
+
+
+def fetch_bytes(url):
     try:
         with urllib.request.urlopen(urllib.request.Request(url, headers={"User-Agent": "wharf"}), timeout=30) as response:
-            return response.read().decode()
+            return response.read()
     except urllib.error.HTTPError as failure:
         if failure.code == 404:
-            return ""
+            return b""
         raise Refusal(f"cargo index {url} answered {failure.code}")
 
 
 def published(location, package, version, reader=fetch):
+    return record(location, package, version, reader) is not None
+
+
+def record(location, package, version, reader=fetch):
     lines = reader(location + entry(package)).splitlines()
-    return any(json.loads(line)["vers"] == version for line in lines if line.strip())
+    return next((json.loads(line) for line in lines if line.strip() and json.loads(line)["vers"] == version), None)
 
 
 def bucket(name):

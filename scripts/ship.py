@@ -240,12 +240,12 @@ def cfworker_deploy(held):
 
 
 def cargo_plan(held):
-    pending = publish.pending(held["source"], version.marker(held["marker"]))
+    pending = publish.proven(held["source"], release(held))
     return decided(all(item["published"] for item in pending), {"packages": pending}, bool(pending))
 
 
 def cargo_publish(held):
-    bound = version.inject(held["source"], version.marker(held["marker"]))
+    bound = version.inject(held["source"], release(held))
     return publish.publish(held["source"], bound["version"])
 
 
@@ -275,8 +275,8 @@ ACTIONS = {
     "release-plan": (release_plan, ["repository", "marker", "commit", "wharf", "source"]),
     "release": (run_release, ["source", *PLANNED]),
     "cfworker-deploy": (cfworker_deploy, ["source", *PLANNED]),
-    "cargo-plan": (cargo_plan, ["source", "marker"]),
-    "cargo-publish": (cargo_publish, ["source", "marker"]),
+    "cargo-plan": (cargo_plan, ["source", *RELEASE]),
+    "cargo-publish": (cargo_publish, ["source", *RELEASE]),
     "step": (step, ["unit"]),
 }
 
