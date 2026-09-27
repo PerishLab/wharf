@@ -27,5 +27,14 @@
         "Windows:amd64"
       ]
     }
+  },
+  "placements": {
+    "deb": {
+      "key": "linux-x64-deb",
+      "target": "x86_64-unknown-linux-gnu",
+      "architecture": "amd64",
+      "format": "deb",
+      "mime": "application/vnd.debian.binary-package"
+    }
   }
 }

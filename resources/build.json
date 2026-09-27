@@ -5,5 +5,8 @@
     {"name": "linux", "target": "x86_64-unknown-linux-gnu", "runner": "ubuntu-24.04"},
     {"name": "windows", "target": "x86_64-pc-windows-msvc", "runner": "windows-2025"},
     {"name": "macos", "target": "aarch64-apple-darwin", "runner": "macos-15"}
-  ]
+  ],
+  "verify": {
+    "deb": {"image": "docker.io/library/ubuntu:24.04@sha256:496754492fb28b4d3049432f2ca787449331e23fb14f0dd3fffea86bf5a93eb4", "platform": "linux/amd64"}
+  }
 }

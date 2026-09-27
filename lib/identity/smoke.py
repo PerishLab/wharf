@@ -19,18 +19,26 @@ def surface(executable, argument, runner):
         raise Refusal(f"{executable.name} {argument} exited {failure.returncode}: {detail}")
 
 
-def smoke(artifact, output, expect, runner=run):
-    output = Path(output)
+def smoked(artifact, marker, runner):
     if not artifact.file.is_file():
         raise Refusal(f"{artifact.file} is missing")
-    if output.exists():
-        raise Refusal(f"output {output} already exists")
     artifact.file.chmod(0o755)
+    expect = f"{artifact.name} {marker}"
     results = {argument: surface(artifact.file, argument, runner) for argument in SURFACES}
     if results["--version"] != expect:
         raise Refusal(f"{artifact.file.name} --version reported {results['--version']!r}, expected {expect!r}")
+    return {"expect": expect, "file": artifact.file.name, "surfaces": results}
+
+
+def smoke(artifacts, output, marker, runner=run):
+    output = Path(output)
+    if output.exists():
+        raise Refusal(f"output {output} already exists")
+    if not artifacts:
+        raise Refusal("smoke runs at least one executable")
+    held = [smoked(artifact, marker, runner) for artifact in artifacts]
     output.mkdir(parents=True)
-    receipt = {"action": "ship.binary.smoke", "expect": expect, "file": artifact.file.name, "surfaces": results}
+    receipt = {"action": "ship.binary.smoke", "marker": marker, "binaries": held}
     (output / "receipt.json").write_text(json.dumps(receipt, indent=2, sort_keys=True) + "\n")
     return receipt
 

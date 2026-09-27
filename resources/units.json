@@ -1,5 +1,5 @@
 {
-  "layers": 3,
+  "layers": 4,
   "prepare": {
     "windows": ["autocrlf"]
   },
@@ -9,6 +9,8 @@
     "suite-node": {"action": "node-suite", "verb": "test", "object": "suite node", "prepare": ["node", "pnpm"]},
     "bind": {"action": "bind", "verb": "bind", "object": "binaries", "prepare": ["rcodesign"]},
     "smoke": {"action": "smoke", "verb": "smoke", "object": "binary", "per": "target"},
-    "validate": {"action": "validate", "verb": "validate", "object": "binary"}
+    "validate": {"action": "validate", "verb": "validate", "object": "binary"},
+    "deb": {"action": "deb", "verb": "build", "object": "deb"},
+    "verify-deb": {"action": "deb-verify", "verb": "verify", "object": "deb"}
   }
 }

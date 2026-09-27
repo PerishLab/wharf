@@ -42,17 +42,28 @@ def managers(stable):
 
 class Archive(unittest.TestCase):
     def test_tarball_is_deterministic_and_executable(self):
-        body = archive.tarball("plumb", b"elf")
-        self.assertEqual(body, archive.tarball("plumb", b"elf"))
+        body = archive.pack([("plumb", b"elf")], "tar.gz")
+        self.assertEqual(body, archive.pack([("plumb", b"elf")], "tar.gz"))
         with tarfile.open(fileobj=io.BytesIO(body)) as held:
             entry = held.getmember("plumb")
             self.assertEqual((entry.mode, entry.mtime, entry.uid), (0o755, 0, 0))
             self.assertEqual(held.extractfile(entry).read(), b"elf")
 
     def test_zipball_is_deterministic(self):
-        body = archive.zipball("plumb.exe", b"pe")
-        self.assertEqual(body, archive.zipball("plumb.exe", b"pe"))
+        body = archive.pack([("plumb.exe", b"pe")], "zip")
+        self.assertEqual(body, archive.pack([("plumb.exe", b"pe")], "zip"))
         self.assertEqual(zipfile.ZipFile(io.BytesIO(body)).read("plumb.exe"), b"pe")
+
+    def test_a_single_executable_archive_keeps_the_bytes_it_had_before_executables_were_listed(self):
+        self.assertEqual(hashlib.sha256(archive.pack([("plumb", b"elf")], "tar.gz")).hexdigest(), "2210b669cc6af7172625d305862b1bbc084875dc2d2610b17d79865e8d07f9ba")
+        self.assertEqual(hashlib.sha256(archive.pack([("plumb.exe", b"pe")], "zip")).hexdigest(), "4812aa85f7410317c073c871df39753d4006f68677cb776e6f9c72f5ec5353e1")
+
+    def test_an_archive_holds_every_member_it_is_handed_in_order(self):
+        with tarfile.open(fileobj=io.BytesIO(archive.pack([("santi", b"a"), ("santi-api", b"b")], "tar.gz"))) as held:
+            self.assertEqual(held.getnames(), ["santi", "santi-api"])
+        self.assertEqual(zipfile.ZipFile(io.BytesIO(archive.pack([("santi.exe", b"a"), ("santi-api.exe", b"b")], "zip"))).namelist(), ["santi.exe", "santi-api.exe"])
+        with self.assertRaisesRegex(Refusal, "distinct members"):
+            archive.pack([("santi", b"a"), ("santi", b"b")], "tar.gz")
 
 
 class Publish(unittest.TestCase):
@@ -71,7 +82,8 @@ class Publish(unittest.TestCase):
 
     def publish(self, marker, held=None):
         held = managers(release.channel(marker) == "stable") if held is None else held
-        return release.publish(release.Release("PerishLab/plumb", marker, "a" * 40, "b" * 40), release.Contents(self.bound, held), self.bucket, self.reader)
+        installed = {target: ["plumb"] for target in self.bound}
+        return release.publish(release.Release("PerishLab/plumb", marker, "a" * 40, "b" * 40), release.Contents(self.bound, held, installed, {}), self.bucket, self.reader)
 
     def point(self, marker, held=None):
         held = managers(release.channel(marker) == "stable") if held is None else held
@@ -186,7 +198,8 @@ class Render(unittest.TestCase):
     def render(self, repository, marker, targets=tuple(release.LAYOUT["targets"])):
         held = release.Release(repository, marker, "a" * 40, "b" * 40)
         out = self.root / marker
-        return release.render(held, out, list(targets)), out
+        installed = targets if isinstance(targets, dict) else {target: [repository.split("/")[1]] for target in targets}
+        return release.render(held, out, installed), out
 
     def test_a_prerelease_carries_the_pinned_scripts_alone(self):
         result, out = self.render("PerishLab/concord", "v0.12.9-rc.2")

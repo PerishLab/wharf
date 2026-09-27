@@ -3,7 +3,9 @@ import sys
 
 from lib import parameters
 from lib.cargo import basis
-from lib.content import implementation, marker, resources
+from lib.content import executables, implementation, marker, resources
+from lib.debian import package
+from lib.debian.version import debian
 from lib.media import cfworker, node, release
 from lib.process import git
 from lib.refusal import Refusal
@@ -12,6 +14,8 @@ from lib.store import plan, r2, workload
 BUILD = resources.read_json("build.json")
 UNITS = resources.read_json("units.json")
 RUNNER = BUILD["runner"]
+PRIMARY = next(target for target in BUILD["targets"] if target["name"] == BUILD["primary"])
+CARGO = (["lib.cargo.basis", "lib.cargo.build"], [])
 SINGLE = ("cfworker",)
 REPORTED = ("key", "decision", "presence")
 MEDIA = ("npm", "oci", "chart", "cargo", "release", "channel")
@@ -37,22 +41,43 @@ def decided(bucket, held, modules, entries):
     return {"key": key, "decision": "skip" if workload.reusable(bucket, key) else "run", **({"consumes": consumed} if consumed else {})}
 
 
+def declared(source, product):
+    union = release.targets(source)
+    if PRIMARY["target"] not in union:
+        raise Refusal(f"a released binary is validated on {PRIMARY['target']}, which plumb.toml does not declare")
+    listed = executables.declared(source, union)
+    primary = executables.primary(listed, product)
+    for name in (primary, *(executables.placed(source, kind, listed, product) for kind in ("deb", "oci"))):
+        if name is not None and name not in executables.built(listed, PRIMARY["target"]):
+            raise Refusal(f"{name} is validated or placed on {PRIMARY['target']}, which its targets leave out")
+    return listed
+
+
 def binaries(held, bucket, entries):
     identity = {field: held[field] for field in IDENTITY}
-    name = plan.product(identity)
-    cargo = (["lib.cargo.basis", "lib.cargo.build"], [])
-    declared = release.targets(held["source"])
-    primary = next(target["target"] for target in BUILD["targets"] if target["name"] == BUILD["primary"])
-    if primary not in declared:
-        raise Refusal(f"a released binary is validated on {primary}, which plumb.toml does not declare")
-    for target in (target for target in BUILD["targets"] if target["target"] in declared):
-        known = target["name"]
-        entries[f"dependencies-{known}"] = decided(bucket, basis.dependencies(held["source"], name, target["target"], target["runner"]), cargo, entries)
-        entries[f"binary-{known}"] = decided(bucket, basis.resolve(held["source"], name, target["target"], target["runner"]), cargo, entries)
+    listed = declared(held["source"], plan.product(identity))
+    for target in (target for target in BUILD["targets"] if target["target"] in release.targets(held["source"])):
+        known, names = target["name"], executables.built(listed, target["target"])
+        if not names:
+            raise Refusal(f"plumb.toml declares {target['target']} and no executable built for it")
+        entries[f"dependencies-{known}"] = decided(bucket, basis.dependencies(held["source"], names, target["target"], target["runner"]), CARGO, entries)
+        entries[f"binary-{known}"] = decided(bucket, basis.resolve(held["source"], names, target["target"], target["runner"]), CARGO, entries)
         bound = {"entry": {"kind": "binary-identity", "binary": entries[f"binary-{known}"]["key"]}, "identity": identity}
         entries[f"bind-{known}"] = decided(bucket, bound, (["lib.identity.bind"], ["identity/format.json"]), entries)
         smoked = {"entry": {"kind": "binary-smoke", "binary": entries[f"bind-{known}"]["key"]}}
         entries[f"smoke-{known}"] = decided(bucket, smoked, (["lib.identity.smoke"], []), entries)
+
+
+def placements(held, bucket, entries):
+    listed = executables.declared(held["source"], release.targets(held["source"]))
+    binary = executables.placed(held["source"], "deb", listed, plan.product(held))
+    if binary is None:
+        return
+    bound = entries[f"bind-{PRIMARY['name']}"]["key"]
+    built = package.basis(held["source"], package.declared(held["source"], binary), bound, debian(held["marker"]))
+    entries["deb"] = decided(bucket, built, (["lib.debian.package"], ["releases.json"]), entries)
+    verified = {"entry": {"kind": "deb-verify", "deb": entries["deb"]["key"]}}
+    entries["verify-deb"] = decided(bucket, verified, (["lib.debian.verify"], ["build.json"]), entries)
 
 
 def suites(held, bucket, entries):
@@ -79,8 +104,9 @@ def validation(bucket, entries):
     primary = entries[f"bind-{BUILD['primary']}"]["key"]
     held = {"entry": {"kind": "binary-validate", "binary": primary}}
     entries["validate"] = decided(bucket, held, (["lib.identity.smoke"], ["validators.json"]), entries)
-    if entries["release"]["decision"] == "skip":
-        entries["validate"]["decision"] = "skip"
+    for name in ("validate", "deb", "verify-deb"):
+        if name in entries and entries["release"]["decision"] == "skip":
+            entries[name]["decision"] = "skip"
 
 
 def reported(text):
@@ -136,6 +162,7 @@ def record(held):
     observed = reported(held["steps"])
     if release.carried(held["source"]):
         binaries(held, bucket, entries)
+        placements(held, bucket, entries)
     suites(held, bucket, entries)
     media(observed, entries)
     validation(bucket, entries)

@@ -279,6 +279,8 @@ class Validating(unittest.TestCase):
             Path(output).joinpath("receipt.json").write_text("{}")
 
         with mock.patch.object(ship.r2, "configured", return_value=bucket), mock.patch.object(ship, "configured", side_effect=configure):
-            self.assertEqual(ship.validate(dict(CONTEXT, planned="1"))["key"], key)
+            source = Path(tempfile.mkdtemp())
+            (source / "plumb.toml").write_text('[release]\nbinaries = ["plumb-api", "plumb"]\ntargets = ["x86_64-unknown-linux-gnu"]\n')
+            self.assertEqual(ship.validate(dict(CONTEXT, planned="1", source=str(source)))["key"], key)
         self.assertEqual(seen["file"], b"a bound executable")
         self.assertEqual(seen["release"], {"repository": CONTEXT["repository"], "marker": CONTEXT["marker"]})

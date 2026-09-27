@@ -2,6 +2,7 @@ from pathlib import Path
 
 from lib.cargo import lock, manifest, toolchain
 from lib.process import git
+from lib.refusal import Refusal
 
 CONFIG = ".cargo/config.toml"
 WIDENED = [
@@ -18,23 +19,26 @@ DEPENDED = [
 ]
 
 
-def reached(source, name):
+def reached(source, names):
     root = manifest.read(source, "Cargo.toml")
     workspace = manifest.members(source, root)
     manifest.unversioned(source, root, workspace)
-    package = manifest.owner(source, workspace, name)
-    return workspace, package, manifest.closure(source, workspace, package)
+    if not names:
+        raise Refusal("a build names at least one executable")
+    packages = list(dict.fromkeys(manifest.owner(source, workspace, name) for name in names))
+    members = sorted({member for package in packages for member in manifest.closure(source, workspace, package)})
+    return workspace, packages, members
 
 
 def configured(source):
     return {CONFIG: manifest.object_id(source, CONFIG)} if manifest.tracked(source, CONFIG) else {}
 
 
-def resolve(source, name, target, runner):
+def resolve(source, names, target, runner):
     source = Path(source)
-    workspace, package, members = reached(source, name)
+    workspace, packages, members = reached(source, names)
     return {
-        "entry": {"kind": "cargo-binary", "package": package, "binary": name, "target": target, "runner": runner},
+        "entry": {"kind": "cargo-binary", "packages": packages, "binaries": list(names), "target": target, "runner": runner},
         "toolchain": toolchain.declared(source),
         "manifest": {"Cargo.toml": manifest.object_id(source, "Cargo.toml")},
         "members": {workspace[member]: manifest.object_id(source, workspace[member]) for member in members},
@@ -44,11 +48,11 @@ def resolve(source, name, target, runner):
     }
 
 
-def dependencies(source, name, target, runner):
+def dependencies(source, names, target, runner):
     source = Path(source)
-    workspace, package, members = reached(source, name)
+    workspace, packages, members = reached(source, names)
     return {
-        "entry": {"kind": "cargo-dependencies", "package": package, "binary": name, "target": target, "runner": runner},
+        "entry": {"kind": "cargo-dependencies", "packages": packages, "binaries": list(names), "target": target, "runner": runner},
         "toolchain": toolchain.declared(source),
         "manifest": {"Cargo.toml": manifest.object_id(source, "Cargo.toml")},
         "members": {f"{workspace[member]}/Cargo.toml": manifest.object_id(source, f"{workspace[member]}/Cargo.toml") for member in members},

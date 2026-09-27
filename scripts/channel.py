@@ -4,6 +4,7 @@ import tempfile
 from pathlib import Path
 
 from lib import parameters
+from lib.content import executables
 from lib.media import release
 from lib.refusal import Refusal
 from lib.store import r2
@@ -26,11 +27,12 @@ def point(held):
     managers = Path(tempfile.mkdtemp()) / "managers"
     bucket = r2.writer(release.place(pointed)[1], "RELEASES")
     seal = json.loads(bucket.get(release.sealed(pointed)))
-    release.render(pointed, str(managers), release.sealed_targets(seal))
+    listed = executables.declared(held["source"], release.targets(held["source"]))
+    release.render(pointed, str(managers), {target: executables.installed(listed, target) for target in release.sealed_targets(seal)})
     return release.point(pointed, managers, bucket)
 
 
-ACTIONS = {"plan": (plan, ["repository", "marker", "source"]), "point": (point, ["repository", "marker", "wharf"])}
+ACTIONS = {"plan": (plan, ["repository", "marker", "source"]), "point": (point, ["repository", "marker", "wharf", "source"])}
 
 
 def main(argv=None):
