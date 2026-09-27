@@ -1,11 +1,12 @@
 import json
+import hashlib
 import os
 import tempfile
 import time
 from dataclasses import dataclass
 from pathlib import Path
 
-from lib.cargo import index, manifest, registry, toolchain
+from lib.cargo import index, manifest, registry, toolchain, version as binding
 from lib.content import declaration
 from lib.process import stream
 from lib.refusal import Conflict, Refusal
@@ -22,6 +23,12 @@ class Tools:
     reader: object = registry.fetch
     sleep: object = time.sleep
     store: object = r2.writer
+
+
+@dataclass(frozen=True)
+class Readers:
+    text: object = registry.fetch
+    binary: object = registry.fetch_bytes
 
 
 def publishable(source):
@@ -52,6 +59,23 @@ def pending(source, version, reader=registry.fetch):
     for package, name in publishable(source):
         location = registry.declared(source, name)
         held.append({"package": package, "registry": name, "published": registry.published(location, package, version, reader)})
+    return held
+
+
+def proven(source, release, readers=Readers()):
+    expected = binding.provenance(release)
+    version = binding.marker(release.marker)
+    held = pending(source, version, readers.text)
+    for item in (item for item in held if item["published"]):
+        location = registry.declared(source, item["registry"])
+        line = registry.record(location, item["package"], version, readers.text)
+        key = registry.download(location, line, readers.text)
+        blob = readers.binary(location + key)
+        if hashlib.sha256(blob).hexdigest() != line["cksum"]:
+            raise Refusal(f"published {item['package']} {version} disagrees with its cargo index checksum")
+        found = index.manifest(blob, item["package"], version).get("package", {}).get("metadata", {}).get("perish", {}).get("release")
+        if found != expected:
+            raise Refusal(f"published {item['package']} {version} carries different release metadata")
     return held
 
 
@@ -105,11 +129,31 @@ def placed(source, held, version, tools):
     visible(location, held["package"], version, tools)
 
 
+def existing(source, held, version, tools):
+    location = registry.declared(source, held["registry"])
+    line = registry.record(location, held["package"], version, tools.reader)
+    if line is None:
+        raise Refusal(f"{held['package']} {version} disappeared from the cargo index")
+    bucket = tools.store(registry.bucket(held["registry"]), ROLE)
+    key = registry.download(location, line, tools.reader)
+    try:
+        blob = bucket.get(key)
+    except KeyError as error:
+        raise Refusal(f"cargo index names missing crate {key}") from error
+    if hashlib.sha256(blob).hexdigest() != line["cksum"]:
+        raise Refusal(f"published {held['package']} {version} disagrees with its cargo index checksum")
+    found = index.manifest(blob, held["package"], version).get("package", {}).get("metadata", {}).get("perish", {}).get("release")
+    expected = binding.read(source, held["package"])
+    if found != expected:
+        raise Refusal(f"published {held['package']} {version} carries different release metadata")
+
+
 def publish(source, version, tools=Tools()):
     source = Path(source)
     results = []
     for held in pending(source, version, tools.reader):
         if held["published"]:
+            existing(source, held, version, tools)
             results.append({"package": held["package"], "state": "already-published"})
             continue
         placed(source, held, version, tools)
