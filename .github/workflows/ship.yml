@@ -169,6 +169,9 @@ jobs:
         include: ${{ fromJSON(needs.plan.outputs.layer-1) }}
     name: ${{ matrix.name }}
     runs-on: ${{ matrix.runner }}
+    permissions:
+      contents: read
+      packages: read
     timeout-minutes: 45
     defaults:
       run:
@@ -214,6 +217,7 @@ jobs:
           WHARF_PLANNED: ${{ needs.plan.outputs.planned }}
           WHARF_R2_ACCESS_KEY_ID: ${{ secrets.WHARF_R2_ACCESS_KEY_ID }}
           WHARF_R2_SECRET_ACCESS_KEY: ${{ secrets.WHARF_R2_SECRET_ACCESS_KEY }}
+          WHARF_PACKAGES_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: python3 -B -m scripts.ship step
 
   layer-2:
@@ -225,6 +229,9 @@ jobs:
         include: ${{ fromJSON(needs.plan.outputs.layer-2) }}
     name: ${{ matrix.name }}
     runs-on: ${{ matrix.runner }}
+    permissions:
+      contents: read
+      packages: read
     timeout-minutes: 45
     defaults:
       run:
@@ -270,6 +277,7 @@ jobs:
           WHARF_PLANNED: ${{ needs.plan.outputs.planned }}
           WHARF_R2_ACCESS_KEY_ID: ${{ secrets.WHARF_R2_ACCESS_KEY_ID }}
           WHARF_R2_SECRET_ACCESS_KEY: ${{ secrets.WHARF_R2_SECRET_ACCESS_KEY }}
+          WHARF_PACKAGES_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: python3 -B -m scripts.ship step
 
   layer-3:
@@ -281,6 +289,9 @@ jobs:
         include: ${{ fromJSON(needs.plan.outputs.layer-3) }}
     name: ${{ matrix.name }}
     runs-on: ${{ matrix.runner }}
+    permissions:
+      contents: read
+      packages: read
     timeout-minutes: 45
     defaults:
       run:
@@ -326,6 +337,7 @@ jobs:
           WHARF_PLANNED: ${{ needs.plan.outputs.planned }}
           WHARF_R2_ACCESS_KEY_ID: ${{ secrets.WHARF_R2_ACCESS_KEY_ID }}
           WHARF_R2_SECRET_ACCESS_KEY: ${{ secrets.WHARF_R2_SECRET_ACCESS_KEY }}
+          WHARF_PACKAGES_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: python3 -B -m scripts.ship step
 
   npm:
@@ -513,6 +525,9 @@ jobs:
     needs: [plan, layer-1, layer-2, layer-3]
     if: always() && needs.plan.result == 'success' && needs.plan.outputs.cfworker == 'run' && !contains(needs.*.result, 'failure') && !contains(needs.*.result, 'cancelled')
     runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      packages: read
     steps:
       - name: "[checkout] wharf"
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
@@ -550,6 +565,7 @@ jobs:
           CLOUDFLARE_API_TOKEN: ${{ secrets.WHARF_CLOUDFLARE_TOKEN }}
           WHARF_R2_ACCESS_KEY_ID: ${{ secrets.WHARF_R2_ACCESS_KEY_ID }}
           WHARF_R2_SECRET_ACCESS_KEY: ${{ secrets.WHARF_R2_SECRET_ACCESS_KEY }}
+          WHARF_PACKAGES_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: python3 -B -m scripts.ship cfworker-deploy
 
   cargo:
