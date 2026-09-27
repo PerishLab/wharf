@@ -140,7 +140,10 @@ jobs:
         id: cargo
         env:
           WHARF_SOURCE: ../product
+          WHARF_REPOSITORY: ${{ inputs.repository }}
           WHARF_MARKER: ${{ inputs.marker }}
+          WHARF_COMMIT: ${{ steps.source.outputs.commit }}
+          WHARF_TREE: ${{ steps.source.outputs.tree }}
         run: python3 -B -m scripts.ship cargo-plan
 
       - name: "[record] plan"
@@ -591,7 +594,10 @@ jobs:
       - name: "[publish] cargo"
         env:
           WHARF_SOURCE: ../product
+          WHARF_REPOSITORY: ${{ inputs.repository }}
           WHARF_MARKER: ${{ inputs.marker }}
+          WHARF_COMMIT: ${{ needs.plan.outputs.commit }}
+          WHARF_TREE: ${{ needs.plan.outputs.tree }}
           WHARF_CARGO_ACCESS_KEY_ID: ${{ secrets.WHARF_CARGO_ACCESS_KEY_ID }}
           WHARF_CARGO_SECRET_ACCESS_KEY: ${{ secrets.WHARF_CARGO_SECRET_ACCESS_KEY }}
         run: python3 -B -m scripts.ship cargo-publish
