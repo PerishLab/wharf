@@ -4,9 +4,11 @@ import re
 import subprocess
 import sys
 import tempfile
+import urllib.parse
 from dataclasses import dataclass
 from pathlib import Path
 
+from lib.content import resources
 from lib.process import git, run
 from lib.refusal import Refusal
 
@@ -15,6 +17,8 @@ EXACT = re.compile(r"\d+\.\d+\.\d+")
 TOOLS = ("node", "pnpm")
 TIMEOUT = 1800
 WIDENED = ["the whole repository tree, because the pnpm workspace resolves across packages"]
+READER = "WHARF_PACKAGES_TOKEN"
+REGISTRIES = resources.read_json("registries.json")["npm"]
 
 
 @dataclass(frozen=True)
@@ -62,6 +66,15 @@ def prepared(source, runner=run):
     return held
 
 
+def reading(directory, env):
+    if not env.get(READER):
+        return env
+    path = Path(directory) / "npmrc"
+    lines = [f"//{urllib.parse.urlsplit(location).netloc}/:_authToken=${{{READER}}}" for location in sorted(set(REGISTRIES.values()))]
+    path.write_text("\n".join(lines) + "\n")
+    return dict(env, NPM_CONFIG_USERCONFIG=str(path))
+
+
 def attempt(argv, cwd, env):
     try:
         done = subprocess.run(argv, cwd=cwd, env=env, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, timeout=TIMEOUT)
@@ -80,7 +93,8 @@ def suite(request, runner=run, execute=attempt):
     with tempfile.TemporaryDirectory() as home:
         env = dict(os.environ, HOME=home, CI="true")
         env.pop("NODE_AUTH_TOKEN", None)
-        execute(["pnpm", "install", "--frozen-lockfile"], request.source, env)
+        execute(["pnpm", "install", "--frozen-lockfile"], request.source, reading(home, env))
+        env.pop(READER, None)
         execute(["pnpm", "-r", "test"], request.source, env)
     request.output.mkdir(parents=True)
     receipt = {"action": "ship.node.suite", "toolchain": held, "commands": ["pnpm install --frozen-lockfile", "pnpm -r test"]}

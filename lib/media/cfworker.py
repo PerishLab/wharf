@@ -1,6 +1,7 @@
 import json
 import os
 import re
+import tempfile
 import urllib.request
 from dataclasses import dataclass
 from pathlib import Path
@@ -58,7 +59,8 @@ def deploy(request, runner=run, probe=answer):
     listed = workers(request.source)
     if not listed:
         raise Refusal(f"the product declares no {CONFIG}")
-    runner(["pnpm", "install", "--frozen-lockfile"], request.source)
+    with tempfile.TemporaryDirectory() as directory:
+        runner(["pnpm", "install", "--frozen-lockfile"], request.source, node.reading(directory, dict(os.environ)))
     results = []
     for worker in listed:
         runner(["pnpm", "--filter", worker["package"], "build"], request.source)

@@ -206,6 +206,12 @@ that keeps them.
   without persisting it. A public product the App is not installed on is read
   with the run's own token. This reads source and writes nothing, so it is not a
   bucket credential.
+- A job that installs a pnpm workspace — a layer unit and the worker deploy —
+  holds the run's own token with packages read alone, as `WHARF_PACKAGES_TOKEN`,
+  because GitHub Packages answers no anonymous install, not even of a public
+  package. It reaches `pnpm install` through a user npmrc that names it and is
+  gone before the product's tests run. It reads packages and writes nothing, so
+  it is not a bucket credential either.
 
 ## Release identity
 

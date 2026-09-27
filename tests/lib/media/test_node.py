@@ -1,5 +1,7 @@
 import json
+import os
 import unittest
+from unittest import mock
 from pathlib import Path
 
 from lib.media import node
@@ -46,6 +48,21 @@ class Suite(unittest.TestCase):
         self.assertEqual(receipt["toolchain"], {"node": "24.18.0", "pnpm": "11.13.0"})
         self.assertEqual([argv for argv, _ in calls], [["pnpm", "install", "--frozen-lockfile"], ["pnpm", "-r", "test"]])
         self.assertNotEqual(calls[0][1], str(Path.home()))
+
+    def test_install_alone_reads_the_registries_and_tests_hold_no_token(self):
+        repository = Repository()
+        calls = []
+        runner = lambda argv, cwd: {"node": "v24.18.0\n", "pnpm": "11.13.0\n"}[argv[0]]
+        def execute(argv, cwd, env):
+            config = env.get("NPM_CONFIG_USERCONFIG")
+            calls.append((argv, env.get(node.READER), config and Path(config).read_text()))
+        with mock.patch.dict(os.environ, {node.READER: "r"}):
+            node.suite(node.Suite(repository.root, repository.root / "out"), runner, execute)
+        (_, token, config), (_, tested, unconfigured) = calls
+        self.assertEqual(token, "r")
+        self.assertEqual(config, "//npm.pkg.github.com/:_authToken=${WHARF_PACKAGES_TOKEN}\n")
+        self.assertIsNone(tested)
+        self.assertIsNone(unconfigured)
 
     def test_refuses_a_different_prepared_toolchain(self):
         repository = Repository()
