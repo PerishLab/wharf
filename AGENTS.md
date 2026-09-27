@@ -125,7 +125,12 @@ exactly the packages `[release.npm]` lists, cargo exactly the crates
 oci an image only where `[release.oci]` is declared, each refusing a listed name its workspace does not answer
 or will not publish there; a package or crate it does not list is never published,
 and native files keep only the configuration their ecosystem reads, such as the
-`.npmrc` scope map and the cargo registry index. Channel decides for itself: it
+`.npmrc` scope map and the cargo registry index. Before npm publishes anything it
+packs every package it is about to publish and refuses them all if one names a
+file it does not carry — an entry in `exports`, `main`, `types`, `svelte` or
+`bin`, or a relative import inside a packed script — because a registry version
+cannot be taken back and a package that installs but does not resolve is worse
+than one that never went out. Channel decides for itself: it
 runs unless the pointer already names a newer marker, so a seal whose pointer
 never moved is pointed at by the next run instead of being skipped with it.
 Skipping is absence from a matrix, not a condition on a job that exists. A

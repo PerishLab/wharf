@@ -1,7 +1,9 @@
 import fnmatch
 import json
 import os
+import posixpath
 import re
+import tarfile
 import tempfile
 import urllib.error
 import urllib.parse
@@ -149,14 +151,80 @@ def publish(source, version, tools=Tools()):
         env = dict(os.environ, NPM_CONFIG_USERCONFIG=str(userconfig(directory, {item["registry"] for item in held})))
         if not all(item["published"] for item in held):
             tools.run(["pnpm", "install", "--frozen-lockfile"], source, env)
+        unpublished = [package for package in held if not package["published"]]
+        for package in unpublished:
+            stamp(source, package, version)
+        runner = lambda argv, cwd: tools.run(argv, cwd, env)
+        problems = [problem for package in unpublished for problem in vet(pack(source, package, directory, runner))]
+        if problems:
+            raise Refusal("packed packages do not hold what they name:\n" + "\n".join(problems))
         for package in held:
             if package["published"]:
                 results.append({"name": package["name"], "state": "already-published"})
                 continue
-            stamp(source, package, version)
             argv = ["pnpm", "publish", "--filter", package["name"], "--no-git-checks", "--tag", tag]
             tools.run(argv, source, env)
             if not published(package, version, reader):
                 raise Refusal(f"{package['name']}@{version} is not visible after publishing")
             results.append({"name": package["name"], "state": "published", "tag": tag})
     return {"version": version, "packages": results}
+
+
+SCRIPTS = (".js", ".mjs", ".cjs", ".ts", ".mts", ".cts", ".svelte")
+RELATIVE = re.compile(r"""(?:\bfrom\s*|\bimport\s*\(?\s*)["'](\.{1,2}/[^"']+)["']""")
+ENTRIES = ("exports", "main", "module", "types", "typings", "svelte", "bin")
+
+
+def pack(source, package, directory, runner):
+    held = Path(directory) / "packed" / package["name"].replace("/", "__")
+    held.mkdir(parents=True)
+    runner(["pnpm", "pack", "--pack-destination", str(held)], Path(source) / posix_parent(package["path"]))
+    found = sorted(held.glob("*.tgz"))
+    if len(found) != 1:
+        raise Refusal(f"packing {package['name']} left {len(found)} tarballs")
+    return found[0]
+
+
+def vet(tarball):
+    with tarfile.open(tarball) as held:
+        files = {member.name.split("/", 1)[1]: member for member in held.getmembers() if member.isfile() and "/" in member.name}
+        read = lambda name: held.extractfile(files[name]).read().decode("utf-8", "replace")
+        declared = json.loads(read("package.json"))
+        name = declared.get("name", tarball.name)
+        problems = [f"{name}: {field} names {target}, which the package does not carry" for field, target in targets(declared) if not carries(files, target)]
+        imports = [(path, specifier) for path in sorted(files) if path.endswith(SCRIPTS) for specifier in RELATIVE.findall(read(path))]
+    return problems + [f"{name}: {path} imports {specifier}, which the package does not carry" for path, specifier in imports if not resolves(files, path, specifier)]
+
+
+def targets(declared):
+    found = []
+    def walk(field, value):
+        if isinstance(value, str):
+            if value.startswith("./") or field in ("main", "module", "types", "typings", "svelte", "bin"):
+                found.append((field, value))
+        elif isinstance(value, dict):
+            for held in value.values():
+                walk(field, held)
+        elif isinstance(value, list):
+            for held in value:
+                walk(field, held)
+    for field in ENTRIES:
+        if field in declared:
+            walk(field, declared[field])
+    return found
+
+
+def carries(files, target):
+    path = posixpath.normpath(target)
+    if "*" in path:
+        prefix = path.split("*", 1)[0]
+        return any(name.startswith(prefix) for name in files)
+    return path in files or any(path + suffix in files for suffix in (".js", "/index.js"))
+
+
+def resolves(files, importer, specifier):
+    path = posixpath.normpath(posixpath.join(posixpath.dirname(importer), specifier))
+    candidates = [path, *(path + suffix for suffix in (".js", ".ts", ".svelte", "/index.js", "/index.ts"))]
+    if importer.endswith(".d.ts") and path.endswith(".js"):
+        candidates.append(path[:-3] + ".d.ts")
+    return any(candidate in files for candidate in candidates)
