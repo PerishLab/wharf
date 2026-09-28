@@ -1,4 +1,3 @@
-import subprocess
 import tempfile
 import textwrap
 import unittest
@@ -6,6 +5,7 @@ from pathlib import Path
 
 from lib.content import implementation
 from lib.cargo import basis
+from lib.process import git
 from lib.refusal import Refusal
 from lib.store import workload
 
@@ -95,7 +95,7 @@ class Repository:
         self.commit()
 
     def git(self, *args):
-        subprocess.run(["git", "-C", str(self.root), "-c", "user.name=t", "-c", "user.email=t@t", *args], check=True, capture_output=True)
+        git(self.root, "-c", "user.name=t", "-c", "user.email=t@t", *args)
 
     def write(self, path, body):
         target = self.root / path

@@ -9,6 +9,7 @@ from pathlib import Path
 from unittest import mock
 
 from lib.debian import package
+from lib.process import git
 from lib.refusal import Refusal
 from tests.lib.media.repository import Repository
 
@@ -88,7 +89,7 @@ class Built(unittest.TestCase):
     def test_building_twice_gives_the_same_bytes(self):
         first, one = self.build()
         clone = Path(tempfile.mkdtemp()) / "clone"
-        subprocess.run(["git", "clone", "-q", str(self.repository.root), str(clone)], check=True)
+        git(self.repository.root, "clone", "-q", ".", str(clone))
         second, two = self.build(clone)
         self.assertEqual(first["sha256"], second["sha256"])
         self.assertEqual((one / "santi-api_0.1.0~rc.2_amd64.deb").read_bytes(), (two / "santi-api_0.1.0~rc.2_amd64.deb").read_bytes())
