@@ -236,12 +236,14 @@ that keeps them.
   channel pointer names the marker that rendered them.
 - Each job holds the credentials of one bucket, and nothing in a run holds two.
 - A job reads the product through `.github/actions/product`. The Wharf GitHub
-  App (`WHARF_APP_CLIENT_ID`, `WHARF_APP_PRIVATE_KEY`) is installed only on the
-  private products wharf releases; the action mints a token scoped to the one
-  repository being released, contents read alone, for that job, and checks out
-  without persisting it. A public product the App is not installed on is read
-  with the run's own token. This reads source and writes nothing, so it is not a
-  bucket credential.
+  App (`WHARF_APP_CLIENT_ID`, `WHARF_APP_PRIVATE_KEY`) is installed on every
+  product wharf releases, public or private, and on nothing else. Its selected
+  repositories are the onboarding record beside that product's releases and
+  depot buckets. The action always mints a token scoped to the one repository
+  being released, contents read alone, for that job, and checks out without
+  persisting it. A mint failure stops the job because the product is not
+  onboarded or the App is broken. This reads source and writes nothing, so it
+  is not a bucket credential.
 - A job that installs a pnpm workspace — a layer unit and the worker deploy —
   holds the run's own token with packages read alone, as `WHARF_PACKAGES_TOKEN`,
   because GitHub Packages answers no anonymous install, not even of a public

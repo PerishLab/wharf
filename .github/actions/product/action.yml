@@ -1,5 +1,5 @@
 name: product
-description: Check out the product at its marker, reading a private repository through the Wharf App
+description: Check out the product at its marker through the Wharf App
 inputs:
   repository:
     description: The product repository, owner/name
@@ -28,9 +28,8 @@ runs:
         WHARF_REPOSITORY: ${{ inputs.repository }}
       run: python3 -B -m scripts.plan named
 
-    - name: Mint a token that reads this repository alone
+    - name: Mint a token for ${{ inputs.repository }}; a failure means the product may not be onboarded to the Wharf App
       id: token
-      continue-on-error: true
       uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1
       with:
         client-id: ${{ inputs.client-id }}
@@ -47,4 +46,4 @@ runs:
         path: product
         fetch-depth: ${{ inputs.fetch-depth }}
         persist-credentials: false
-        token: ${{ steps.token.outputs.token || github.token }}
+        token: ${{ steps.token.outputs.token }}
