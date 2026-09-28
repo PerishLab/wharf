@@ -236,6 +236,17 @@ that keeps them.
   release is immutable and a rerun is safe.
 - A seal is read back through the product's public authority after it is
   written, and a release that is not served as written refuses.
+- A seal of a product `resources/releases.json` names under `guard` — plumb
+  alone — carries `guard: {producer, depot}`, the authority its bound Linux
+  binary reports with `release authority --json`, run by `[publish] binaries`
+  in a clean home with no credential in its environment. It must hold exactly
+  those keys, a producer `<marker>@<commit>` naming this release's marker and
+  commit, and a depot of 64 lowercase hex, or the release refuses; so does a
+  binary that lacks the command. The binary is asked only when the seal is
+  about to be written, before any object is, so rerunning a release whose seal
+  exists answers already published without it. It is written on every channel, and only a
+  consumer holds it to stable. Any other product runs nothing and its seal
+  keeps its bytes, which a test pins.
 - Managers, seals and channel pointers are rendered by the run that publishes
   them; no product carries them in its source.
 - The canonical managers at the authority's root are written only when a stable

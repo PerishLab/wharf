@@ -32,6 +32,7 @@ class Contents:
     managers: Path
     installed: dict
     placed: dict
+    guard: object = None
 
 
 def place(release):
@@ -175,7 +176,7 @@ def generator(release):
 
 
 def seal(release, name, held, authority):
-    staged, pinned = held
+    staged, pinned, guard = held
     held = channel(release.marker)
     key = sealed(release)
     document = {
@@ -190,6 +191,8 @@ def seal(release, name, held, authority):
         "artifacts": {artifact: entry[2] for artifact, entry in sorted(staged.items())},
         "managers": {platform: entry[2] for platform, entry in sorted(pinned.items())},
     }
+    if guard is not None:
+        document["guard"] = guard
     return key, json.dumps(document, indent=2).encode()
 
 
@@ -259,11 +262,13 @@ def publish(release, contents, bucket, reader=fetch):
     pinned = scripts(contents.managers, authority, False)
     if channel(release.marker) == "stable" and not pinned:
         raise Refusal("a stable release carries its pinned manager scripts")
-    key, body = seal(release, name, (staged, pinned), authority)
+    key, body = seal(release, name, (staged, pinned, None), authority)
     if bucket.exists(key):
         if json.loads(bucket.get(key))["artifacts"] != json.loads(body)["artifacts"]:
             raise Refusal(f"{key} already holds different artifacts; a release is immutable")
         return {"seal": key, "state": "already-published"}
+    if contents.guard is not None:
+        key, body = seal(release, name, (staged, pinned, contents.guard()), authority)
     for object_key, object_body, entry in [*staged.values(), *pinned.values()]:
         try:
             bucket.create(object_key, object_body, {"Content-Type": entry["mime"]})
