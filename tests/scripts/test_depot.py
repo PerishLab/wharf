@@ -44,3 +44,9 @@ class Lodge(unittest.TestCase):
         with self.assertRaisesRegex(Refusal, "carries no SKILL.md"):
             self.lodged("v1.0.0", "skill", [entry("PATHS.md", b"# paths\n")])
         self.assertEqual(self.buckets.get("perish-demo-depot", Memory()).writes, [])
+
+    def test_a_skill_with_a_companion_writes_nothing_to_depot(self):
+        objects = [entry("SKILL.md", b"# demo\n"), entry("PATHS.md", b"# paths\n")]
+        with self.assertRaisesRegex(Refusal, "entries beside SKILL.md"):
+            self.lodged("v1.0.0", "skill", objects)
+        self.assertEqual(self.buckets.get("perish-demo-depot", Memory()).writes, [])

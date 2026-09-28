@@ -30,15 +30,28 @@ class Consigned(unittest.TestCase):
             (root / relative).write_text(body)
         return root
 
-    def test_a_skill_is_vetted_by_its_brief_alone(self):
-        held = self.copy({"SKILL.md": "# demo\n", "refs/a.md": "a\n"})
+    def test_a_skill_is_exactly_one_regular_brief(self):
+        held = self.copy({"SKILL.md": "# demo\n"})
         self.assertIn("SKILL.md of 7 bytes", consigned.skill(held))
 
-    def test_a_skill_without_a_brief_or_over_the_cap_refuses(self):
+    def test_a_skill_without_a_brief_with_companions_or_over_the_cap_refuses(self):
         with self.assertRaisesRegex(Refusal, "carries no SKILL.md"):
             consigned.skill(self.copy({"PATHS.md": "p\n"}))
+        with self.assertRaisesRegex(Refusal, "entries beside SKILL.md"):
+            consigned.skill(self.copy({"SKILL.md": "# demo\n", "refs/a.md": "a\n"}))
         with self.assertRaisesRegex(Refusal, "caps 3072"):
             consigned.skill(self.copy({"SKILL.md": "x" * 3073}))
+
+    def test_a_skill_refuses_a_linked_brief(self):
+        held = self.copy({})
+        descriptor, name = tempfile.mkstemp()
+        os.close(descriptor)
+        target = Path(name)
+        target.write_text("# demo\n")
+        (held / "SKILL.md").symlink_to(target)
+        self.addCleanup(target.unlink)
+        with self.assertRaisesRegex(Refusal, "not a regular file"):
+            consigned.skill(held)
 
     def test_changelog_notes_pass_only_when_plumb_proves_them(self):
         with mock.patch.dict(os.environ, fake(0)):
