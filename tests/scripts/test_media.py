@@ -40,7 +40,7 @@ class Imaged(unittest.TestCase):
         seen = {}
 
         def pushed(image):
-            seen.update(binary=Path(image.binary).read_bytes(), name=image.name, reference=image.reference)
+            seen.update(binary=Path(image.binary).read_bytes(), name=image.name, reference=image.reference, marker=image.marker)
             return {"state": "published"}
 
         with mock.patch.object(media.r2, "configured", return_value=bucket), mock.patch.object(media.oci, "publish", side_effect=pushed):
@@ -51,6 +51,7 @@ class Imaged(unittest.TestCase):
         seen = self.publish(f'[release]\nbinaries = ["ensign", "ensign-api"]\ntargets = ["{LINUX}"]\n[release.oci]\nbinary = "ensign-api"\n')
         self.assertEqual((seen["name"], seen["binary"]), ("ensign-api", b"ensign-api"))
         self.assertEqual(seen["reference"], "ghcr.io/perishlab/ensign:0.4.0")
+        self.assertEqual(seen["marker"], "v0.4.0")
 
     def test_an_image_naming_none_carries_the_primary(self):
         seen = self.publish(f'[release]\nbinaries = ["ensign-api", "ensign"]\ntargets = ["{LINUX}"]\n[release.oci]\n')

@@ -153,7 +153,10 @@ platform archive holds that platform's installed executables and the managers
 install exactly those; one not installed still builds, binds and smokes, and
 reaches people only through a placement. A placement names the executable it
 carries, else the one named like the product, else the first: `[release.oci]`
-builds its image from it, and `[release.deb]` packs it at
+builds its image from it and runs the image with `--version`, entrypoint kept,
+refusing before the push unless it reports `<executable> <marker>`; the Linux
+binary is built on `ubuntu-24.04`, so an image base must provide at least its
+glibc, 2.39. `[release.deb]` packs it at
 `/usr/bin/<executable>` with its declared root into
 `<Package>_<Version>_amd64.deb`, named after the executable. wharf owns that package's `Version`
 (`vX.Y.Z-rc.N` is `X.Y.Z~rc.N`), `Architecture` and `conffiles`, which list

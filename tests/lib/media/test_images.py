@@ -1,5 +1,7 @@
+import subprocess
 import unittest
 from pathlib import Path
+from unittest import mock
 
 from lib.media import chart, oci
 from lib.refusal import Refusal
@@ -31,6 +33,50 @@ class Oci(unittest.TestCase):
         repository.commit()
         with self.assertRaises(Refusal):
             oci.context(repository.root, repository.root / "missing", "demo")
+
+
+class Smoked(unittest.TestCase):
+    def publish(self, answer):
+        repository = Repository(IMAGE)
+        binary = repository.root / "built"
+        binary.write_bytes(b"elf")
+        request = oci.Image(repository.root, binary, "demo", "ghcr.io/perishlab/demo:0.4.0-rc.1", "v0.4.0-rc.1")
+        commands = []
+
+        def runner(argv, cwd):
+            commands.append(argv[:2])
+            if argv[:2] == ["docker", "run"]:
+                self.assertEqual(argv[2:], ["--rm", "--platform", "linux/amd64", request.reference, "--version"])
+                return answer()
+            return '["ghcr.io/perishlab/demo@sha256:0"]' if argv[:3] == ["docker", "image", "inspect"] else ""
+
+        with mock.patch.object(oci, "exists", side_effect=[False, True]):
+            try:
+                return oci.publish(request, runner), commands
+            except Refusal as refusal:
+                return refusal, commands
+
+    def test_pushes_only_after_the_image_reports_its_marker(self):
+        result, commands = self.publish(lambda: "demo v0.4.0-rc.1\n")
+        self.assertEqual(result["state"], "published")
+        self.assertEqual(commands, [["docker", "build"], ["docker", "run"], ["docker", "push"], ["docker", "image"]])
+
+    def test_refuses_an_image_whose_executable_does_not_start(self):
+        def failed():
+            raise subprocess.CalledProcessError(1, "docker", "", "demo: version `GLIBC_2.39' not found")
+
+        result, commands = self.publish(failed)
+        self.assertIsInstance(result, Refusal)
+        self.assertIn("ghcr.io/perishlab/demo:0.4.0-rc.1 --version exited 1", str(result))
+        self.assertIn("GLIBC_2.39", str(result))
+        self.assertNotIn(["docker", "push"], commands)
+
+    def test_refuses_an_image_reporting_another_line(self):
+        result, commands = self.publish(lambda: "demo v0.3.0\n")
+        self.assertIsInstance(result, Refusal)
+        self.assertIn("ghcr.io/perishlab/demo:0.4.0-rc.1 --version reported 'demo v0.3.0'", str(result))
+        self.assertIn("expected 'demo v0.4.0-rc.1'", str(result))
+        self.assertNotIn(["docker", "push"], commands)
 
 
 class Chart(unittest.TestCase):
