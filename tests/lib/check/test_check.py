@@ -1,4 +1,3 @@
-import subprocess
 import tempfile
 import textwrap
 import unittest
@@ -25,7 +24,7 @@ class Repository(unittest.TestCase):
 class Violations(unittest.TestCase):
     def setUp(self):
         self.root = Path(tempfile.mkdtemp())
-        subprocess.run(["git", "init", "-q", str(self.root)], check=True)
+        git(self.root, "init", "-q")
         for name, body in {"AGENTS.md": "x\n", "CLAUDE.md": "@AGENTS.md\n", "LICENSE": "x\n"}.items():
             (self.root / name).write_text(body)
         (self.root / "lib").mkdir()

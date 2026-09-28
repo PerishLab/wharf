@@ -1,7 +1,8 @@
 import json
-import subprocess
 import tempfile
 from pathlib import Path
+
+from lib.process import git
 
 ROOT = {"name": "demo", "private": True, "engines": {"node": "24.18.0", "pnpm": "11.13.0"}}
 FILES = {
@@ -25,7 +26,7 @@ class Repository:
         self.commit()
 
     def git(self, *args):
-        subprocess.run(["git", "-C", str(self.root), "-c", "user.name=t", "-c", "user.email=t@t", *args], check=True, capture_output=True)
+        git(self.root, "-c", "user.name=t", "-c", "user.email=t@t", *args)
 
     def write(self, path, body):
         target = self.root / path
