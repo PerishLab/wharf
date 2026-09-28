@@ -114,7 +114,10 @@ so a seal says only that its binaries are published; how far the marker is
 distributed is the distribution record's to say. A product whose `plumb.toml`
 declares binaries builds, binds and releases them for exactly the targets its
 `[release].targets` lists, which must include the primary Linux target smoke
-and validation run on, and its managers offer only those; one that declares no binaries has none of that: no binary, bind, smoke, validate
+and validation run on, and its managers offer only those. The targets wharf
+releases are `x86_64-unknown-linux-gnu`, `aarch64-apple-darwin` and
+`x86_64-pc-windows-msvc`; plumb accepts exactly the same set, and a test on each
+side pins it, so the set changes in both together. A product that declares no binaries has none of that: no binary, bind, smoke, validate
 or deb entry, no seal and no channel pointer. Binaries and channel are recorded none,
 and the distribution record alone says the marker is distributed. Suites follow
 the source that is there: a tracked `Cargo.toml` plans the cargo suite and a
