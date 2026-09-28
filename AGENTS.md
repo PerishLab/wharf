@@ -8,7 +8,7 @@ the repository; `CLAUDE.md` only points here.
 
 | Path | Holds |
 | --- | --- |
-| `.github/workflows/` | orchestration, one workflow per distribution path |
+| `.github/workflows/` | orchestration, one workflow per distribution path, and `manager.yml`, which rehearses the Windows manager |
 | `.github/actions/` | composite actions, one directory each; `prepare` readies a machine for a layer unit |
 | `lib/` | every piece of shared logic, one module per function |
 | `scripts/` | thin entry points run as `python -m scripts.<name>` from the repository root |
@@ -203,13 +203,13 @@ and nothing else in the run holds both those and the workload bucket's.
 Every name a person reads on GitHub — a run's title, a job's, a step's — takes
 one form, `[<verb>] <object> [<qualifier>…]`, so the bracketed column says what
 happens and the rest says to what. A qualifier only tells instances of one kind
-apart: a target, a runner, a repository and marker, a Depot kind. A layer unit's
+apart: a target, a runner, a shell, a repository and marker, a Depot kind. A layer unit's
 name is rendered from the verb and object `resources/units.json` gives it.
 
 | | Within wharf |
 | --- | --- |
 | Verbs | ship, lodge, plan, build, test, bind, smoke, validate, publish, deploy, point, record, checkout, verify, identify, prepare, login, read, decide |
-| Objects | entries, binary, binaries, deb, suite, npm, oci, chart, cargo, cfworker, channel, distribution, plan, wharf, product, request, source, registry, engines, machine, autocrlf, node, pnpm, plumb, and the Depot kinds |
+| Objects | entries, binary, binaries, deb, suite, npm, oci, chart, cargo, cfworker, channel, distribution, plan, wharf, product, request, source, registry, engines, machine, autocrlf, node, pnpm, plumb, manager, and the Depot kinds |
 
 A name that cannot be written as one verb over one object marks a job doing two
 things; that is how writing the seal and moving the channel came apart.
@@ -299,6 +299,20 @@ read the channel pointer, the seal and the objects by the names
 generator a seal names covers the implementation and the resources it read, so
 a script rendered anywhere else would be published under a claim that does not
 reach it.
+
+The Windows manager is proven by running it, not by reading it. `manager.yml`
+runs `[test] manager windows` on `windows-2025`, once under `pwsh` and once
+under Windows PowerShell, whenever a change reaches the manager or what it
+reads, and on dispatch. It builds the fixture `resources/manager/` declares — a
+product `demo` with two installed executables and one `install = false` — as
+tiny executables that report `<executable> <marker>`, and publishes two stable
+markers with the same `render` and `publish` a release uses into a local
+directory. A loopback server stands in for the authority, naming itself in
+every JSON it serves where the seal names the real one. Through it the pinned
+managers install, reinstall, update, uninstall a version, and the canonical
+manager installs and uninstalls everything, each step checked against the
+exact files, versions and seats it must leave. It publishes nothing and holds
+no credential.
 
 ## Cargo
 
