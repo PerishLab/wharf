@@ -100,37 +100,48 @@ class Reported(unittest.TestCase):
 class Sealed(unittest.TestCase):
     def publish(self, published, contents, bucket):
         with mock.patch.object(release, "generator", lambda held: {"version": "wharf fixed"}):
-            release.publish(published, contents, bucket, lambda url: bucket.get(url.split(".perish.uk/", 1)[1]))
-        return bucket.get(release.sealed(published))
+            return release.publish(published, contents, bucket, lambda url: bucket.get(url.split(".perish.uk/", 1)[1]))
+
+    def contents(self, published, runner):
+        name = published.repository.split("/", 1)[1]
+        held = bound(name)
+        return release.Contents(held, managers(), {target: [name] for target in held}, {}, lambda: guard.reported(published, held, runner))
 
     def test_another_products_seal_keeps_its_bytes(self):
         santi = release.Release("PerishLab/santi", "v1.2.3-rc.1", COMMIT, "b" * 40)
-        held = bound("santi")
-        contents = release.Contents(held, managers(), {target: ["santi"] for target in held}, {}, guard.reported(santi, held, missing))
-        body = self.publish(santi, contents, Memory())
+        bucket = Memory()
+        self.publish(santi, self.contents(santi, missing), bucket)
+        body = bucket.get(release.sealed(santi))
         self.assertNotIn(b'"guard"', body)
         self.assertEqual(hashlib.sha256(body).hexdigest(), UNGUARDED)
 
     def test_plumbs_seal_carries_the_guard_and_is_read_back(self):
-        held = bound("plumb")
-        authority = guard.reported(plumb(), held, answering({"producer": f"v0.57.0@{COMMIT}", "depot": DEPOT}))
-        contents = release.Contents(held, managers(), {target: ["plumb"] for target in held}, {}, authority)
         bucket = Memory()
-        seal = json.loads(self.publish(plumb(), contents, bucket))
+        self.assertEqual(self.publish(plumb(), self.contents(plumb(), answering({"producer": f"v0.57.0@{COMMIT}", "depot": DEPOT})), bucket)["state"], "published")
+        seal = json.loads(bucket.get(release.sealed(plumb())))
         self.assertEqual(seal["guard"], {"producer": f"v0.57.0@{COMMIT}", "depot": DEPOT})
         self.assertEqual(seal["releaseVersion"], seal["guard"]["producer"].split("@")[0])
         self.assertEqual(seal["commit"], seal["guard"]["producer"].split("@")[1])
-        other = release.Contents(held, contents.managers, contents.installed, {}, {**authority, "depot": "f" * 64})
-        with self.assertRaisesRegex(Refusal, "immutable"):
-            self.publish(plumb(), other, bucket)
+
+    def test_a_refused_guard_writes_nothing(self):
+        bucket = Memory()
+        with self.assertRaisesRegex(Refusal, "release authority --json exited 2"):
+            self.publish(plumb(), self.contents(plumb(), missing), bucket)
+        self.assertEqual(bucket.writes, [])
+
+    def test_rerunning_a_published_release_does_not_ask_the_binary_again(self):
+        bucket = Memory()
+        contents = self.contents(plumb(), answering({"producer": f"v0.57.0@{COMMIT}", "depot": DEPOT}))
+        self.publish(plumb(), contents, bucket)
+        written = bucket.get(release.sealed(plumb()))
+        rerun = release.Contents(contents.bound, contents.managers, contents.installed, {}, lambda: guard.reported(plumb(), contents.bound, missing))
+        self.assertEqual(self.publish(plumb(), rerun, bucket)["state"], "already-published")
+        self.assertEqual(bucket.get(release.sealed(plumb())), written)
 
     def test_a_seal_that_is_not_served_as_written_refuses(self):
-        held = bound("plumb")
-        authority = {"producer": f"v0.57.0@{COMMIT}", "depot": DEPOT}
-        contents = release.Contents(held, managers(), {target: ["plumb"] for target in held}, {}, authority)
+        contents = self.contents(plumb(), answering({"producer": f"v0.57.0@{COMMIT}", "depot": DEPOT}))
         with self.assertRaisesRegex(Refusal, "does not serve the written seal"):
             release.publish(plumb(), contents, Memory(), lambda url: b"{}")
-
 
 if __name__ == "__main__":
     unittest.main()

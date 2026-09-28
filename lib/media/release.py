@@ -32,7 +32,7 @@ class Contents:
     managers: Path
     installed: dict
     placed: dict
-    guard: dict = None
+    guard: object = None
 
 
 def place(release):
@@ -262,12 +262,13 @@ def publish(release, contents, bucket, reader=fetch):
     pinned = scripts(contents.managers, authority, False)
     if channel(release.marker) == "stable" and not pinned:
         raise Refusal("a stable release carries its pinned manager scripts")
-    key, body = seal(release, name, (staged, pinned, contents.guard), authority)
+    key, body = seal(release, name, (staged, pinned, None), authority)
     if bucket.exists(key):
-        held = json.loads(bucket.get(key))
-        if held["artifacts"] != json.loads(body)["artifacts"] or held.get("guard") != contents.guard:
-            raise Refusal(f"{key} already holds different artifacts or guard authority; a release is immutable")
+        if json.loads(bucket.get(key))["artifacts"] != json.loads(body)["artifacts"]:
+            raise Refusal(f"{key} already holds different artifacts; a release is immutable")
         return {"seal": key, "state": "already-published"}
+    if contents.guard is not None:
+        key, body = seal(release, name, (staged, pinned, contents.guard()), authority)
     for object_key, object_body, entry in [*staged.values(), *pinned.values()]:
         try:
             bucket.create(object_key, object_body, {"Content-Type": entry["mime"]})

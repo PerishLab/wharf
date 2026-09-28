@@ -241,7 +241,7 @@ def run_release(held):
     placed = placements(bucket, document, held["source"])
     managers = place()
     releasing.render(published, str(managers), installed)
-    contents = releasing.Contents(directories, managers, installed, placed, guard.reported(published, directories))
+    contents = releasing.Contents(directories, managers, installed, placed, lambda: guard.reported(published, directories))
     return releasing.publish(published, contents, r2.writer(releasing.place(published)[1], "RELEASES"))
 
 

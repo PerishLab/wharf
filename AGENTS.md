@@ -242,7 +242,9 @@ that keeps them.
   in a clean home with no credential in its environment. It must hold exactly
   those keys, a producer `<marker>@<commit>` naming this release's marker and
   commit, and a depot of 64 lowercase hex, or the release refuses; so does a
-  binary that lacks the command. It is written on every channel, and only a
+  binary that lacks the command. The binary is asked only when the seal is
+  about to be written, before any object is, so rerunning a release whose seal
+  exists answers already published without it. It is written on every channel, and only a
   consumer holds it to stable. Any other product runs nothing and its seal
   keeps its bytes, which a test pins.
 - Managers, seals and channel pointers are rendered by the run that publishes
