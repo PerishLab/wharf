@@ -20,6 +20,7 @@ class Image:
     binary: Path
     name: str
     reference: str
+    marker: str
 
 
 def reference(repository, version):
@@ -51,6 +52,18 @@ def context(source, binary, name):
     return directory
 
 
+def smoked(request, directory, runner):
+    expect = f"{request.name} {request.marker}"
+    try:
+        reported = runner(["docker", "run", "--rm", "--platform", PLATFORM, request.reference, "--version"], directory).strip()
+    except subprocess.CalledProcessError as failure:
+        detail = (failure.stderr or failure.stdout or "").strip()[:500]
+        raise Refusal(f"{request.reference} --version exited {failure.returncode}: {detail}")
+    if reported != expect:
+        raise Refusal(f"{request.reference} --version reported {reported[:500]!r}, expected {expect!r}")
+    return reported
+
+
 def publish(request, runner=run):
     image = request.reference
     if exists(image):
@@ -59,6 +72,7 @@ def publish(request, runner=run):
     try:
         version = image.rsplit(":", 1)[1]
         runner(["docker", "build", "--pull", "--platform", PLATFORM, "-f", CONTAINERFILE, "-t", image, "--label", f"org.opencontainers.image.version={version}", "."], directory)
+        smoked(request, directory, runner)
         runner(["docker", "push", image], directory)
         digests = json.loads(runner(["docker", "image", "inspect", "--format", "{{json .RepoDigests}}", image], directory))
     finally:

@@ -60,7 +60,7 @@ def oci_publish(held):
     workload.fetch(bucket, document["entries"][f"bind-{primary['name']}"]["key"], str(directory))
     artifact = bind.Artifact(directory, binary, primary["target"])
     image = oci.reference(held["repository"], version.marker(held["marker"]))
-    return oci.publish(oci.Image(Path(held["source"]), artifact.file, binary, image))
+    return oci.publish(oci.Image(Path(held["source"]), artifact.file, binary, image, held["marker"]))
 
 
 def release_plan(held):
