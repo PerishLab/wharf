@@ -2,6 +2,17 @@
   "bucket": "perish-{name}-releases",
   "authority": "https://releases.{name}.perish.uk",
   "writer": "https://github.com/PerishLab/wharf",
+  "guard": {
+    "repositories": [
+      "PerishLab/plumb"
+    ],
+    "target": "x86_64-unknown-linux-gnu",
+    "command": [
+      "release",
+      "authority",
+      "--json"
+    ]
+  },
   "targets": {
     "x86_64-unknown-linux-gnu": {
       "key": "linux-x64",

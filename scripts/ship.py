@@ -8,7 +8,7 @@ from lib.content import executables, implementation, resources
 from lib.cargo import basis, build, suite
 from lib.debian import package, verify
 from lib.debian.version import debian
-from lib.identity import bind
+from lib.identity import bind, guard
 from lib.refusal import Refusal
 from lib.identity.smoke import configured, smoke
 from lib.media import cfworker, node, release as releasing
@@ -241,7 +241,7 @@ def run_release(held):
     placed = placements(bucket, document, held["source"])
     managers = place()
     releasing.render(published, str(managers), installed)
-    contents = releasing.Contents(directories, managers, installed, placed)
+    contents = releasing.Contents(directories, managers, installed, placed, guard.reported(published, directories))
     return releasing.publish(published, contents, r2.writer(releasing.place(published)[1], "RELEASES"))
 
 
