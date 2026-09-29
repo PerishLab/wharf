@@ -61,3 +61,19 @@ class Imaged(unittest.TestCase):
         body = f'[release]\nbinaries = ["ensign", "ensign-api"]\ntargets = ["{LINUX}", "aarch64-apple-darwin"]\n[release.binary.ensign-api]\ntargets = ["aarch64-apple-darwin"]\n[release.oci]\nbinary = "ensign-api"\n'
         with self.assertRaisesRegex(Refusal, "not built for"):
             self.publish(body)
+
+    def test_an_attachment_only_image_fetches_no_binary(self):
+        source = Path(tempfile.mkdtemp())
+        (source / "plumb.toml").write_text('[release.oci]\nregistry = "ghcr.io"\nimage = "perishlab/images"\naccount = "PerishLab"\n')
+        bucket = Memory()
+        context = dict(CONTEXT, repository="PerishLab/images")
+        plan.record(bucket, dict(context, commit="a" * 40, tree="d" * 40), {"oci": {"decision": "run"}}, {})
+        seen = {}
+
+        def pushed(image):
+            seen.update(source=image.source, reference=image.reference)
+            return {"state": "published"}
+
+        with mock.patch.object(media.r2, "configured", return_value=bucket), mock.patch.object(media.oci, "publish_source", side_effect=pushed):
+            media.oci_publish(dict(context, planned="1", source=str(source)))
+        self.assertEqual(seen, {"source": source, "reference": "ghcr.io/perishlab/images:0.4.0"})

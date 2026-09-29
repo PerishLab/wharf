@@ -51,15 +51,17 @@ def oci_publish(held):
     bucket = r2.configured()
     document = plan.read(bucket, dict({field: held[field] for field in CONTEXT}, attempt=held["planned"]))
     plan.planned(document, "oci")
-    primary = next(target for target in BUILD["targets"] if target["name"] == BUILD["primary"])
     listed = executables.declared(held["source"], release.targets(held["source"]))
+    image = oci.reference(held["repository"], version.marker(held["marker"]))
+    if not listed:
+        return oci.publish_source(oci.SourceImage(Path(held["source"]), image))
+    primary = next(target for target in BUILD["targets"] if target["name"] == BUILD["primary"])
     binary = executables.placed(held["source"], "oci", listed, plan.product(document["context"]))
     if binary not in executables.built(listed, primary["target"]):
         raise Refusal(f"[release.oci] carries {binary}, which is not built for {primary['target']}")
     directory = Path(tempfile.mkdtemp()) / "bound"
     workload.fetch(bucket, document["entries"][f"bind-{primary['name']}"]["key"], str(directory))
     artifact = bind.Artifact(directory, binary, primary["target"])
-    image = oci.reference(held["repository"], version.marker(held["marker"]))
     return oci.publish(oci.Image(Path(held["source"]), artifact.file, binary, image, held["marker"]))
 
 

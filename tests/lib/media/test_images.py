@@ -1,3 +1,4 @@
+import json
 import subprocess
 import unittest
 from pathlib import Path
@@ -26,6 +27,16 @@ class Oci(unittest.TestCase):
         binary.write_bytes(b"elf")
         directory = oci.context(repository.root, binary, "demo")
         self.assertEqual(sorted(path.name for path in Path(directory).iterdir()), ["Containerfile", "demo"])
+
+    def test_source_context_holds_every_tracked_file_and_no_untracked_file(self):
+        repository = Repository(IMAGE)
+        repository.write("untracked", "outside\n")
+        repository.write("Containerfile", "FROM changed\n")
+        directory = oci.source_context(repository.root)
+        self.assertTrue((directory / "Containerfile").is_file())
+        self.assertEqual((directory / "Containerfile").read_text(), "FROM scratch\nCOPY demo /demo\n")
+        self.assertTrue((directory / "packages/lib/package.json").is_file())
+        self.assertFalse((directory / "untracked").exists())
 
     def test_refuses_without_a_tracked_containerfile(self):
         repository = Repository(IMAGE)
@@ -78,6 +89,33 @@ class Smoked(unittest.TestCase):
         self.assertIn("expected 'demo v0.4.0-rc.1'", str(result))
         self.assertNotIn(["docker", "push"], commands)
 
+
+class PublishedSource(unittest.TestCase):
+    def test_source_image_builds_without_running_an_executable_and_proves_its_public_digest(self):
+        repository = Repository(IMAGE)
+        request = oci.SourceImage(repository.root, "ghcr.io/perishlab/demo:0.4.0")
+        commands = []
+
+        def runner(argv, cwd):
+            commands.append(argv[:2])
+            if argv[:3] == ["docker", "image", "inspect"]:
+                return '["ghcr.io/perishlab/demo@sha256:' + "0" * 64 + '"]'
+            return ""
+
+        with mock.patch.object(oci, "exists", return_value=False), mock.patch.object(oci, "public_digest", return_value="sha256:" + "0" * 64):
+            result = oci.publish_source(request, runner)
+        self.assertEqual(result["digests"], ["ghcr.io/perishlab/demo@sha256:" + "0" * 64])
+        self.assertEqual(commands, [["docker", "build"], ["docker", "push"], ["docker", "image"]])
+
+    def test_public_digest_uses_an_empty_docker_configuration(self):
+        seen = {}
+
+        def runner(argv, cwd):
+            seen.update(argv=argv, cwd=cwd)
+            return json.dumps("sha256:" + "1" * 64)
+
+        self.assertEqual(oci.public_digest("ghcr.io/perishlab/demo:0.4.0", runner), "sha256:" + "1" * 64)
+        self.assertEqual(seen["argv"][:4], ["docker", "--config", str(seen["cwd"]), "buildx"])
 
 class Chart(unittest.TestCase):
     def test_lists_the_declared_chart_alone(self):

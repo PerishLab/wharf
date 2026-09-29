@@ -118,8 +118,10 @@ and validation run on, and its managers offer only those. The targets wharf
 releases are `x86_64-unknown-linux-gnu`, `aarch64-apple-darwin` and
 `x86_64-pc-windows-msvc`; plumb accepts exactly the same set, and a test on each
 side pins it, so the set changes in both together. A product that declares no binaries has none of that: no binary, bind, smoke, validate
-or deb entry, no seal and no channel pointer. Binaries and channel are recorded none,
-and the distribution record alone says the marker is distributed. Suites follow
+or deb entry, no seal and no channel pointer. Its declared OCI attachment builds
+from the tracked source context and proves the public repository digest instead of
+inventing an executable. Binaries and channel are recorded none, and the
+distribution record alone says the marker is distributed. Suites follow
 the source that is there: a tracked `Cargo.toml` plans the cargo suite and a
 tracked root `package.json` the node suite, and neither is planned without it. The product's
 `plumb.toml` is likewise the one declaration of what else publishes: npm publishes
@@ -151,10 +153,13 @@ entry is named after an executable; each carries the product's identity
 prefix, is bound as the product, and smokes as `<executable> <marker>`. A
 platform archive holds that platform's installed executables and the managers
 install exactly those; one not installed still builds, binds and smokes, and
-reaches people only through a placement. A placement names the executable it
-carries, else the one named like the product, else the first: `[release.oci]`
-builds its image from it and runs the image with `--version`, entrypoint kept,
-refusing before the push unless it reports `<executable> <marker>`; the Linux
+reaches people only through a placement. A binary-backed placement names the
+executable it carries, else the one named like the product, else the first:
+`[release.oci]` builds its image from it and runs the image with `--version`,
+entrypoint kept, refusing before the push unless it reports `<executable>
+<marker>`; an attachment-only `[release.oci]` instead builds the committed
+source context and refuses unless an anonymous client resolves the pushed tag
+to the digest the local image reports. The Linux
 binary is built on `ubuntu-24.04`, so an image base must provide at least its
 glibc, 2.39. `[release.deb]` packs it at
 `/usr/bin/<executable>` with its declared root into
