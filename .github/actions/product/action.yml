@@ -28,7 +28,7 @@ runs:
         WHARF_REPOSITORY: ${{ inputs.repository }}
       run: python3 -B -m scripts.plan named
 
-    - name: Mint a token for ${{ inputs.repository }}; a failure means the product may not be onboarded to the Wharf App
+    - name: Mint a token for ${{ inputs.repository }}; a failure means the Wharf App is broken or the repository is outside the organization
       id: token
       uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1
       with:
