@@ -318,6 +318,11 @@ generator a seal names covers the implementation and the resources it read, so
 a script rendered anywhere else would be published under a claim that does not
 reach it.
 
+One product is named in the templates. When the product is `plumb`, both
+managers run `plumb configuration install` after installing it, so a fresh
+Plumb projects its configuration at once; Plumb declares the same step on its
+side. No other product is special-cased.
+
 The Windows manager is proven by running it, not by reading it. `manager.yml`
 runs `[test] manager windows` on `windows-2025`, once under `pwsh` and once
 under Windows PowerShell, whenever a change reaches the manager or what it
