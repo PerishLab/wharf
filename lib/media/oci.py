@@ -1,12 +1,14 @@
+import io
 import json
 import shutil
 import subprocess
+import tarfile
 import tempfile
 from dataclasses import dataclass
 from pathlib import Path
 
 from lib.content import declaration, resources
-from lib.process import git, run
+from lib.process import git, run, unanchored
 from lib.refusal import Refusal
 
 HOST = resources.read_json("registries.json")["oci"]["host"]
@@ -21,6 +23,12 @@ class Image:
     name: str
     reference: str
     marker: str
+
+
+@dataclass(frozen=True)
+class SourceImage:
+    source: Path
+    reference: str
 
 
 def reference(repository, version):
@@ -52,6 +60,39 @@ def context(source, binary, name):
     return directory
 
 
+def source_context(source):
+    if not carried(source):
+        raise Refusal("the product declares no image")
+    directory = Path(tempfile.mkdtemp())
+    archived = subprocess.run(
+        ["git", "-C", str(source), "archive", "--format=tar", "HEAD"],
+        capture_output=True,
+        env=unanchored(),
+    )
+    if archived.returncode != 0:
+        raise Refusal(f"git archive failed in {source}: {archived.stderr.decode().strip()}")
+    with tarfile.open(fileobj=io.BytesIO(archived.stdout)) as packed:
+        packed.extractall(directory, filter="data")
+    return directory
+
+
+def public_digest(reference, runner=run):
+    directory = Path(tempfile.mkdtemp())
+    try:
+        rendered = runner(
+            ["docker", "--config", str(directory), "buildx", "imagetools", "inspect", "--format", "{{json .Manifest.Digest}}", reference],
+            directory,
+        )
+        digest = json.loads(rendered)
+    except (json.JSONDecodeError, subprocess.CalledProcessError) as failure:
+        raise Refusal(f"{reference} is not anonymously readable by digest: {str(failure)[:500]}") from failure
+    finally:
+        shutil.rmtree(directory, ignore_errors=True)
+    if not isinstance(digest, str) or not digest.startswith("sha256:") or len(digest) != 71:
+        raise Refusal(f"{reference} reported invalid public digest {digest!r}")
+    return digest
+
+
 def smoked(request, directory, runner):
     expect = f"{request.name} {request.marker}"
     try:
@@ -80,3 +121,24 @@ def publish(request, runner=run):
     if not exists(image):
         raise Refusal(f"{image} is not visible after pushing")
     return {"image": image, "state": "published", "digests": digests}
+
+
+def publish_source(request, runner=run):
+    image = request.reference
+    repository = image.rsplit(":", 1)[0]
+    if exists(image):
+        digest = public_digest(image, runner)
+        return {"image": image, "state": "already-published", "digests": [f"{repository}@{digest}"]}
+    directory = source_context(request.source)
+    try:
+        version = image.rsplit(":", 1)[1]
+        runner(["docker", "build", "--pull", "--platform", PLATFORM, "-f", CONTAINERFILE, "-t", image, "--label", f"org.opencontainers.image.version={version}", "."], directory)
+        runner(["docker", "push", image], directory)
+        local = json.loads(runner(["docker", "image", "inspect", "--format", "{{json .RepoDigests}}", image], directory))
+        digest = public_digest(image, runner)
+    finally:
+        shutil.rmtree(directory, ignore_errors=True)
+    published = f"{repository}@{digest}"
+    if published not in local:
+        raise Refusal(f"{image} resolved to {published}, which the pushed image does not carry")
+    return {"image": image, "state": "published", "digests": [published]}

@@ -121,6 +121,25 @@ class Media(unittest.TestCase):
         with self.assertRaisesRegex(Refusal, "oci"):
             plan.media(observed, {})
 
+    def test_an_attachment_only_image_plans_no_binary_work(self):
+        source = product('[release.oci]\nregistry = "ghcr.io"\nimage = "perishlab/images"\naccount = "PerishLab"\n')
+        observed = {name: {"outputs": {"decision": "run" if name == "oci" else "skip", "presence": "present" if name == "oci" else "none"}} for name in plan.MEDIA}
+        held = {
+            "repository": "PerishLab/images",
+            "marker": "v0.2.0-rc.1",
+            "commit": "a" * 40,
+            "tree": "b" * 40,
+            "wharf": "c" * 40,
+            "run": "7",
+            "attempt": "1",
+            "source": source,
+            "steps": json.dumps(observed),
+        }
+        with mock.patch.object(plan.r2, "configured", return_value=Memory()), mock.patch.object(plan, "suites"), mock.patch.object(plan, "binaries") as binaries, mock.patch.object(plan.node, "carried", return_value=False), mock.patch.object(parameters, "answer"):
+            recorded = plan.record(held)
+        binaries.assert_not_called()
+        self.assertEqual(recorded["entry"], {name: "run" if name == "oci" else "skip" for name in sorted(plan.MEDIA)})
+
 
 def product(body):
     root = Path(tempfile.mkdtemp())
