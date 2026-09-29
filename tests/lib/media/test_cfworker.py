@@ -1,5 +1,7 @@
 import os
+import ssl
 import unittest
+import urllib.error
 from unittest import mock
 
 from lib.media import cfworker
@@ -44,3 +46,41 @@ class Worker(unittest.TestCase):
             cfworker.deploy(cfworker.Deploy(self.repository.root, self.repository.root / "a"), self.runner, lambda url: 200)
         with mock.patch.dict(os.environ, {cfworker.TOKEN: "t"}), self.assertRaises(Refusal):
             cfworker.deploy(cfworker.Deploy(self.repository.root, self.repository.root / "b"), self.runner, lambda url: 503)
+
+    def deployed(self, probe, sleeps):
+        with mock.patch.dict(os.environ, {cfworker.TOKEN: "t"}):
+            return cfworker.deploy(cfworker.Deploy(self.repository.root, self.repository.root / "out"), self.runner, probe, sleeps.append)
+
+    def test_waits_for_a_new_domain_to_resolve_and_serve_tls(self):
+        failures = iter([urllib.error.URLError("no address"), ssl.SSLError("handshake")])
+
+        def probe(url):
+            failure = next(failures, None)
+            if failure is not None:
+                raise failure
+            return 200
+
+        sleeps = []
+        receipt = self.deployed(probe, sleeps)
+        self.assertEqual(receipt["workers"], [{"name": "demo", "domains": {"demo.example": 200}}])
+        self.assertEqual(sleeps, [cfworker.PAUSE, cfworker.PAUSE])
+
+    def test_refuses_a_domain_that_never_becomes_reachable(self):
+        def probe(url):
+            raise urllib.error.URLError("no address")
+
+        sleeps = []
+        with self.assertRaisesRegex(Refusal, "stayed unreachable"):
+            self.deployed(probe, sleeps)
+        self.assertEqual(len(sleeps), cfworker.PATIENCE - 1)
+
+    def test_refuses_a_status_other_than_200_without_waiting(self):
+        sleeps = []
+        with self.assertRaisesRegex(Refusal, "answered"):
+            self.deployed(lambda url: 404, sleeps)
+        self.assertEqual(sleeps, [])
+
+    def test_answer_reports_an_http_error_status_instead_of_raising(self):
+        error = urllib.error.HTTPError("https://demo.example/", 503, "unavailable", {}, None)
+        with mock.patch("urllib.request.urlopen", side_effect=error):
+            self.assertEqual(cfworker.answer("https://demo.example/"), 503)

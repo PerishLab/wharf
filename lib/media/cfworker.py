@@ -2,6 +2,8 @@ import json
 import os
 import re
 import tempfile
+import time
+import urllib.error
 import urllib.request
 from dataclasses import dataclass
 from pathlib import Path
@@ -13,6 +15,8 @@ from lib.refusal import Refusal
 CONFIG = "wrangler.jsonc"
 TOKEN = "CLOUDFLARE_API_TOKEN"
 WIDENED = ["the whole repository tree, because the worker builds from the pnpm workspace"]
+PATIENCE = 40
+PAUSE = 15
 
 
 @dataclass(frozen=True)
@@ -45,11 +49,25 @@ def basis(source, runner):
 
 
 def answer(url):
-    with urllib.request.urlopen(urllib.request.Request(url, headers={"User-Agent": "wharf"}), timeout=30) as response:
-        return response.status
+    try:
+        with urllib.request.urlopen(urllib.request.Request(url, headers={"User-Agent": "wharf"}), timeout=30) as response:
+            return response.status
+    except urllib.error.HTTPError as error:
+        return error.code
 
 
-def deploy(request, runner=run, probe=answer):
+def reached(url, probe, sleep):
+    for attempt in range(PATIENCE):
+        try:
+            return probe(url)
+        except OSError as error:
+            last = error
+            if attempt + 1 < PATIENCE:
+                sleep(PAUSE)
+    raise Refusal(f"{url} stayed unreachable for {PATIENCE} attempts after deploying: {last}")
+
+
+def deploy(request, runner=run, probe=answer, sleep=time.sleep):
     request = Deploy(Path(request.source).resolve(), Path(request.output))
     if request.output.exists():
         raise Refusal(f"output {request.output} already exists")
@@ -65,10 +83,10 @@ def deploy(request, runner=run, probe=answer):
     for worker in listed:
         runner(["pnpm", "--filter", worker["package"], "build"], request.source)
         runner(["pnpm", "exec", "wrangler", "deploy"], request.source / worker["directory"])
-        reached = {domain: probe(f"https://{domain}/") for domain in worker["domains"]}
-        if any(status != 200 for status in reached.values()):
-            raise Refusal(f"{worker['name']} answered {reached} after deploying")
-        results.append({"name": worker["name"], "domains": reached})
+        answered = {domain: reached(f"https://{domain}/", probe, sleep) for domain in worker["domains"]}
+        if any(status != 200 for status in answered.values()):
+            raise Refusal(f"{worker['name']} answered {answered} after deploying")
+        results.append({"name": worker["name"], "domains": answered})
     request.output.mkdir(parents=True)
     receipt = {"action": "ship.cfworker", "toolchain": held, "workers": results}
     (request.output / "receipt.json").write_text(json.dumps(receipt, indent=2, sort_keys=True) + "\n")
