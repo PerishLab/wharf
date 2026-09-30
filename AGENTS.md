@@ -192,6 +192,12 @@ A run is complete when every job succeeded or was skipped by plan, and that is
 what the distribution record carries; the run's own page keeps what each job
 did, so wharf writes no second record of its own.
 
+Tracked worker configurations under `[preview.app.<name>].path` are preview-only:
+ordinary worker discovery validates their declaration and excludes them from ship.
+A preview target must not share its account and Worker name with any other tracked
+configuration. Invalid or missing preview paths refuse before install or deployment.
+Preview execution is a separate path, never release distribution.
+
 How far a marker is distributed has one authority: `distribution.json` beside its
 seal on the product's release authority, at
 `v1/releases/<channel>/<marker>/distribution.json`. It records the marker's
