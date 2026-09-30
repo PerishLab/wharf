@@ -1,6 +1,7 @@
 import json
 import os
 import re
+import signal
 import subprocess
 import sys
 import tempfile
@@ -9,8 +10,10 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from lib.content import resources
+from lib.content.static import assets, evidence, source as static
 from lib.process import git, run
 from lib.refusal import Refusal
+from lib.store import handoff
 
 MANIFEST = "package.json"
 EXACT = re.compile(r"\d+\.\d+\.\d+")
@@ -100,3 +103,86 @@ def suite(request, runner=run, execute=attempt):
     receipt = {"action": "ship.node.suite", "toolchain": held, "commands": ["pnpm install --frozen-lockfile", "pnpm -r test"]}
     (request.output / "receipt.json").write_text(json.dumps(receipt, indent=2, sort_keys=True) + "\n")
     return receipt
+
+
+@dataclass(frozen=True)
+class Preview:
+    source: Path
+    output: Path
+    intent: dict
+    target: dict
+
+
+def preview_commands(held, execute, inspect):
+    root, tools, env, config = (held[key] for key in ("root", "tools", "env", "config"))
+    installation = reading(held["install"], dict(env))
+    if held.get("reader"):
+        installation[READER] = held["reader"]
+        installation = reading(held["install"], installation)
+    execute([tools["pnpm"]["path"], "install", "--frozen-lockfile", "--ignore-scripts", "--ignore-pnpmfile"], root, installation)
+    qualified = static.qualify(root, held["request"].intent, held["request"].target, env)
+    if qualified != config:
+        raise Refusal("static source changed during installation")
+    guarded = dict(env, PLUMB_GUARD_STRENGTH="full", PLUMB_GUARD_BOUNDARY="head")
+    body = inspect([tools["plumb"]["path"], "guard", "--json", str(root)], root, guarded)
+    proof = evidence.guard(body, held["request"].intent, tools["plumb"]["version"])
+    if Path(proof.get("root", "")).resolve() != root:
+        raise Refusal("static Guard observed a different source root")
+    evidence.unchanged(tools)
+    execute([tools["pnpm"]["path"], "--filter", config["package"]["name"], "run", "build"], root, env)
+    if static.qualify(root, held["request"].intent, held["request"].target, env) != config:
+        raise Refusal("static source changed during build")
+    evidence.unchanged(tools)
+    return proof
+
+
+def preview_build(request, execute=None, inspect=evidence.inspect, environ=os.environ):
+    execute = execute or preview_execute
+    root, destination = Path(request.source).resolve(), Path(request.output).resolve()
+    if destination.exists() or destination.is_relative_to(root):
+        raise Refusal("static build handoff must be an absent directory outside product source")
+    with tempfile.TemporaryDirectory() as home, tempfile.TemporaryDirectory() as installation:
+        env = evidence.clean(environ, home)
+        tools = evidence.tools(root, env, inspect)
+        config = static.qualify(root, request.intent, request.target, env)
+        static.fresh(root, env)
+        generated = static.output(root, config["directory"])
+        if generated.exists():
+            raise Refusal("static build assets directory already exists")
+        if static.git(root, ["check-ignore", "--", config["directory"] + "/"], env).rstrip("/") != config["directory"]:
+            raise Refusal("static assets directory must be ignored build output")
+        for name in TOOLS:
+            if tools[name]["version"].lstrip("v") != config["engines"][name]:
+                raise Refusal("static prepared Node/pnpm differs from the exact domain engines")
+        identity = handoff.world()
+        held = {"root": root, "tools": tools, "env": env, "config": config, "request": request, "install": installation, "reader": environ.get(READER)}
+        proof = preview_commands(held, execute, inspect)
+        if handoff.world() != identity:
+            raise Refusal("static build implementation changed during execution")
+        files = assets.collect(static.output(root, config["directory"]))
+        origin = dict(request.intent["source"], repository=request.intent["repository"])
+        receipt = {"schema": "wharf.preview.build/v1", "source": origin, "app": request.intent["app"], "guard": proof, "tools": tools, "implementation": identity}
+        return handoff.pack(destination, files, receipt)
+
+
+def preview_execute(argv, cwd, env):
+    if os.name != "posix":
+        raise Refusal("static build requires the dedicated POSIX runner")
+    process = None
+    try:
+        process = subprocess.Popen(argv, cwd=cwd, env=env, stdout=sys.stderr, stderr=subprocess.STDOUT, start_new_session=True)
+        if process.wait(timeout=TIMEOUT) != 0:
+            raise Refusal("static product command exited unsuccessfully")
+    except (OSError, subprocess.TimeoutExpired) as error:
+        raise Refusal("static product command refused or exceeded its execution budget") from error
+    finally:
+        preview_stop(process)
+
+
+def preview_stop(process):
+    if process is not None:
+        try:
+            os.killpg(process.pid, signal.SIGKILL)
+        except ProcessLookupError:
+            pass
+        process.wait()

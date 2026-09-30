@@ -211,6 +211,18 @@ it. A degraded upload preserves the last verified deployment as historical evide
 not as a claim about the latest URL. These modules do not build, upload, provision,
 prove content or delete provider objects; the dedicated workflow owns those actions.
 
+Static qualification and output validation live in `lib/content/static/`.
+`lib/media/node.py` builds only an exact clean checkout and registered static app,
+using prepared tools outside product source and an allowlisted child environment.
+Script-disabled installation alone may hold the package reader; full/head Guard
+and build hold neither that reader nor provider/storage credentials. Tool/source
+changes refuse. These child boundaries are not a filesystem sandbox: workflow
+integration must keep write credentials entirely outside the product build job.
+`lib/store/handoff.py` records vetted bytes, source manifest and fixed no-script,
+no-external-content/no-store headers as an immutable verified content workload.
+Its key binds exact source, Guard, tools and implementation, not environment names
+or request IDs. Reuse is content evidence, never deployment authorization.
+
 How far a marker is distributed has one authority: `distribution.json` beside its
 seal on the product's release authority, at
 `v1/releases/<channel>/<marker>/distribution.json`. It records the marker's
