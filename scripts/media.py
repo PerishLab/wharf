@@ -44,6 +44,8 @@ def oci_plan(held):
     if not oci.carried(held["source"]):
         return decided(True, {"image": None}, False)
     image = oci.reference(held["repository"], version.marker(held["marker"]))
+    if not executables.declared(held["source"], release.targets(held["source"])):
+        return decided(False, {"image": image})
     return decided(oci.exists(image), {"image": image})
 
 

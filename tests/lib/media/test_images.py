@@ -117,6 +117,28 @@ class PublishedSource(unittest.TestCase):
         self.assertEqual(oci.public_digest("ghcr.io/perishlab/demo:0.4.0", runner), "sha256:" + "1" * 64)
         self.assertEqual(seen["argv"][:4], ["docker", "--config", str(seen["cwd"]), "buildx"])
 
+    def test_an_existing_source_image_is_reused_only_after_its_public_digest_matches(self):
+        repository = Repository(IMAGE)
+        request = oci.SourceImage(repository.root, "ghcr.io/perishlab/demo:0.4.0")
+        digest = "sha256:" + "2" * 64
+        with mock.patch.object(oci, "exists", return_value=True), mock.patch.object(oci, "registry_digest", return_value=digest), mock.patch.object(oci, "public_digest", return_value=digest):
+            result = oci.publish_source(request)
+        self.assertEqual(result, {"image": request.reference, "state": "already-published", "digests": [f"ghcr.io/perishlab/demo@{digest}"]})
+
+    def test_an_existing_private_source_image_is_not_reused(self):
+        repository = Repository(IMAGE)
+        request = oci.SourceImage(repository.root, "ghcr.io/perishlab/demo:0.4.0")
+        with mock.patch.object(oci, "exists", return_value=True), mock.patch.object(oci, "registry_digest", return_value="sha256:" + "2" * 64), mock.patch.object(oci, "public_digest", side_effect=Refusal("not public")):
+            with self.assertRaisesRegex(Refusal, "not public"):
+                oci.publish_source(request)
+
+    def test_an_existing_source_image_with_another_public_digest_is_not_reused(self):
+        repository = Repository(IMAGE)
+        request = oci.SourceImage(repository.root, "ghcr.io/perishlab/demo:0.4.0")
+        with mock.patch.object(oci, "exists", return_value=True), mock.patch.object(oci, "registry_digest", return_value="sha256:" + "2" * 64), mock.patch.object(oci, "public_digest", return_value="sha256:" + "3" * 64):
+            with self.assertRaisesRegex(Refusal, "publicly resolved"):
+                oci.publish_source(request)
+
 class Chart(unittest.TestCase):
     def test_lists_the_declared_chart_alone(self):
         self.assertEqual(chart.charts(Repository().root), [])
