@@ -68,6 +68,14 @@ class Bucket:
             raise Refusal(f"GET {key} answered {status}")
         return body
 
+    def snapshot(self, key):
+        status, body, headers = self.request(Operation("GET", key))
+        if status == 404:
+            return None, None
+        if status != 200 or not headers.get("etag"):
+            raise Refusal(f"GET {key} cannot provide a versioned snapshot: {status}")
+        return body, headers["etag"]
+
     def create(self, key, body, headers=None):
         self.conditional(Operation("PUT", key, body, dict(headers or {}, **{"If-None-Match": "*"})))
 

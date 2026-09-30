@@ -198,6 +198,19 @@ A preview target must not share its account and Worker name with any other track
 configuration. Invalid or missing preview paths refuse before install or deployment.
 Preview execution is a separate path, never release distribution.
 
+Preview request, registration and result envelopes are explicit versioned contracts
+in `lib/content/preview.py`. Caller and workflow fields are observations, not
+authorization; trusted onboarding and the execution adapter must establish authority.
+`lib/store/preview.py` coordinates exact requests with versioned snapshots and
+conditional writes under `preview/v1/`, never the release namespace. Unknown
+operations retain their reservation without lease expiry or automatic takeover.
+Same-request readback is continuation evidence, never permission for a second
+provider write; the adapter must establish original-run quiescence before recovery.
+Discard advances the revision and retains a tombstone; an old apply cannot recreate
+it. A degraded upload preserves the last verified deployment as historical evidence,
+not as a claim about the latest URL. These modules do not build, upload, provision,
+prove content or delete provider objects; the dedicated workflow owns those actions.
+
 How far a marker is distributed has one authority: `distribution.json` beside its
 seal on the product's release authority, at
 `v1/releases/<channel>/<marker>/distribution.json`. It records the marker's
