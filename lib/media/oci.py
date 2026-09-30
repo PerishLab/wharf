@@ -93,6 +93,23 @@ def public_digest(reference, runner=run):
     return digest
 
 
+def registry_digest(reference, runner=run):
+    directory = Path(tempfile.mkdtemp())
+    try:
+        rendered = runner(
+            ["docker", "buildx", "imagetools", "inspect", "--format", "{{json .Manifest.Digest}}", reference],
+            directory,
+        )
+        digest = json.loads(rendered)
+    except (json.JSONDecodeError, subprocess.CalledProcessError) as failure:
+        raise Refusal(f"{reference} has no readable repository digest: {str(failure)[:500]}") from failure
+    finally:
+        shutil.rmtree(directory, ignore_errors=True)
+    if not isinstance(digest, str) or not digest.startswith("sha256:") or len(digest) != 71:
+        raise Refusal(f"{reference} reported invalid repository digest {digest!r}")
+    return digest
+
+
 def smoked(request, directory, runner):
     expect = f"{request.name} {request.marker}"
     try:
@@ -127,7 +144,10 @@ def publish_source(request, runner=run):
     image = request.reference
     repository = image.rsplit(":", 1)[0]
     if exists(image):
+        expected = registry_digest(image, runner)
         digest = public_digest(image, runner)
+        if digest != expected:
+            raise Refusal(f"{image} publicly resolved to {digest}, expected {expected}")
         return {"image": image, "state": "already-published", "digests": [f"{repository}@{digest}"]}
     directory = source_context(request.source)
     try:

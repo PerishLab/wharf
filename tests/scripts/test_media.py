@@ -9,6 +9,7 @@ from lib import parameters
 from lib.refusal import Refusal
 from lib.store import plan, workload
 from scripts import media
+from tests.lib.media.repository import Repository
 from tests.lib.store.memory import Memory
 
 CONTEXT = {"repository": "PerishLab/ensign", "marker": "v0.4.0", "wharf": "c" * 40, "run": "7", "attempt": "1"}
@@ -27,6 +28,13 @@ class Taken(unittest.TestCase):
 
 
 class Imaged(unittest.TestCase):
+    def test_an_existing_attachment_only_image_still_plans_public_validation(self):
+        repository = Repository({"plumb.toml": '[release.oci]\nregistry = "ghcr.io"\nimage = "perishlab/images"\naccount = "PerishLab"\n'})
+        held = {"source": str(repository.root), "repository": "PerishLab/images", "marker": "v0.2.0-rc.1"}
+        with mock.patch.object(media.oci, "exists", return_value=True), mock.patch.object(media.parameters, "answer", side_effect=lambda answer: answer):
+            planned = media.oci_plan(held)
+        self.assertEqual(planned, {"decision": "run", "presence": "present", "image": "ghcr.io/perishlab/images:0.2.0-rc.1"})
+
     def publish(self, body):
         source = Path(tempfile.mkdtemp())
         (source / "plumb.toml").write_text(body)
