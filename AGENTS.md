@@ -4,6 +4,9 @@ wharf is the distribution hub of perish.code. It sits above Plumb: it distribute
 Plumb, so Plumb does not govern it. This file is the only unstructured document in
 the repository; `CLAUDE.md` only points here.
 
+Read the canonical organization delivery policy in PerishLab/.github's
+`GOVERNANCE.md` before work and delivery; this file owns Wharf's exceptions.
+
 ## Shape
 
 | Path | Holds |
@@ -222,6 +225,19 @@ integration must keep write credentials entirely outside the product build job.
 no-external-content/no-store headers as an immutable verified content workload.
 Its key binds exact source, Guard, tools and implementation, not environment names
 or request IDs. Reuse is content evidence, never deployment authorization.
+
+`lib/content/static/runtime.py` owns the bounded local Preview guest primitive.
+Only disposable temporary product directories and separate read-only trusted
+controls are mounted. The public Images stable reference and offline profile
+live in `resources/build.json`; no host credentials, home or Docker socket enter
+the guest. Output is bounded and streamed. Every exit path reconciles only the
+invocation-labelled container, removes it and independently confirms absence;
+failed or unknown teardown admits no output. Client timeout is not cancellation.
+Stable is prepared first; the guest runs only its resolved digest, recorded in
+host-observed identity, never a guest-authored Guard proof.
+This primitive grants no source/target authority, package reader or publication.
+It does not yet wire the static builder or workflow; their integration must bind
+this runtime to content identity and retain the separate credential boundary.
 
 How far a marker is distributed has one authority: `distribution.json` beside its
 seal on the product's release authority, at

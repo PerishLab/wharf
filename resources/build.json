@@ -6,6 +6,16 @@
     {"name": "windows", "target": "x86_64-pc-windows-msvc", "runner": "windows-2025"},
     {"name": "macos", "target": "aarch64-apple-darwin", "runner": "macos-15"}
   ],
+  "preview": {
+    "image": "ghcr.io/perishlab/images:stable",
+    "platform": "linux/amd64",
+    "path": "/controls:/usr/local/cargo/bin:/usr/local/bin:/usr/bin:/bin",
+    "pids": 256,
+    "memory": 2147483648,
+    "cpus": 2,
+    "temporary": 268435456,
+    "timeout": 1800
+  },
   "verify": {
     "deb": {"image": "docker.io/library/ubuntu:24.04@sha256:496754492fb28b4d3049432f2ca787449331e23fb14f0dd3fffea86bf5a93eb4", "platform": "linux/amd64"}
   }
