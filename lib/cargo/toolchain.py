@@ -10,6 +10,7 @@ VARIABLE = "WHARF_DOMAIN"
 KEYS = ("node.version", "pnpm.version", "rust.version")
 EXACT = re.compile(r"\d+\.\d+\.\d+")
 PROFILE = "minimal"
+COMPONENTS = ["clippy", "rustfmt"]
 
 
 def checked(held):
@@ -46,7 +47,7 @@ def versions(env=None):
 
 
 def current():
-    return {"channel": versions()["rust.version"], "profile": PROFILE, "components": [], "targets": []}
+    return {"channel": versions()["rust.version"], "profile": PROFILE, "components": list(COMPONENTS), "targets": []}
 
 
 def install(declared, targets=()):
