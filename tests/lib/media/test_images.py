@@ -209,6 +209,12 @@ class Channel(unittest.TestCase):
             oci.advance(self.IMAGE, runner)
         self.assertEqual(self.created(commands), [])
 
+    def test_the_channel_is_read_and_verified_with_the_registry_login(self):
+        runner, commands, _ = self.registry("0.3.9")
+        oci.advance(self.IMAGE, runner)
+        self.assertTrue(commands)
+        self.assertFalse([argv for argv in commands if "--config" in argv], commands)
+
     def test_a_channel_without_a_release_version_refuses(self):
         runner, commands, _ = self.registry("latest")
         with self.assertRaisesRegex(Refusal, "no release version"):

@@ -178,7 +178,7 @@ def labelled(reference, runner=run):
     directory = Path(tempfile.mkdtemp())
     try:
         rendered = runner(
-            ["docker", "--config", str(directory), "buildx", "imagetools", "inspect", "--format", "{{json .Image}}", reference],
+            ["docker", "buildx", "imagetools", "inspect", "--format", "{{json .Image}}", reference],
             directory,
         )
     except subprocess.CalledProcessError as failure:
@@ -215,14 +215,14 @@ def advance(image, runner=run):
     if version is not None and marker.order(f"v{version}") > marker.order(held):
         return {"image": target, "state": "kept", "version": version}
     digest = registry_digest(image, runner)
-    if version is not None and f"v{version}" == held and public_digest(target, runner) == digest:
+    if version is not None and f"v{version}" == held and registry_digest(target, runner) == digest:
         return {"image": target, "state": "kept", "version": version}
     directory = Path(tempfile.mkdtemp())
     try:
         runner(["skopeo", "copy", "--preserve-digests", f"docker://{image.rsplit(':', 1)[0]}@{digest}", f"docker://{target}"], directory)
     finally:
         shutil.rmtree(directory, ignore_errors=True)
-    moved = public_digest(target, runner)
+    moved = registry_digest(target, runner)
     if moved != digest:
-        raise Refusal(f"{target} publicly resolved to {moved} after moving, expected {digest}")
+        raise Refusal(f"{target} resolved to {moved} after moving, expected {digest}")
     return {"image": target, "state": "advanced", "version": held.removeprefix("v"), "digest": digest}
