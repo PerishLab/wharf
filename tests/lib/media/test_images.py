@@ -149,8 +149,8 @@ class Channel(unittest.TestCase):
 
         def runner(argv, cwd):
             commands.append(argv)
-            if argv[3:5] == ["create", "--tag"]:
-                digests[argv[-2]] = argv[-1].rsplit("@", 1)[1]
+            if argv[:2] == ["skopeo", "copy"]:
+                digests[argv[-1].removeprefix("docker://")] = argv[-2].rsplit("@", 1)[1]
                 return ""
             reference = argv[-1]
             if argv[-2] == "{{json .Image}}":
@@ -162,7 +162,7 @@ class Channel(unittest.TestCase):
         return runner, commands, digests
 
     def created(self, commands):
-        return [argv for argv in commands if "create" in argv]
+        return [argv for argv in commands if argv[:2] == ["skopeo", "copy"]]
 
     def test_a_release_candidate_never_moves_the_channel(self):
         runner, commands, _ = self.registry()
@@ -176,7 +176,10 @@ class Channel(unittest.TestCase):
         result = oci.advance(self.IMAGE, runner)
         self.assertEqual(result["state"], "advanced")
         self.assertEqual(digests[self.TAG], "sha256:" + "4" * 64)
-        self.assertEqual(self.created(commands)[0][-3:], ["--tag", self.TAG, "ghcr.io/perishlab/demo@sha256:" + "4" * 64])
+        self.assertEqual(
+            self.created(commands)[0][2:],
+            ["--preserve-digests", "docker://ghcr.io/perishlab/demo@sha256:" + "4" * 64, f"docker://{self.TAG}"],
+        )
 
     def test_an_older_stable_on_the_channel_is_replaced(self):
         runner, commands, _ = self.registry("0.3.9")
