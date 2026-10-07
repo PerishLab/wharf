@@ -51,8 +51,9 @@ class Imaged(unittest.TestCase):
             seen.update(binary=Path(image.binary).read_bytes(), name=image.name, reference=image.reference, marker=image.marker)
             return {"state": "published"}
 
-        with mock.patch.object(media.r2, "configured", return_value=bucket), mock.patch.object(media.oci, "publish", side_effect=pushed):
+        with mock.patch.object(media.r2, "configured", return_value=bucket), mock.patch.object(media.oci, "publish", side_effect=pushed), mock.patch.object(media.oci, "advance", return_value=None) as advanced:
             media.oci_publish(dict(CONTEXT, planned="1", source=str(source)))
+        advanced.assert_called_once_with("ghcr.io/perishlab/ensign:0.4.0")
         return seen
 
     def test_the_image_carries_the_executable_it_names(self):
@@ -82,6 +83,7 @@ class Imaged(unittest.TestCase):
             seen.update(source=image.source, reference=image.reference)
             return {"state": "published"}
 
-        with mock.patch.object(media.r2, "configured", return_value=bucket), mock.patch.object(media.oci, "publish_source", side_effect=pushed):
-            media.oci_publish(dict(context, planned="1", source=str(source)))
+        with mock.patch.object(media.r2, "configured", return_value=bucket), mock.patch.object(media.oci, "publish_source", side_effect=pushed), mock.patch.object(media.oci, "advance", return_value={"state": "advanced"}):
+            published = media.oci_publish(dict(context, planned="1", source=str(source)))
         self.assertEqual(seen, {"source": source, "reference": "ghcr.io/perishlab/images:0.4.0"})
+        self.assertEqual(published["channel"], {"state": "advanced"})

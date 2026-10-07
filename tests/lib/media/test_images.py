@@ -139,6 +139,80 @@ class PublishedSource(unittest.TestCase):
             with self.assertRaisesRegex(Refusal, "publicly resolved"):
                 oci.publish_source(request)
 
+class Channel(unittest.TestCase):
+    IMAGE = "ghcr.io/perishlab/demo:0.4.0"
+    TAG = "ghcr.io/perishlab/demo:stable"
+
+    def registry(self, labelled=None, error=None, digests=None):
+        digests = dict({self.IMAGE: "sha256:" + "4" * 64}, **(digests or {}))
+        commands = []
+
+        def runner(argv, cwd):
+            commands.append(argv)
+            if argv[3:5] == ["create", "--tag"]:
+                digests[argv[-2]] = argv[-1].rsplit("@", 1)[1]
+                return ""
+            reference = argv[-1]
+            if argv[-2] == "{{json .Image}}":
+                if error or labelled is None:
+                    raise subprocess.CalledProcessError(1, argv, "", error or f"ERROR: {reference}: not found")
+                return json.dumps({"config": {"Labels": {oci.LABEL: labelled}}})
+            return json.dumps(digests[reference])
+
+        return runner, commands, digests
+
+    def created(self, commands):
+        return [argv for argv in commands if "create" in argv]
+
+    def test_a_release_candidate_never_moves_the_channel(self):
+        runner, commands, _ = self.registry()
+        self.assertIsNone(oci.advance("ghcr.io/perishlab/demo:0.4.0-rc.1", runner))
+        self.assertTrue(oci.current("ghcr.io/perishlab/demo:0.4.0-rc.1", runner))
+        self.assertEqual(commands, [])
+
+    def test_an_absent_channel_points_at_the_version_digest(self):
+        runner, commands, digests = self.registry()
+        self.assertFalse(oci.current(self.IMAGE, runner))
+        result = oci.advance(self.IMAGE, runner)
+        self.assertEqual(result["state"], "advanced")
+        self.assertEqual(digests[self.TAG], "sha256:" + "4" * 64)
+        self.assertEqual(self.created(commands)[0][-3:], ["--tag", self.TAG, "ghcr.io/perishlab/demo@sha256:" + "4" * 64])
+
+    def test_an_older_stable_on_the_channel_is_replaced(self):
+        runner, commands, _ = self.registry("0.3.9")
+        self.assertFalse(oci.current(self.IMAGE, runner))
+        self.assertEqual(oci.advance(self.IMAGE, runner)["state"], "advanced")
+        self.assertEqual(len(self.created(commands)), 1)
+
+    def test_a_later_stable_on_the_channel_is_kept(self):
+        runner, commands, _ = self.registry("0.4.1")
+        self.assertTrue(oci.current(self.IMAGE, runner))
+        self.assertEqual(oci.advance(self.IMAGE, runner), {"image": self.TAG, "state": "kept", "version": "0.4.1"})
+        self.assertEqual(self.created(commands), [])
+
+    def test_the_same_stable_on_the_same_digest_is_kept(self):
+        runner, commands, _ = self.registry("0.4.0", digests={self.TAG: "sha256:" + "4" * 64})
+        self.assertEqual(oci.advance(self.IMAGE, runner)["state"], "kept")
+        self.assertEqual(self.created(commands), [])
+
+    def test_the_same_stable_on_another_digest_is_repointed(self):
+        runner, commands, digests = self.registry("0.4.0", digests={self.TAG: "sha256:" + "5" * 64})
+        self.assertEqual(oci.advance(self.IMAGE, runner)["state"], "advanced")
+        self.assertEqual(digests[self.TAG], "sha256:" + "4" * 64)
+
+    def test_an_unreadable_channel_refuses_instead_of_moving(self):
+        runner, commands, _ = self.registry(error="ERROR: unexpected status 503")
+        with self.assertRaisesRegex(Refusal, "cannot be read"):
+            oci.advance(self.IMAGE, runner)
+        self.assertEqual(self.created(commands), [])
+
+    def test_a_channel_without_a_release_version_refuses(self):
+        runner, commands, _ = self.registry("latest")
+        with self.assertRaisesRegex(Refusal, "no release version"):
+            oci.advance(self.IMAGE, runner)
+        self.assertEqual(self.created(commands), [])
+
+
 class Chart(unittest.TestCase):
     def test_lists_the_declared_chart_alone(self):
         self.assertEqual(chart.charts(Repository().root), [])
