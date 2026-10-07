@@ -219,7 +219,7 @@ def advance(image, runner=run):
         return {"image": target, "state": "kept", "version": version}
     directory = Path(tempfile.mkdtemp())
     try:
-        runner(["docker", "buildx", "imagetools", "create", "--tag", target, f"{image.rsplit(':', 1)[0]}@{digest}"], directory)
+        runner(["skopeo", "copy", "--preserve-digests", f"docker://{image.rsplit(':', 1)[0]}@{digest}", f"docker://{target}"], directory)
     finally:
         shutil.rmtree(directory, ignore_errors=True)
     moved = public_digest(target, runner)
