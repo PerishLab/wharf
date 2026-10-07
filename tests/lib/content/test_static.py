@@ -3,9 +3,10 @@ import os
 import tempfile
 import unittest
 from pathlib import Path
+from unittest import mock
 
 from lib.content import canonical
-from lib.content.static import evidence, source
+from lib.content.static import evidence, runtime, source
 from lib.process import git
 from lib.refusal import Refusal
 from tests.lib.content.test_preview import intent, target
@@ -147,6 +148,130 @@ class GuardEvidence(unittest.TestCase):
         for body in ('{"a":1,"a":2}', 'x', ' ' * (evidence.LIMIT + 1)):
             with self.subTest(body=body[:20]), self.assertRaises(Refusal):
                 evidence.decode(body)
+
+
+class GuestEngine:
+    def __init__(self, guest, mode="success"):
+        self.guest, self.mode, self.owner = guest, mode, ""
+        self.identity, self.live, self.calls = "a" * 64, False, []
+        self.held = {}
+
+    def world(self):
+        return {"image": {"id": "sha256:" + "b" * 64, "resolved": "ghcr.io/perishlab/images@sha256:" + "b" * 64}}
+
+    def prepare(self):
+        return None
+
+    def __call__(self, arguments, streaming=False):
+        self.calls.append(arguments)
+        action = arguments[1]
+        if action == "create":
+            self.owner = arguments[arguments.index("--label") + 1].split("=")[1]
+            self.live = True
+            self.held = {"Id": self.identity, "Name": "/wharf-preview-" + self.owner, "Image": "sha256:" + "b" * 64,
+                         "State": {"Status": "exited", "Running": False, "ExitCode": 0, "OOMKilled": False},
+                         "Config": {"User": "1000:1000", "Entrypoint": ["/usr/bin/env"], "Labels": {runtime.LABEL: self.owner}, "Cmd": arguments[arguments.index("ghcr.io/perishlab/images@sha256:" + "b" * 64) + 1:]},
+                         "HostConfig": {"ReadonlyRootfs": True, "Privileged": False, "CapDrop": ["ALL"], "SecurityOpt": ["no-new-privileges"], "NetworkMode": "none", "PidsLimit": 256, "Memory": 2147483648, "MemorySwap": 2147483648, "NanoCpus": 2000000000,
+                                        "Tmpfs": {"/tmp": f'rw,nosuid,nodev,size={runtime.POLICY["temporary"]}'}},
+                         "Mounts": [{"Source": str(self.guest.source), "Destination": "/source", "RW": True, "Type": "bind"}, {"Source": str(self.guest.controls), "Destination": "/controls", "RW": False, "Type": "bind"}]}
+            if self.mode == "creation-loss":
+                raise Refusal("lost creation response")
+            if self.mode == "wrong-profile":
+                self.held["HostConfig"]["Privileged"] = True
+            if self.mode == "wrong-owner":
+                self.held["Name"] = "/another-invocation"
+            if self.mode == "still-running":
+                self.held["State"]["Running"] = True
+            return self.identity
+        if action == "inspect":
+            return json.dumps([self.held])
+        if action == "ls":
+            if self.mode == "readback-loss":
+                raise Refusal("engine unavailable")
+            return self.identity if self.live else ""
+        if action == "rm":
+            if self.mode != "retained":
+                self.live = False
+            return self.identity
+        if action == "start":
+            if self.mode == "command-failed":
+                raise Refusal("command failed")
+            return "selected output"
+        raise AssertionError(arguments)
+
+
+class GuestBoundary(unittest.TestCase):
+    def setUp(self):
+        self.seat = tempfile.TemporaryDirectory()
+        self.addCleanup(self.seat.cleanup)
+        root = Path(self.seat.name)
+        for name in ("source", "controls"):
+            (root / name).mkdir()
+        self.guest = runtime.Guest(root / "source", root / "controls", ["node", "build.mjs"], {"CI": "true"})
+
+    def test_fixed_profile_and_confirmed_teardown(self):
+        engine = GuestEngine(self.guest)
+        result = runtime.run(self.guest, engine)
+        self.assertEqual(result.stdout, "selected output")
+        self.assertFalse(engine.live)
+        self.assertEqual(engine.calls[-1][1], "ls")
+        arguments = engine.calls[0]
+        self.assertIn("--read-only", arguments)
+        self.assertIn("--pull", arguments)
+        self.assertIn("label=" + runtime.LABEL + "=" + engine.owner, engine.calls[-1])
+
+    def test_failure_loss_and_unknown_never_return_output(self):
+        for mode in ("creation-loss", "wrong-profile", "wrong-owner", "readback-loss", "retained", "command-failed", "still-running"):
+            engine = GuestEngine(self.guest, mode)
+            with self.subTest(mode=mode), self.assertRaises(Refusal):
+                runtime.run(self.guest, engine)
+            if mode in ("creation-loss", "wrong-profile", "command-failed"):
+                self.assertFalse(engine.live)
+            if mode == "wrong-owner":
+                self.assertFalse(any(call[1] == "rm" for call in engine.calls))
+
+    def test_unsafe_mounts_and_credentials_refuse_before_engine(self):
+        bad = [runtime.Guest(Path("/"), self.guest.controls, ["node"], {}),
+               runtime.Guest(self.guest.source, self.guest.source, ["node"], {}),
+               runtime.Guest(self.guest.source, self.guest.controls, ["node"], {"GH_TOKEN": "forbidden"}),
+               runtime.Guest(self.guest.source, self.guest.controls, ["node"], {"NODE_OPTIONS": "forbidden"})]
+        linked = Path(self.seat.name) / "linked"
+        linked.symlink_to(self.guest.source, target_is_directory=True)
+        bad.append(runtime.Guest(linked, self.guest.controls, ["node"], {}))
+        for guest in bad:
+            engine = GuestEngine(guest)
+            with self.subTest(guest=guest), self.assertRaises(Refusal):
+                runtime.run(guest, engine)
+            self.assertEqual(engine.calls, [])
+
+    def test_host_environment_is_not_inherited(self):
+        with mock.patch.dict(os.environ, GH_TOKEN="forbidden", DOCKER_HOST="tcp://forbidden:2375"), mock.patch.object(runtime.shutil, "which", return_value="/bin/true"):
+            engine = runtime.Engine(Path(self.seat.name))
+        self.assertEqual(set(engine.environment), {"PATH", "HOME"})
+
+    def test_world_drift_refuses_after_teardown(self):
+        engine = GuestEngine(self.guest)
+        with mock.patch.object(engine, "world", side_effect=[engine.world(), {"changed": True}]), self.assertRaises(Refusal):
+            runtime.run(self.guest, engine)
+        self.assertFalse(engine.live)
+
+    def test_image_and_engine_authority_refuse_unknown_worlds(self):
+        image = {"RepoTags": [runtime.POLICY["image"]], "RepoDigests": ["ghcr.io/perishlab/images@sha256:" + "b" * 64], "Id": "sha256:" + "b" * 64, "Os": "linux", "Architecture": "amd64"}
+        server = {"OSType": "linux", "SecurityOptions": ["name=seccomp,profile=builtin"]}
+        with mock.patch.object(runtime.shutil, "which", return_value="/bin/true"):
+            engine = runtime.Engine(Path(self.seat.name))
+        for changed in (dict(image, RepoDigests=[]), dict(image, Os="windows"), dict(image, Architecture="arm64")):
+            with mock.patch.object(runtime.Engine, "__call__", side_effect=[json.dumps([changed]), json.dumps(server)]), self.assertRaises(Refusal):
+                engine.world()
+        with mock.patch.object(runtime.Engine, "__call__", side_effect=[json.dumps([image]), json.dumps(dict(server, SecurityOptions=["name=seccomp,profile=unconfined"]))]), self.assertRaises(Refusal):
+            engine.world()
+
+    def test_real_bounded_stream_failure_and_timeout(self):
+        with mock.patch.object(runtime.sys, "stderr"):
+            self.assertEqual(runtime.attach(["/bin/sh", "-c", "printf selected"], {}, 2), "selected")
+            for command in ("exit 17", "sleep 2", "printf overflow"):
+                with mock.patch.object(evidence, "LIMIT", 4), self.subTest(command=command), self.assertRaises(Refusal):
+                    runtime.attach(["/bin/sh", "-c", command], {}, 0.05)
 
 
 if __name__ == "__main__":
