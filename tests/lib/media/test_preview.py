@@ -7,7 +7,7 @@ import unittest
 from pathlib import Path
 from unittest import mock
 
-from lib.content.static import evidence
+from lib.content.static import evidence, workspace
 from lib.media import node
 from lib.refusal import Refusal
 from lib.store import handoff
@@ -171,6 +171,80 @@ class CredentialBoundary(unittest.TestCase):
             node.preview_execute(command, directory, env)
             time.sleep(0.3)
             self.assertFalse((Path(directory) / "late-write").exists())
+
+
+class DisposableSource(unittest.TestCase):
+    def setUp(self):
+        self.repository = StaticRepository()
+        self.request = workspace.Source(self.repository.root, self.repository.request(), target())
+
+    def test_exact_independent_checkout_and_cleanup(self):
+        with workspace.prepare(self.request) as seat:
+            staged = seat.root
+            self.assertEqual(seat.configuration["digest"], self.request.intent["source"]["declaration"])
+            for name in ("package.json", ".git/HEAD"):
+                self.assertFalse(os.path.samefile(self.repository.root / name, staged / name))
+            objects = list((staged / ".git/objects").rglob("*.pack"))
+            self.assertTrue(objects)
+            self.assertTrue(all(path.stat().st_nlink == 1 for path in objects))
+            self.assertFalse((staged / ".git/objects/info/alternates").exists())
+            self.assertIn("https://github.com/PerishLab/crest.git", (staged / ".git/config").read_text())
+            self.assertNotIn(str(self.repository.root), (staged / ".git/config").read_text())
+        self.assertFalse(staged.exists())
+        self.assertTrue(self.repository.root.exists())
+
+    def test_local_config_hooks_and_host_environment_are_not_copied(self):
+        hook = self.repository.root / ".git/hooks/post-checkout"
+        hook.write_text("#!/bin/sh\ntouch should-not-run\n")
+        hook.chmod(0o755)
+        self.repository.git("config", "credential.helper", "forbidden")
+        self.repository.git("config", "core.fsmonitor", "forbidden")
+        with mock.patch.dict(os.environ, GH_TOKEN="forbidden", GIT_CONFIG_COUNT="999", PATH="/forbidden"):
+            with workspace.prepare(self.request) as seat:
+                self.assertFalse((seat.root / "should-not-run").exists())
+                self.assertFalse((seat.root / ".git/hooks/post-checkout").exists())
+                self.assertNotIn("forbidden", (seat.root / ".git/config").read_text())
+        env = workspace.environment("/tmp/home")
+        self.assertNotIn("GH_TOKEN", env)
+        self.assertEqual(env["PATH"], "/usr/bin:/bin")
+
+    def test_writes_and_git_changes_cannot_reach_original(self):
+        original = (self.repository.root / "package.json").read_bytes()
+        with workspace.prepare(self.request) as seat:
+            (seat.root / "package.json").write_text("changed")
+            (seat.root / ".git/HEAD").write_text("changed")
+        self.assertEqual((self.repository.root / "package.json").read_bytes(), original)
+        self.assertEqual(self.repository.request(), self.request.intent)
+
+    def test_dirty_ignored_and_stale_source_refuse(self):
+        for name in ("untracked", "node_modules/payload"):
+            with self.subTest(name=name):
+                self.repository.write(name, "unselected")
+                with self.assertRaises(Refusal), workspace.prepare(self.request):
+                    self.fail("unsafe source was admitted")
+                (self.repository.root / name).unlink()
+        self.repository.commit()
+        with self.assertRaises(Refusal), workspace.prepare(self.request):
+            self.fail("stale source was admitted")
+
+    def test_linked_or_relative_source_refuses(self):
+        with tempfile.TemporaryDirectory() as directory:
+            linked = Path(directory) / "source"
+            linked.symlink_to(self.repository.root, target_is_directory=True)
+            for root in (linked, Path("relative")):
+                with self.subTest(root=root), self.assertRaises(Refusal), workspace.prepare(workspace.Source(root, self.request.intent, self.request.target)):
+                    self.fail("unsafe source seat was admitted")
+
+    def test_preparation_error_and_caller_failure_remove_only_the_seat(self):
+        with self.assertRaises(RuntimeError):
+            with workspace.prepare(self.request) as seat:
+                root = seat.root
+                raise RuntimeError("caller failed")
+        self.assertFalse(root.exists())
+        self.assertTrue(self.repository.root.exists())
+        with mock.patch.object(workspace, "independent", side_effect=Refusal("uncertain storage")), self.assertRaises(Refusal):
+            with workspace.prepare(self.request):
+                self.fail("uncertain storage was admitted")
 
 
 if __name__ == "__main__":

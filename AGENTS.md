@@ -239,6 +239,14 @@ This primitive grants no source/target authority, package reader or publication.
 It does not yet wire the static builder or workflow; their integration must bind
 this runtime to content identity and retain the separate credential boundary.
 
+`lib/content/static/workspace.py` stages qualified exact source into a disposable
+independent Git checkout, never a writable mount of a canonical worktree.
+Prepared system Git uses an isolated home and fixed control configuration; source
+hooks, local configuration, ignored files and shared object storage are not copied.
+The supervisor must authenticate source acquisition first and confirm every guest
+is gone before closing this workspace lifetime. Staging alone proves neither
+Guard authority nor complete build isolation and does not limit history disk use.
+
 How far a marker is distributed has one authority: `distribution.json` beside its
 seal on the product's release authority, at
 `v1/releases/<channel>/<marker>/distribution.json`. It records the marker's
