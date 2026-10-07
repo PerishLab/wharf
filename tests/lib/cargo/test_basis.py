@@ -1,10 +1,13 @@
+import json
+import os
 import tempfile
 import textwrap
 import unittest
 from pathlib import Path
+from unittest import mock
 
 from lib.content import implementation
-from lib.cargo import basis
+from lib.cargo import basis, toolchain
 from lib.process import git
 from lib.refusal import Refusal
 from lib.store import workload
@@ -139,8 +142,13 @@ class Key(unittest.TestCase):
     def test_reached_source_changes_the_key(self):
         self.assertTrue(self.changed("crates/lib/src/lib.rs", "// lib", "pub fn f() {}"))
 
-    def test_toolchain_changes_the_key(self):
-        self.assertTrue(self.changed("rust-toolchain.toml", "1.96.1", "1.96.2"))
+    def test_the_domain_toolchain_changes_the_key(self):
+        domain = {"node.version": "24.18.0", "pnpm.version": "11.13.0", "rust.version": "1.96.2"}
+        with mock.patch.dict(os.environ, {toolchain.VARIABLE: json.dumps(domain)}):
+            self.assertNotEqual(self.repository.key(), self.base)
+
+    def test_a_product_toolchain_file_does_not_change_the_key(self):
+        self.assertFalse(self.changed("rust-toolchain.toml", "1.96.1", "1.96.2"))
 
     def test_reached_lock_entry_changes_the_key(self):
         self.assertTrue(self.changed("Cargo.lock", 'checksum = "aaaa"', 'checksum = "cccc"'))
@@ -164,10 +172,8 @@ class Key(unittest.TestCase):
         with self.assertRaises(Refusal):
             self.repository.key()
 
-    def test_refuses_a_floating_toolchain(self):
-        self.repository.edit("rust-toolchain.toml", '"1.96.1"', '"stable"')
-        self.repository.commit()
-        with self.assertRaises(Refusal):
+    def test_refuses_without_the_domain_versions(self):
+        with mock.patch.dict(os.environ, {toolchain.VARIABLE: ""}), self.assertRaises(Refusal):
             self.repository.key()
 
     def test_several_executables_reach_the_union_of_their_members(self):

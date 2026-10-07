@@ -60,7 +60,7 @@ def workers(source):
 def basis(source, runner):
     return {
         "entry": {"kind": "cfworker-deploy", "runner": runner, "workers": workers(source)},
-        "engines": node.declared(source),
+        "engines": node.expected(source),
         "tree": git(source, "rev-parse", "HEAD^{tree}"),
         "widened": WIDENED,
     }

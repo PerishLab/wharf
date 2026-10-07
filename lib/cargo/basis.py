@@ -39,7 +39,7 @@ def resolve(source, names, target, runner):
     workspace, packages, members = reached(source, names)
     return {
         "entry": {"kind": "cargo-binary", "packages": packages, "binaries": list(names), "target": target, "runner": runner},
-        "toolchain": toolchain.declared(source),
+        "toolchain": toolchain.current(),
         "manifest": {"Cargo.toml": manifest.object_id(source, "Cargo.toml")},
         "members": {workspace[member]: manifest.object_id(source, workspace[member]) for member in members},
         "lock": lock.closure(source, members),
@@ -53,7 +53,7 @@ def dependencies(source, names, target, runner):
     workspace, packages, members = reached(source, names)
     return {
         "entry": {"kind": "cargo-dependencies", "packages": packages, "binaries": list(names), "target": target, "runner": runner},
-        "toolchain": toolchain.declared(source),
+        "toolchain": toolchain.current(),
         "manifest": {"Cargo.toml": manifest.object_id(source, "Cargo.toml")},
         "members": {f"{workspace[member]}/Cargo.toml": manifest.object_id(source, f"{workspace[member]}/Cargo.toml") for member in members},
         "lock": lock.closure(source, members),
@@ -77,7 +77,7 @@ def suite(source, runner):
     manifest.unversioned(source, root, manifest.members(source, root))
     return {
         "entry": {"kind": "cargo-suite", "scope": "workspace", "runner": runner},
-        "toolchain": toolchain.declared(source),
+        "toolchain": toolchain.current(),
         "tree": git(source, "rev-parse", "HEAD^{tree}"),
         "widened": SUITE_WIDENED,
     }

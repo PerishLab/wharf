@@ -64,10 +64,9 @@ jobs:
       - name: "[prepare] plumb"
         working-directory: .
         run: |
-          curl -fsSLO https://releases.plumb.perish.uk/v1/objects/sha256/7605f9611a471e38b79cdc7704b9af4f5c04be013352ded585fa50e39e0c53e8/plumb-x86_64-unknown-linux-gnu.tar.gz
-          echo "7605f9611a471e38b79cdc7704b9af4f5c04be013352ded585fa50e39e0c53e8  plumb-x86_64-unknown-linux-gnu.tar.gz" | sha256sum -c -
-          tar xzf plumb-x86_64-unknown-linux-gnu.tar.gz
-          sudo install -m 0755 plumb /usr/local/bin/plumb
+          curl -fsSL https://releases.plumb.perish.uk/manage.sh -o "$RUNNER_TEMP/manage-plumb.sh"
+          env PLUMB_CHANNEL=stable PLUMB_VERSION= sh "$RUNNER_TEMP/manage-plumb.sh" install
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
 
       - name: "[lodge] ${{ inputs.kind }}"
         env:

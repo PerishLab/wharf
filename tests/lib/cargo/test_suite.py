@@ -39,7 +39,7 @@ class Runner:
         return self.code, self.log
 
     def tools(self):
-        return suite.Tools(run=self.run, attempt=self.attempt, toolchain=lambda source: {"channel": "1.96.1", "profile": "minimal", "components": ["clippy", "rustfmt"], "targets": []})
+        return suite.Tools(run=self.run, attempt=self.attempt, toolchain=lambda: {"channel": "1.96.1", "profile": "minimal", "components": ["clippy", "rustfmt"], "targets": []})
 
 
 class Suite(unittest.TestCase):

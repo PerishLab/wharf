@@ -40,7 +40,7 @@ class Build:
 class Tools:
     run: object = run
     stream: object = stream
-    toolchain: object = toolchain.declared
+    toolchain: object = toolchain.current
 
 
 def locked(source):
@@ -156,7 +156,7 @@ def build(request, tools=Tools()):
         raise Refusal("a build names at least one executable")
     if request.output.exists():
         raise Refusal(f"output {request.output} already exists")
-    declared = tools.toolchain(request.source)
+    declared = tools.toolchain()
     channel = declared["channel"]
     spans = [("toolchain", timed(tools.stream, toolchain.install(declared, [request.target]), request.source)[1])]
     env = environment(request, channel)

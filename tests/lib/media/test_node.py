@@ -10,13 +10,14 @@ from tests.lib.media.repository import ROOT, Repository
 
 
 class Engines(unittest.TestCase):
-    def test_reads_exact_engines(self):
-        self.assertEqual(node.declared(Repository().root), {"node": "24.18.0", "pnpm": "11.13.0"})
+    def test_expects_the_domain_versions_whatever_the_manifest_declares(self):
+        for root in (ROOT, {"name": "demo", "private": True}, dict(ROOT, engines={"node": ">=24"})):
+            with self.subTest(root):
+                self.assertEqual(node.expected(Repository({"package.json": json.dumps(root)}).root), {"node": "24.18.0", "pnpm": "11.13.0"})
 
-    def test_refuses_package_manager_and_ranges(self):
-        for root in (dict(ROOT, packageManager="pnpm@11.13.0"), dict(ROOT, engines={"node": ">=24", "pnpm": "11.13.0"}), dict(ROOT, engines={"node": "24.18.0"})):
-            with self.subTest(root), self.assertRaises(Refusal):
-                node.declared(Repository({"package.json": json.dumps(root)}).root)
+    def test_refuses_a_package_manager(self):
+        with self.assertRaisesRegex(Refusal, "packageManager"):
+            node.expected(Repository({"package.json": json.dumps(dict(ROOT, packageManager="pnpm@11.13.0"))}).root)
 
     def test_basis_follows_the_tree(self):
         repository = Repository()
@@ -36,7 +37,7 @@ class Carried(unittest.TestCase):
         repository.commit()
         self.assertFalse(node.carried(repository.root))
         with self.assertRaises(Refusal):
-            node.declared(repository.root)
+            node.expected(repository.root)
 
 
 class Suite(unittest.TestCase):
