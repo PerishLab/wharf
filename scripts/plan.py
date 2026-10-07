@@ -166,7 +166,7 @@ def record(held):
     suites(held, bucket, entries)
     media(observed, entries)
     validation(bucket, entries)
-    engines = node.declared(held["source"]) if node.carried(held["source"]) else {}
+    engines = node.expected(held["source"]) if node.carried(held["source"]) else {}
     recorded = plan.record(bucket, {field: held[field] for field in CONTEXT}, entries, engines)
     return dict(recorded, decided=emit(entries, held["attempt"]), entry={name: entries[name]["decision"] for name in sorted(entries)})
 

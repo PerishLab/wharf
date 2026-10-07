@@ -88,7 +88,7 @@ def visible(location, package, version, tools):
 
 
 def packaged(source, held, version, tools):
-    channel = toolchain.declared(source)["channel"]
+    channel = toolchain.current()["channel"]
     with tempfile.TemporaryDirectory() as directory:
         argv = ["cargo", "package", "--locked", "--no-verify", "--allow-dirty", "--registry", held["registry"], "--package", held["package"], "--target-dir", directory]
         tools.run(argv, source, dict(os.environ, RUSTUP_TOOLCHAIN=channel))

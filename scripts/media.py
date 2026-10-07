@@ -4,7 +4,7 @@ import tempfile
 from pathlib import Path
 
 from lib import parameters
-from lib.cargo import publish, version
+from lib.cargo import publish, toolchain, version
 from lib.content import executables, resources
 from lib.identity import bind
 from lib.media import chart, node, npm, oci, release
@@ -25,8 +25,12 @@ def decided(published, held, carried=True):
     return dict(parameters.answer({"decision": "skip" if published else "run", "presence": "present" if carried else "none"}), **held)
 
 
-def node_engines(held):
-    return parameters.answer(node.declared(held["source"]) if node.carried(held["source"]) else {})
+def engines(held):
+    versions = toolchain.resolve()
+    answered = {"domain": toolchain.encoded(versions)}
+    if node.carried(held["source"]):
+        answered.update(node=versions["node.version"], pnpm=versions["pnpm.version"])
+    return parameters.answer(answered)
 
 
 def npm_plan(held):
@@ -93,7 +97,7 @@ def cargo_publish(held):
 
 
 ACTIONS = {
-    "node-engines": (node_engines, ["source"]),
+    "engines": (engines, ["source"]),
     "npm-plan": (npm_plan, ["source", "marker"]),
     "npm-publish": (npm_publish, ["source", "marker"]),
     "oci-plan": (oci_plan, ["source", "repository", "marker"]),

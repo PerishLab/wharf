@@ -1,24 +1,52 @@
+import json
+import os
 import re
+import subprocess
 
-from lib.cargo.manifest import read, tracked
+from lib.process import run
 from lib.refusal import Refusal
 
-PATH = "rust-toolchain.toml"
+VARIABLE = "WHARF_DOMAIN"
+KEYS = ("node.version", "pnpm.version", "rust.version")
+EXACT = re.compile(r"\d+\.\d+\.\d+")
+PROFILE = "minimal"
 
 
-def declared(source):
-    if not tracked(source, PATH):
-        raise Refusal(f"the product must declare its Rust toolchain in {PATH}")
-    toolchain = read(source, PATH).get("toolchain", {})
-    channel = toolchain.get("channel", "")
-    if not re.fullmatch(r"\d+\.\d+\.\d+", channel):
-        raise Refusal(f"{PATH} channel {channel!r} must be an exact x.y.z version")
-    return {
-        "channel": channel,
-        "profile": toolchain.get("profile", "default"),
-        "components": sorted(toolchain.get("components", [])),
-        "targets": sorted(toolchain.get("targets", [])),
-    }
+def checked(held):
+    if not isinstance(held, dict):
+        raise Refusal("plumb metadata did not report an object of domain versions")
+    found = {key: held.get(key) for key in KEYS}
+    wrong = sorted(key for key, value in found.items() if not isinstance(value, str) or not EXACT.fullmatch(value))
+    if wrong:
+        raise Refusal(f"plumb metadata reports no exact x.y.z for {', '.join(wrong)}")
+    return found
+
+
+def resolve(runner=run):
+    try:
+        held = json.loads(runner(["plumb", "metadata", "--json"], "."))
+    except (OSError, subprocess.CalledProcessError, json.JSONDecodeError) as failure:
+        raise Refusal(f"plumb metadata could not be read: {failure}") from failure
+    return checked(held)
+
+
+def encoded(versions):
+    return json.dumps(versions, sort_keys=True, separators=(",", ":"))
+
+
+def versions(env=None):
+    text = (os.environ if env is None else env).get(VARIABLE, "")
+    if not text:
+        raise Refusal(f"{VARIABLE} is not set; the plan job resolves the domain versions from plumb metadata once per run")
+    try:
+        held = json.loads(text)
+    except json.JSONDecodeError as failure:
+        raise Refusal(f"{VARIABLE} is not JSON: {failure}") from failure
+    return checked(held)
+
+
+def current():
+    return {"channel": versions()["rust.version"], "profile": PROFILE, "components": [], "targets": []}
 
 
 def install(declared, targets=()):

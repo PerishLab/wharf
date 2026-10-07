@@ -42,6 +42,7 @@ jobs:
       layer-4: ${{ steps.plan.outputs.layer-4 }}
       node: ${{ steps.engines.outputs.node }}
       pnpm: ${{ steps.engines.outputs.pnpm }}
+      domain: ${{ steps.engines.outputs.domain }}
       cfworker: ${{ steps.plan.outputs.cfworker }}
       npm: ${{ steps.npm.outputs.decision }}
       oci: ${{ steps.oci.outputs.decision }}
@@ -89,11 +90,18 @@ jobs:
           printf '%s' "$TOKEN" | docker login ghcr.io --username "$ACTOR" --password-stdin
           printf '%s' "$TOKEN" | helm registry login ghcr.io --username "$ACTOR" --password-stdin
 
+      - name: "[prepare] plumb"
+        working-directory: .
+        run: |
+          curl -fsSL https://releases.plumb.perish.uk/manage.sh -o "$RUNNER_TEMP/manage-plumb.sh"
+          env PLUMB_CHANNEL=stable PLUMB_VERSION= sh "$RUNNER_TEMP/manage-plumb.sh" install
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+
       - name: "[read] engines"
         id: engines
         env:
           WHARF_SOURCE: ../product
-        run: python3 -B -m scripts.media node-engines
+        run: python3 -B -m scripts.media engines
 
       - name: "[decide] npm"
         id: npm
@@ -159,6 +167,7 @@ jobs:
           WHARF_RUN: ${{ github.run_id }}
           WHARF_ATTEMPT: ${{ github.run_attempt }}
           WHARF_STEPS: ${{ toJSON(steps) }}
+          WHARF_DOMAIN: ${{ steps.engines.outputs.domain }}
           WHARF_R2_ENDPOINT: ${{ vars.WHARF_R2_ENDPOINT }}
           WHARF_R2_ACCESS_KEY_ID: ${{ secrets.WHARF_R2_ACCESS_KEY_ID }}
           WHARF_R2_SECRET_ACCESS_KEY: ${{ secrets.WHARF_R2_SECRET_ACCESS_KEY }}
@@ -222,6 +231,7 @@ jobs:
           WHARF_R2_ACCESS_KEY_ID: ${{ secrets.WHARF_R2_ACCESS_KEY_ID }}
           WHARF_R2_SECRET_ACCESS_KEY: ${{ secrets.WHARF_R2_SECRET_ACCESS_KEY }}
           WHARF_PACKAGES_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          WHARF_DOMAIN: ${{ needs.plan.outputs.domain }}
         run: python3 -B -m scripts.ship step
 
   layer-2:
@@ -282,6 +292,7 @@ jobs:
           WHARF_R2_ACCESS_KEY_ID: ${{ secrets.WHARF_R2_ACCESS_KEY_ID }}
           WHARF_R2_SECRET_ACCESS_KEY: ${{ secrets.WHARF_R2_SECRET_ACCESS_KEY }}
           WHARF_PACKAGES_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          WHARF_DOMAIN: ${{ needs.plan.outputs.domain }}
         run: python3 -B -m scripts.ship step
 
   layer-3:
@@ -342,6 +353,7 @@ jobs:
           WHARF_R2_ACCESS_KEY_ID: ${{ secrets.WHARF_R2_ACCESS_KEY_ID }}
           WHARF_R2_SECRET_ACCESS_KEY: ${{ secrets.WHARF_R2_SECRET_ACCESS_KEY }}
           WHARF_PACKAGES_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          WHARF_DOMAIN: ${{ needs.plan.outputs.domain }}
         run: python3 -B -m scripts.ship step
 
   layer-4:
@@ -402,6 +414,7 @@ jobs:
           WHARF_R2_ACCESS_KEY_ID: ${{ secrets.WHARF_R2_ACCESS_KEY_ID }}
           WHARF_R2_SECRET_ACCESS_KEY: ${{ secrets.WHARF_R2_SECRET_ACCESS_KEY }}
           WHARF_PACKAGES_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          WHARF_DOMAIN: ${{ needs.plan.outputs.domain }}
         run: python3 -B -m scripts.ship step
 
   npm:
@@ -639,6 +652,7 @@ jobs:
           WHARF_R2_ACCESS_KEY_ID: ${{ secrets.WHARF_R2_ACCESS_KEY_ID }}
           WHARF_R2_SECRET_ACCESS_KEY: ${{ secrets.WHARF_R2_SECRET_ACCESS_KEY }}
           WHARF_PACKAGES_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          WHARF_DOMAIN: ${{ needs.plan.outputs.domain }}
         run: python3 -B -m scripts.ship cfworker-deploy
 
   cargo:
@@ -670,6 +684,7 @@ jobs:
           WHARF_TREE: ${{ needs.plan.outputs.tree }}
           WHARF_CARGO_ACCESS_KEY_ID: ${{ secrets.WHARF_CARGO_ACCESS_KEY_ID }}
           WHARF_CARGO_SECRET_ACCESS_KEY: ${{ secrets.WHARF_CARGO_SECRET_ACCESS_KEY }}
+          WHARF_DOMAIN: ${{ needs.plan.outputs.domain }}
         run: python3 -B -m scripts.media cargo-publish
 
   distribution:

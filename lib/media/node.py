@@ -1,6 +1,5 @@
 import json
 import os
-import re
 import signal
 import subprocess
 import sys
@@ -9,6 +8,7 @@ import urllib.parse
 from dataclasses import dataclass
 from pathlib import Path
 
+from lib.cargo import toolchain
 from lib.content import resources
 from lib.content.static import assets, evidence, source as static
 from lib.process import git, run
@@ -16,7 +16,6 @@ from lib.refusal import Refusal
 from lib.store import handoff
 
 MANIFEST = "package.json"
-EXACT = re.compile(r"\d+\.\d+\.\d+")
 TOOLS = ("node", "pnpm")
 TIMEOUT = 1800
 WIDENED = ["the whole repository tree, because the pnpm workspace resolves across packages"]
@@ -40,32 +39,27 @@ def manifest(source, path=MANIFEST):
     return json.loads((Path(source) / path).read_text())
 
 
-def declared(source):
-    root = manifest(source)
-    if "packageManager" in root:
-        raise Refusal("package.json must not declare packageManager; declare exact engines instead")
-    engines = root.get("engines", {})
-    found = {tool: engines.get(tool, "") for tool in TOOLS}
-    for tool, version in found.items():
-        if not EXACT.fullmatch(version):
-            raise Refusal(f"package.json engines.{tool} {version!r} must be an exact x.y.z version")
-    return found
+def expected(source):
+    if "packageManager" in manifest(source):
+        raise Refusal("package.json must not declare packageManager; Plumb carries the domain versions")
+    held = toolchain.versions()
+    return {tool: held[f"{tool}.version"] for tool in TOOLS}
 
 
 def basis(source, runner):
     return {
         "entry": {"kind": "node-suite", "scope": "workspace", "runner": runner},
-        "engines": declared(source),
+        "engines": expected(source),
         "tree": git(source, "rev-parse", "HEAD^{tree}"),
         "widened": WIDENED,
     }
 
 
 def prepared(source, runner=run):
-    expected = declared(source)
+    wanted = expected(source)
     held = {tool: runner([tool, "--version"], source).strip().lstrip("v") for tool in TOOLS}
-    if held != expected:
-        raise Refusal(f"prepared toolchain {held} differs from declared engines {expected}")
+    if held != wanted:
+        raise Refusal(f"prepared toolchain {held} differs from the domain versions {wanted}")
     return held
 
 

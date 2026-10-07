@@ -50,7 +50,7 @@ class Build(unittest.TestCase):
         self.output = root / "out"
 
     def build(self, cargo, target="x86_64-unknown-linux-gnu", product=("plumb", ("plumb",))):
-        tools = build.Tools(run=cargo, stream=cargo, toolchain=lambda source: {"channel": "1.96.1", "profile": "minimal", "components": ["clippy", "rustfmt"], "targets": []})
+        tools = build.Tools(run=cargo, stream=cargo, toolchain=lambda: {"channel": "1.96.1", "profile": "minimal", "components": ["clippy", "rustfmt"], "targets": []})
         self.reported = io.StringIO()
         with contextlib.redirect_stderr(self.reported):
             return build.build(build.Build(self.source, product[0], product[1], target, self.output), tools)

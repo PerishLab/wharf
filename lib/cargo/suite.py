@@ -35,7 +35,7 @@ def attempt(argv, cwd, env):
 class Tools:
     run: object = run
     attempt: object = attempt
-    toolchain: object = toolchain.declared
+    toolchain: object = toolchain.current
 
 
 def isolated(channel, home, target):
@@ -81,7 +81,7 @@ def suite(request, tools=Tools()):
     request = Suite(Path(request.source).resolve(), Path(request.output))
     if request.output.exists():
         raise Refusal(f"output {request.output} already exists")
-    declared = tools.toolchain(request.source)
+    declared = tools.toolchain()
     channel = declared["channel"]
     tools.run(toolchain.install(declared), request.source)
     code, log, rustc = execute(request, tools, channel)

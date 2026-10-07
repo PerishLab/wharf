@@ -90,6 +90,13 @@ workload record must hash to the key it is filed under. A job that consumes
 another job's workload reads that key from the plan too, so a key is never
 passed down twice.
 
+Rust, Node and pnpm versions are the domain's, not the product's: the plan job
+installs the latest plumb stable, reads `plumb metadata --json` once, and hands
+the result to every job that builds, tests, deploys or publishes as
+`WHARF_DOMAIN`. A product's `rust-toolchain.toml` and `engines` are not read,
+and a job without `WHARF_DOMAIN` refuses. Rust installs at that version with the
+`minimal` profile, so the toolchain in a basis is the domain's.
+
 The dependencies a binary compiles against are a workload of their own. Their
 basis is the binary's basis without the members' own sources — the member
 manifests, the lock closure, the toolchain, the target and the runner — so a
@@ -426,7 +433,7 @@ Depot is the only source, and its `previousGeneration` chain is the history.
   only, carrying each object's path, digest, mode and body. The yard's writer
   reaches no Depot bucket.
 - `depot.yml` lodges one consignment. It reads it by the digest its bytes must
-  hash to, vets it — a pinned plumb proves a changelog again against the product
+  hash to, vets it — the latest plumb stable proves a changelog again against the product
   at its marker, and a skill must carry a `SKILL.md` within plumb's wayfinder
   cap, since skills are written for their release and no product tree carries
   one — and only then writes the generation. The yard is an untrusted inbox, and expiry
