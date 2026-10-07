@@ -46,7 +46,7 @@ def oci_plan(held):
     image = oci.reference(held["repository"], version.marker(held["marker"]))
     if not executables.declared(held["source"], release.targets(held["source"])):
         return decided(False, {"image": image})
-    return decided(oci.exists(image), {"image": image})
+    return decided(oci.exists(image) and oci.current(image), {"image": image})
 
 
 def oci_publish(held):
@@ -56,7 +56,7 @@ def oci_publish(held):
     listed = executables.declared(held["source"], release.targets(held["source"]))
     image = oci.reference(held["repository"], version.marker(held["marker"]))
     if not listed:
-        return oci.publish_source(oci.SourceImage(Path(held["source"]), image))
+        return dict(oci.publish_source(oci.SourceImage(Path(held["source"]), image)), channel=oci.advance(image))
     primary = next(target for target in BUILD["targets"] if target["name"] == BUILD["primary"])
     binary = executables.placed(held["source"], "oci", listed, plan.product(document["context"]))
     if binary not in executables.built(listed, primary["target"]):
@@ -64,7 +64,7 @@ def oci_publish(held):
     directory = Path(tempfile.mkdtemp()) / "bound"
     workload.fetch(bucket, document["entries"][f"bind-{primary['name']}"]["key"], str(directory))
     artifact = bind.Artifact(directory, binary, primary["target"])
-    return oci.publish(oci.Image(Path(held["source"]), artifact.file, binary, image, held["marker"]))
+    return dict(oci.publish(oci.Image(Path(held["source"]), artifact.file, binary, image, held["marker"])), channel=oci.advance(image))
 
 
 def release_plan(held):

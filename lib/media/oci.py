@@ -7,13 +7,15 @@ import tempfile
 from dataclasses import dataclass
 from pathlib import Path
 
-from lib.content import declaration, resources
+from lib.content import declaration, marker, resources
 from lib.process import git, run, unanchored
 from lib.refusal import Refusal
 
 HOST = resources.read_json("registries.json")["oci"]["host"]
 CONTAINERFILE = "Containerfile"
 PLATFORM = "linux/amd64"
+CHANNEL = "stable"
+LABEL = "org.opencontainers.image.version"
 
 
 @dataclass(frozen=True)
@@ -162,3 +164,65 @@ def publish_source(request, runner=run):
     if published not in local:
         raise Refusal(f"{image} resolved to {published}, which the pushed image does not carry")
     return {"image": image, "state": "published", "digests": [published]}
+
+
+def channeled(image):
+    return f"{image.rsplit(':', 1)[0]}:{CHANNEL}"
+
+
+def released(image):
+    return "v" + image.rsplit(":", 1)[1]
+
+
+def labelled(reference, runner=run):
+    directory = Path(tempfile.mkdtemp())
+    try:
+        rendered = runner(
+            ["docker", "--config", str(directory), "buildx", "imagetools", "inspect", "--format", "{{json .Image}}", reference],
+            directory,
+        )
+    except subprocess.CalledProcessError as failure:
+        if "not found" in (failure.stderr or ""):
+            return None
+        raise Refusal(f"{reference} cannot be read: {(failure.stderr or failure.stdout or '').strip()[:500]}") from failure
+    finally:
+        shutil.rmtree(directory, ignore_errors=True)
+    try:
+        held = json.loads(rendered)
+    except json.JSONDecodeError as failure:
+        raise Refusal(f"{reference} reported an unreadable image configuration") from failure
+    held = held if "config" in held else held.get(PLATFORM, {})
+    version = (held.get("config") or {}).get("Labels", {}).get(LABEL)
+    if not isinstance(version, str) or not marker.holds(f"v{version}"):
+        raise Refusal(f"{reference} carries no release version in {LABEL}: {version!r}")
+    return version
+
+
+def current(image, runner=run):
+    held = released(image)
+    if marker.channel(held) != CHANNEL:
+        return True
+    version = labelled(channeled(image), runner)
+    return version is not None and marker.order(f"v{version}") >= marker.order(held)
+
+
+def advance(image, runner=run):
+    held = released(image)
+    if marker.channel(held) != CHANNEL:
+        return None
+    target = channeled(image)
+    version = labelled(target, runner)
+    if version is not None and marker.order(f"v{version}") > marker.order(held):
+        return {"image": target, "state": "kept", "version": version}
+    digest = registry_digest(image, runner)
+    if version is not None and f"v{version}" == held and public_digest(target, runner) == digest:
+        return {"image": target, "state": "kept", "version": version}
+    directory = Path(tempfile.mkdtemp())
+    try:
+        runner(["docker", "buildx", "imagetools", "create", "--tag", target, f"{image.rsplit(':', 1)[0]}@{digest}"], directory)
+    finally:
+        shutil.rmtree(directory, ignore_errors=True)
+    moved = public_digest(target, runner)
+    if moved != digest:
+        raise Refusal(f"{target} publicly resolved to {moved} after moving, expected {digest}")
+    return {"image": target, "state": "advanced", "version": held.removeprefix("v"), "digest": digest}
