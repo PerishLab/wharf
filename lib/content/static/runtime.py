@@ -64,7 +64,7 @@ def profile(guest, owner, world):
     source, controls = qualified(guest)
     return ["container", "create", "--name", "wharf-preview-" + owner, "--label", LABEL + "=" + owner,
             "--pull", "never", "--platform", POLICY["platform"], "--read-only", "--cap-drop", "ALL",
-            "--security-opt", "no-new-privileges", "--network", "none", "--no-healthcheck", "--user", "1000:1000",
+            "--security-opt", "no-new-privileges", "--network", "none", "--no-healthcheck", "--tty=false", "--interactive=false", "--user", "1000:1000",
             "--pids-limit", str(POLICY["pids"]), "--memory", str(POLICY["memory"]), "--memory-swap", str(POLICY["memory"]),
             "--cpus", str(POLICY["cpus"]), "--tmpfs", f'/tmp:rw,nosuid,nodev,size={POLICY["temporary"]}', "--workdir", "/source",
             "--mount", f"type=bind,src={source},dst=/source", "--mount", f"type=bind,src={controls},dst=/controls,readonly",
@@ -79,29 +79,34 @@ def stopped(process):
         pass
     process.wait()
     process.stdout.close()
+    process.stderr.close()
 
 
 def attach(argv, environment, timeout):
-    process = subprocess.Popen(argv, env=environment, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, start_new_session=True)
+    process = subprocess.Popen(argv, env=environment, stdout=subprocess.PIPE, stderr=subprocess.PIPE, start_new_session=True)
     body = bytearray()
+    streams = {process.stdout, process.stderr}
+    total = 0
     deadline = time.monotonic() + timeout
     logging = uuid.uuid4().hex
     print("::stop-commands::" + logging, file=sys.stderr, flush=True)
     try:
-        while True:
+        while streams:
             remaining = deadline - time.monotonic()
             if remaining <= 0:
                 raise Refusal("Preview guest command exceeded its execution budget")
-            if not select.select([process.stdout], [], [], remaining)[0]:
-                continue
-            chunk = os.read(process.stdout.fileno(), 32768)
-            if not chunk:
-                break
-            if len(body) + len(chunk) > evidence.LIMIT:
-                raise Refusal("Preview guest command exceeded its 1 MiB output budget")
-            body.extend(chunk)
-            sys.stderr.write(chunk.decode("utf-8", errors="replace"))
-            sys.stderr.flush()
+            for stream in select.select(list(streams), [], [], remaining)[0]:
+                chunk = os.read(stream.fileno(), 32768)
+                if not chunk:
+                    streams.remove(stream)
+                    continue
+                total += len(chunk)
+                if total > evidence.LIMIT:
+                    raise Refusal("Preview guest command exceeded its combined 1 MiB output budget")
+                if stream is process.stdout:
+                    body.extend(chunk)
+                sys.stderr.write(chunk.decode("utf-8", errors="replace"))
+                sys.stderr.flush()
         code = process.wait(timeout=max(0.001, deadline - time.monotonic()))
         if code != 0:
             raise Refusal(f"Preview guest command exited {code}")
@@ -191,6 +196,8 @@ def teardown(engine, owner):
 
 def checked(held, guest, world):
     host, config = held.get("HostConfig", {}), held.get("Config", {})
+    if config.get("Tty") is not False or config.get("OpenStdin") is not False:
+        raise Refusal("Preview result transport requires separate non-interactive streams without a TTY")
     fixed = {"ReadonlyRootfs": True, "Privileged": False, "CapDrop": ["ALL"], "SecurityOpt": ["no-new-privileges"],
              "NetworkMode": "none", "PidsLimit": POLICY["pids"], "Memory": POLICY["memory"], "MemorySwap": POLICY["memory"], "NanoCpus": POLICY["cpus"] * 1000000000}
     if any(host.get(key) != value for key, value in fixed.items()) or any(host.get(key) for key in ("Binds", "Devices", "CapAdd", "PidMode", "PortBindings")) or host.get("IpcMode") == "host":

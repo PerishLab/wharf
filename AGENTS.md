@@ -237,7 +237,10 @@ or request IDs. Reuse is content evidence, never deployment authorization.
 Only disposable temporary product directories and separate read-only trusted
 controls are mounted. The public Images stable reference and offline profile
 live in `resources/build.json`; no host credentials, home or Docker socket enter
-the guest. Output is bounded and streamed. Every exit path reconciles only the
+the guest. Stdout alone is returned; stderr remains diagnostic. Both streams are
+drained live without a TTY under one aggregate output budget, deadline and
+workflow-command suppression. Stream separation is not proof authentication;
+product-authored stdout remains untrusted. Every exit path reconciles only the
 invocation-labelled container, removes it and independently confirms absence;
 failed or unknown teardown admits no output. Client timeout is not cancellation.
 Stable is prepared first; the guest runs only its resolved digest, recorded in

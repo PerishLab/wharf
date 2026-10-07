@@ -170,7 +170,7 @@ class GuestEngine:
             self.live = True
             self.held = {"Id": self.identity, "Name": "/wharf-preview-" + self.owner, "Image": "sha256:" + "b" * 64,
                          "State": {"Status": "exited", "Running": False, "ExitCode": 0, "OOMKilled": False},
-                         "Config": {"User": "1000:1000", "Entrypoint": ["/usr/bin/env"], "Labels": {runtime.LABEL: self.owner}, "Cmd": arguments[arguments.index("ghcr.io/perishlab/images@sha256:" + "b" * 64) + 1:]},
+                         "Config": {"Tty": False, "OpenStdin": False, "User": "1000:1000", "Entrypoint": ["/usr/bin/env"], "Labels": {runtime.LABEL: self.owner}, "Cmd": arguments[arguments.index("ghcr.io/perishlab/images@sha256:" + "b" * 64) + 1:]},
                          "HostConfig": {"ReadonlyRootfs": True, "Privileged": False, "CapDrop": ["ALL"], "SecurityOpt": ["no-new-privileges"], "NetworkMode": "none", "PidsLimit": 256, "Memory": 2147483648, "MemorySwap": 2147483648, "NanoCpus": 2000000000,
                                         "Tmpfs": {"/tmp": f'rw,nosuid,nodev,size={runtime.POLICY["temporary"]}'}},
                          "Mounts": [{"Source": str(self.guest.source), "Destination": "/source", "RW": True, "Type": "bind"}, {"Source": str(self.guest.controls), "Destination": "/controls", "RW": False, "Type": "bind"}]}
@@ -182,6 +182,8 @@ class GuestEngine:
                 self.held["Name"] = "/another-invocation"
             if self.mode == "still-running":
                 self.held["State"]["Running"] = True
+            if self.mode == "tty":
+                self.held["Config"]["Tty"] = True
             return self.identity
         if action == "inspect":
             return json.dumps([self.held])
@@ -221,11 +223,11 @@ class GuestBoundary(unittest.TestCase):
         self.assertIn("label=" + runtime.LABEL + "=" + engine.owner, engine.calls[-1])
 
     def test_failure_loss_and_unknown_never_return_output(self):
-        for mode in ("creation-loss", "wrong-profile", "wrong-owner", "readback-loss", "retained", "command-failed", "still-running"):
+        for mode in ("creation-loss", "wrong-profile", "wrong-owner", "readback-loss", "retained", "command-failed", "still-running", "tty"):
             engine = GuestEngine(self.guest, mode)
             with self.subTest(mode=mode), self.assertRaises(Refusal):
                 runtime.run(self.guest, engine)
-            if mode in ("creation-loss", "wrong-profile", "command-failed"):
+            if mode in ("creation-loss", "wrong-profile", "command-failed", "tty"):
                 self.assertFalse(engine.live)
             if mode == "wrong-owner":
                 self.assertFalse(any(call[1] == "rm" for call in engine.calls))
@@ -269,9 +271,22 @@ class GuestBoundary(unittest.TestCase):
     def test_real_bounded_stream_failure_and_timeout(self):
         with mock.patch.object(runtime.sys, "stderr"):
             self.assertEqual(runtime.attach(["/bin/sh", "-c", "printf selected"], {}, 2), "selected")
-            for command in ("exit 17", "sleep 2", "printf overflow"):
+            for command in ("exit 17", "sleep 2", "printf overflow", "printf ab; printf cdef >&2", "printf '\\377'"):
                 with mock.patch.object(evidence, "LIMIT", 4), self.subTest(command=command), self.assertRaises(Refusal):
                     runtime.attach(["/bin/sh", "-c", command], {}, 0.05)
+
+    def test_separate_stdout_and_drained_diagnostics(self):
+        cases = [("printf '{\"ok\":true}'; printf 'diagnostic {\"ok\":false}' >&2", '{"ok":true}'),
+                 ("printf diagnostic >&2; printf selected", "selected"),
+                 ("printf '\\377' >&2; printf selected", "selected"),
+                 ("i=0; while [ $i -lt 10000 ]; do printf noise >&2; i=$((i+1)); done; printf selected", "selected")]
+        with mock.patch.object(runtime.sys, "stderr") as logging:
+            for command, expected in cases:
+                with self.subTest(command=command):
+                    self.assertEqual(runtime.attach(["/bin/sh", "-c", command], {}, 2), expected)
+            body = "".join(call.args[0] for call in logging.write.call_args_list)
+            self.assertIn("diagnostic", body)
+            self.assertIn("::stop-commands::", body)
 
 
 if __name__ == "__main__":
