@@ -40,5 +40,9 @@ class Versions(unittest.TestCase):
             with self.subTest(env), self.assertRaises(Refusal):
                 toolchain.versions(env)
 
-    def test_the_rust_toolchain_is_the_domain_version_at_minimal_profile(self):
-        self.assertEqual(toolchain.current(), {"channel": "1.96.1", "profile": "minimal", "components": [], "targets": []})
+    def test_the_rust_toolchain_is_the_domain_version_with_clippy_and_rustfmt(self):
+        self.assertEqual(toolchain.current(), {"channel": "1.96.1", "profile": "minimal", "components": ["clippy", "rustfmt"], "targets": []})
+        self.assertEqual(
+            toolchain.install(toolchain.current()),
+            ["rustup", "toolchain", "install", "1.96.1", "--profile", "minimal", "--component", "clippy", "--component", "rustfmt"],
+        )
