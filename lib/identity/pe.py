@@ -68,3 +68,27 @@ def locate(image):
     if relocations:
         raise Refusal("identity region must not carry relocations")
     return start, start + size
+
+
+def reproducible(image):
+    try:
+        optional, width, _, _ = header(image)
+        (magic,) = struct.unpack_from("<H", image, optional)
+        directories = OPTIONAL.get(magic)
+        if directories is None or width < directories + 7 * 8:
+            raise Refusal("Windows build has no supported PE debug directory")
+        (count,) = struct.unpack_from("<I", image, optional + directories - 4)
+        if count <= 6:
+            raise Refusal("Windows build has no PE debug directory")
+        address, size = struct.unpack_from("<II", image, optional + directories + 6 * 8)
+        fields = [fields for _, fields in sections(image) if fields[1] <= address and address + size <= fields[1] + min(fields[0], fields[2])]
+        if not address or not size or size % 28 or len(fields) != 1:
+            raise Refusal("Windows build has invalid PE debug directory bounds")
+        start = fields[0][3] + address - fields[0][1]
+        if start + size > len(image):
+            raise Refusal("Windows build has truncated PE debug data")
+        kinds = [struct.unpack_from("<I", image, start + offset + 12)[0] for offset in range(0, size, 28)]
+        if 16 not in kinds:
+            raise Refusal("Windows build has no reproducible PE debug marker; the effective linker must honor /Brepro")
+    except struct.error as failure:
+        raise Refusal("Windows build has malformed PE headers or debug data") from failure

@@ -64,3 +64,22 @@ class Portable(unittest.TestCase):
         for held in (image(region(target=TARGET), sections=(".relid", ".relid")), image(region(target=TARGET)[:512])):
             with self.subTest(), self.assertRaises(Refusal):
                 bind.inspect(held)
+
+
+class Reproducible(unittest.TestCase):
+    def debugged(self, kinds=(2, 16), size=None, address=0x1000):
+        entries = b"".join(struct.pack("<IIHHIIII", 0, 0, 0, 0, kind, 0, 0, 0) for kind in kinds)
+        held = bytearray(image(entries, sections=(".rdata",)))
+        struct.pack_into("<II", held, 88 + 112 + 6 * 8, address, len(entries) if size is None else size)
+        return held
+
+    def test_requires_the_reproducible_marker_even_with_other_debug_types(self):
+        pe.reproducible(self.debugged((2, 12, 13, 16)))
+        for kinds in ((2, 12, 13), (2,), ()):
+            with self.subTest(kinds=kinds), self.assertRaises(Refusal):
+                pe.reproducible(self.debugged(kinds))
+
+    def test_refuses_unmapped_misaligned_or_truncated_debug_data(self):
+        for held in (self.debugged(address=0x2000), self.debugged(size=29), self.debugged(size=4096), self.debugged()[:-32], b"MZ" + bytes(62)):
+            with self.subTest(), self.assertRaises(Refusal):
+                pe.reproducible(held)

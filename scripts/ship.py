@@ -23,7 +23,7 @@ BUILD = resources.read_json("build.json")
 LAYERED = sorted({spec["action"] for spec in resources.read_json("units.json")["units"].values()})
 RUNNER = BUILD["runner"]
 PRIMARY = next(target for target in BUILD["targets"] if target["name"] == BUILD["primary"])
-CARGO = (["lib.cargo.basis", "lib.cargo.build"], [])
+CARGO = (["lib.cargo.basis", "lib.cargo.build"], ["identity/format.json"])
 DEBIAN = (["lib.debian.package"], ["releases.json"])
 VERIFYING = (["lib.debian.verify"], ["build.json"])
 
