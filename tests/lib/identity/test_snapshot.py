@@ -163,3 +163,20 @@ class Environment(unittest.TestCase):
             with self.assertRaisesRegex(Refusal, "one configuration line"):
                 snapshot.environment(home, {"rust.version": "1.96.1"})
             self.assertFalse((home / "npmrc").exists())
+
+
+class Home(unittest.TestCase):
+    def test_snapshot_data_and_windows_homes_are_owned_and_ignore_ambient_state(self):
+        ambient = {"HOME": "/host/home", "USERPROFILE": "/host/profile", "PLUMB_HOME": "/host/plumb", "APPDATA": "/host/apps", "LOCALAPPDATA": "/host/local", "PATH": "/trusted/bin"}
+        with mock.patch.dict(os.environ, ambient, clear=True), tempfile.TemporaryDirectory() as temporary:
+            home = Path(temporary)
+            release = snapshot.environment(home, {"rust.version": "1.96.1"})
+            self.assertEqual(release["HOME"], temporary)
+            self.assertEqual(release["USERPROFILE"], temporary)
+            self.assertEqual(release["PLUMB_HOME"], str(home / ".plumb"))
+            self.assertNotIn("APPDATA", release)
+            self.assertNotIn("LOCALAPPDATA", release)
+            self.assertEqual(release["GIT_CONFIG_GLOBAL"], os.devnull)
+            self.assertEqual(release["RUSTUP_TOOLCHAIN"], "1.96.1")
+            self.assertNotIn("USERPROFILE", evidence.clean(os.environ, home))
+            self.assertNotIn("PLUMB_HOME", evidence.clean(os.environ, home))
