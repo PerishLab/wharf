@@ -314,6 +314,20 @@ latest-stable first-party Guard authority, authsource and official live Preview
 integration remain separate obligations under #82 and #36. Ordinary static builds
 do not yet invoke this module; qualification grants no reader authorization.
 
+`lib/check/locking/checkout.py` derives the complete selected dependency inputs
+from the declared exact Git tree after independent acquisition readback. Root and
+every admitted workspace manifest are selected from a bounded NUL-delimited tree
+inventory, never a caller-provided subset. Original immutable blobs are bounded
+and independently hash-checked; no worktree path, filter, hook or product script
+is used to read their content. Acquisition is rechecked before returning the
+source-bound credential-free projection. Unsupported selectors and ambiguous
+selected paths refuse. This binds repository content identity, not authenticated
+caller authority or hostile concurrent-writer isolation. Existing acquisition
+history/checkout checks are reused without a new total disk-bound promise.
+The offline bridge does not invoke this collector yet. Reader authorization,
+network/redirect/teardown, store/cache transport, latest-stable first-party Guard,
+authsource and official-action/live obligations remain under #82 and #36.
+
 How far a marker is distributed has one authority: `distribution.json` beside its
 seal on the product's release authority, at
 `v1/releases/<channel>/<marker>/distribution.json`. It records the marker's
