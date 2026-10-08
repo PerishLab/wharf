@@ -1,6 +1,7 @@
 import datetime
 import http.client
 import os
+import re
 import xml.etree.ElementTree as ElementTree
 from pathlib import Path
 from urllib.parse import quote, urlencode, urlsplit
@@ -8,6 +9,7 @@ from urllib.parse import quote, urlencode, urlsplit
 from dataclasses import dataclass, field
 
 from lib.refusal import Conflict, Refusal
+from lib.content import preview
 from lib.store.sigv4 import Credentials, Request, sign
 
 VARIABLES = ("WHARF_R2_ENDPOINT", "WHARF_R2_BUCKET", "WHARF_R2_ACCESS_KEY_ID", "WHARF_R2_SECRET_ACCESS_KEY")
@@ -139,3 +141,53 @@ def configured(environ=os.environ):
         raise Refusal(f"missing store configuration: {', '.join(missing)}")
     endpoint, name, access, secret = (environ[name] for name in VARIABLES)
     return Bucket(endpoint, name, Credentials(access, secret))
+
+
+class Registration:
+    connect = http.client.HTTPSConnection
+
+    def __init__(self, configuration, selection):
+        preview.shape(configuration, {"endpoint", "bucket", "access", "secret"}, "registration reader configuration")
+        preview.shape(selection, {"repository", "app"}, "registration reader selection")
+        preview.matches(selection["repository"], re.compile(r"PerishLab/[A-Za-z0-9_-]+"), "registration repository")
+        preview.slug(selection["app"], "registration app")
+        preview.matches(configuration["endpoint"], re.compile(r"https://[0-9a-f]{32}\.r2\.cloudflarestorage\.com"), "registration R2 origin")
+        preview.matches(configuration["bucket"], re.compile(r"[a-z0-9][a-z0-9-]{1,61}[a-z0-9]"), "registration bucket")
+        for key in ("access", "secret"):
+            if not isinstance(configuration[key], str) or not configuration[key] or any(ord(char) < 33 or ord(char) > 126 for char in configuration[key]):
+                raise Refusal("Preview registration requires prepared read credentials")
+        self._host = urlsplit(configuration["endpoint"]).hostname
+        self._bucket = configuration["bucket"]
+        self._credentials = Credentials(configuration["access"], configuration["secret"])
+        self._key = f"preview/v1/registrations/{selection['repository']}/{selection['app']}.json"
+
+    def get(self, key):
+        if key != self._key:
+            raise Refusal("Preview registration read is outside its selected key")
+        path = "/" + self._bucket + "/" + quote(key, safe="/-_.~")
+        signed = sign(Request("GET", self._host, path), self._credentials, datetime.datetime.now(datetime.UTC))
+        connection = None
+        try:
+            connection = self.connect(self._host, timeout=30)
+            connection.request("GET", path, headers=signed)
+            response = connection.getresponse()
+            if response.status != 200:
+                raise Refusal("Preview registration read is unavailable; no target inferred")
+            body = response.read(65537)
+            if not isinstance(body, bytes) or len(body) > 65536:
+                raise Refusal("Preview registration read exceeds its bounded document budget")
+            return body
+        except (OSError, http.client.HTTPException) as error:
+            raise Refusal("Preview registration read failed; no target inferred") from error
+        finally:
+            if connection is not None:
+                try:
+                    connection.close()
+                except (OSError, http.client.HTTPException) as error:
+                    raise Refusal("Preview registration connection cleanup failed") from error
+
+
+def registration(selection, environ=os.environ):
+    names = {"endpoint": "WHARF_PREVIEW_REGISTRATION_ENDPOINT", "bucket": "WHARF_PREVIEW_REGISTRATION_BUCKET",
+             "access": "WHARF_PREVIEW_REGISTRATION_ACCESS_KEY_ID", "secret": "WHARF_PREVIEW_REGISTRATION_SECRET_ACCESS_KEY"}
+    return Registration({key: secret(environ, name) for key, name in names.items()}, selection)

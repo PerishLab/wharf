@@ -10,6 +10,7 @@
     "needs": "string",
     "planned": "string",
     "repository": "string",
+    "request": "string",
     "run": "string",
     "shell": "string",
     "source": "string",

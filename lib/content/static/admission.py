@@ -1,7 +1,55 @@
+import os
+import re
+
 from lib.content import canonical, preview, resources
 from lib.content.static import evidence, source
-from lib.content.static.github import LOGIN
+from lib.content.static.github import LOGIN, GitHub, Routing
 from lib.refusal import Refusal
+from lib.store import r2
+
+
+def requested(body):
+    if not isinstance(body, str):
+        raise Refusal("Preview entry request must be a bounded JSON string")
+    try:
+        encoded = body.encode()
+    except UnicodeError as error:
+        raise Refusal("Preview entry request is not valid UTF-8 text") from error
+    if len(encoded) > 65536:
+        raise Refusal("Preview entry request exceeds its bounded document budget")
+    intent = preview.request(evidence.decode(encoded))
+    preview.matches(intent["repository"], re.compile(r"PerishLab/[A-Za-z0-9_-]+"), "entry repository")
+    return intent
+
+
+def context(environ=os.environ):
+    policy = resources.read_json("build.json")["admission"]
+    expected = {"GITHUB_ACTIONS": "true", "GITHUB_EVENT_NAME": "workflow_dispatch", "GITHUB_REPOSITORY": policy["repository"],
+                "GITHUB_REF": "refs/heads/" + policy["branch"],
+                "GITHUB_WORKFLOW_REF": f"{policy['repository']}/{policy['workflow']}@refs/heads/{policy['branch']}"}
+    if any(environ.get(key) != value for key, value in expected.items()):
+        raise Refusal("Preview entry requires trusted exact main workflow context")
+    commit = environ.get("GITHUB_SHA")
+    preview.matches(commit, preview.HEX[40], "platform control commit")
+    if environ.get("GITHUB_WORKFLOW_SHA") != commit:
+        raise Refusal("Preview workflow source differs from its platform control commit")
+    result = {"commit": commit}
+    for key, name in (("run", "GITHUB_RUN_ID"), ("attempt", "GITHUB_RUN_ATTEMPT")):
+        value = environ.get(name)
+        if not isinstance(value, str) or not re.fullmatch(r"[1-9][0-9]{0,19}", value):
+            raise Refusal("Preview platform run and attempt must be bounded positive identities")
+        result[key] = int(value)
+    return result
+
+
+def observe(intent, environ=os.environ):
+    preview.request(intent)
+    preview.matches(intent["repository"], re.compile(r"PerishLab/[A-Za-z0-9_-]+"), "entry repository")
+    platform = context(environ)
+    bucket = r2.registration({key: intent[key] for key in ("repository", "app")}, environ)
+    control = GitHub(r2.secret(environ, "WHARF_PREVIEW_CONTROL_TOKEN"))
+    product = GitHub(r2.secret(environ, "WHARF_PREVIEW_PRODUCT_TOKEN"))
+    return admit(intent, bucket, platform, Routing(intent["repository"], control, product))
 
 
 def registration(bucket, intent):

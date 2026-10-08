@@ -218,6 +218,17 @@ must stay outside product/request inputs and guests. The returned observation is
 not a bearer permit, source acquisition or a provider-write/recovery authorization.
 Workflow integration must revalidate current admission before external mutations.
 
+`.github/actions/preview-admission` prepares the workflow-facing read-only entry.
+Bounded request JSON selects neither platform identity nor credentials/store origin.
+Runtime context must be the exact main Preview workflow and is independently
+checked against GitHub. Separate control/product credentials are consumed only
+by the trusted admission step. `lib/store/r2.py` exposes a bounded GET-only
+registration reader for one repository/app key, with no writer/store fallback.
+Entry selectors and admission digests are observations, not bearer permits,
+acquisition receipts, deployment results or quiescence evidence. The future
+workflow must exclude these readers from product guests and revalidate admission
+before mutation; this component alone opens no dispatchable Preview workflow.
+
 Preview request, registration and result envelopes are explicit versioned contracts
 in `lib/content/preview.py`. Caller and workflow fields are observations, not
 authorization; trusted onboarding and the execution adapter must establish authority.
