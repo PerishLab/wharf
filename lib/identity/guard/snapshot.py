@@ -40,6 +40,7 @@ def environment(home, domain):
     for name in ("NPM_CONFIG_IGNORE_SCRIPTS", "NPM_CONFIG_IGNORE_PNPMFILE"):
         env.pop(name)
     env.update({
+        "USERPROFILE": str(home), "PLUMB_HOME": str(Path(home) / ".plumb"),
         "RUSTUP_HOME": os.environ.get("RUSTUP_HOME", str(Path.home() / ".rustup")),
         "CARGO_HOME": os.environ.get("CARGO_HOME", str(Path.home() / ".cargo")),
         "RUSTUP_TOOLCHAIN": domain["rust.version"],
