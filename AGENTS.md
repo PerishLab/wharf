@@ -4,8 +4,9 @@ wharf is the distribution hub of perish.code. It sits above Plumb: it distribute
 Plumb, so Plumb does not govern it. This file is the only unstructured document in
 the repository; `CLAUDE.md` only points here.
 
-Read the canonical organization delivery policy in PerishLab/.github's
-`GOVERNANCE.md` before work and delivery; this file owns Wharf's exceptions.
+Read the canonical [PerishLab delivery governance](https://github.com/PerishLab/.github/blob/main/GOVERNANCE.md)
+at work start and again before delivery or Issue closure. That document owns
+organization-wide policy; this file owns Wharf's repository-specific exceptions.
 
 ## Shape
 
