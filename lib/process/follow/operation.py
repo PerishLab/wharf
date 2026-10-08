@@ -6,6 +6,7 @@ import sys
 import tempfile
 import urllib.error
 import urllib.request
+from contextlib import contextmanager
 from pathlib import Path
 
 from lib.content import canonical
@@ -84,7 +85,7 @@ def governed(summary, token, reader=api):
 
 
 def environment(home, root, environ):
-    names = ("PATH", "LANG", "LC_ALL", "CI", "TMPDIR", "TMP", "TEMP", "WHARF_DOMAIN", "SSL_CERT_FILE", "SSL_CERT_DIR")
+    names = ("PATH", "LANG", "LC_ALL", "CI", "TMPDIR", "TMP", "TEMP", "WHARF_DOMAIN", "SSL_CERT_FILE", "SSL_CERT_DIR", "RUNNER_TRACKING_ID")
     held = {name: environ[name] for name in names if name in environ}
     held.update({"HOME": str(home), "GH_CONFIG_DIR": str(home / "gh"), "GH_HOST": "github.com", "GH_TOKEN": environ["GH_TOKEN"], "GIT_CONFIG_GLOBAL": str(home / "gitconfig"), "GIT_CONFIG_NOSYSTEM": "1", "GIT_TERMINAL_PROMPT": "0", "GIT_NO_REPLACE_OBJECTS": "1", "PLUMB_HOME": str(root / "plumb"), "RUSTUP_HOME": environ.get("RUSTUP_HOME", str(Path.home() / ".rustup")), "CARGO_HOME": environ.get("CARGO_HOME", str(Path.home() / ".cargo"))})
     if environ.get(node.READER):
@@ -92,20 +93,48 @@ def environment(home, root, environ):
     return node.reading(home, held)
 
 
+def cancelled(number, frame):
+    raise Refusal("follow was cancelled; preserve source and Auto recovery state")
+
+
+@contextmanager
+def cancellation():
+    previous = {number: signal.getsignal(number) for number in (signal.SIGTERM, signal.SIGINT)}
+    try:
+        for number in previous:
+            signal.signal(number, cancelled)
+        yield
+    finally:
+        for number, handler in previous.items():
+            signal.signal(number, handler)
+
+
+def reap(process):
+    for number in (signal.SIGTERM, signal.SIGINT):
+        signal.signal(number, signal.SIG_IGN)
+    try:
+        os.killpg(process.pid, signal.SIGKILL)
+    except ProcessLookupError:
+        pass
+    try:
+        process.wait(timeout=5)
+    except subprocess.TimeoutExpired as error:
+        raise Refusal("follow termination is unknown; preserve recovery state") from error
+
+
 def command(argv, cwd, env):
     print(json.dumps({"command": argv}), file=sys.stderr)
-    process = subprocess.Popen(argv, cwd=cwd, env=env, stdout=sys.stderr, stderr=subprocess.STDOUT, start_new_session=True)
-    try:
-        if process.wait(timeout=TIMEOUT) != 0:
-            raise Refusal("follow step failed; preserve source and any existing Auto recovery state")
-    except subprocess.TimeoutExpired as error:
-        raise Refusal("released follow exceeded its finite execution budget; preserve recovery state") from error
-    finally:
+    with cancellation():
+        process = None
         try:
-            os.killpg(process.pid, signal.SIGKILL)
-        except ProcessLookupError:
-            pass
-        process.wait()
+            process = subprocess.Popen(argv, cwd=cwd, env=env, stdout=sys.stderr, stderr=subprocess.STDOUT, start_new_session=True)
+            if process.wait(timeout=TIMEOUT) != 0:
+                raise Refusal("follow step failed; preserve source and any existing Auto recovery state")
+        except subprocess.TimeoutExpired as error:
+            raise Refusal("released follow exceeded its finite execution budget; preserve recovery state") from error
+        finally:
+            if process is not None:
+                reap(process)
 
 
 def synchronize(source, summary, env):
