@@ -246,8 +246,15 @@ failed or unknown teardown admits no output. Client timeout is not cancellation.
 Stable is prepared first; the guest runs only its resolved digest, recorded in
 host-observed identity, never a guest-authored Guard proof.
 This primitive grants no source/target authority, package reader or publication.
-It does not yet wire the static builder or workflow; their integration must bind
-this runtime to content identity and retain the separate credential boundary.
+`lib/content/static/bridge.py` binds this runtime to offline static content through
+separate install, full head Guard and build guests. Each guest must disappear
+before the next phase or byte collection. Source, Git control metadata, trusted
+controls, tools and host-observed runtime identity are checked across phases.
+Unknown teardown retains the disposable workspace and admits no handoff.
+The isolated receipt binds this execution world and is independently checked by
+the content consumer. It does not authenticate arbitrary product-authored proof.
+The bridge grants no package reader, provider publication or workflow admission;
+source/caller/target authentication remains a prerequisite for workflow wiring.
 
 `lib/content/static/workspace.py` stages qualified exact source into a disposable
 independent Git checkout, never a writable mount of a canonical worktree.

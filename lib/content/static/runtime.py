@@ -22,6 +22,10 @@ LABEL = "perish.wharf.preview.owner"
 HEX = re.compile(r"[0-9a-f]{64}")
 
 
+class Uncertain(Refusal):
+    pass
+
+
 @dataclass(frozen=True)
 class Guest:
     source: Path
@@ -235,7 +239,7 @@ def run(guest, engine=None):
             try:
                 teardown(engine, owner)
             except Exception as error:
-                raise Refusal(f"Preview teardown unknown for invocation {owner}; no output is admissible") from error
+                raise Uncertain(f"Preview teardown unknown for invocation {owner}; no output is admissible") from error
         if engine.world() != world:
             raise Refusal("Preview execution world changed; no output is admissible")
         return Execution(body, world)

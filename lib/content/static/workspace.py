@@ -1,4 +1,5 @@
 import os
+import shutil
 import tempfile
 from contextlib import contextmanager
 from dataclasses import dataclass
@@ -20,10 +21,11 @@ class Source:
     target: dict
 
 
-@dataclass(frozen=True)
+@dataclass
 class Seat:
     root: Path
     configuration: dict
+    quiescent: bool = True
 
 
 def environment(home):
@@ -68,7 +70,9 @@ def independent(root, env):
 
 @contextmanager
 def prepare(request):
-    with tempfile.TemporaryDirectory(prefix="wharf-preview-source-") as temporary:
+    temporary = tempfile.mkdtemp(prefix="wharf-preview-source-")
+    seat = None
+    try:
         parent = runtime.directory(Path(temporary))
         home, template, destination = (parent / name for name in ("home", "template", "source"))
         home.mkdir()
@@ -84,6 +88,11 @@ def prepare(request):
             after = qualified(Source(destination, request.intent, request.target), env)
             if before != after or qualified(request, env) != before:
                 raise Refusal("Preview source changed while its independent workspace was prepared")
-            yield Seat(destination, after)
+            seat = Seat(destination, after)
+            yield seat
         except OSError as error:
             raise Refusal("Preview disposable workspace preparation or cleanup failed") from error
+    finally:
+        if seat is not None and not seat.quiescent:
+            raise Refusal(f"Preview workspace retained pending confirmed guest teardown: {temporary}")
+        shutil.rmtree(temporary)
