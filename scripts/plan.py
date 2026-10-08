@@ -15,7 +15,7 @@ BUILD = resources.read_json("build.json")
 UNITS = resources.read_json("units.json")
 RUNNER = BUILD["runner"]
 PRIMARY = next(target for target in BUILD["targets"] if target["name"] == BUILD["primary"])
-CARGO = (["lib.cargo.basis", "lib.cargo.build"], [])
+CARGO = (["lib.cargo.basis", "lib.cargo.build"], ["identity/format.json"])
 SINGLE = ("cfworker",)
 REPORTED = ("key", "decision", "presence")
 MEDIA = ("npm", "oci", "chart", "cargo", "release", "channel")

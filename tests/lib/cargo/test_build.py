@@ -11,6 +11,7 @@ from lib import process
 from lib.cargo import build
 from tests.lib.cargo.test_basis import Repository
 from lib.refusal import Refusal
+from tests.lib.identity.test_pe import image
 
 
 def metadata(packages):
@@ -32,7 +33,9 @@ class Cargo:
             return "rustc 1.96.1 (fixture)\n"
         if argv[:2] == ["cargo", "build"] and self.produce:
             for index in (index for index, part in enumerate(argv) if part == "--bin"):
-                built = Path(env["CARGO_TARGET_DIR"]) / argv[argv.index("--target") + 1] / "release" / argv[index + 1]
+                target = argv[argv.index("--target") + 1]
+                suffix = ".exe" if "windows" in target else ""
+                built = Path(env["CARGO_TARGET_DIR"]) / target / "release" / f"{argv[index + 1]}{suffix}"
                 built.parent.mkdir(parents=True, exist_ok=True)
                 built.write_bytes(f"binary {argv[index + 1]}".encode())
         return ""
@@ -98,6 +101,32 @@ class Build(unittest.TestCase):
             self.assertEqual(build.environment(request, "1.96.1")["OPENSSL_SRC_PERL"], str(perl))
             linux = build.Build(Path("."), "demo", ("demo",), "x86_64-unknown-linux-gnu", Path("out"))
             self.assertNotIn("OPENSSL_SRC_PERL", build.environment(linux, "1.96.1"))
+
+    def test_windows_link_options_preserve_cargo_flags_and_inherited_linker_options(self):
+        supplied = {"RUSTFLAGS": "--cfg qualified", "CARGO_ENCODED_RUSTFLAGS": "--cfg\x1fencoded", "LINK": "/OPT:REF", "_LINK_": "/DEBUG /Brepro-", "CARGO_TARGET_X86_64_PC_WINDOWS_MSVC_RUSTFLAGS": "--cfg target"}
+        windows = build.Build(Path("."), "demo", ("demo",), "x86_64-pc-windows-msvc", Path("out"))
+        with unittest.mock.patch.dict(build.os.environ, supplied, clear=True):
+            held = build.environment(windows, "1.96.1")
+            self.assertEqual(held["_LINK_"], "/DEBUG /Brepro- /Brepro")
+            self.assertEqual({key: held[key] for key in supplied if key != "_LINK_"}, {key: value for key, value in supplied.items() if key != "_LINK_"})
+            for target in ("x86_64-unknown-linux-gnu", "aarch64-apple-darwin"):
+                request = build.Build(Path("."), "demo", ("demo",), target, Path("out"))
+                self.assertEqual(build.environment(request, "1.96.1")["_LINK_"], supplied["_LINK_"])
+
+    def test_windows_refuses_missing_reproducible_link_metadata_before_copying(self):
+        cargo = Cargo([("plumb-cli", ["plumb"])])
+
+        def compiled(argv, cwd, env=None):
+            result = cargo(argv, cwd, env)
+            if argv[:2] == ["cargo", "build"]:
+                built = Path(env["CARGO_TARGET_DIR"]) / "x86_64-pc-windows-msvc/release/plumb.exe"
+                built.write_bytes(image(bytes(64), sections=(".rdata",)))
+            return result
+
+        with self.assertRaisesRegex(Refusal, "debug"):
+            self.build(compiled, target="x86_64-pc-windows-msvc")
+        self.assertFalse((self.output / "plumb-x86_64-pc-windows-msvc.exe").exists())
+        self.assertFalse((self.output / "receipt.json").exists())
 
     def test_one_build_holds_every_executable_under_the_product_identity(self):
         cargo = Cargo([("santi-cli", ["santi"]), ("santi-api", ["santi-api"])])

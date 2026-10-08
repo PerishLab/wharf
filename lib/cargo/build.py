@@ -11,6 +11,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from lib.cargo import manifest, toolchain
+from lib.identity import pe
 from lib.process import run, stream
 from lib.refusal import Refusal
 
@@ -71,8 +72,10 @@ def environment(request, channel):
     env = dict(os.environ, RUSTUP_TOOLCHAIN=channel)
     env[f"{prefix}_BUILD_TARGET"] = request.target
     env[f"{prefix}_BUILD_CHANNEL"] = "unbound"
-    if request.target.endswith("-windows-msvc") and NATIVE_PERL.is_file():
-        env.setdefault("OPENSSL_SRC_PERL", str(NATIVE_PERL))
+    if request.target.endswith("-windows-msvc"):
+        env["_LINK_"] = (env.get("_LINK_", "") + " /Brepro").strip()
+        if NATIVE_PERL.is_file():
+            env.setdefault("OPENSSL_SRC_PERL", str(NATIVE_PERL))
     return env
 
 
@@ -144,6 +147,8 @@ def produce(request, tools, env, spans):
         built = target / request.target / "release" / f"{name}{request.suffix}"
         if not built.is_file():
             raise Refusal(f"cargo reported success but {built} is missing")
+        if request.target.endswith("-windows-msvc"):
+            pe.reproducible(built.read_bytes())
         shutil.copy2(built, request.output / request.artifact(name))
     return packages
 
