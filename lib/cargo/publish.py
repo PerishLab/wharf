@@ -23,6 +23,7 @@ class Tools:
     reader: object = registry.fetch
     sleep: object = time.sleep
     store: object = r2.writer
+    confirm: object = None
 
 
 @dataclass(frozen=True)
@@ -123,6 +124,8 @@ def placed(source, held, version, tools):
     location = registry.declared(source, held["registry"])
     blob = packaged(source, held, version, tools)
     line = index.entry(blob, held["package"], version, location)
+    if tools.confirm is not None:
+        tools.confirm()
     bucket = tools.store(registry.bucket(held["registry"]), ROLE)
     stored(bucket, registry.download(location, line, tools.reader), blob)
     appended(bucket, registry.entry(held["package"]), line, tools)

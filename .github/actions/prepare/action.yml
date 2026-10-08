@@ -5,16 +5,49 @@ inputs:
     description: The preparations this unit names, separated by spaces
     required: true
   node:
-    description: The Node version the product declares, when the unit prepares node
+    description: The domain Node version, when the unit prepares node
     required: false
     default: ""
   pnpm:
-    description: The pnpm version the product declares, when the unit prepares pnpm
+    description: The domain pnpm version, when the unit prepares pnpm
+    required: false
+    default: ""
+  rust:
+    description: The domain Rust version
     required: false
     default: ""
 runs:
   using: composite
   steps:
+    - name: Prepare latest stable controls
+      if: contains(inputs.prepare, 'snapshot') && runner.os != 'Windows'
+      shell: bash
+      run: |
+        for product in plumb ectropy; do
+          curl -fsSL "https://releases.$product.perish.uk/manage.sh" -o "$RUNNER_TEMP/manage-$product.sh"
+          env PLUMB_CHANNEL=stable PLUMB_VERSION= ECTROPY_CHANNEL=stable ECTROPY_VERSION= sh "$RUNNER_TEMP/manage-$product.sh" install
+        done
+        echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+
+    - name: Prepare latest stable Windows controls
+      if: contains(inputs.prepare, 'snapshot') && runner.os == 'Windows'
+      shell: pwsh
+      run: |
+        foreach ($product in @('plumb', 'ectropy')) {
+          $manager = Join-Path $env:RUNNER_TEMP "manage-$product.ps1"
+          Invoke-WebRequest "https://releases.$product.perish.uk/manage.ps1" -OutFile $manager
+          & $manager install --channel stable
+          if ($LASTEXITCODE -ne 0) { throw "$product stable installation failed" }
+        }
+        (Join-Path $HOME '.local/bin') | Out-File -FilePath $env:GITHUB_PATH -Append
+
+    - name: Prepare the domain Rust toolchain
+      if: contains(inputs.prepare, 'rust')
+      shell: bash
+      env:
+        RUST: ${{ inputs.rust }}
+      run: rustup toolchain install "$RUST" --profile minimal --component clippy --component rustfmt
+
     - name: Prepare the declared Node toolchain
       if: contains(inputs.prepare, 'node')
       uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020

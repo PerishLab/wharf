@@ -2,6 +2,7 @@ import json
 
 from lib.content import canonical, marker
 from lib.refusal import Refusal
+from lib.store import plan
 
 MEDIA = {"binaries": "release", "npm": "npm", "oci": "oci", "chart": "chart", "cargo": "cargo", "cfworker": "cfworker", "channel": "channel"}
 DONE = {"binaries": "published", "npm": "published", "oci": "published", "chart": "published", "cargo": "published", "cfworker": "deployed", "channel": "pointed"}
@@ -30,7 +31,17 @@ def observed(context, needs):
     media = {name: status(name, (decided.get(job, "skip"), presence.get(job, "skipped")), needs.get(job, {}).get("result")) for name, job in MEDIA.items()}
     state = "complete" if needs and all(need.get("result") in SETTLED for need in needs.values()) else "incomplete"
     attempt = {"run": context["run"], "attempt": context["attempt"], "wharf": context["wharf"]}
-    return {"schema": 1, **{field: context[field] for field in IDENTITY}, "media": media, "state": state, "attempt": attempt, "completed": attempt if state == "complete" else None}
+    resolution = {}
+    for name, job in MEDIA.items():
+        reported = needs.get(job, {}).get("outputs", {}).get("snapshot")
+        if reported and needs[job].get("result") == "success":
+            verified = json.loads(reported)
+            if verified.get("source") != {field: context[field] for field in IDENTITY}:
+                raise Refusal("published package context differs from the release identity")
+            plan.combination(dict(verified, guard={}))
+            resolution[name] = verified
+    held = {"schema": 1, **{field: context[field] for field in IDENTITY}, "media": media, "state": state, "attempt": attempt, "completed": attempt if state == "complete" else None}
+    return dict(held, resolution=resolution) if resolution else held
 
 
 def final(held):
@@ -44,7 +55,16 @@ def merged(standing, fresh):
         raise Refusal(f"{location(fresh['marker'])} records {standing['commit']}, this run distributes {fresh['commit']}; a marker never moves")
     media = {name: standing["media"].get(name) if final(standing["media"].get(name)) else held for name, held in fresh["media"].items()}
     completed = standing["completed"] or fresh["completed"]
-    return dict(fresh, media=media, state="complete" if completed else "incomplete", completed=completed)
+    resolution = dict(fresh.get("resolution", {}))
+    for name, record in standing.get("resolution", {}).items():
+        if name in resolution and resolution[name] != record:
+            raise Refusal("published combination disagrees with its recorded evidence")
+        if final(standing["media"].get(name)) or name not in resolution:
+            resolution[name] = record
+    if resolution and any(record != next(iter(resolution.values())) for record in resolution.values()):
+        raise Refusal("one immutable marker carries different published combinations")
+    held = dict(fresh, media=media, state="complete" if completed else "incomplete", completed=completed)
+    return dict(held, resolution=resolution) if resolution else held
 
 
 def record(bucket, context, needs, reader):

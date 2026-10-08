@@ -1,16 +1,84 @@
 {
   "layers": 4,
   "prepare": {
-    "windows": ["autocrlf"]
+    "windows": [
+      "autocrlf"
+    ]
   },
   "units": {
-    "binary": {"action": "binary", "verb": "build", "object": "binary", "per": "target"},
-    "suite-linux": {"action": "suite", "verb": "test", "object": "suite linux"},
-    "suite-node": {"action": "node-suite", "verb": "test", "object": "suite node", "prepare": ["node", "pnpm"]},
-    "bind": {"action": "bind", "verb": "bind", "object": "binaries", "prepare": ["rcodesign"]},
-    "smoke": {"action": "smoke", "verb": "smoke", "object": "binary", "per": "target"},
-    "validate": {"action": "validate", "verb": "validate", "object": "binary"},
-    "deb": {"action": "deb", "verb": "build", "object": "deb"},
-    "verify-deb": {"action": "deb-verify", "verb": "verify", "object": "deb"}
+    "binary": {
+      "action": "binary",
+      "verb": "build",
+      "object": "binary",
+      "per": "target",
+      "prepare": [
+        "snapshot",
+        "rust",
+        "node",
+        "pnpm"
+      ]
+    },
+    "suite-linux": {
+      "action": "suite",
+      "verb": "test",
+      "object": "suite linux",
+      "prepare": [
+        "snapshot",
+        "rust",
+        "node",
+        "pnpm"
+      ]
+    },
+    "suite-node": {
+      "action": "node-suite",
+      "verb": "test",
+      "object": "suite node",
+      "prepare": [
+        "snapshot",
+        "rust",
+        "node",
+        "pnpm"
+      ]
+    },
+    "pack-npm": {
+      "action": "npm-pack",
+      "verb": "build",
+      "object": "npm",
+      "prepare": [
+        "snapshot",
+        "rust",
+        "node",
+        "pnpm"
+      ]
+    },
+    "bind": {
+      "action": "bind",
+      "verb": "bind",
+      "object": "binaries",
+      "prepare": [
+        "rcodesign"
+      ]
+    },
+    "smoke": {
+      "action": "smoke",
+      "verb": "smoke",
+      "object": "binary",
+      "per": "target"
+    },
+    "validate": {
+      "action": "validate",
+      "verb": "validate",
+      "object": "binary"
+    },
+    "deb": {
+      "action": "deb",
+      "verb": "build",
+      "object": "deb"
+    },
+    "verify-deb": {
+      "action": "deb-verify",
+      "verb": "verify",
+      "object": "deb"
+    }
   }
 }

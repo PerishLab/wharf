@@ -128,6 +128,14 @@ class Worker(unittest.TestCase):
         self.assertEqual(receipt["workers"], [{"name": "demo", "domains": {"demo.example": 200}}])
         self.assertIn(["pnpm", "exec", "wrangler", "deploy"], self.calls)
 
+    def test_changed_snapshot_refuses_before_any_deployment(self):
+        def confirm():
+            raise Refusal("snapshot changed")
+        with mock.patch.dict(os.environ, {cfworker.TOKEN: "t"}), self.assertRaisesRegex(Refusal, "snapshot changed"):
+            cfworker.deploy(cfworker.Deploy(self.repository.root, self.repository.root / "out", confirm), self.runner, lambda url: 200)
+        self.assertIn(["pnpm", "--filter", "@demo/web", "build"], self.calls)
+        self.assertNotIn(["pnpm", "exec", "wrangler", "deploy"], self.calls)
+
     def test_install_reads_the_registries_with_the_read_token_alone(self):
         with mock.patch.dict(os.environ, {cfworker.TOKEN: "t", "WHARF_PACKAGES_TOKEN": "r"}):
             cfworker.deploy(cfworker.Deploy(self.repository.root, self.repository.root / "out"), self.runner, lambda url: 200)

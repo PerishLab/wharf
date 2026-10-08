@@ -24,6 +24,7 @@ PAUSE = 15
 class Deploy:
     source: Path
     output: Path
+    confirm: object = None
 
 
 def workers(source):
@@ -86,7 +87,7 @@ def reached(url, probe, sleep):
 
 
 def deploy(request, runner=run, probe=answer, sleep=time.sleep):
-    request = Deploy(Path(request.source).resolve(), Path(request.output))
+    request = Deploy(Path(request.source).resolve(), Path(request.output), request.confirm)
     if request.output.exists():
         raise Refusal(f"output {request.output} already exists")
     if not os.environ.get(TOKEN):
@@ -97,9 +98,12 @@ def deploy(request, runner=run, probe=answer, sleep=time.sleep):
     held = node.prepared(request.source, runner)
     with tempfile.TemporaryDirectory() as directory:
         runner(["pnpm", "install", "--frozen-lockfile"], request.source, node.reading(directory, dict(os.environ)))
-    results = []
     for worker in listed:
         runner(["pnpm", "--filter", worker["package"], "build"], request.source)
+    results = []
+    for worker in listed:
+        if request.confirm is not None:
+            request.confirm()
         runner(["pnpm", "exec", "wrangler", "deploy"], request.source / worker["directory"])
         answered = {domain: reached(f"https://{domain}/", probe, sleep) for domain in worker["domains"]}
         if any(status != 200 for status in answered.values()):

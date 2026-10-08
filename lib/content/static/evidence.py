@@ -4,7 +4,7 @@ import os
 import shutil
 import subprocess
 import sys
-from pathlib import Path
+from pathlib import Path, PurePosixPath, PureWindowsPath
 
 from lib.content import preview
 from lib.refusal import Refusal
@@ -33,6 +33,7 @@ def decode(body):
 
 def clean(environ, home):
     return {
+        **{name: environ[name] for name in ("SYSTEMROOT", "WINDIR", "COMSPEC", "PATHEXT") if name in environ},
         "PATH": environ.get("PATH", "/usr/bin:/bin"), "HOME": str(home), "CI": "true",
         "LANG": "C.UTF-8", "LC_ALL": "C.UTF-8", "GIT_CONFIG_NOSYSTEM": "1",
         "GIT_CONFIG_GLOBAL": os.devnull, "GIT_TERMINAL_PROMPT": "0", "GIT_NO_REPLACE_OBJECTS": "1",
@@ -40,9 +41,9 @@ def clean(environ, home):
     }
 
 
-def tools(root, env, inspect):
+def tools(root, env, inspect, names=TOOLS):
     held = {}
-    for name in TOOLS:
+    for name in names:
         found = shutil.which(name, path=env["PATH"])
         if found is None:
             raise Refusal(f"static build requires prepared {name}")
@@ -77,7 +78,7 @@ def guard(body, intent, version):
     held = decode(body)
     if not isinstance(held, dict) or held.get("schema") != "plumb.guard-runtime/v1" or held.get("ok") is not True or held.get("strength") != "full" or held.get("boundary") != "head" or held.get("commit") != intent["source"]["commit"]:
         raise Refusal("static build needs actual successful full/head Guard for this commit")
-    if not isinstance(held.get("root"), str) or not Path(held["root"]).is_absolute():
+    if not isinstance(held.get("root"), str) or not (PurePosixPath(held["root"]).is_absolute() or PureWindowsPath(held["root"]).is_absolute()):
         raise Refusal("static Guard evidence must identify its absolute source root")
     proof = held.get("guard")
     if not isinstance(proof, dict) or proof.get("schema") != "plumb.guard-proof/v1" or proof.get("repository") != intent["repository"] or proof.get("tree") != intent["source"]["tree"] or not isinstance(proof.get("plumb"), str) or proof["plumb"].split("@")[0] != version.removeprefix("plumb "):

@@ -52,6 +52,7 @@ jobs:
       cargo: ${{ steps.cargo.outputs.decision }}
       planned: ${{ steps.plan.outputs.planned }}
       presence: ${{ steps.plan.outputs.presence }}
+      snapshot: ${{ steps.plan.outputs.snapshot }}
       commit: ${{ steps.source.outputs.commit }}
       tree: ${{ steps.source.outputs.tree }}
     steps:
@@ -102,6 +103,14 @@ jobs:
         env:
           WHARF_SOURCE: ../product
         run: python3 -B -m scripts.media engines
+
+      - name: "[prepare] machine"
+        uses: ./wharf/.github/actions/prepare
+        with:
+          prepare: snapshot rust node pnpm
+          node: ${{ steps.engines.outputs.node }}
+          pnpm: ${{ steps.engines.outputs.pnpm }}
+          rust: ${{ fromJSON(steps.engines.outputs.domain)['rust.version'] }}
 
       - name: "[decide] npm"
         id: npm
@@ -167,6 +176,7 @@ jobs:
           WHARF_RUN: ${{ github.run_id }}
           WHARF_ATTEMPT: ${{ github.run_attempt }}
           WHARF_STEPS: ${{ toJSON(steps) }}
+          WHARF_PACKAGES_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           WHARF_DOMAIN: ${{ steps.engines.outputs.domain }}
           WHARF_R2_ENDPOINT: ${{ vars.WHARF_R2_ENDPOINT }}
           WHARF_R2_ACCESS_KEY_ID: ${{ secrets.WHARF_R2_ACCESS_KEY_ID }}
@@ -216,6 +226,7 @@ jobs:
           prepare: ${{ join(matrix.prepare, ' ') }}
           node: ${{ needs.plan.outputs.node }}
           pnpm: ${{ needs.plan.outputs.pnpm }}
+          rust: ${{ fromJSON(needs.plan.outputs.domain)['rust.version'] }}
 
       - name: ${{ matrix.name }}
         env:
@@ -277,6 +288,7 @@ jobs:
           prepare: ${{ join(matrix.prepare, ' ') }}
           node: ${{ needs.plan.outputs.node }}
           pnpm: ${{ needs.plan.outputs.pnpm }}
+          rust: ${{ fromJSON(needs.plan.outputs.domain)['rust.version'] }}
 
       - name: ${{ matrix.name }}
         env:
@@ -338,6 +350,7 @@ jobs:
           prepare: ${{ join(matrix.prepare, ' ') }}
           node: ${{ needs.plan.outputs.node }}
           pnpm: ${{ needs.plan.outputs.pnpm }}
+          rust: ${{ fromJSON(needs.plan.outputs.domain)['rust.version'] }}
 
       - name: ${{ matrix.name }}
         env:
@@ -399,6 +412,7 @@ jobs:
           prepare: ${{ join(matrix.prepare, ' ') }}
           node: ${{ needs.plan.outputs.node }}
           pnpm: ${{ needs.plan.outputs.pnpm }}
+          rust: ${{ fromJSON(needs.plan.outputs.domain)['rust.version'] }}
 
       - name: ${{ matrix.name }}
         env:
@@ -425,6 +439,8 @@ jobs:
     permissions:
       contents: read
       packages: write
+    outputs:
+      snapshot: ${{ steps.published.outputs.snapshot }}
     steps:
       - name: "[checkout] wharf"
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
@@ -440,23 +456,30 @@ jobs:
           client-id: ${{ vars.WHARF_APP_CLIENT_ID }}
           private-key: ${{ secrets.WHARF_APP_PRIVATE_KEY }}
 
-      - name: "[prepare] node"
-        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020
+      - name: "[prepare] machine"
+        uses: ./wharf/.github/actions/prepare
         with:
-          node-version: ${{ needs.plan.outputs.node }}
-
-      - name: "[prepare] pnpm"
-        env:
-          PNPM: ${{ needs.plan.outputs.pnpm }}
-        run: npm install --global "pnpm@$PNPM"
+          prepare: snapshot rust node pnpm
+          node: ${{ needs.plan.outputs.node }}
+          pnpm: ${{ needs.plan.outputs.pnpm }}
+          rust: ${{ fromJSON(needs.plan.outputs.domain)['rust.version'] }}
 
       - name: "[publish] npm"
+        id: published
         env:
+          WHARF_PACKAGES_TOKEN: ${{ secrets.PERISHLAB_PACKAGES_READ }}
+          WHARF_DOMAIN: ${{ needs.plan.outputs.domain }}
           WHARF_SOURCE: ../product
           WHARF_MARKER: ${{ inputs.marker }}
+          WHARF_REPOSITORY: ${{ inputs.repository }}
+          WHARF_WHARF: ${{ github.sha }}
+          WHARF_RUN: ${{ github.run_id }}
+          WHARF_ATTEMPT: ${{ github.run_attempt }}
+          WHARF_PLANNED: ${{ needs.plan.outputs.planned }}
+          WHARF_R2_ACCESS_KEY_ID: ${{ secrets.WHARF_R2_ACCESS_KEY_ID }}
+          WHARF_R2_SECRET_ACCESS_KEY: ${{ secrets.WHARF_R2_SECRET_ACCESS_KEY }}
           NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: python3 -B -m scripts.media npm-publish
-
   oci:
     name: "[publish] oci"
     needs: [plan, layer-1, layer-2, layer-3, layer-4]
@@ -465,6 +488,8 @@ jobs:
     permissions:
       contents: read
       packages: write
+    outputs:
+      snapshot: ${{ steps.published.outputs.snapshot }}
     steps:
       - name: "[checkout] wharf"
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
@@ -489,8 +514,19 @@ jobs:
           printf '%s' "$TOKEN" | docker login ghcr.io --username "$ACTOR" --password-stdin
           printf '%s' "$TOKEN" | helm registry login ghcr.io --username "$ACTOR" --password-stdin
 
+      - name: "[prepare] machine"
+        uses: ./wharf/.github/actions/prepare
+        with:
+          prepare: snapshot rust node pnpm
+          node: ${{ needs.plan.outputs.node }}
+          pnpm: ${{ needs.plan.outputs.pnpm }}
+          rust: ${{ fromJSON(needs.plan.outputs.domain)['rust.version'] }}
+
       - name: "[publish] oci"
+        id: published
         env:
+          WHARF_PACKAGES_TOKEN: ${{ secrets.PERISHLAB_PACKAGES_READ }}
+          WHARF_DOMAIN: ${{ needs.plan.outputs.domain }}
           WHARF_SOURCE: ../product
           WHARF_REPOSITORY: ${{ inputs.repository }}
           WHARF_MARKER: ${{ inputs.marker }}
@@ -501,7 +537,6 @@ jobs:
           WHARF_R2_ACCESS_KEY_ID: ${{ secrets.WHARF_R2_ACCESS_KEY_ID }}
           WHARF_R2_SECRET_ACCESS_KEY: ${{ secrets.WHARF_R2_SECRET_ACCESS_KEY }}
         run: python3 -B -m scripts.media oci-publish
-
   chart:
     name: "[publish] chart"
     needs: [plan, layer-1, layer-2, layer-3, layer-4]
@@ -510,6 +545,8 @@ jobs:
     permissions:
       contents: read
       packages: write
+    outputs:
+      snapshot: ${{ steps.published.outputs.snapshot }}
     steps:
       - name: "[checkout] wharf"
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
@@ -534,18 +571,36 @@ jobs:
           printf '%s' "$TOKEN" | docker login ghcr.io --username "$ACTOR" --password-stdin
           printf '%s' "$TOKEN" | helm registry login ghcr.io --username "$ACTOR" --password-stdin
 
+      - name: "[prepare] machine"
+        uses: ./wharf/.github/actions/prepare
+        with:
+          prepare: snapshot rust node pnpm
+          node: ${{ needs.plan.outputs.node }}
+          pnpm: ${{ needs.plan.outputs.pnpm }}
+          rust: ${{ fromJSON(needs.plan.outputs.domain)['rust.version'] }}
+
       - name: "[publish] chart"
+        id: published
         env:
+          WHARF_R2_SECRET_ACCESS_KEY: ${{ secrets.WHARF_R2_SECRET_ACCESS_KEY }}
+          WHARF_R2_ACCESS_KEY_ID: ${{ secrets.WHARF_R2_ACCESS_KEY_ID }}
+          WHARF_PACKAGES_TOKEN: ${{ secrets.PERISHLAB_PACKAGES_READ }}
+          WHARF_DOMAIN: ${{ needs.plan.outputs.domain }}
+          WHARF_PLANNED: ${{ needs.plan.outputs.planned }}
+          WHARF_ATTEMPT: ${{ github.run_attempt }}
+          WHARF_RUN: ${{ github.run_id }}
+          WHARF_WHARF: ${{ github.sha }}
           WHARF_SOURCE: ../product
           WHARF_REPOSITORY: ${{ inputs.repository }}
           WHARF_MARKER: ${{ inputs.marker }}
         run: python3 -B -m scripts.media chart-publish
-
   release:
     name: "[publish] binaries"
     needs: [plan, layer-1, layer-2, layer-3, layer-4]
     if: always() && needs.plan.result == 'success' && needs.plan.outputs.release == 'run' && !contains(needs.*.result, 'failure') && !contains(needs.*.result, 'cancelled')
     runs-on: ubuntu-24.04
+    outputs:
+      snapshot: ${{ steps.published.outputs.snapshot }}
     steps:
       - name: "[checkout] wharf"
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
@@ -561,8 +616,19 @@ jobs:
           client-id: ${{ vars.WHARF_APP_CLIENT_ID }}
           private-key: ${{ secrets.WHARF_APP_PRIVATE_KEY }}
 
+      - name: "[prepare] machine"
+        uses: ./wharf/.github/actions/prepare
+        with:
+          prepare: snapshot rust node pnpm
+          node: ${{ needs.plan.outputs.node }}
+          pnpm: ${{ needs.plan.outputs.pnpm }}
+          rust: ${{ fromJSON(needs.plan.outputs.domain)['rust.version'] }}
+
       - name: "[publish] binaries"
+        id: published
         env:
+          WHARF_PACKAGES_TOKEN: ${{ secrets.PERISHLAB_PACKAGES_READ }}
+          WHARF_DOMAIN: ${{ needs.plan.outputs.domain }}
           WHARF_SOURCE: ../product
           WHARF_RELEASES_ACCESS_KEY_ID: ${{ secrets.WHARF_RELEASES_ACCESS_KEY_ID }}
           WHARF_RELEASES_SECRET_ACCESS_KEY: ${{ secrets.WHARF_RELEASES_SECRET_ACCESS_KEY }}
@@ -575,7 +641,6 @@ jobs:
           WHARF_R2_ACCESS_KEY_ID: ${{ secrets.WHARF_R2_ACCESS_KEY_ID }}
           WHARF_R2_SECRET_ACCESS_KEY: ${{ secrets.WHARF_R2_SECRET_ACCESS_KEY }}
         run: python3 -B -m scripts.ship release
-
   channel:
     name: "[point] channel"
     needs: [plan, layer-1, layer-2, layer-3, layer-4, npm, oci, chart, cargo, cfworker, release]
@@ -614,6 +679,8 @@ jobs:
     permissions:
       contents: read
       packages: read
+    outputs:
+      snapshot: ${{ steps.published.outputs.snapshot }}
     steps:
       - name: "[checkout] wharf"
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
@@ -629,17 +696,16 @@ jobs:
           client-id: ${{ vars.WHARF_APP_CLIENT_ID }}
           private-key: ${{ secrets.WHARF_APP_PRIVATE_KEY }}
 
-      - name: "[prepare] node"
-        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020
+      - name: "[prepare] machine"
+        uses: ./wharf/.github/actions/prepare
         with:
-          node-version: ${{ needs.plan.outputs.node }}
-
-      - name: "[prepare] pnpm"
-        env:
-          PNPM: ${{ needs.plan.outputs.pnpm }}
-        run: npm install --global "pnpm@$PNPM"
+          prepare: snapshot rust node pnpm
+          node: ${{ needs.plan.outputs.node }}
+          pnpm: ${{ needs.plan.outputs.pnpm }}
+          rust: ${{ fromJSON(needs.plan.outputs.domain)['rust.version'] }}
 
       - name: "[deploy] cfworker"
+        id: published
         env:
           WHARF_SOURCE: ../product
           WHARF_REPOSITORY: ${{ inputs.repository }}
@@ -654,12 +720,13 @@ jobs:
           WHARF_PACKAGES_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           WHARF_DOMAIN: ${{ needs.plan.outputs.domain }}
         run: python3 -B -m scripts.ship cfworker-deploy
-
   cargo:
     name: "[publish] cargo"
     needs: [plan, layer-1, layer-2, layer-3, layer-4]
     if: always() && needs.plan.result == 'success' && needs.plan.outputs.cargo == 'run' && !contains(needs.*.result, 'failure') && !contains(needs.*.result, 'cancelled')
     runs-on: ubuntu-24.04
+    outputs:
+      snapshot: ${{ steps.published.outputs.snapshot }}
     steps:
       - name: "[checkout] wharf"
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
@@ -675,8 +742,24 @@ jobs:
           client-id: ${{ vars.WHARF_APP_CLIENT_ID }}
           private-key: ${{ secrets.WHARF_APP_PRIVATE_KEY }}
 
+      - name: "[prepare] machine"
+        uses: ./wharf/.github/actions/prepare
+        with:
+          prepare: snapshot rust node pnpm
+          node: ${{ needs.plan.outputs.node }}
+          pnpm: ${{ needs.plan.outputs.pnpm }}
+          rust: ${{ fromJSON(needs.plan.outputs.domain)['rust.version'] }}
+
       - name: "[publish] cargo"
+        id: published
         env:
+          WHARF_R2_SECRET_ACCESS_KEY: ${{ secrets.WHARF_R2_SECRET_ACCESS_KEY }}
+          WHARF_R2_ACCESS_KEY_ID: ${{ secrets.WHARF_R2_ACCESS_KEY_ID }}
+          WHARF_PACKAGES_TOKEN: ${{ secrets.PERISHLAB_PACKAGES_READ }}
+          WHARF_PLANNED: ${{ needs.plan.outputs.planned }}
+          WHARF_ATTEMPT: ${{ github.run_attempt }}
+          WHARF_RUN: ${{ github.run_id }}
+          WHARF_WHARF: ${{ github.sha }}
           WHARF_SOURCE: ../product
           WHARF_REPOSITORY: ${{ inputs.repository }}
           WHARF_MARKER: ${{ inputs.marker }}
@@ -686,7 +769,6 @@ jobs:
           WHARF_CARGO_SECRET_ACCESS_KEY: ${{ secrets.WHARF_CARGO_SECRET_ACCESS_KEY }}
           WHARF_DOMAIN: ${{ needs.plan.outputs.domain }}
         run: python3 -B -m scripts.media cargo-publish
-
   distribution:
     name: "[record] distribution"
     needs: [plan, layer-1, layer-2, layer-3, layer-4, npm, oci, chart, release, channel, cfworker, cargo]

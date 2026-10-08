@@ -4,6 +4,7 @@ import re
 import tempfile
 import unittest
 from pathlib import Path
+from contextlib import contextmanager
 from unittest import mock
 
 from lib import parameters
@@ -135,7 +136,10 @@ class Media(unittest.TestCase):
             "source": source,
             "steps": json.dumps(observed),
         }
-        with mock.patch.object(plan.r2, "configured", return_value=Memory()), mock.patch.object(plan, "suites"), mock.patch.object(plan, "binaries") as binaries, mock.patch.object(plan.node, "carried", return_value=False), mock.patch.object(parameters, "answer"):
+        @contextmanager
+        def prepared(request):
+            yield Path(source), {}, lambda: None
+        with mock.patch.object(plan.snapshot, "prepared", prepared), mock.patch.object(plan.toolchain, "versions", return_value={}), mock.patch.object(plan.r2, "configured", return_value=Memory()), mock.patch.object(plan, "suites"), mock.patch.object(plan, "binaries") as binaries, mock.patch.object(plan.node, "carried", return_value=False), mock.patch.object(parameters, "answer"):
             recorded = plan.record(held)
         binaries.assert_not_called()
         self.assertEqual(recorded["entry"], {name: "run" if name == "oci" else "skip" for name in sorted(plan.MEDIA)})
@@ -212,7 +216,7 @@ class Derived(unittest.TestCase):
     def test_a_layer_runs_one_unit_per_job_and_names_what_each_must_prepare(self):
         held = plan.units(self.entries())
         self.assertEqual([unit["name"] for unit in held["layer-1"]], ["[build] binary linux", "[build] binary macos", "[build] binary windows", "[test] suite linux"])
-        self.assertEqual(held["layer-1"][2]["prepare"], ["autocrlf"])
+        self.assertEqual(held["layer-1"][2]["prepare"], ["autocrlf", "snapshot", "rust", "node", "pnpm"])
         self.assertEqual(held["layer-2"], [{"name": "[bind] binaries", "action": "bind", "target": "", "runner": plan.RUNNER, "prepare": ["rcodesign"]}])
         self.assertEqual([unit["name"] for unit in held["layer-3"]], ["[smoke] binary linux", "[smoke] binary macos", "[smoke] binary windows", "[validate] binary"])
         windows = held["layer-3"][2]
@@ -222,7 +226,7 @@ class Derived(unittest.TestCase):
         entries = self.entries()
         entries["suite-node"] = {"key": "e" * 64, "decision": "run"}
         suite = [unit for unit in plan.units(entries)["layer-1"] if unit["action"] == "node-suite"]
-        self.assertEqual(suite, [{"name": "[test] suite node", "action": "node-suite", "target": "", "runner": plan.RUNNER, "prepare": ["node", "pnpm"]}])
+        self.assertEqual(suite, [{"name": "[test] suite node", "action": "node-suite", "target": "", "runner": plan.RUNNER, "prepare": ["snapshot", "rust", "node", "pnpm"]}])
 
     def test_a_unit_the_plan_decided_to_skip_is_absent_from_its_layer(self):
         entries = self.entries()

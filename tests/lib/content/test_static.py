@@ -139,7 +139,11 @@ class GuardEvidence(unittest.TestCase):
     def test_full_head_exact_binding(self):
         request = intent()
         proof = guarded(request, Path("/tmp/source"))
-        self.assertEqual(evidence.guard(json.dumps(proof), request, "plumb v0.66.0"), proof)
+        for root in ("/tmp/source", "C:\\work\\source"):
+            portable = dict(proof, root=root)
+            self.assertEqual(evidence.guard(json.dumps(portable), request, "plumb v0.66.0"), portable)
+        with self.assertRaisesRegex(Refusal, "absolute"):
+            evidence.guard(json.dumps(dict(proof, root="relative/source")), request, "plumb v0.66.0")
         for key, value in (("ok", False), ("strength", "declared"), ("boundary", "staged"), ("commit", "0" * 40), ("schema", "unknown")):
             with self.subTest(key=key), self.assertRaises(Refusal):
                 evidence.guard(json.dumps(dict(proof, **{key: value})), request, "plumb v0.66.0")

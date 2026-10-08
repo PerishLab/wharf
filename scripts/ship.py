@@ -12,8 +12,8 @@ from lib.identity import bind, guard
 from lib.refusal import Refusal
 from lib.identity.smoke import configured, smoke
 from lib.media import cfworker, node, release as releasing
-from lib.store import plan, r2
-from lib.store import workload
+from lib.identity.guard import execution
+from lib.store import plan, r2, workload
 
 DEPENDENCIES = "dependencies.tar.gz"
 RELEASE = ("repository", "marker", "commit", "tree")
@@ -23,7 +23,7 @@ BUILD = resources.read_json("build.json")
 LAYERED = sorted({spec["action"] for spec in resources.read_json("units.json")["units"].values()})
 RUNNER = BUILD["runner"]
 PRIMARY = next(target for target in BUILD["targets"] if target["name"] == BUILD["primary"])
-CARGO = (["lib.cargo.basis", "lib.cargo.build"], ["identity/format.json"])
+CARGO = (["lib.cargo.basis", "lib.cargo.build"], ["build.json", "identity/format.json"])
 DEBIAN = (["lib.debian.package"], ["releases.json"])
 VERIFYING = (["lib.debian.verify"], ["build.json"])
 
@@ -92,7 +92,7 @@ def depended(bucket, held, target, entry):
     output = place()
     output.mkdir(parents=True)
     build.archive(held["source"], output / DEPENDENCIES)
-    return workload.publish(bucket, entry["key"], workload.Produced(output, held_basis, carried(held)))
+    return execution.publish(held, bucket, entry["key"], workload.Produced(output, held_basis, carried(held)))
 
 
 def run_binary(held):
@@ -106,16 +106,16 @@ def run_binary(held):
     build.build(build.Build(Path(held["source"]), plan.product(document["context"]), tuple(names), target["target"], output))
     if dependencies is not None and dependencies["decision"] == "run":
         print(json.dumps(depended(bucket, held, target, dependencies), sort_keys=True), file=sys.stderr)
-    return workload.publish(bucket, entry["key"], workload.Produced(output, held_basis, carried(held)))
+    return execution.publish(held, bucket, entry["key"], workload.Produced(output, held_basis, carried(held)))
 
 
 def run_suite(held):
     bucket, _, entry = opened(held, "suite-linux")
     held_basis = basis.suite(held["source"], RUNNER)
-    resolved(entry, held_basis, (["lib.cargo.basis", "lib.cargo.suite"], []))
+    resolved(entry, held_basis, (["lib.cargo.basis", "lib.cargo.suite"], ["build.json"]))
     output = place()
     suite.suite(suite.Suite(Path(held["source"]), output))
-    return workload.publish(bucket, entry["key"], workload.Produced(output, held_basis, carried(held)))
+    return execution.publish(held, bucket, entry["key"], workload.Produced(output, held_basis, carried(held)))
 
 
 def binding(document):
@@ -134,7 +134,7 @@ def bind_target(bucket, document, held, target):
     output = place()
     bound = bind.Artifact(staged(bucket, binary), plan.product(identity), target["target"])
     bind.perform(bound, bind.Release(**identity), binary, str(output))
-    return workload.publish(bucket, entry["key"], workload.Produced(output, held_basis, carried(held)))
+    return execution.publish(held, bucket, entry["key"], workload.Produced(output, held_basis, carried(held)))
 
 
 def run_bind(held):
@@ -152,7 +152,7 @@ def validate(held):
     artifact = bind.Artifact(staged(bucket, primary), name, PRIMARY["target"])
     output = place()
     configured(artifact, str(output), {"repository": held["repository"], "marker": held["marker"]})
-    return workload.publish(bucket, entry["key"], workload.Produced(output, held_basis, carried(held)))
+    return execution.publish(held, bucket, entry["key"], workload.Produced(output, held_basis, carried(held)))
 
 
 def run_smoke(held):
@@ -165,7 +165,7 @@ def run_smoke(held):
     directory = staged(bucket, bound)
     artifacts = [bind.Artifact(directory, name, target["target"]) for name in bind.executables(directory, target["target"])]
     smoke(artifacts, str(output), document["context"]["marker"])
-    return workload.publish(bucket, entry["key"], workload.Produced(output, held_basis, carried(held)))
+    return execution.publish(held, bucket, entry["key"], workload.Produced(output, held_basis, carried(held)))
 
 
 def node_suite(held):
@@ -174,7 +174,7 @@ def node_suite(held):
     resolved(entry, held_basis, (["lib.media.node"], []))
     output = place()
     node.suite(node.Suite(Path(held["source"]), output))
-    return workload.publish(bucket, entry["key"], workload.Produced(output, held_basis, carried(held)))
+    return execution.publish(held, bucket, entry["key"], workload.Produced(output, held_basis, carried(held)))
 
 
 def debianized(source, product, required=True):
@@ -200,7 +200,7 @@ def run_deb(held):
     executable = bind.Artifact(staged(bucket, binary), held_deb.binary, PRIMARY["target"]).file
     output = place()
     package.build(package.Package(Path(held["source"]), held_deb, executable, debian(context["marker"]), output))
-    return workload.publish(bucket, entry["key"], workload.Produced(output, held_basis, carried(held)))
+    return execution.publish(held, bucket, entry["key"], workload.Produced(output, held_basis, carried(held)))
 
 
 def run_verify(held):
@@ -215,7 +215,7 @@ def run_verify(held):
     check = verify.Check(staged(bucket, deb) / package.named(held_deb.binary, debian(context["marker"])), held_deb.binary, debian(context["marker"]), context["marker"], depends, units)
     output = place()
     verify.verify(check, str(output))
-    return workload.publish(bucket, entry["key"], workload.Produced(output, held_basis, carried(held)))
+    return execution.publish(held, bucket, entry["key"], workload.Produced(output, held_basis, carried(held)))
 
 
 def placements(bucket, document, source):
@@ -242,6 +242,7 @@ def run_release(held):
     managers = place()
     releasing.render(published, str(managers), installed)
     contents = releasing.Contents(directories, managers, installed, placed, lambda: guard.reported(published, directories))
+    execution.ready(held)
     return releasing.publish(published, contents, r2.writer(releasing.place(published)[1], "RELEASES"))
 
 
@@ -250,8 +251,8 @@ def cfworker_deploy(held):
     held_basis = cfworker.basis(held["source"], RUNNER)
     resolved(entry, held_basis, (["lib.media.cfworker"], []))
     output = place()
-    cfworker.deploy(cfworker.Deploy(Path(held["source"]), output))
-    return workload.publish(bucket, entry["key"], workload.Produced(output, held_basis, carried(held)))
+    cfworker.deploy(cfworker.Deploy(Path(held["source"]), output, held.get("publication", held.get("confirm"))))
+    return execution.publish(held, bucket, entry["key"], workload.Produced(output, held_basis, carried(held)))
 
 
 def step(held):
@@ -260,7 +261,7 @@ def step(held):
     handler, names = ACTIONS[held["unit"]]
     values, origins = parameters.resolve(held["unit"], names, [])
     print("\n".join(parameters.report(values, origins)), file=sys.stderr)
-    return handler(values)
+    return execution.perform(held["unit"], handler, values)
 
 
 ACTIONS = {
@@ -270,6 +271,7 @@ ACTIONS = {
     "smoke": (run_smoke, ["target", *PLANNED]),
     "validate": (validate, ["source", *PLANNED]),
     "node-suite": (node_suite, ["source", *PLANNED]),
+    "npm-pack": (execution.pack, ["source", *PLANNED]),
     "deb": (run_deb, ["source", *PLANNED]),
     "deb-verify": (run_verify, ["source", *PLANNED]),
     "release": (run_release, ["source", *PLANNED]),
@@ -285,7 +287,7 @@ def main(argv=None):
         handler, names = ACTIONS[action]
         values, origins = parameters.resolve(action, names, rest)
         print("\n".join(parameters.report(values, origins)), file=sys.stderr)
-        result = handler(values)
+        result = execution.perform(action, handler, values)
     except Refusal as refusal:
         print(f"ship: refused: {refusal}", file=sys.stderr)
         return 2

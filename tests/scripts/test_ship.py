@@ -51,7 +51,7 @@ class Building(unittest.TestCase):
     def setUp(self):
         self.bucket = Memory()
         self.basis = {"entry": {"kind": "cargo-binary", "binary": "plumb"}}
-        self.key = ship.workload.key(self.basis, ship.implementation.resourced(["lib.cargo.basis", "lib.cargo.build"], ["identity/format.json"]))
+        self.key = ship.workload.key(self.basis, ship.implementation.resourced(["lib.cargo.basis", "lib.cargo.build"], ["build.json", "identity/format.json"]))
         self.held = dict(CONTEXT, planned="1", source="../product", target="x86_64-unknown-linux-gnu")
 
     def stored(self, entries):
@@ -203,7 +203,7 @@ class Recording(unittest.TestCase):
 
     def test_the_workspace_suite_is_recorded_under_the_key_the_plan_holds(self):
         held_basis = {"entry": {"kind": "cargo-suite"}}
-        key = self.keyed(held_basis, (["lib.cargo.basis", "lib.cargo.suite"], []))
+        key = self.keyed(held_basis, (["lib.cargo.basis", "lib.cargo.suite"], ["build.json"]))
         self.seed("suite-linux", key)
         resolving = mock.patch.object(ship.basis, "suite", return_value=held_basis)
         self.assertEqual(self.record(ship.run_suite, (ship.suite, "suite"), resolving)["key"], key)

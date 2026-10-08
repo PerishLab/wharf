@@ -12,7 +12,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from lib.content import declaration, resources
-from lib.media.node import manifest
+from lib.media.node import expected, manifest, reading
 from lib.process import git, run
 from lib.refusal import Refusal
 
@@ -34,6 +34,10 @@ def declared(source):
 
 def carried(source):
     return declared(source) is not None
+
+
+def basis(source, marker):
+    return {"entry": {"kind": "npm-pack", "marker": marker, "packages": publishable(source)}, "tree": git(source, "rev-parse", "HEAD^{tree}"), "engines": expected(source)}
 
 
 def globs(source):
@@ -142,31 +146,64 @@ def userconfig(directory, registries):
     return path
 
 
-def publish(source, version, tools=Tools()):
-    reader = tools.reader or fetch
-    held = pending(source, version, reader)
-    tag = channel(version)
-    results = []
+def prepare(source, version, output, runner=run):
+    source, output = Path(source), Path(output)
+    if output.exists():
+        raise Refusal("npm archive output must be absent")
+    listed = publishable(source)
+    originals = {source / item["path"]: (source / item["path"]).read_bytes() for item in listed}
+    env = dict(os.environ)
+    env.pop(TOKEN, None)
     with tempfile.TemporaryDirectory() as directory:
-        env = dict(os.environ, NPM_CONFIG_USERCONFIG=str(userconfig(directory, {item["registry"] for item in held})))
-        if not all(item["published"] for item in held):
-            tools.run(["pnpm", "install", "--frozen-lockfile"], source, env)
-        unpublished = [package for package in held if not package["published"]]
-        for package in unpublished:
-            stamp(source, package, version)
-        runner = lambda argv, cwd: tools.run(argv, cwd, env)
-        problems = [problem for package in unpublished for problem in vet(pack(source, package, directory, runner))]
-        if problems:
-            raise Refusal("packed packages do not hold what they name:\n" + "\n".join(problems))
-        for package in held:
-            if package["published"]:
-                results.append({"name": package["name"], "state": "already-published"})
+        runner(["pnpm", "install", "--frozen-lockfile"], source, reading(directory, env))
+        env.pop("WHARF_PACKAGES_TOKEN", None)
+        output.mkdir(parents=True)
+        try:
+            for item in listed:
+                stamp(source, item, version)
+            stamped = {path: path.read_bytes() for path in originals}
+            archives = []
+            for item in listed:
+                archive = pack(source, item, directory, lambda argv, cwd: runner(argv, cwd, env))
+                problems = vet(archive)
+                if problems:
+                    raise Refusal("packed packages do not hold what they name:\n" + "\n".join(problems))
+                name = item["name"].replace("/", "__") + ".tgz"
+                (output / name).write_bytes(archive.read_bytes())
+                archives.append({"name": item["name"], "registry": item["registry"], "file": name})
+            if any(path.read_bytes() != expected for path, expected in stamped.items()):
+                raise Refusal("npm packing changed its stamped manifest")
+        finally:
+            for path, original in originals.items():
+                path.write_bytes(original)
+    receipt = {"version": version, "packages": archives}
+    (output / "receipt.json").write_text(json.dumps(receipt, sort_keys=True) + "\n")
+    return receipt
+
+
+def publish(source, version, directory, tools=Tools()):
+    listed = publishable(source)
+    receipt = json.loads((Path(directory) / "receipt.json").read_text())
+    expected = [{"name": item["name"], "registry": item["registry"], "file": item["name"].replace("/", "__") + ".tgz"} for item in listed]
+    if receipt != {"version": version, "packages": expected}:
+        raise Refusal("npm archives differ from the declared release")
+    archives = {item["name"]: Path(directory) / item["file"] for item in expected}
+    for name, archive in archives.items():
+        with tarfile.open(archive) as held:
+            declared = json.load(held.extractfile("package/package.json"))
+        if (declared.get("name"), declared.get("version")) != (name, version) or vet(archive):
+            raise Refusal("npm archive content differs from the declared release")
+    results = []
+    with tempfile.TemporaryDirectory() as home:
+        env = dict(os.environ, NPM_CONFIG_USERCONFIG=str(userconfig(home, {item["registry"] for item in listed})))
+        for item in pending(source, version, tools.reader or fetch):
+            if item["published"]:
+                results.append({"name": item["name"], "state": "already-published"})
                 continue
-            argv = ["pnpm", "publish", "--filter", package["name"], "--no-git-checks", "--tag", tag]
-            tools.run(argv, source, env)
-            if not published(package, version, reader):
-                raise Refusal(f"{package['name']}@{version} is not visible after publishing")
-            results.append({"name": package["name"], "state": "published", "tag": tag})
+            tools.run(["pnpm", "publish", str(archives[item["name"]]), "--ignore-scripts", "--no-git-checks", "--registry", item["registry"], "--tag", channel(version)], source, env)
+            if not published(item, version, tools.reader or fetch):
+                raise Refusal(f"{item['name']}@{version} is not visible after publishing")
+            results.append({"name": item["name"], "state": "published", "tag": channel(version)})
     return {"version": version, "packages": results}
 
 

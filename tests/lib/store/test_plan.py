@@ -15,6 +15,42 @@ CONTEXT = {
     "attempt": "1",
 }
 ENTRIES = {"binary-linux": {"key": "d" * 64, "decision": "run"}, "npm": {"decision": "skip"}}
+SNAPSHOT = {"schema": "wharf.release.snapshot/v1", "source": {field: CONTEXT[field] for field in ("repository", "marker", "commit", "tree")}, "head": "e" * 40, "tree": "f" * 40, "packages": [], "controls": {}, "domain": {}, "guard": {}}
+
+
+class Publication(unittest.TestCase):
+    def setUp(self):
+        self.bucket = Memory()
+        self.document = {"context": dict(CONTEXT, snapshot=SNAPSHOT)}
+
+    def test_the_first_combination_is_create_only_and_reusable(self):
+        plan.reserve(self.bucket, self.document)
+        original = self.bucket.get(plan.publication(CONTEXT))
+        plan.reserve(self.bucket, self.document)
+        self.assertEqual(self.bucket.get(plan.publication(CONTEXT)), original)
+
+    def test_a_changed_package_set_refuses_without_replacing_the_record(self):
+        plan.reserve(self.bucket, self.document)
+        original = self.bucket.get(plan.publication(CONTEXT))
+        changed = dict(SNAPSHOT, packages=[{"ecosystem": "cargo", "name": "plumb", "version": "changed"}])
+        with self.assertRaisesRegex(Refusal, "another verified combination"):
+            plan.reserve(self.bucket, {"context": dict(CONTEXT, snapshot=changed)})
+        self.assertEqual(self.bucket.get(plan.publication(CONTEXT)), original)
+
+    def test_another_release_identity_writes_nothing(self):
+        with self.assertRaisesRegex(Refusal, "release identity"):
+            plan.reserve(self.bucket, {"context": dict(CONTEXT, marker="v9.0.0", snapshot=SNAPSHOT)})
+        self.assertEqual(self.bucket.writes, [])
+
+    def test_partial_historical_publication_requires_review(self):
+        observed = {"npm": {"decision": "run", "presence": "present", "existing": "true"}}
+        with self.assertRaisesRegex(Refusal, "explicit recovery review"):
+            plan.legacy(self.bucket, CONTEXT, {"npm": {"decision": "run"}}, observed)
+        self.assertEqual(self.bucket.writes, [])
+
+    def test_registered_recovery_keeps_the_same_combination(self):
+        plan.reserve(self.bucket, self.document)
+        plan.legacy(self.bucket, CONTEXT, {"npm": {"decision": "run"}}, {"npm": {"existing": "true"}})
 
 
 class Reading(unittest.TestCase):
