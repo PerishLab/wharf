@@ -2,7 +2,7 @@ import hashlib
 from pathlib import Path
 
 from lib.content import canonical, implementation, preview
-from lib.content.static import assets, evidence
+from lib.content.static import assets, evidence, runtime
 from lib.refusal import Refusal
 from lib.store import workload
 
@@ -10,8 +10,10 @@ MODULES = ("lib.media.node", "lib.content.static.assets", "lib.content.static.so
 
 
 def recipe(receipt):
-    preview.shape(receipt, {"schema", "source", "app", "guard", "tools", "implementation"}, "static build receipt")
-    if receipt["schema"] != "wharf.preview.build/v1":
+    isolated = receipt.get("schema") == "wharf.preview.isolated/v1"
+    fields = {"schema", "source", "app", "guard", "tools", "implementation"}
+    preview.shape(receipt, fields | ({"execution"} if isolated else set()), "static build receipt")
+    if receipt["schema"] not in ("wharf.preview.build/v1", "wharf.preview.isolated/v1"):
         raise Refusal("unsupported static build receipt")
     preview.shape(receipt["source"], {"repository", "commit", "tree", "declaration"}, "static build source")
     preview.matches(receipt["source"]["repository"], preview.REPOSITORY, "source repository")
@@ -29,10 +31,12 @@ def recipe(receipt):
     if not isinstance(receipt["implementation"], dict) or not receipt["implementation"]:
         raise Refusal("static build receipt must bind its implementation")
     for name, digest in receipt["implementation"].items():
-        if not isinstance(name, str) or not (name.startswith("lib.") or name == "resource:registries.json"):
+        if not isinstance(name, str) or not (name.startswith("lib.") or name in ("resource:registries.json", "resource:build.json")):
             raise Refusal("static implementation identity is malformed")
         preview.matches(digest, preview.HEX[64], "implementation digest")
-    if receipt["implementation"] != world():
+    if isolated:
+        execution(receipt)
+    if receipt["implementation"] != world(isolated):
         raise Refusal("static build and consumer must use the same exact trusted implementation world")
     return receipt
 
@@ -147,5 +151,50 @@ def fetch(bucket, key):
     return document, files
 
 
-def world():
-    return implementation.resourced(MODULES, ["registries.json"])
+def execution(receipt):
+    held = receipt["execution"]
+    preview.shape(held, {"controls", "phases"}, "isolated Preview execution")
+    preview.shape(held["controls"], {"plumb", "ectropy", "control.py"}, "isolated controls")
+    for digest in held["controls"].values():
+        preview.matches(digest, preview.HEX[64], "control digest")
+    preview.shape(held["phases"], {"install", "guard", "build"}, "isolated phases")
+    worlds = list(held["phases"].values())
+    for value in worlds:
+        observed(value)
+    if any(value != worlds[0] for value in worlds) or worlds[0].get("profile") != runtime.POLICY:
+        raise Refusal("isolated Preview phases disagree with their exact execution profile")
+    for name in ("plumb", "ectropy"):
+        if receipt["tools"][name]["sha256"] != held["controls"][name]:
+            raise Refusal("isolated Preview controls disagree with invoked tools")
+    if held["controls"]["control.py"] != implementation.digest("lib.content.static.control")["lib.content.static.control"]:
+        raise Refusal("isolated Preview control script disagrees with the trusted implementation")
+
+
+def observed(value):
+    preview.shape(value, {"image", "profile", "engine", "client", "implementation"}, "isolated runtime")
+    preview.shape(value["image"], {"requested", "resolved", "id"}, "isolated image")
+    image = value["image"]
+    prefix = runtime.POLICY["image"].removesuffix(":stable") + "@sha256:"
+    if image["requested"] != runtime.POLICY["image"] or not isinstance(image["resolved"], str) or not image["resolved"].startswith(prefix):
+        raise Refusal("isolated runtime image is outside the trusted public identity")
+    preview.matches(image["resolved"].removeprefix(prefix), preview.HEX[64], "image digest")
+    if not isinstance(image["id"], str) or not image["id"].startswith("sha256:"):
+        raise Refusal("isolated image identifier is malformed")
+    preview.matches(image["id"].removeprefix("sha256:"), preview.HEX[64], "image identifier")
+    preview.shape(value["client"], {"path", "sha256"}, "isolated engine client")
+    if not isinstance(value["client"]["path"], str) or not Path(value["client"]["path"]).is_absolute():
+        raise Refusal("isolated engine client must have an absolute path")
+    preview.matches(value["client"]["sha256"], preview.HEX[64], "engine client digest")
+    preview.shape(value["engine"], {"ServerVersion", "KernelVersion", "Architecture", "SecurityOptions"}, "isolated engine")
+    for name in ("ServerVersion", "KernelVersion", "Architecture"):
+        preview.text(value["engine"][name], "engine identity")
+    options = value["engine"]["SecurityOptions"]
+    if not isinstance(options, list) or any(not isinstance(option, str) for option in options) or not any("seccomp" in option and "unconfined" not in option for option in options):
+        raise Refusal("isolated engine lacks the trusted seccomp boundary")
+    if value["implementation"] != implementation.resourced(["lib.content.static.runtime"], ["build.json"]):
+        raise Refusal("isolated runtime implementation disagrees with the consumer")
+
+
+def world(isolated=False):
+    modules = MODULES + (("lib.content.static.bridge", "lib.content.static.control") if isolated else ())
+    return implementation.resourced(modules, ["registries.json"] + (["build.json"] if isolated else []))
