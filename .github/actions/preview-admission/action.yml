@@ -1,0 +1,74 @@
+name: preview-admission
+description: Observe trusted current Preview admission without acquiring or mutating product source
+inputs:
+  request:
+    description: Bounded exact Preview request JSON
+    required: true
+  control-token:
+    description: Prepared Wharf contents and actions read token
+    required: true
+  client-id:
+    description: Product source-read App client id
+    required: true
+  private-key:
+    description: Product source-read App private key
+    required: true
+  registration-endpoint:
+    description: Trusted registration R2 origin
+    required: true
+  registration-bucket:
+    description: Trusted registration bucket
+    required: true
+  registration-access-key-id:
+    description: Prepared registration-only read credential
+    required: true
+  registration-secret-access-key:
+    description: Prepared registration-only read credential
+    required: true
+outputs:
+  repository:
+    description: Validated product repository selector, not authorization
+    value: ${{ steps.named.outputs.repository }}
+  operation:
+    description: Validated operation selector, not a result
+    value: ${{ steps.named.outputs.operation }}
+  intent:
+    description: Exact validated request digest
+    value: ${{ steps.admitted.outputs.intent }}
+  admission:
+    description: Current observation digest, never a bearer permit
+    value: ${{ steps.admitted.outputs.admission }}
+runs:
+  using: composite
+  steps:
+    - name: '[identify] request'
+      id: named
+      shell: bash
+      working-directory: wharf
+      env:
+        WHARF_REQUEST: ${{ inputs.request }}
+      run: python3 -B -m scripts.preview request
+
+    - name: '[prepare] request'
+      id: token
+      uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1
+      with:
+        client-id: ${{ inputs.client-id }}
+        private-key: ${{ inputs.private-key }}
+        owner: ${{ steps.named.outputs.owner }}
+        repositories: ${{ steps.named.outputs.name }}
+        permission-contents: read
+
+    - name: '[verify] request'
+      id: admitted
+      shell: bash
+      working-directory: wharf
+      env:
+        WHARF_REQUEST: ${{ inputs.request }}
+        WHARF_PREVIEW_CONTROL_TOKEN: ${{ inputs.control-token }}
+        WHARF_PREVIEW_PRODUCT_TOKEN: ${{ steps.token.outputs.token }}
+        WHARF_PREVIEW_REGISTRATION_ENDPOINT: ${{ inputs.registration-endpoint }}
+        WHARF_PREVIEW_REGISTRATION_BUCKET: ${{ inputs.registration-bucket }}
+        WHARF_PREVIEW_REGISTRATION_ACCESS_KEY_ID: ${{ inputs.registration-access-key-id }}
+        WHARF_PREVIEW_REGISTRATION_SECRET_ACCESS_KEY: ${{ inputs.registration-secret-access-key }}
+      run: python3 -B -m scripts.preview admit
