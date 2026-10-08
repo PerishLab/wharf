@@ -298,6 +298,22 @@ grants no reader authorization: lockfile/integrity/URL validation, isolated read
 network and teardown, verification-cache transport and live workflow integration
 remain separate obligations. Ordinary static builds do not yet invoke this module.
 
+`lib/check/locking/` composes that projection with bounded, ASCII literal pnpm v9
+lockfile qualification. Unknown fields, ambiguous YAML, unsupported identities,
+dangling package/snapshot edges, manifest/importer disagreement, foreign protocols
+and noncanonical download routing refuse before reader credentials are considered.
+Every package resolution requires canonical SHA512 integrity, including unused
+optional records. Public tarballs bind exact package/version; first-party GitHub
+tarballs bind the declared scope, package, version and opaque identifier. These
+checks do not prove provenance, latest-stable authority or redirect confinement.
+The projection retains exact qualified lockfile bytes and input digests alongside
+fixed credential-free configuration, not product manifests, scripts or runtime
+selectors. A trusted caller still authenticates and supplies the complete source.
+Reader network/redirect isolation and teardown, store/cache verification transport,
+latest-stable first-party Guard authority, authsource and official live Preview
+integration remain separate obligations under #82 and #36. Ordinary static builds
+do not yet invoke this module; qualification grants no reader authorization.
+
 How far a marker is distributed has one authority: `distribution.json` beside its
 seal on the product's release authority, at
 `v1/releases/<channel>/<marker>/distribution.json`. It records the marker's
