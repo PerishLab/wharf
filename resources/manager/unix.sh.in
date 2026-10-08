@@ -36,6 +36,7 @@ Usage:
   manage.sh install [--channel <channel>] [--version vX.Y.Z[-<channel>.N]]
   manage.sh update [--channel <channel>] [--version vX.Y.Z[-<channel>.N]]
   manage.sh uninstall [--channel <channel>] [--version vX.Y.Z[-<channel>.N]]
+  manage.sh inspect [--channel <channel>] [--version vX.Y.Z[-<channel>.N]]
 
 Stable from the canonical release authority is the only moving intent and the
 only source admitted to the default install and bin paths. Every non-stable
@@ -48,6 +49,12 @@ matching ownership markers are swept. An explicit stable --version is a
 deliberate rollback, while implicit stable never moves backwards.
 Owned regular binaries with local drift are repaired from the verified archive;
 redirected paths and unexpected version-seat content are never overwritten.
+
+Inspect verifies sealed archives and compares installed bytes without executing
+them or changing the installation. It reports JSON: exit 0 means exact
+convergence, exit 1 means missing or differing bytes, and exit 2 means unknown
+authority or provenance. An isolated candidate at the selected stable commit is
+reported separately from an older source.
 
 Options:
   --public-url <url>     release seal and artifact authority
@@ -126,7 +133,7 @@ belongs() {{
 }}
 
 case "$COMMAND" in
-  install|update)
+  install|update|inspect)
     if [ -z "$VERSION" ] &&
       {{ [ "$CHANNEL" != stable ] || [ "$PUBLIC_URL" != "$CANONICAL_PUBLIC_URL" ]; }}; then
       echo "$CHANNEL from $PUBLIC_URL requires an exact version" >&2
@@ -747,8 +754,211 @@ uninstall_{product}() {{
   printf 'removed {product} from %s and %s\n' "$INSTALL_ROOT" "$LOCAL_BIN_DIR"
 }}
 
+inspection_string() {{
+  printf '%s' "$1" | LC_ALL=C awk '
+    BEGIN {{ printf "\""; for (i = 1; i < 32; i++) control[sprintf("%c", i)] = i }}
+    {{
+      if (NR > 1) printf "\\n"
+      for (i = 1; i <= length($0); i++) {{
+        value = substr($0, i, 1)
+        if (value == "\\") printf "\\\\"
+        else if (value == "\"") printf "\\\""
+        else if (value in control) printf "\\u%04x", control[value]
+        else printf "%s", value
+      }}
+    }}
+    END {{ printf "\"" }}
+  '
+}}
+
+inspection_value() {{
+  if [ -n "$1" ]; then inspection_string "$1"; else printf null; fi
+}}
+
+inspection_field() {{
+  sed -n "s/.*\"$1\"[[:space:]]*:[[:space:]]*\"\([^\"]*\)\".*/\1/p" "$2" | head -n 1
+}}
+
+inspection_fetch() {{
+  FETCH_VERSION=$1
+  FETCH_CHANNEL=$2
+  FETCH_DIR=$3
+  mkdir -p "$FETCH_DIR"
+  curl -fsSL --max-time 30 \
+    "$PUBLIC_URL/v1/releases/$FETCH_CHANNEL/$FETCH_VERSION/seal.json" \
+    -o "$FETCH_DIR/seal.json" 2>/dev/null || return 1
+  [ "$(release_schema "$FETCH_DIR/seal.json")" = 1 ] &&
+    [ "$(release_version "$FETCH_DIR/seal.json")" = "$FETCH_VERSION" ] &&
+    [ "$(release_channel "$FETCH_DIR/seal.json")" = "$FETCH_CHANNEL" ] &&
+    [ "$(inspection_field product "$FETCH_DIR/seal.json")" = "{product}" ] || return 1
+  FETCH_COMMIT=$(inspection_field commit "$FETCH_DIR/seal.json")
+  printf '%s\n' "$FETCH_COMMIT" | grep -Eq '^[0-9a-f]{{40}}$' || return 1
+  FETCH_SHA=$(object_string "$ARTIFACT" sha256 "$FETCH_DIR/seal.json")
+  printf '%s\n' "$FETCH_SHA" | grep -Eq '^[0-9a-f]{{64}}$' || return 1
+  FETCH_URL=$(object_string "$ARTIFACT" url "$FETCH_DIR/seal.json")
+  [ "$FETCH_URL" = "$PUBLIC_URL/v1/objects/sha256/$FETCH_SHA/$ARCHIVE" ] || return 1
+  curl -fsSL --max-time 30 "$FETCH_URL" -o "$FETCH_DIR/archive" 2>/dev/null || return 1
+  [ "$(sha256 "$FETCH_DIR/archive")" = "$FETCH_SHA" ] || return 1
+  tar -tzf "$FETCH_DIR/archive" > "$FETCH_DIR/entries" 2>/dev/null || return 1
+  tar -tvzf "$FETCH_DIR/archive" > "$FETCH_DIR/types" 2>/dev/null || return 1
+  awk 'substr($0, 1, 1) != "-" && substr($0, 1, 1) != "d" {{ exit 1 }}' "$FETCH_DIR/types" || return 1
+  while IFS= read -r listed; do
+    admitted=false
+    [ -z "$ARCHIVE_ROOT" ] || [ "$listed" != "$ARCHIVE_ROOT/" ] || admitted=true
+    for allowed in $BINARIES; do
+      expected_entry=$allowed
+      [ -z "$ARCHIVE_ROOT" ] || expected_entry="$ARCHIVE_ROOT/$allowed"
+      [ "$listed" != "$expected_entry" ] || admitted=true
+    done
+    [ "$admitted" = true ] || return 1
+  done < "$FETCH_DIR/entries"
+  mkdir -p "$FETCH_DIR/unpacked"
+  tar -xzf "$FETCH_DIR/archive" -C "$FETCH_DIR/unpacked" 2>/dev/null || return 1
+  FETCH_FILES="$FETCH_DIR/unpacked"
+  [ -z "$ARCHIVE_ROOT" ] || FETCH_FILES="$FETCH_FILES/$ARCHIVE_ROOT"
+  for allowed in $BINARIES; do
+    [ -f "$FETCH_FILES/$allowed" ] && [ ! -L "$FETCH_FILES/$allowed" ] || return 1
+  done
+}}
+
+inspection_row() {{
+  entry="$LOCAL_BIN_DIR/$1"
+  file_sha=
+  verified_marker=
+  verified_archive=
+  verified_commit=
+  hint=
+  state=missing
+  recovery="Run manage.sh update with this channel and the same install/bin paths."
+  [ ! -L "$entry" ] || hint=$(basename "$(dirname "$(readlink "$entry")")")
+  if [ -f "$entry" ]; then
+    file_sha=$(sha256 "$entry" 2>/dev/null) || file_sha=
+    state=unknown
+  fi
+  selected_sha=
+  if [ "$SELECTED_READY" = true ]; then
+    selected_sha=$(sha256 "$SELECTED_FILES/$1")
+    if [ -n "$file_sha" ] && [ "$file_sha" = "$selected_sha" ]; then
+      state=matching
+      verified_marker=$VERSION
+      verified_archive=$SELECTED_SHA
+      verified_commit=$SELECTED_COMMIT
+      recovery=
+    elif [ -n "$file_sha" ]; then
+      normalized=$(normalize_version "$hint" 2>/dev/null) || normalized=
+      if [ -n "$normalized" ] && [ "$normalized" = "$hint" ]; then
+        hint_channel=stable
+        case "$hint" in *-*) hint_channel=${{hint#*-}}; hint_channel=${{hint_channel%.*}} ;; esac
+        if inspection_fetch "$hint" "$hint_channel" "$WORK_TMP/$1-candidate"; then
+          if [ "$file_sha" = "$(sha256 "$FETCH_FILES/$1")" ]; then
+            verified_marker=$hint
+            verified_archive=$FETCH_SHA
+            verified_commit=$FETCH_COMMIT
+            state=stale
+            if [ "$CHANNEL" = stable ] && [ "$hint_channel" != stable ] && [ "$verified_commit" = "$SELECTED_COMMIT" ]; then
+              state=candidate
+              recovery="Run the canonical manager install --channel stable into its normal stable seat; preserve this isolated candidate seat."
+            fi
+          else
+            state=replaced
+          fi
+        fi
+      fi
+    fi
+  else
+    state=unknown
+    recovery="Repeat manage.sh inspect when the selected release authority and its verified archive are available."
+  fi
+  case "$state" in
+    matching) ;;
+    unknown) INSPECTION_CODE=2 ;;
+    *) [ "$INSPECTION_CODE" -ne 0 ] || INSPECTION_CODE=1 ;;
+  esac
+  printf '{{"name":'; inspection_string "$1"
+  printf ',"path":'; inspection_string "$entry"
+  printf ',"state":'; inspection_string "$state"
+  printf ',"sha256":'; inspection_value "$file_sha"
+  printf ',"selected_sha256":'; inspection_value "$selected_sha"
+  printf ',"marker":'; inspection_value "$verified_marker"
+  printf ',"archive_sha256":'; inspection_value "$verified_archive"
+  printf ',"commit":'; inspection_value "$verified_commit"
+  printf ',"lookup_hint":'; inspection_value "$hint"
+  printf ',"recovery":'; inspection_value "$recovery"
+  printf ',"recovery_argv":'
+  if [ "$state" = matching ]; then
+    printf null
+  elif [ "$state" = candidate ]; then
+    printf '["sh","manage.sh","install","--channel","stable"]'
+  else
+    recovery_command=update
+    [ "$SELECTED_READY" = true ] || recovery_command=inspect
+    printf '["sh","manage.sh",'; inspection_string "$recovery_command"
+    printf ',"--channel",'; inspection_string "$CHANNEL"
+    if [ -n "$VERSION" ]; then
+      printf ',"--version",'; inspection_string "$VERSION"
+    fi
+    printf ',"--public-url",'; inspection_string "$PUBLIC_URL"
+    printf ',"--install-root",'; inspection_string "$INSTALL_ROOT"
+    printf ',"--bin-dir",'; inspection_string "$LOCAL_BIN_DIR"
+    printf ']'
+  fi
+  printf '}}'
+}}
+
+inspect_{product}() {{
+  WORK_TMP=$(mktemp -d)
+  SELECTED_READY=false
+  SELECTED_FILES=
+  SELECTED_SHA=
+  SELECTED_COMMIT=
+  INSPECTION_CODE=0
+  if [ -z "$VERSION" ]; then
+    if curl -fsSL --max-time 30 "$PUBLIC_URL/v1/channels/stable.json" -o "$WORK_TMP/pointer.json" 2>/dev/null; then
+      if [ "$(release_schema "$WORK_TMP/pointer.json")" = 1 ] &&
+        [ "$(release_channel "$WORK_TMP/pointer.json")" = stable ] &&
+        [ "$(inspection_field product "$WORK_TMP/pointer.json")" = "{product}" ]; then
+        VERSION=$(release_version "$WORK_TMP/pointer.json")
+      fi
+    fi
+  fi
+  normalized=$(normalize_version "$VERSION" 2>/dev/null) || normalized=
+  if [ -n "$VERSION" ] && [ "$VERSION" = "$normalized" ] && belongs "$VERSION"; then
+    if inspection_fetch "$VERSION" "$CHANNEL" "$WORK_TMP/selected"; then
+      SELECTED_READY=true
+      if [ -f "$WORK_TMP/pointer.json" ]; then
+        pointer_sha=$(object_string seal sha256 "$WORK_TMP/pointer.json")
+        [ "$(sha256 "$WORK_TMP/selected/seal.json")" = "$pointer_sha" ] || SELECTED_READY=false
+        [ "$(inspection_field commit "$WORK_TMP/pointer.json")" = "$FETCH_COMMIT" ] || SELECTED_READY=false
+      fi
+      if [ "$SELECTED_READY" = true ]; then
+        SELECTED_FILES=$FETCH_FILES
+        SELECTED_SHA=$FETCH_SHA
+        SELECTED_COMMIT=$FETCH_COMMIT
+      fi
+    fi
+  fi
+  printf '{{"schema":1,"product":"{product}","channel":'; inspection_string "$CHANNEL"
+  printf ',"marker":'; inspection_value "$VERSION"
+  printf ',"target":'; inspection_string "$ARTIFACT"
+  printf ',"authority":'; inspection_string "$PUBLIC_URL"
+  printf ',"verified":%s,"archive_sha256":' "$SELECTED_READY"; inspection_value "$SELECTED_SHA"
+  printf ',"commit":'; inspection_value "$SELECTED_COMMIT"
+  printf ',"files":['
+  separator=
+  for inspected in $BINARIES; do
+    printf '%s' "$separator"
+    inspection_row "$inspected"
+    separator=,
+  done
+  printf '],"converged":'
+  if [ "$INSPECTION_CODE" -eq 0 ]; then printf true; else printf false; fi
+  printf '}}\n'
+  return "$INSPECTION_CODE"
+}}
+
 platform
 case "$COMMAND" in
   install|update) install_{product} ;;
   uninstall) uninstall_{product} ;;
+  inspect) inspect_{product} ;;
 esac

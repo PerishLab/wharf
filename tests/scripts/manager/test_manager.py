@@ -65,8 +65,7 @@ class Stepped(unittest.TestCase):
                 manager.windows({"shell": "powershell"})
 
 
-@unittest.skipIf(os.name == "nt", "Unix rendered manager")
-class Unix(unittest.TestCase):
+class Harness(unittest.TestCase):
     def setUp(self):
         self.temporary = tempfile.TemporaryDirectory()
         self.addCleanup(self.temporary.cleanup)
@@ -116,6 +115,9 @@ class Unix(unittest.TestCase):
         held = data["artifacts"]["linux-x64"]
         return seal, data, self.bucket.root / held["url"].removeprefix(f"{self.authority}/")
 
+
+@unittest.skipIf(os.name == "nt", "Unix rendered manager")
+class Unix(Harness):
     def test_same_version_stale_command_is_repaired_and_digests_are_reported(self):
         stale = self.corrupt("demo")
         before = subprocess.run([str(self.bin / "demo"), "--refresh"], capture_output=True)
