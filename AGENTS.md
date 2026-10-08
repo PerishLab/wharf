@@ -279,6 +279,9 @@ source/caller/target authentication remains a prerequisite for workflow wiring.
 
 `lib/content/static/workspace.py` stages qualified exact source into a disposable
 independent Git checkout, never a writable mount of a canonical worktree.
+Acquisition readback admits real absolute independent checkouts in the trusted
+runner workspace; only separately staged guest mounts require temporary placement.
+The source entry preserves paths for qualification rather than resolving aliases.
 Prepared system Git uses an isolated home and fixed control configuration; source
 hooks, local configuration, ignored files and shared object storage are not copied.
 The supervisor must authenticate source acquisition first and confirm every guest
