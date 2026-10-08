@@ -64,6 +64,8 @@ Install and update leave one manager-owned version on disk. Selected binaries
 are staged and verified before the entrypoints change; only old seats carrying
 matching ownership markers are swept. An explicit stable --version is a
 deliberate rollback, while implicit stable never moves backwards.
+Owned regular binaries with local drift are repaired from the verified archive;
+redirected paths and unexpected version-seat content are never overwritten.
 
 Options:
   --public-url <url>     release seal and artifact authority
@@ -421,13 +423,18 @@ function Entry-Version-Of([string]$Name) {{
     if (![System.IO.File]::Exists($entry) -or !(Root-Owned)) {{
         return ''
     }}
+    if (((Get-Item -Force -LiteralPath $entry).Attributes -band [System.IO.FileAttributes]::ReparsePoint) -ne 0) {{
+        return ''
+    }}
     $entryHash = File-Hash $entry
     foreach ($found in @(Get-ChildItem -LiteralPath $installRoot -Directory -ErrorAction SilentlyContinue)) {{
         if (!(Version-Owned $found.Name)) {{
             continue
         }}
         $candidate = Join-Path $found.FullName "$Name.exe"
-        if ([System.IO.File]::Exists($candidate) -and (File-Hash $candidate) -eq $entryHash) {{
+        if ([System.IO.File]::Exists($candidate) -and
+            ((Get-Item -Force -LiteralPath $candidate).Attributes -band [System.IO.FileAttributes]::ReparsePoint) -eq 0 -and
+            (File-Hash $candidate) -eq $entryHash) {{
             return $found.Name
         }}
     }}
@@ -555,7 +562,10 @@ function Install-Product {{
                 throw "binary version mismatch: expected $expectedVersion got $stagedVersion"
             }}
             $entry = Join-Path $localBinDir "$name.exe"
-            if ([System.IO.File]::Exists($entry) -and [string]::IsNullOrWhiteSpace((Entry-Version-Of $name))) {{
+            $entryItem = Get-Item -Force -LiteralPath $entry -ErrorAction SilentlyContinue
+            if ($null -ne $entryItem -and ($entryItem.PSIsContainer -or
+                ($entryItem.Attributes -band [System.IO.FileAttributes]::ReparsePoint) -ne 0 -or
+                [string]::IsNullOrWhiteSpace((Entry-Version-Of $name)))) {{
                 throw "refusing unowned {product} entrypoint: $entry"
             }}
         }}
@@ -566,10 +576,29 @@ function Install-Product {{
             if (!(Version-Owned $resolvedVersion)) {{
                 throw "refusing unowned version seat: $target"
             }}
-            foreach ($name in $binaries) {{
-                if ((File-Hash (Join-Path $target "$name.exe")) -ne (File-Hash (Join-Path $unpacked "$name.exe"))) {{
-                    throw "refusing immutable version drift at $target"
+            $allowed = @($markerName) + @($binaries | ForEach-Object {{ "$_.exe" }})
+            foreach ($item in @(Get-ChildItem -Force -LiteralPath $target)) {{
+                if ($item.Name -cnotin $allowed -or $item.PSIsContainer -or
+                    ($item.Attributes -band [System.IO.FileAttributes]::ReparsePoint) -ne 0) {{
+                    throw "refusing unexpected or redirected version seat content: $($item.FullName)"
                 }}
+            }}
+            foreach ($name in $binaries) {{
+                if (![System.IO.File]::Exists((Join-Path $target "$name.exe"))) {{
+                    throw "refusing missing installed binary: $name.exe"
+                }}
+            }}
+            foreach ($name in $binaries) {{
+                $path = Join-Path $target "$name.exe"
+                $candidate = Join-Path $unpacked "$name.exe"
+                $installedDigest = File-Hash $path
+                $selectedDigest = File-Hash $candidate
+                if ($installedDigest -eq $selectedDigest) {{ continue }}
+                Write-Output "repairing {product} $resolvedVersion $name : installed sha256=$installedDigest selected sha256=$selectedDigest"
+                $next = Join-Path $target (".$name-repair-" + [System.Guid]::NewGuid().ToString('N'))
+                Copy-Item -LiteralPath $candidate -Destination $next
+                [System.IO.File]::Replace($next, $path, [NullString]::Value)
+                $next = $null
             }}
         }}
         else {{
