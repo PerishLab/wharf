@@ -5,6 +5,7 @@ from contextlib import contextmanager
 from dataclasses import dataclass
 from pathlib import Path
 
+from lib.content import preview
 from lib.content.static import evidence, runtime, source
 from lib.refusal import Refusal
 
@@ -35,6 +36,38 @@ def environment(home):
         held[f"GIT_CONFIG_KEY_{index}"] = key
         held[f"GIT_CONFIG_VALUE_{index}"] = value
     return held
+
+
+def acquired(root, expected):
+    preview.shape(expected, {"repository", "commit", "tree"}, "source acquisition identity")
+    preview.matches(expected["repository"], preview.REPOSITORY, "source repository")
+    for key in ("commit", "tree"):
+        preview.matches(expected[key], preview.HEX[40], "source " + key)
+    root = runtime.directory(Path(root))
+    metadata = root / ".git"
+    if metadata.is_symlink() or not metadata.is_dir() or (metadata / "shallow").exists():
+        raise Refusal("Preview acquisition requires independent full-history Git storage")
+    for entry in metadata.rglob("*"):
+        if entry.is_symlink() or not (entry.is_file() or entry.is_dir()):
+            raise Refusal("Preview acquired Git metadata contains an unsafe entry")
+    with tempfile.TemporaryDirectory(prefix="wharf-preview-readback-") as home:
+        env = environment(home)
+        allowed = {"core.repositoryformatversion", "core.filemode", "core.bare", "core.logallrefupdates", "remote.origin.url", "remote.origin.fetch", "gc.auto"}
+        configuration = source.git(root, ["config", "--local", "--no-includes", "--null", "--list"], env)
+        if any(entry.split("\n", 1)[0].lower() not in allowed for entry in configuration.split("\0") if entry):
+            raise Refusal("Preview acquired Git configuration contains credentials or unsafe controls")
+        independent(root, env)
+        if source.git(root, ["rev-parse", "--show-toplevel"], env) != str(root) or source.git(root, ["status", "--porcelain", "--untracked-files=all"], env):
+            raise Refusal("Preview acquired source is not an exact clean repository root")
+        for key, expression in (("commit", "HEAD"), ("tree", "HEAD^{tree}")):
+            if source.git(root, ["rev-parse", expression], env) != expected[key]:
+                raise Refusal("Preview acquired commit/tree differs from its exact request")
+        if source.git(root, ["remote", "get-url", "origin"], env) != f"https://github.com/{expected['repository']}.git":
+            raise Refusal("Preview acquired origin differs from its exact repository")
+        if any(line.startswith("160000 ") for line in source.git(root, ["ls-files", "--stage"], env).splitlines()):
+            raise Refusal("Preview source acquisition does not admit submodules")
+        source.fresh(root, env)
+    return {"schema": "wharf.preview.acquisition/v1", "root": str(root), **expected}
 
 
 def qualified(request, env):
