@@ -1,3 +1,4 @@
+import hashlib
 import json
 import os
 import shutil
@@ -90,6 +91,60 @@ def invoked(shell, script, argv):
     print(done.stdout, file=sys.stderr, end="")
     if done.returncode != 0:
         raise Refusal(f"{shell} {script.name} {' '.join(argv)} exited {done.returncode}")
+    return done.stdout
+
+
+def repaired(shell, script, seat, url):
+    binary = seat / "root/v1.0.0/demo.exe"
+    entry = seat / "bin/demo.exe"
+    selected = binary.read_bytes()
+    drifted = selected + b"local installation drift"
+    binary.write_bytes(drifted)
+    entry.write_bytes(drifted)
+    argv = ["install", "--public-url", url, "--install-root", str(seat / "root"), "--bin-dir", str(seat / "bin")]
+    output = invoked(shell, script, argv)
+    if binary.read_bytes() != selected or entry.read_bytes() != selected:
+        raise Refusal("owned same-version repair did not restore selected bytes")
+    for label, body in (("installed", drifted), ("selected", selected)):
+        if f"{label} sha256={hashlib.sha256(body).hexdigest()}" not in output:
+            raise Refusal(f"owned same-version repair did not report {label} digest")
+    protected(shell, script, seat, url)
+
+
+def protected(shell, script, seat, url):
+    binary = seat / "root/v1.0.0/demo.exe"
+    entry = seat / "bin/demo.exe"
+    selected = binary.read_bytes()
+    extra = binary.parent / ".valuable"
+    argv = ["install", "--public-url", url, "--install-root", str(seat / "root"), "--bin-dir", str(seat / "bin")]
+    extra.write_bytes(b"protected")
+    binary.write_bytes(selected + b"local drift")
+    entry.write_bytes(binary.read_bytes())
+    refused(shell, script, argv)
+    if binary.read_bytes() != selected + b"local drift" or extra.read_bytes() != b"protected":
+        raise Refusal("unexpected version seat content was overwritten")
+    extra.unlink()
+    binary.write_bytes(selected)
+    entry.write_bytes(b"unowned")
+    refused(shell, script, argv)
+    if entry.read_bytes() != b"unowned":
+        raise Refusal("unowned entrypoint was overwritten")
+    entry.write_bytes(selected)
+    marker = binary.parent / ".demo-manager"
+    owned = marker.read_bytes()
+    marker.write_bytes(b"foreign")
+    refused(shell, script, argv)
+    if binary.read_bytes() != selected or marker.read_bytes() != b"foreign":
+        raise Refusal("unowned version seat was overwritten")
+    marker.write_bytes(owned)
+
+
+def refused(shell, script, argv):
+    try:
+        invoked(shell, script, argv)
+    except Refusal:
+        return
+    raise Refusal("manager accepted protected installation content")
 
 
 def stepped(shell, managers, installed, url):
@@ -102,6 +157,8 @@ def stepped(shell, managers, installed, url):
         if found != wanted:
             raise Refusal(f"after {command} through the {manager} manager: found {json.dumps(found)}, expected {json.dumps(wanted)}")
         held.append({"command": command, "manager": manager, "files": found["files"]})
+        if len(held) == 1:
+            repaired(shell, managers[manager], seat, url)
     return held
 
 

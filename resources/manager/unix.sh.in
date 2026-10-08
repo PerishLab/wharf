@@ -46,6 +46,8 @@ Install and update leave one manager-owned version on disk. Selected binaries
 are staged and verified before the entrypoints change; only old seats carrying
 matching ownership markers are swept. An explicit stable --version is a
 deliberate rollback, while implicit stable never moves backwards.
+Owned regular binaries with local drift are repaired from the verified archive;
+redirected paths and unexpected version-seat content are never overwritten.
 
 Options:
   --public-url <url>     release seal and artifact authority
@@ -575,7 +577,7 @@ install_{product}() {{
   [ -z "$ARCHIVE_ROOT" ] || unpacked="$unpacked/$ARCHIVE_ROOT"
   for name in $BINARIES; do
     candidate="$unpacked/$name"
-    [ -f "$candidate" ] || {{ echo "archive missing $name" >&2; exit 1; }}
+    [ -f "$candidate" ] && [ ! -L "$candidate" ] || {{ echo "archive missing or redirected $name" >&2; exit 1; }}
     chmod +x "$candidate"
     staged_version=$("$candidate" --version)
     plain_version=${{VERSION#v}}
@@ -609,11 +611,39 @@ install_{product}() {{
       echo "refusing unowned version seat: $target" >&2
       exit 1
     }}
-    for name in $BINARIES; do
-      cmp -s "$target/$name" "$unpacked/$name" || {{
-        echo "refusing immutable version drift at $target/$name" >&2
+    for path in "$target"/* "$target"/.[!.]* "$target"/..?*; do
+      [ -e "$path" ] || [ -L "$path" ] || continue
+      case " $(basename "$path") " in
+        " $VERSION_MARKER ") ;;
+        *)
+          case " $BINARIES " in
+            *" $(basename "$path") "*) ;;
+            *) echo "refusing unexpected version seat content: $path" >&2; exit 1 ;;
+          esac
+          ;;
+      esac
+      [ -f "$path" ] && [ ! -L "$path" ] || {{
+        echo "refusing redirected or non-regular version seat content: $path" >&2
         exit 1
       }}
+    done
+    for name in $BINARIES; do
+      [ -f "$target/$name" ] && [ ! -L "$target/$name" ] || {{
+        echo "refusing missing or redirected installed binary: $target/$name" >&2
+        exit 1
+      }}
+    done
+    for name in $BINARIES; do
+      installed_digest=$(sha256 "$target/$name")
+      selected_digest=$(sha256 "$unpacked/$name")
+      [ "$installed_digest" != "$selected_digest" ] || continue
+      printf 'repairing {product} %s %s: installed sha256=%s selected sha256=%s\n' \
+        "$VERSION" "$name" "$installed_digest" "$selected_digest"
+      ENTRY_STAGE=$(mktemp "$target/.$name-repair.XXXXXX")
+      cp "$unpacked/$name" "$ENTRY_STAGE"
+      chmod +x "$ENTRY_STAGE"
+      mv -f "$ENTRY_STAGE" "$target/$name"
+      ENTRY_STAGE=
     done
   else
     STAGE="$INSTALL_ROOT/.{product}-stage-$$"
