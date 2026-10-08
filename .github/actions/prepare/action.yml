@@ -46,7 +46,9 @@ runs:
       shell: bash
       env:
         RUST: ${{ inputs.rust }}
-      run: rustup toolchain install "$RUST" --profile minimal --component clippy --component rustfmt
+      run: |
+        rustup toolchain install "$RUST" --profile minimal --component clippy --component rustfmt
+        rustup default "$RUST"
 
     - name: Prepare the declared Node toolchain
       if: contains(inputs.prepare, 'node')

@@ -9,6 +9,6 @@
     "curl -fsSL https://releases.plumb.perish.uk/manage.sh -o \"$RUNNER_TEMP/manage-plumb.sh\"\nenv PLUMB_CHANNEL=stable PLUMB_VERSION= sh \"$RUNNER_TEMP/manage-plumb.sh\" install\necho \"$HOME/.local/bin\" >> \"$GITHUB_PATH\"",
     "for product in plumb ectropy; do\n  curl -fsSL \"https://releases.$product.perish.uk/manage.sh\" -o \"$RUNNER_TEMP/manage-$product.sh\"\n  env PLUMB_CHANNEL=stable PLUMB_VERSION= ECTROPY_CHANNEL=stable ECTROPY_VERSION= sh \"$RUNNER_TEMP/manage-$product.sh\" install\ndone\necho \"$HOME/.local/bin\" >> \"$GITHUB_PATH\"",
     "foreach ($product in @('plumb', 'ectropy')) {\n  $manager = Join-Path $env:RUNNER_TEMP \"manage-$product.ps1\"\n  Invoke-WebRequest \"https://releases.$product.perish.uk/manage.ps1\" -OutFile $manager\n  & $manager install --channel stable\n  if ($LASTEXITCODE -ne 0) { throw \"$product stable installation failed\" }\n}\n(Join-Path $HOME '.local/bin') | Out-File -FilePath $env:GITHUB_PATH -Append",
-    "rustup toolchain install \"$RUST\" --profile minimal --component clippy --component rustfmt"
+    "rustup toolchain install \"$RUST\" --profile minimal --component clippy --component rustfmt\nrustup default \"$RUST\""
   ]
 }
