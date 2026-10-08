@@ -22,6 +22,7 @@ PACKAGE = {"name": "crest-review", "private": True, "scripts": {"build": "node b
 class StaticRepository(Repository):
     def __init__(self):
         super().__init__({
+            "package.json": json.dumps({"name": "demo", "private": True}),
             "plumb.toml": '[preview.app.crest-review]\npath="apps/review"\npackage="crest-review"\nprovider="cfworker"\naccess="public"\n',
             "apps/review/package.json": json.dumps(PACKAGE), "apps/review/wrangler.jsonc": json.dumps(WORKER),
             "apps/review/build.mjs": "export {};\n", ".gitignore": "dist/\nnode_modules/\n",
@@ -54,6 +55,7 @@ class Qualification(unittest.TestCase):
         config = source.qualify(self.repository.root, self.request, target(), self.env)
         self.assertEqual(config["directory"], "apps/review/dist")
         self.assertEqual(config["digest"], self.request["source"]["declaration"])
+        self.assertNotIn("engines", config)
 
     def test_dirty_untracked_and_changed_head_refuse(self):
         self.repository.write("untracked.html", "content")

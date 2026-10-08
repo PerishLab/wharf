@@ -9,7 +9,6 @@ from lib.content.static import evidence
 from lib.refusal import Refusal
 
 WORKER = {"name", "account_id", "compatibility_date", "workers_dev", "assets", "previews"}
-ENGINES = {"node": "24.18.0", "pnpm": "11.13.0"}
 
 
 def git(root, arguments, env):
@@ -80,6 +79,8 @@ def configuration(root, app, tracked):
         raise Refusal("static app declaration disagrees with its qualified path")
     config = worker(file(root, f"{path}/wrangler.jsonc", tracked))
     package = evidence.decode(file(root, f"{path}/package.json", tracked))
+    if isinstance(package, dict) and any(key in package for key in ("engines", "packageManager")):
+        raise Refusal("static packages must not declare tool versions; Plumb carries the domain")
     if not isinstance(package, dict) or package.get("private") is not True or package.get("name") != declared["package"] or not isinstance(package.get("scripts"), dict) or not isinstance(package["scripts"].get("build"), str) or not package["scripts"]["build"].strip():
         raise Refusal("static app needs a matching private package with a build script")
     if any(package["scripts"].get(key) for key in ("prebuild", "postbuild")):
@@ -88,16 +89,18 @@ def configuration(root, app, tracked):
         raise Refusal("static package must have a literal npm name, not a filter selector")
     for name in (name for name in tracked if name.endswith("package.json") and name != f"{path}/package.json"):
         other = evidence.decode(file(root, name, tracked))
+        if isinstance(other, dict) and any(key in other for key in ("engines", "packageManager")):
+            raise Refusal("static packages must not declare tool versions; Plumb carries the domain")
         if isinstance(other, dict) and other.get("name") == package["name"]:
             raise Refusal("static package name must not select another workspace package")
     manifest = evidence.decode(file(root, "package.json", tracked))
-    if not isinstance(manifest, dict) or manifest.get("engines") != ENGINES or "packageManager" in manifest:
-        raise Refusal("static source requires the exact domain Node/pnpm engines")
+    if not isinstance(manifest, dict):
+        raise Refusal("static source requires a root package manifest")
     for name in ("pnpm-lock.yaml", "pnpm-workspace.yaml"):
         file(root, name, tracked)
     duplicate(root, path, config, tracked)
     npmrc(root, tracked)
-    bound = {"app": app, "declaration": declared, "worker": config, "package": package, "engines": ENGINES}
+    bound = {"app": app, "declaration": declared, "worker": config, "package": package}
     return dict(bound, digest=canonical.digest(bound), directory=f"{path}/{directory(config['assets']['directory'])}")
 
 
