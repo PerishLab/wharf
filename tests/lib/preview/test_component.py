@@ -28,6 +28,7 @@ class SourceComponent(unittest.TestCase):
         text = (root / ".github/actions/preview-source/action.yml").read_text()
         actions = resources.read_json("check/actions.json")
         self.assertIn("actions/checkout@", text)
+        self.assertIn("WHARF_SOURCE: ${{ github.workspace }}/preview-product", text)
         self.assertIn("actions/create-github-app-token@", text)
         for setting in ("permission-contents: read", "repositories: ${{ steps.named.outputs.name }}", "ref: ${{ steps.named.outputs.commit }}", "fetch-depth: '0'", "submodules: 'false'", "lfs: 'false'", "persist-credentials: 'false'", "set-safe-directory: 'false'", "GIT_TEMPLATE_DIR: ''", "GIT_CONFIG_GLOBAL: /dev/null", "run: python3 -B -m scripts.preview source"):
             self.assertIn(setting, text)

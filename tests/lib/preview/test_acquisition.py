@@ -3,14 +3,19 @@ import subprocess
 import tempfile
 import unittest
 from pathlib import Path
+from unittest import mock
 
-from lib.content.static import workspace
+from lib.content.static import runtime, workspace
 from lib.refusal import Refusal
+from scripts import preview
 
 
 class Acquisition(unittest.TestCase):
     def setUp(self):
-        self.temporary = tempfile.TemporaryDirectory()
+        self.initialize()
+
+    def initialize(self, directory=None):
+        self.temporary = tempfile.TemporaryDirectory(dir=directory)
         self.addCleanup(self.temporary.cleanup)
         self.root = Path(self.temporary.name) / "source"
         self.root.mkdir()
@@ -31,6 +36,28 @@ class Acquisition(unittest.TestCase):
         result = workspace.acquired(self.root, self.expected)
         self.assertEqual(result, {"schema": "wharf.preview.acquisition/v1", "root": str(self.root), **self.expected})
         self.assertFalse((self.root / ".git/hooks").exists())
+
+    def test_runner_checkout_outside_temporary_root(self):
+        temporary = Path(tempfile.gettempdir()).resolve()
+        directory = next(path for path in (Path.home().resolve(), Path("/var/tmp"), Path.cwd().resolve()) if path.is_dir() and not path.is_relative_to(temporary) and os.access(path, os.W_OK))
+        self.assertFalse(directory.is_relative_to(Path(tempfile.gettempdir()).resolve()))
+        self.initialize(directory)
+        self.assertEqual(workspace.acquired(self.root, self.expected)["root"], str(self.root))
+        with mock.patch.object(preview.parameters, "answer", side_effect=lambda value: value):
+            self.assertEqual(preview.source(dict(self.expected, source=str(self.root)))["root"], str(self.root))
+        with self.assertRaises(Refusal):
+            runtime.directory(self.root)
+
+    def test_acquisition_and_cli_preserve_path_refusals(self):
+        linked = self.root.parent / "linked"
+        linked.symlink_to(self.root, target_is_directory=True)
+        ancestor = self.root.parent / "ancestor"
+        ancestor.symlink_to(self.root.parent, target_is_directory=True)
+        for root in (Path("relative"), linked, ancestor / self.root.name, self.root / "missing", Path("/")):
+            with self.subTest(root=root), self.assertRaises(Refusal):
+                workspace.acquired(root, self.expected)
+            with self.subTest(cli=root), mock.patch.object(preview.parameters, "answer", side_effect=lambda value: value), self.assertRaisesRegex(Refusal, "absolute real checkout|unsafe alias"):
+                preview.source(dict(self.expected, source=str(root)))
 
     def test_nonliteral_foreign_and_dirty_source_refuse(self):
         for changed in ({"commit": "main"}, {"commit": "a" * 40}, {"tree": "b" * 40}, {"repository": "../crest"}, {"repository": "PerishLab/other"}):
@@ -76,7 +103,6 @@ class Acquisition(unittest.TestCase):
             workspace.acquired(linked, self.expected)
 
     def test_readback_does_not_inherit_host_tokens_or_config(self):
-        from unittest import mock
         with mock.patch.dict(os.environ, GH_TOKEN="private-host-token", GIT_CONFIG_GLOBAL="/wrong", GIT_CONFIG_COUNT="99"):
             workspace.acquired(self.root, self.expected)
 

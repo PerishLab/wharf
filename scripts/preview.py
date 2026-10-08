@@ -23,7 +23,7 @@ def named(held):
 
 def source(held):
     named({key: held[key] for key in NAMED})
-    return workspace.acquired(Path(held["source"]).resolve(), {key: held[key] for key in NAMED})
+    return workspace.acquired(Path(held["source"]), {key: held[key] for key in NAMED})
 
 
 def request(held):

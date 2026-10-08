@@ -38,12 +38,21 @@ def environment(home):
     return held
 
 
+def checkout(root):
+    root = Path(root)
+    if not root.is_absolute() or not root.is_dir() or root == Path(root.anchor) or root.resolve() != root:
+        raise Refusal("Preview source must be an absolute real checkout without symlink ancestors")
+    if any(path.is_symlink() for path in (root, *root.parents)) or any(value in str(root) for value in (",", "\n", "\r")):
+        raise Refusal("Preview source path contains an unsafe alias or character")
+    return root
+
+
 def acquired(root, expected):
     preview.shape(expected, {"repository", "commit", "tree"}, "source acquisition identity")
     preview.matches(expected["repository"], preview.REPOSITORY, "source repository")
     for key in ("commit", "tree"):
         preview.matches(expected[key], preview.HEX[40], "source " + key)
-    root = runtime.directory(Path(root))
+    root = checkout(root)
     metadata = root / ".git"
     if metadata.is_symlink() or not metadata.is_dir() or (metadata / "shallow").exists():
         raise Refusal("Preview acquisition requires independent full-history Git storage")
@@ -85,7 +94,7 @@ def qualified(request, env):
 
 
 def independent(root, env):
-    runtime.directory(root)
+    root = checkout(root)
     metadata = root / ".git"
     if metadata.is_symlink() or not metadata.is_dir():
         raise Refusal("Preview staging must own a real independent Git directory")
@@ -117,7 +126,7 @@ def prepare(request):
             source.git(destination, ["remote", "remove", "origin"], env)
             source.git(destination, ["remote", "add", "origin", f"https://github.com/{request.intent['repository']}.git"], env)
             source.git(destination, ["checkout", "--detach", request.intent["source"]["commit"]], env)
-            independent(destination, env)
+            independent(runtime.directory(destination), env)
             after = qualified(Source(destination, request.intent, request.target), env)
             if before != after or qualified(request, env) != before:
                 raise Refusal("Preview source changed while its independent workspace was prepared")
