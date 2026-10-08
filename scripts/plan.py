@@ -1,12 +1,14 @@
 import json
 import sys
+from pathlib import Path
 
 from lib import parameters
-from lib.cargo import basis
+from lib.cargo import basis, toolchain
 from lib.content import executables, implementation, marker, resources
 from lib.debian import package
 from lib.debian.version import debian
-from lib.media import cfworker, node, release
+from lib.media import cfworker, node, npm, release
+from lib.identity.guard import snapshot
 from lib.process import git
 from lib.refusal import Refusal
 from lib.store import plan, r2, workload
@@ -15,9 +17,9 @@ BUILD = resources.read_json("build.json")
 UNITS = resources.read_json("units.json")
 RUNNER = BUILD["runner"]
 PRIMARY = next(target for target in BUILD["targets"] if target["name"] == BUILD["primary"])
-CARGO = (["lib.cargo.basis", "lib.cargo.build"], ["identity/format.json"])
+CARGO = (["lib.cargo.basis", "lib.cargo.build"], ["build.json", "identity/format.json"])
 SINGLE = ("cfworker",)
-REPORTED = ("key", "decision", "presence")
+REPORTED = ("key", "decision", "presence", "existing")
 MEDIA = ("npm", "oci", "chart", "cargo", "release", "channel")
 IDENTITY = ("repository", "marker", "commit", "tree")
 CONTEXT = IDENTITY + ("wharf", "run", "attempt")
@@ -83,7 +85,7 @@ def placements(held, bucket, entries):
 def suites(held, bucket, entries):
     source = held["source"]
     if basis.carried(source):
-        entries["suite-linux"] = decided(bucket, basis.suite(source, RUNNER), (["lib.cargo.basis", "lib.cargo.suite"], []), entries)
+        entries["suite-linux"] = decided(bucket, basis.suite(source, RUNNER), (["lib.cargo.basis", "lib.cargo.suite"], ["build.json"]), entries)
     if node.carried(source):
         entries["suite-node"] = decided(bucket, node.basis(source, RUNNER), (["lib.media.node"], []), entries)
     if cfworker.workers(source):
@@ -143,11 +145,13 @@ def present(entries):
     return dict(held, cfworker="present" if "cfworker" in entries else "none")
 
 
-def emit(entries, attempt):
+def emit(entries, attempt, verified=None):
     answered = {name: entries[name]["decision"] if name in entries else "skip" for name in SINGLE}
     answered.update({name: json.dumps(found, separators=(",", ":")) for name, found in units(entries).items()})
     answered["presence"] = json.dumps(present(entries), separators=(",", ":"), sort_keys=True)
     answered["planned"] = attempt
+    if verified is not None:
+        answered["snapshot"] = json.dumps(verified, separators=(",", ":"), sort_keys=True)
     parameters.answer(answered)
     return answered
 
@@ -158,17 +162,27 @@ def source(held):
 
 def record(held):
     bucket = r2.configured()
-    entries = {}
-    observed = reported(held["steps"])
-    if release.carried(held["source"]):
-        binaries(held, bucket, entries)
-        placements(held, bucket, entries)
-    suites(held, bucket, entries)
-    media(observed, entries)
-    validation(bucket, entries)
-    engines = node.expected(held["source"]) if node.carried(held["source"]) else {}
-    recorded = plan.record(bucket, {field: held[field] for field in CONTEXT}, entries, engines)
-    return dict(recorded, decided=emit(entries, held["attempt"]), entry={name: entries[name]["decision"] for name in sorted(entries)})
+    identity = {field: held[field] for field in IDENTITY}
+    request = snapshot.Request(Path(held["source"]), identity, toolchain.versions(), destination=snapshot.destination(held["source"]))
+    with snapshot.prepared(request) as (root, verified, confirm):
+        plan.matching(bucket, held, verified)
+        scoped = dict(held, source=root)
+        entries = {}
+        observed = reported(held["steps"])
+        if release.carried(root):
+            binaries(scoped, bucket, entries)
+            placements(scoped, bucket, entries)
+        suites(scoped, bucket, entries)
+        media(observed, entries)
+        if entries["npm"]["decision"] == "run":
+            entries["pack-npm"] = decided(bucket, npm.basis(root, held["marker"]), (["lib.media.npm"], []), entries)
+        validation(bucket, entries)
+        plan.legacy(bucket, held, entries, observed)
+        engines = node.expected(root) if node.carried(root) else {}
+        context = dict({field: held[field] for field in CONTEXT}, snapshot=verified)
+        confirm()
+        recorded = plan.record(bucket, context, entries, engines)
+        return dict(recorded, decided=emit(entries, held["attempt"], verified), entry={name: entries[name]["decision"] for name in sorted(entries)})
 
 
 def named(held):

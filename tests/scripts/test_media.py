@@ -47,7 +47,7 @@ class Imaged(unittest.TestCase):
         plan.record(bucket, dict(CONTEXT, commit="a" * 40, tree="d" * 40), {"bind-linux": {"key": "b" * 64, "decision": "run"}, "oci": {"decision": "run"}}, {})
         seen = {}
 
-        def pushed(image):
+        def pushed(image, runner):
             seen.update(binary=Path(image.binary).read_bytes(), name=image.name, reference=image.reference, marker=image.marker)
             return {"state": "published"}
 
@@ -79,7 +79,7 @@ class Imaged(unittest.TestCase):
         plan.record(bucket, dict(context, commit="a" * 40, tree="d" * 40), {"oci": {"decision": "run"}}, {})
         seen = {}
 
-        def pushed(image):
+        def pushed(image, runner):
             seen.update(source=image.source, reference=image.reference)
             return {"state": "published"}
 

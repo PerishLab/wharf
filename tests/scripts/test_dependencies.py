@@ -17,8 +17,8 @@ class Inheriting(unittest.TestCase):
         self.bucket = Memory()
         self.basis = {"entry": {"kind": "cargo-binary", "binary": "plumb"}}
         self.depended = {"entry": {"kind": "cargo-dependencies", "binary": "plumb"}}
-        self.key = ship.workload.key(self.basis, ship.implementation.resourced(["lib.cargo.basis", "lib.cargo.build"], ["identity/format.json"]))
-        self.inherited = ship.workload.key(self.depended, ship.implementation.resourced(["lib.cargo.basis", "lib.cargo.build"], ["identity/format.json"]))
+        self.key = ship.workload.key(self.basis, ship.implementation.resourced(["lib.cargo.basis", "lib.cargo.build"], ["build.json", "identity/format.json"]))
+        self.inherited = ship.workload.key(self.depended, ship.implementation.resourced(["lib.cargo.basis", "lib.cargo.build"], ["build.json", "identity/format.json"]))
         self.held = dict(CONTEXT, planned="1", source="../product", target="x86_64-unknown-linux-gnu")
         self.restored = []
         self.archived = []

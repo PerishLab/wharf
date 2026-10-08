@@ -60,13 +60,19 @@ class Registry:
             files = {path.relative_to(cwd).as_posix(): path.read_bytes() for path in Path(cwd).rglob("*") if path.is_file()}
             packed(Path(argv[argv.index("--pack-destination") + 1]) / "lib.tgz", files)
         if argv[:2] == ["pnpm", "publish"]:
-            self.versions.add(json.loads((cwd / "packages/lib/package.json").read_text())["version"])
+            with tarfile.open(argv[2]) as archive:
+                self.versions.add(json.load(archive.extractfile("package/package.json"))["version"])
         return ""
 
 
 class Npm(unittest.TestCase):
     def setUp(self):
         self.repository = declared()
+
+    def publish(self, repository, version, tools):
+        output = repository.root / "archives"
+        npm.prepare(repository.root, version, output, tools.run)
+        return npm.publish(repository.root, version, output, tools)
 
     def test_lists_the_declared_packages_with_their_registry(self):
         held = npm.publishable(self.repository.root)
@@ -104,19 +110,19 @@ class Npm(unittest.TestCase):
         registry = Registry()
         tools = npm.Tools(run=registry.run, reader=registry.reader)
         with mock.patch.dict(os.environ, {npm.TOKEN: "secret"}):
-            first = npm.publish(self.repository.root, "1.2.3-beta.4", tools)
-            second = npm.publish(declared().root, "1.2.3-beta.4", tools)
+            first = self.publish(self.repository, "1.2.3-beta.4", tools)
+            second = self.publish(declared(), "1.2.3-beta.4", tools)
         self.assertEqual([item["state"] for item in first["packages"]], ["published"])
         self.assertEqual([item["state"] for item in second["packages"]], ["already-published"])
         argv, env = next(run for run in registry.runs if run[0][:2] == ["pnpm", "publish"])
         self.assertEqual(argv[argv.index("--tag") + 1], "beta")
         self.assertTrue(env["NPM_CONFIG_USERCONFIG"].endswith("npmrc"))
-        self.assertEqual(json.loads((self.repository.root / "packages/lib/package.json").read_text())["version"], "1.2.3-beta.4")
+        self.assertEqual(json.loads((self.repository.root / "packages/lib/package.json").read_text())["version"], "0.0.0")
 
     def test_refuses_to_publish_without_a_token(self):
         registry = Registry()
         with mock.patch.dict(os.environ, {npm.TOKEN: ""}), self.assertRaises(Refusal):
-            npm.publish(self.repository.root, "1.2.3-beta.4", npm.Tools(run=registry.run, reader=registry.reader))
+            self.publish(self.repository, "1.2.3-beta.4", npm.Tools(run=registry.run, reader=registry.reader))
 
 
 class Vet(unittest.TestCase):
@@ -149,5 +155,5 @@ class Vet(unittest.TestCase):
         registry = Registry()
         repository = declared({"packages/lib/package.json": json.dumps({"name": "@perishlab/lib", "version": "0.0.0", "exports": "./dist/lib.js"})})
         with mock.patch.dict(os.environ, {npm.TOKEN: "secret"}), self.assertRaisesRegex(Refusal, "does not carry"):
-            npm.publish(repository.root, "1.2.3", npm.Tools(run=registry.run, reader=registry.reader))
+            npm.prepare(repository.root, "1.2.3", repository.root / "archives", registry.run)
         self.assertFalse(any(argv[:2] == ["pnpm", "publish"] for argv, _ in registry.runs))

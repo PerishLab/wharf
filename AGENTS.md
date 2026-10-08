@@ -331,6 +331,55 @@ from it, a new dispatch brings them back rather than anyone editing it.
 `[record] distribution` writes it with the release bucket's credentials alone,
 and nothing else in the run holds both those and the workload bucket's.
 
+## Release snapshot
+
+A release plan clones the immutable marker into an owned disposable checkout,
+resolves first-party stable packages with released `plumb lift`, and runs actual
+full/head Guard there. Its record keeps the original marker identity, effective
+Git tree, exact package set, control authorities and the genuine Guard result.
+Builds recreate that exact combination and refuse movement. Compilation uses the
+fixed sibling directory declared by `resources/build.json`; the layout is part
+of Cargo workload implementation identity. An existing destination refuses.
+Source checkouts stay unchanged and disposable directories are removed on exit.
+
+npm builds and lifecycle scripts run while packing a workload. Publication consumes
+those vetted archives with lifecycle scripts disabled. Before any medium writes,
+Wharf rechecks current stable resolution, confirms source and tools unchanged,
+and reserves the marker's exact combination. Distribution records attribute the
+combination only to successful publication jobs. Historical publication without
+that evidence remains unknown; partial recovery refuses to mix combinations.
+
+## Follow
+
+The main Follow workflow accepts only authenticated `follow-push` dispatches.
+`lib/process/follow/receiver.py` exposes a WSGI application: its host supplies the
+GitHub App webhook secret and a separate `WHARF_FOLLOW_DISPATCH_TOKEN` restricted
+to Wharf Contents write, enforces a 25 MiB body limit and a finite request/read
+deadline, and retains failed GitHub delivery identities for explicit replay.
+The receiver verifies the original webhook HMAC and signs a bounded push summary
+with a separate purpose prefix. It holds no App private key. The workflow verifies
+that signature, the configured dispatch sender, main runtime and minted installation
+before qualifying current repository identity and its root Plumb declaration.
+
+Configure `WHARF_FOLLOW_APP_CLIENT_ID`, `WHARF_FOLLOW_SENDER_ID`,
+`WHARF_FOLLOW_RUNNER` and `WHARF_FOLLOW_DATA_ROOT` as trusted Wharf variables;
+the runner value is a JSON label list selecting one persistent Linux runner.
+`WHARF_FOLLOW_APP_PRIVATE_KEY` is the dedicated follow App secret and appears only
+in this workflow. `WHARF_FOLLOW_WEBHOOK_SECRET` matches the receiver's webhook
+secret; package resolution reads `PERISHLAB_PACKAGES_READ`. The App token is scoped
+to the signed repository and exactly Contents, Pull requests and Issues write plus
+Metadata read. Read back the actual registration, push subscription and installations
+before treating runtime setup as complete.
+
+Follow data lives outside the runner's disposable workspace and temporary directory.
+Wharf creates an owned canonical main checkout per repository and one persistent
+Plumb home; it preserves the common Git directory, Auto worktrees and released
+Plumb recovery records between runs. Foreign, dirty or diverged source refuses.
+Only released `plumb follow` owns Auto issue/pull/proof/recovery/closure. The workflow
+serializes each signed repository, uses a finite process budget and terminates its
+command group on exit. A current consumer creates nothing. No schedule or RC gate
+backs up this path.
+
 ## Names
 
 Every name a person reads on GitHub — a run's title, a job's, a step's — takes
@@ -341,8 +390,8 @@ name is rendered from the verb and object `resources/units.json` gives it.
 
 | | Within wharf |
 | --- | --- |
-| Verbs | ship, lodge, plan, build, test, bind, smoke, validate, publish, deploy, point, record, checkout, verify, identify, prepare, login, read, decide |
-| Objects | entries, binary, binaries, deb, suite, npm, oci, chart, cargo, cfworker, channel, distribution, plan, wharf, product, request, source, registry, engines, machine, autocrlf, node, pnpm, plumb, manager, and the Depot kinds |
+| Verbs | ship, lodge, follow, plan, build, test, bind, smoke, validate, publish, deploy, point, record, checkout, verify, identify, prepare, login, read, decide |
+| Objects | entries, binary, binaries, deb, suite, npm, oci, chart, cargo, cfworker, channel, distribution, plan, wharf, product, request, source, registry, installation, engines, machine, autocrlf, node, pnpm, plumb, manager, and the Depot kinds |
 
 A name that cannot be written as one verb over one object marks a job doing two
 things; that is how writing the seal and moving the channel came apart.

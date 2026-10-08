@@ -69,6 +69,7 @@ def reading(directory, env):
     path = Path(directory) / "npmrc"
     lines = [f"//{urllib.parse.urlsplit(location).netloc}/:_authToken=${{{READER}}}" for location in sorted(set(REGISTRIES.values()))]
     path.write_text("\n".join(lines) + "\n")
+    path.chmod(0o600)
     return dict(env, NPM_CONFIG_USERCONFIG=str(path))
 
 

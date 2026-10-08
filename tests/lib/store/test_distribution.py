@@ -11,6 +11,7 @@ KEY = "v1/releases/rc/v0.42.0-rc.1/distribution.json"
 
 
 PRESENCE = {"release": "present", "npm": "present", "oci": "none", "chart": "none", "cargo": "present", "cfworker": "present", "channel": "present"}
+SNAPSHOT = {"schema": "wharf.release.snapshot/v1", "source": {field: CONTEXT[field] for field in distribution.IDENTITY}, "head": "e" * 40, "tree": "f" * 40, "packages": [{"ecosystem": "cargo", "name": "plumb", "version": "0.76.2"}], "controls": {}, "domain": {}}
 
 
 def needs(**results):
@@ -78,3 +79,43 @@ class Record(unittest.TestCase):
     def test_a_record_not_served_as_written_refuses(self):
         with self.assertRaisesRegex(Refusal, "not served"):
             distribution.record(self.bucket, CONTEXT, needs(), lambda key: b"{}")
+
+    def test_only_a_successful_publisher_records_its_actual_combination(self):
+        held = needs(cargo="failure")
+        for name in ("release", "cargo"):
+            held[name]["outputs"] = {"snapshot": json.dumps(SNAPSHOT)}
+        self.record(held)
+        self.assertEqual(self.standing()["resolution"], {"binaries": SNAPSHOT})
+        self.assertNotIn("npm", self.standing()["resolution"])
+
+    def test_recovery_preserves_the_original_published_combination(self):
+        held = needs(npm="failure")
+        held["release"]["outputs"] = {"snapshot": json.dumps(SNAPSHOT)}
+        self.record(held)
+        later = needs()
+        later["npm"]["outputs"] = {"snapshot": json.dumps(SNAPSHOT)}
+        self.record(later, attempt="2")
+        self.assertEqual(self.standing()["resolution"]["binaries"], SNAPSHOT)
+
+    def test_a_changed_published_combination_preserves_the_original_record(self):
+        held = needs(npm="failure")
+        held["release"]["outputs"] = {"snapshot": json.dumps(SNAPSHOT)}
+        self.record(held)
+        original = self.bucket.get(KEY)
+        later = needs()
+        later["npm"]["outputs"] = {"snapshot": json.dumps(dict(SNAPSHOT, packages=[]))}
+        with self.assertRaisesRegex(Refusal, "different published combinations"):
+            self.record(later, attempt="2")
+        self.assertEqual(self.bucket.get(KEY), original)
+
+    def test_a_historical_registry_presence_gains_no_current_version_claim(self):
+        self.record(needs())
+        self.record(needs(release="skipped"), attempt="2")
+        self.assertNotIn("resolution", self.standing())
+
+    def test_a_publisher_reporting_another_release_writes_nothing(self):
+        held = needs()
+        held["npm"]["outputs"] = {"snapshot": json.dumps(dict(SNAPSHOT, source=dict(SNAPSHOT["source"], marker="v9.0.0")))}
+        with self.assertRaisesRegex(Refusal, "release identity"):
+            self.record(held)
+        self.assertEqual(self.bucket.writes, [])

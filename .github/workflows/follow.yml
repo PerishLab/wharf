@@ -1,0 +1,80 @@
+name: follow
+run-name: "[follow] ${{ github.event.client_payload.repository }}"
+
+on:
+  repository_dispatch:
+    types: [follow-push]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: follow-${{ github.event.client_payload.repository }}
+  cancel-in-progress: false
+
+jobs:
+  follow:
+    name: "[follow] product"
+    runs-on: ${{ fromJSON(vars.WHARF_FOLLOW_RUNNER) }}
+    timeout-minutes: 45
+    defaults:
+      run:
+        working-directory: wharf
+    steps:
+      - name: "[checkout] wharf"
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          path: wharf
+          persist-credentials: false
+
+      - name: "[verify] request"
+        id: qualified
+        env:
+          WHARF_REQUEST: ${{ github.event_path }}
+          WHARF_FOLLOW_WEBHOOK_SECRET: ${{ secrets.WHARF_FOLLOW_WEBHOOK_SECRET }}
+          WHARF_FOLLOW_SENDER_ID: ${{ vars.WHARF_FOLLOW_SENDER_ID }}
+        run: python3 -B -m scripts.follow qualify
+
+      - name: "[prepare] installation"
+        id: token
+        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1
+        with:
+          client-id: ${{ vars.WHARF_FOLLOW_APP_CLIENT_ID }}
+          private-key: ${{ secrets.WHARF_FOLLOW_APP_PRIVATE_KEY }}
+          owner: ${{ steps.qualified.outputs.owner }}
+          repositories: ${{ steps.qualified.outputs.name }}
+          permission-contents: write
+          permission-pull-requests: write
+          permission-issues: write
+          permission-metadata: read
+
+      - name: "[prepare] machine"
+        uses: ./wharf/.github/actions/prepare
+        with:
+          prepare: snapshot
+
+      - name: "[read] engines"
+        id: engines
+        env:
+          WHARF_SOURCE: .
+        run: python3 -B -m scripts.media engines
+
+      - name: "[prepare] machine"
+        uses: ./wharf/.github/actions/prepare
+        with:
+          prepare: rust node pnpm
+          node: ${{ steps.engines.outputs.node }}
+          pnpm: ${{ steps.engines.outputs.pnpm }}
+          rust: ${{ fromJSON(steps.engines.outputs.domain)['rust.version'] }}
+
+      - name: "[follow] product"
+        env:
+          WHARF_REQUEST: ${{ github.event_path }}
+          WHARF_FOLLOW_WEBHOOK_SECRET: ${{ secrets.WHARF_FOLLOW_WEBHOOK_SECRET }}
+          WHARF_FOLLOW_SENDER_ID: ${{ vars.WHARF_FOLLOW_SENDER_ID }}
+          WHARF_FOLLOW_INSTALLATION_ID: ${{ steps.token.outputs.installation-id }}
+          WHARF_FOLLOW_DATA_ROOT: ${{ vars.WHARF_FOLLOW_DATA_ROOT }}
+          GH_TOKEN: ${{ steps.token.outputs.token }}
+          WHARF_PACKAGES_TOKEN: ${{ secrets.PERISHLAB_PACKAGES_READ }}
+          WHARF_DOMAIN: ${{ steps.engines.outputs.domain }}
+        run: python3 -B -m scripts.follow execute

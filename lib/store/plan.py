@@ -3,6 +3,7 @@ import re
 
 from lib.content import canonical, marker
 from lib.refusal import Refusal
+from lib.store import workload
 
 SCHEMA = 1
 PUBLISHED = ("npm", "oci", "chart", "cargo", "release", "channel", "cfworker")
@@ -28,6 +29,41 @@ def location(context):
 
 def standing(context):
     return f"{named(context)}/latest.json"
+
+
+def publication(context):
+    return f"{named(context)}/publication.json"
+
+
+def combination(verified):
+    fields = {"schema", "source", "head", "tree", "packages", "controls", "domain", "guard"}
+    if not isinstance(verified, dict) or set(verified) != fields or verified["schema"] != "wharf.release.snapshot/v1":
+        raise Refusal("publication requires the verified release snapshot")
+    return {field: verified[field] for field in sorted(fields - {"guard"})}
+
+
+def matching(bucket, context, verified):
+    key = publication(context)
+    if bucket.exists(key) and bucket.get(key) != canonical.encode(combination(verified)):
+        raise Refusal("this immutable marker began publication with another verified combination")
+
+
+def reserve(bucket, document):
+    context = document["context"]
+    verified = context.get("snapshot")
+    if combination(verified)["source"] != {field: context[field] for field in ("repository", "marker", "commit", "tree")}:
+        raise Refusal("publication snapshot differs from the release identity")
+    matching(bucket, context, verified)
+    workload.settle(bucket, publication(context), canonical.encode(combination(verified)))
+
+
+def legacy(bucket, context, entries, observed):
+    if bucket.exists(publication(context)):
+        return
+    published = any(item.get("existing") == "true" or (item.get("decision") == "skip" and item.get("presence") == "present") for name, item in observed.items() if name != "channel")
+    pending = any(entries.get(name, {}).get("decision") == "run" for name in PUBLISHED if name != "channel")
+    if published and pending:
+        raise Refusal("existing media has no verified publication combination; this marker requires explicit recovery review")
 
 
 def depth(entries, name, held):
