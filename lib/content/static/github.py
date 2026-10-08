@@ -61,3 +61,32 @@ class GitHub:
         preview.matches(repository, preview.REPOSITORY, "GitHub source repository")
         preview.matches(identity, preview.HEX[40], "GitHub source commit")
         return self.get(f"/repos/{repository}/git/commits/{identity}")
+
+
+class Routing:
+    def __init__(self, repository, control, product):
+        preview.matches(repository, preview.REPOSITORY, "scoped product repository")
+        self._repository = repository
+        self._control = control
+        self._product = product
+
+    def selected(self, repository):
+        if repository != self._repository:
+            raise Refusal("Preview product identity read is outside its scoped repository")
+
+    def repository(self, name):
+        if name == resources.read_json("build.json")["admission"]["repository"]:
+            return self._control.repository(name)
+        self.selected(name)
+        return self._product.repository(name)
+
+    def run(self, identity):
+        return self._control.run(identity)
+
+    def permission(self, repository, login):
+        self.selected(repository)
+        return self._product.permission(repository, login)
+
+    def commit(self, repository, identity):
+        self.selected(repository)
+        return self._product.commit(repository, identity)

@@ -1,0 +1,81 @@
+name: preview-source
+description: Acquire independently admitted exact Preview source without release tags
+inputs:
+  repository:
+    description: Independently admitted PerishLab product repository
+    required: true
+  commit:
+    description: Admitted exact full source commit
+    required: true
+  tree:
+    description: Admitted exact full source tree
+    required: true
+  client-id:
+    description: Read-only product App client id
+    required: true
+  private-key:
+    description: Read-only product App private key
+    required: true
+runs:
+  using: composite
+  steps:
+    - name: '[identify] source'
+      id: named
+      shell: bash
+      working-directory: wharf
+      env:
+        WHARF_REPOSITORY: ${{ inputs.repository }}
+        WHARF_COMMIT: ${{ inputs.commit }}
+        WHARF_TREE: ${{ inputs.tree }}
+      run: python3 -B -m scripts.preview named
+
+    - name: '[prepare] source'
+      id: token
+      uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1
+      with:
+        client-id: ${{ inputs.client-id }}
+        private-key: ${{ inputs.private-key }}
+        owner: ${{ steps.named.outputs.owner }}
+        repositories: ${{ steps.named.outputs.name }}
+        permission-contents: read
+
+    - name: '[checkout] source'
+      uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      env:
+        GIT_CONFIG_NOSYSTEM: '1'
+        GIT_CONFIG_GLOBAL: /dev/null
+        GIT_TEMPLATE_DIR: ''
+        GIT_CONFIG_COUNT: '4'
+        GIT_CONFIG_KEY_0: core.hooksPath
+        GIT_CONFIG_VALUE_0: /dev/null
+        GIT_CONFIG_KEY_1: core.fsmonitor
+        GIT_CONFIG_VALUE_1: 'false'
+        GIT_CONFIG_KEY_2: core.attributesFile
+        GIT_CONFIG_VALUE_2: /dev/null
+        GIT_CONFIG_KEY_3: http.followRedirects
+        GIT_CONFIG_VALUE_3: 'false'
+        GIT_TERMINAL_PROMPT: '0'
+        GIT_LFS_SKIP_SMUDGE: '1'
+        GIT_TRACE: '0'
+        GIT_TRACE_CURL: '0'
+        GIT_CURL_VERBOSE: '0'
+      with:
+        repository: ${{ inputs.repository }}
+        ref: ${{ steps.named.outputs.commit }}
+        path: preview-product
+        fetch-depth: '0'
+        submodules: 'false'
+        lfs: 'false'
+        persist-credentials: 'false'
+        set-safe-directory: 'false'
+        token: ${{ steps.token.outputs.token }}
+
+    - name: '[verify] source'
+      shell: bash
+      working-directory: wharf
+      env:
+        WHARF_REPOSITORY: ${{ inputs.repository }}
+        WHARF_COMMIT: ${{ steps.named.outputs.commit }}
+        WHARF_TREE: ${{ steps.named.outputs.tree }}
+        WHARF_SOURCE: ../preview-product
+      run: python3 -B -m scripts.preview source
