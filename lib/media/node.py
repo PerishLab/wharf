@@ -132,6 +132,7 @@ def preview_commands(held, execute, inspect):
 
 def preview_build(request, execute=None, inspect=evidence.inspect, environ=os.environ):
     execute = execute or preview_execute
+    domain = toolchain.versions(environ)
     root, destination = Path(request.source).resolve(), Path(request.output).resolve()
     if destination.exists() or destination.is_relative_to(root):
         raise Refusal("static build handoff must be an absent directory outside product source")
@@ -146,11 +147,13 @@ def preview_build(request, execute=None, inspect=evidence.inspect, environ=os.en
         if static.git(root, ["check-ignore", "--", config["directory"] + "/"], env).rstrip("/") != config["directory"]:
             raise Refusal("static assets directory must be ignored build output")
         for name in TOOLS:
-            if tools[name]["version"].lstrip("v") != config["engines"][name]:
-                raise Refusal("static prepared Node/pnpm differs from the exact domain engines")
+            if tools[name]["version"].lstrip("v") != domain[f"{name}.version"]:
+                raise Refusal("static prepared Node/pnpm differs from the trusted domain versions")
         identity = handoff.world()
         held = {"root": root, "tools": tools, "env": env, "config": config, "request": request, "install": installation, "reader": environ.get(READER)}
         proof = preview_commands(held, execute, inspect)
+        if toolchain.versions(environ) != domain:
+            raise Refusal("static domain versions changed during execution")
         if handoff.world() != identity:
             raise Refusal("static build implementation changed during execution")
         files = assets.collect(static.output(root, config["directory"]))

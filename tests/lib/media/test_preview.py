@@ -7,6 +7,7 @@ import unittest
 from pathlib import Path
 from unittest import mock
 
+from lib.cargo import toolchain
 from lib.content.static import evidence, workspace
 from lib.media import node
 from lib.refusal import Refusal
@@ -16,6 +17,7 @@ from tests.lib.content.test_preview import target
 from tests.lib.content.test_static import StaticRepository, guarded
 
 VERSIONS = {"node": "v24.18.0", "pnpm.cjs": "11.13.0", "pnpm": "11.13.0", "plumb": "plumb v0.66.0", "ectropy": "ectropy v0.1.0", "git": "git version 2.0.0"}
+DOMAIN = {"node.version": "24.18.0", "pnpm.version": "11.13.0", "rust.version": "1.95.0"}
 
 
 class Builder:
@@ -48,7 +50,7 @@ class Builder:
         return node.preview_build(request, self.execute, self.inspect, self.environment(environ))
 
     def environment(self, environ=None):
-        return dict(environ or os.environ, PATH=f"{self.bin}:/usr/bin:/bin")
+        return {toolchain.VARIABLE: toolchain.encoded(DOMAIN), **(os.environ if environ is None else environ), "PATH": f"{self.bin}:/usr/bin:/bin"}
 
 
 class CredentialBoundary(unittest.TestCase):
@@ -68,6 +70,7 @@ class CredentialBoundary(unittest.TestCase):
                 self.assertNotEqual(child["HOME"], str(Path.home()))
                 if kind == "inspect":
                     self.assertNotIn(node.READER, child)
+                self.assertNotIn(toolchain.VARIABLE, child)
         self.assertFalse(Path(calls[0][1]["NPM_CONFIG_USERCONFIG"]).exists())
 
     def test_guard_selectors_are_explicit_and_no_source_receipt_is_trusted(self):
