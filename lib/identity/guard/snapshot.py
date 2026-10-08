@@ -37,6 +37,8 @@ def object_id(value):
 
 def environment(home, domain):
     env = evidence.clean(os.environ, home)
+    for name in ("NPM_CONFIG_IGNORE_SCRIPTS", "NPM_CONFIG_IGNORE_PNPMFILE"):
+        env.pop(name)
     env.update({
         "RUSTUP_HOME": os.environ.get("RUSTUP_HOME", str(Path.home() / ".rustup")),
         "CARGO_HOME": os.environ.get("CARGO_HOME", str(Path.home() / ".cargo")),
@@ -46,10 +48,13 @@ def environment(home, domain):
         "GIT_AUTHOR_DATE": "@0 +0000", "GIT_COMMITTER_DATE": "@0 +0000",
     })
     if os.environ.get(READER):
+        reader = os.environ[READER]
+        if any(character in reader for character in ("\r", "\n")):
+            raise Refusal("release snapshot package reader must occupy one configuration line")
         config = Path(home) / "npmrc"
-        config.write_text("\n".join(f"//{location.split('://', 1)[1].rstrip('/')}/:_authToken=${{{READER}}}" for location in sorted(set(REGISTRIES.values()))) + "\n")
+        config.write_text("\n".join(f"//{location.split('://', 1)[1].rstrip('/')}/:_authToken={reader}" for location in sorted(set(REGISTRIES.values()))) + "\n")
         config.chmod(0o600)
-        env.update({READER: os.environ[READER], "NPM_CONFIG_USERCONFIG": str(config)})
+        env["NPM_CONFIG_USERCONFIG"] = str(config)
     return env
 
 
