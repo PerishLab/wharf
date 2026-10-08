@@ -208,6 +208,15 @@ A preview target must not share its account and Worker name with any other track
 configuration. Invalid or missing preview paths refuse before install or deployment.
 Preview execution is a separate path, never release distribution.
 
+`lib/content/static/admission.py` loads current registration only from a trusted
+store and observes the fixed main Preview workflow and both actors' repository
+push permissions through the read-only GitHub adapter. Apply also verifies the
+remote exact commit/tree before fresh checkout qualification; inspect/discard
+do not require product source. Trusted platform context, store and API credentials
+must stay outside product/request inputs and guests. The returned observation is
+not a bearer permit, source acquisition or a provider-write/recovery authorization.
+Workflow integration must revalidate current admission before external mutations.
+
 Preview request, registration and result envelopes are explicit versioned contracts
 in `lib/content/preview.py`. Caller and workflow fields are observations, not
 authorization; trusted onboarding and the execution adapter must establish authority.
