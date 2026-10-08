@@ -288,6 +288,16 @@ The supervisor must authenticate source acquisition first and confirm every gues
 is gone before closing this workspace lifetime. Staging alone proves neither
 Guard authority nor complete build isolation and does not limit history disk use.
 
+`lib/check/dependency.py` qualifies only a bounded literal workspace
+packages list and package JSON configuration subset. Unsupported settings,
+runtime selectors and dependency protocols refuse. Its reader projection holds
+only fixed registry routing and an empty workspace, never manifests or scripts.
+Input digests identify provided bytes, not completeness or authenticated source.
+A trusted caller must bind the complete selected source separately. Qualification
+grants no reader authorization: lockfile/integrity/URL validation, isolated reader
+network and teardown, verification-cache transport and live workflow integration
+remain separate obligations. Ordinary static builds do not yet invoke this module.
+
 How far a marker is distributed has one authority: `distribution.json` beside its
 seal on the product's release authority, at
 `v1/releases/<channel>/<marker>/distribution.json`. It records the marker's
