@@ -1,8 +1,11 @@
+import os
+import tempfile
 import unittest
 from contextlib import contextmanager
 from pathlib import Path
 from unittest import mock
 
+from lib.content.static import evidence
 from lib.identity.guard import execution, snapshot
 from lib.process import git
 from lib.refusal import Refusal
@@ -119,3 +122,44 @@ class Checkout(unittest.TestCase):
             with snapshot.checkout(self.repository.root, self.root):
                 self.fail("must refuse aliases")
         self.assertTrue(self.root.is_symlink())
+
+
+class Environment(unittest.TestCase):
+    def test_release_and_preview_keep_their_distinct_execution_contracts(self):
+        ambient = {"PATH": "/trusted/bin", "NODE_OPTIONS": "--require /product/hook", "NPM_CONFIG_REGISTRY": "https://untrusted.invalid", "GIT_CONFIG_COUNT": "1", "PROVIDER_TOKEN": "excluded"}
+        domain = {"rust.version": "1.96.1"}
+        with mock.patch.dict(os.environ, ambient, clear=True), tempfile.TemporaryDirectory() as temporary:
+            home = Path(temporary)
+            static = evidence.clean(os.environ, home)
+            release = snapshot.environment(home, domain)
+            for name in ("NPM_CONFIG_IGNORE_SCRIPTS", "NPM_CONFIG_IGNORE_PNPMFILE"):
+                self.assertEqual(static[name], "true")
+                self.assertNotIn(name, release)
+            for name in ("NODE_OPTIONS", "NPM_CONFIG_REGISTRY", "GIT_CONFIG_COUNT", "PROVIDER_TOKEN"):
+                self.assertNotIn(name, release)
+            self.assertEqual(release["HOME"], temporary)
+            self.assertEqual(release["PATH"], ambient["PATH"])
+            self.assertEqual(release["CI"], "true")
+            self.assertEqual(release["RUSTUP_TOOLCHAIN"], domain["rust.version"])
+            self.assertEqual(release["GIT_CONFIG_GLOBAL"], os.devnull)
+            self.assertEqual(release["GIT_AUTHOR_DATE"], "@0 +0000")
+
+    def test_package_reader_uses_only_the_owned_private_configuration(self):
+        ambient = {"PATH": "/trusted/bin", snapshot.READER: "test-reader", "NPM_CONFIG_USERCONFIG": "/untrusted/npmrc"}
+        with mock.patch.dict(os.environ, ambient, clear=True), tempfile.TemporaryDirectory() as temporary:
+            home = Path(temporary)
+            release = snapshot.environment(home, {"rust.version": "1.96.1"})
+            config = Path(release["NPM_CONFIG_USERCONFIG"])
+            self.assertEqual(config, home / "npmrc")
+            self.assertEqual(config.stat().st_mode & 0o777, 0o600)
+            self.assertIn("/:_authToken=" + ambient[snapshot.READER], config.read_text())
+            self.assertNotIn("${", config.read_text())
+            self.assertNotIn(snapshot.READER, release)
+            self.assertEqual({name for name in release if name.startswith("NPM_CONFIG_")}, {"NPM_CONFIG_USERCONFIG"})
+
+    def test_reader_cannot_inject_another_configuration_binding(self):
+        with mock.patch.dict(os.environ, {snapshot.READER: "test-reader\nignore-scripts=false"}, clear=True), tempfile.TemporaryDirectory() as temporary:
+            home = Path(temporary)
+            with self.assertRaisesRegex(Refusal, "one configuration line"):
+                snapshot.environment(home, {"rust.version": "1.96.1"})
+            self.assertFalse((home / "npmrc").exists())
