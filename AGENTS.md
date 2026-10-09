@@ -256,9 +256,11 @@ or request IDs. Reuse is content evidence, never deployment authorization.
 
 `lib/content/static/runtime.py` owns the bounded local Preview guest primitive.
 Only disposable temporary product directories and separate read-only trusted
-controls are mounted. The public Images stable reference and offline profile
-live in `resources/build.json`; no host credentials, home or Docker socket enter
-the guest. Stdout alone is returned; stderr remains diagnostic. Both streams are
+controls are mounted. The public Images stable reference and resource budgets
+live in `resources/build.json`; the fixed Docker profile permits ordinary bridge
+networking, never host networking. No host credentials, home or Docker socket enter
+the guest. Network reachability is not credential authority or a confinement proof.
+Stdout alone is returned; stderr remains diagnostic. Both streams are
 drained live without a TTY under one aggregate output budget, deadline and
 workflow-command suppression. Stream separation is not proof authentication;
 product-authored stdout remains untrusted. Every exit path reconciles only the
@@ -267,8 +269,10 @@ failed or unknown teardown admits no output. Client timeout is not cancellation.
 Stable is prepared first; the guest runs only its resolved digest, recorded in
 host-observed identity, never a guest-authored Guard proof.
 This primitive grants no source/target authority, package reader or publication.
-`lib/content/static/bridge.py` binds this runtime to offline static content through
-separate install, full head Guard and build guests. Each guest must disappear
+`lib/content/static/bridge.py` binds this runtime to static content through
+separate online frozen install, full head Guard and build guests. The explicit
+install disables product scripts and pnpm hooks without requiring an offline cache.
+Every guest excludes readers and deployment/storage writers. Each must disappear
 before the next phase or byte collection. Source, Git control metadata, trusted
 controls, tools and host-observed runtime identity are checked across phases.
 Unknown teardown retains the disposable workspace and admits no handoff.
@@ -324,7 +328,7 @@ source-bound credential-free projection. Unsupported selectors and ambiguous
 selected paths refuse. This binds repository content identity, not authenticated
 caller authority or hostile concurrent-writer isolation. Existing acquisition
 history/checkout checks are reused without a new total disk-bound promise.
-The offline bridge does not invoke this collector yet. Reader authorization,
+The static bridge does not invoke this collector yet. Reader authorization,
 network/redirect/teardown, store/cache transport, latest-stable first-party Guard,
 authsource and official-action/live obligations remain under #82 and #36.
 

@@ -68,7 +68,7 @@ def profile(guest, owner, world):
     source, controls = qualified(guest)
     return ["container", "create", "--name", "wharf-preview-" + owner, "--label", LABEL + "=" + owner,
             "--pull", "never", "--platform", POLICY["platform"], "--read-only", "--cap-drop", "ALL",
-            "--security-opt", "no-new-privileges", "--network", "none", "--no-healthcheck", "--tty=false", "--interactive=false", "--user", "1000:1000",
+            "--security-opt", "no-new-privileges", "--network", "bridge", "--no-healthcheck", "--tty=false", "--interactive=false", "--user", "1000:1000",
             "--pids-limit", str(POLICY["pids"]), "--memory", str(POLICY["memory"]), "--memory-swap", str(POLICY["memory"]),
             "--cpus", str(POLICY["cpus"]), "--tmpfs", f'/tmp:rw,nosuid,nodev,size={POLICY["temporary"]}', "--workdir", "/source",
             "--mount", f"type=bind,src={source},dst=/source", "--mount", f"type=bind,src={controls},dst=/controls,readonly",
@@ -203,7 +203,7 @@ def checked(held, guest, world):
     if config.get("Tty") is not False or config.get("OpenStdin") is not False:
         raise Refusal("Preview result transport requires separate non-interactive streams without a TTY")
     fixed = {"ReadonlyRootfs": True, "Privileged": False, "CapDrop": ["ALL"], "SecurityOpt": ["no-new-privileges"],
-             "NetworkMode": "none", "PidsLimit": POLICY["pids"], "Memory": POLICY["memory"], "MemorySwap": POLICY["memory"], "NanoCpus": POLICY["cpus"] * 1000000000}
+             "NetworkMode": "bridge", "PidsLimit": POLICY["pids"], "Memory": POLICY["memory"], "MemorySwap": POLICY["memory"], "NanoCpus": POLICY["cpus"] * 1000000000}
     if any(host.get(key) != value for key, value in fixed.items()) or any(host.get(key) for key in ("Binds", "Devices", "CapAdd", "PidMode", "PortBindings")) or host.get("IpcMode") == "host":
         raise Refusal("Preview guest effective restrictions disagree with the fixed profile")
     actual = {(entry.get("Source"), entry.get("Destination"), entry.get("RW"), entry.get("Type")) for entry in held.get("Mounts", [])}
