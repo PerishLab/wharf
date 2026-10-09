@@ -7,6 +7,7 @@ from lib.content import marker as held
 from lib.refusal import Refusal
 
 UNVERSIONED = "0.0.0"
+LEFTOVER = re.compile(r"(?<![\w.])0\.0\.0(?![\w.])")
 SCHEMA = 1
 
 
@@ -72,7 +73,7 @@ def inject(source, release):
     names = "|".join(re.escape(name) for name in workspace)
     replace(source / "Cargo.lock", rf'(name = "(?:{names})"\nversion = )"0\.0\.0"', rf'\g<1>"{version}"')
     touched = [source / "Cargo.toml", source / "Cargo.lock"] + [source / directory / "Cargo.toml" for directory in workspace.values()]
-    remaining = [str(path) for path in touched if UNVERSIONED in path.read_text()]
+    remaining = [str(path) for path in touched if LEFTOVER.search(path.read_text())]
     if remaining:
         raise Refusal(f"{', '.join(remaining)} still mention {UNVERSIONED} after binding {version}")
     return {"version": version, "packages": sorted(workspace)}

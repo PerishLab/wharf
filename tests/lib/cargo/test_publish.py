@@ -211,6 +211,20 @@ class Inject(unittest.TestCase):
         self.assertNotIn("0.0.0", (repository.root / "Cargo.lock").read_text())
         self.assertEqual(version.read(repository.root, "demo"), version.provenance(RELEASE))
 
+    def test_binds_beside_a_dependency_whose_version_ends_in_zeros(self):
+        repository = Repository()
+        repository.edit("Cargo.lock", 'version = "1.0.0"', 'version = "60.0.0"')
+        repository.commit()
+        version.inject(repository.root, RELEASE)
+        self.assertIn('version = "60.0.0"', (repository.root / "Cargo.lock").read_text())
+
+    def test_refuses_a_whole_unversioned_reference_left_behind(self):
+        repository = Repository()
+        repository.edit("Cargo.lock", 'dependencies = ["demo"]', 'dependencies = ["demo 0.0.0"]')
+        repository.commit()
+        with self.assertRaisesRegex(Refusal, "still mention 0.0.0"):
+            version.inject(repository.root, RELEASE)
+
     def test_binds_the_members_pinned_in_workspace_dependencies(self):
         repository = Repository()
         repository.edit("Cargo.toml", '[workspace.package]', '[workspace.dependencies]\ndemo = { path = "crates/lib", version = "=0.0.0" }\n\n[workspace.package]')
