@@ -10,7 +10,7 @@ from lib.refusal import Refusal
 
 SECRET = "fixture-webhook-secret"
 PUSH = {"ref": "refs/heads/main", "deleted": False, "after": "a" * 40, "repository": {"id": 17, "full_name": "PerishLab/example", "default_branch": "main"}, "installation": {"id": 23}}
-CONTEXT = {"GITHUB_REPOSITORY": "PerishLab/wharf", "GITHUB_WORKFLOW_REF": event.WORKFLOW, "GITHUB_REF": "refs/heads/main", "GITHUB_EVENT_NAME": "repository_dispatch", "RUNNER_ENVIRONMENT": "self-hosted", "RUNNER_OS": "Linux", "WHARF_FOLLOW_SENDER_ID": "31", event.SECRET: SECRET}
+CONTEXT = {"GITHUB_REPOSITORY": "PerishLab/wharf", "GITHUB_WORKFLOW_REF": event.WORKFLOW, "GITHUB_REF": "refs/heads/main", "GITHUB_EVENT_NAME": "repository_dispatch", "RUNNER_ENVIRONMENT": "github-hosted", "RUNNER_OS": "Linux", "WHARF_FOLLOW_SENDER_ID": "31", event.SECRET: SECRET}
 
 
 def headers(body):
@@ -73,7 +73,7 @@ class Admission(unittest.TestCase):
         self.assertEqual(event.qualified(self.path, CONTEXT)["repository"], "PerishLab/example")
 
     def test_other_actor_or_runtime_refuses(self):
-        for field, value in (("GITHUB_REF", "refs/heads/topic"), ("GITHUB_WORKFLOW_REF", "another"), ("RUNNER_ENVIRONMENT", "github-hosted"), ("WHARF_FOLLOW_SENDER_ID", "32")):
+        for field, value in (("GITHUB_REF", "refs/heads/topic"), ("GITHUB_WORKFLOW_REF", "another"), ("RUNNER_ENVIRONMENT", "self-hosted"), ("WHARF_FOLLOW_SENDER_ID", "32")):
             with self.subTest(field=field), self.assertRaises(Refusal):
                 event.qualified(self.path, dict(CONTEXT, **{field: value}))
 

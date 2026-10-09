@@ -379,9 +379,9 @@ with a separate purpose prefix. It holds no App private key. The workflow verifi
 that signature, the configured dispatch sender, main runtime and minted installation
 before qualifying current repository identity and its root Plumb declaration.
 
-Configure `WHARF_FOLLOW_APP_CLIENT_ID`, `WHARF_FOLLOW_SENDER_ID`,
-`WHARF_FOLLOW_RUNNER` and `WHARF_FOLLOW_DATA_ROOT` as trusted Wharf variables;
-the runner value is a JSON label list selecting one persistent Linux runner.
+Configure `WHARF_FOLLOW_APP_CLIENT_ID` and `WHARF_FOLLOW_SENDER_ID` as trusted
+Wharf variables. The workflow runs on the explicit GitHub-hosted `ubuntu-24.04`
+class; it needs no runner labels, persistent data directory or recovery bucket.
 `WHARF_FOLLOW_APP_PRIVATE_KEY` is the dedicated follow App secret and appears only
 in this workflow. `WHARF_FOLLOW_WEBHOOK_SECRET` matches the receiver's webhook
 secret; package resolution reads `PERISHLAB_PACKAGES_READ`. The App token is scoped
@@ -389,10 +389,12 @@ to the signed repository and exactly Contents, Pull requests and Issues write pl
 Metadata read. Read back the actual registration, push subscription and installations
 before treating runtime setup as complete.
 
-Follow data lives outside the runner's disposable workspace and temporary directory.
-Wharf creates an owned canonical main checkout per repository and one persistent
-Plumb home; it preserves the common Git directory, Auto worktrees and released
-Plumb recovery records between runs. Foreign, dirty or diverged source refuses.
+Each run creates an owned disposable main checkout and private home with a fresh
+Plumb state directory. They are removed after owned commands terminate, including
+refusal and cancellation. No local plan, Git worktree or validation cache is
+restored. Released `plumb follow` recovers from the registered GitHub Issue,
+publication intent, branch, pull and exact Guard/merge facts, and obtains fresh
+local proof before another delivery. Foreign, dirty or diverged source refuses.
 Only released `plumb follow` owns Auto issue/pull/proof/recovery/closure. The workflow
 serializes each signed repository, uses a finite process budget and terminates its
 command group on exit. A current consumer creates nothing. No schedule or RC gate

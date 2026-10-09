@@ -14,9 +14,9 @@ class Workspace(unittest.TestCase):
     def setUp(self):
         self.directory = tempfile.TemporaryDirectory()
         self.addCleanup(self.directory.cleanup)
-        self.root = Path(self.directory.name) / "persistent"
+        self.root = Path(self.directory.name) / "owned"
 
-    def test_source_and_state_addresses_remain_stable(self):
+    def test_source_and_state_addresses_stay_in_one_owned_run(self):
         first = operation.seat(self.root, SUMMARY)
         second = operation.seat(self.root, SUMMARY)
         self.assertEqual(first, second)
@@ -57,11 +57,6 @@ class Workspace(unittest.TestCase):
             operation.seat(self.root, SUMMARY)
         self.assertEqual(list(external.iterdir()), [])
 
-    def test_disposable_or_relative_data_paths_refuse(self):
-        for env in ({"WHARF_FOLLOW_DATA_ROOT": "relative"}, {"WHARF_FOLLOW_DATA_ROOT": str(self.root), "RUNNER_TEMP": self.directory.name}):
-            with self.subTest(env=env), self.assertRaises(Refusal):
-                operation.directory(env)
-
     def test_repository_names_do_not_collide_with_ownership_files(self):
         first = operation.seat(self.root, SUMMARY)
         first.mkdir()
@@ -90,7 +85,42 @@ class Qualification(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             home = Path(directory)
             env = {"PATH": "/bin", "GH_TOKEN": "app", "WHARF_PACKAGES_TOKEN": "reader", "WHARF_FOLLOW_WEBHOOK_SECRET": "webhook", "WHARF_FOLLOW_DISPATCH_TOKEN": "dispatch", "WHARF_FOLLOW_APP_PRIVATE_KEY": "key", "GITHUB_TOKEN": "job", "WHARF_R2_SECRET_ACCESS_KEY": "writer"}
-            child = operation.environment(home, home / "persistent", env)
+            child = operation.environment(home, home / "owned", env)
             self.assertEqual({name: value for name, value in child.items() if name.endswith(("TOKEN", "SECRET", "PRIVATE_KEY", "SECRET_ACCESS_KEY"))}, {"GH_TOKEN": "app", "WHARF_PACKAGES_TOKEN": "reader"})
-            self.assertEqual(child["PLUMB_HOME"], str(home / "persistent/plumb"))
+            self.assertEqual(child["PLUMB_HOME"], str(home / "owned/plumb"))
             self.assertEqual(Path(child["NPM_CONFIG_USERCONFIG"]).stat().st_mode & 0o077, 0)
+
+
+class Lifetime(unittest.TestCase):
+    def test_each_invocation_uses_and_removes_independent_state(self):
+        held = []
+        def command(argv, cwd, env):
+            if argv[0] == "plumb":
+                self.assertTrue(Path(cwd).is_dir())
+                root = Path(env["PLUMB_HOME"])
+                if argv[1:3] == ["configuration", "install"]:
+                    self.assertFalse(root.exists())
+                    root.mkdir()
+                else:
+                    self.assertEqual(argv[1], "follow")
+                    self.assertTrue(root.is_dir())
+                    (root / "state.json").write_text("owned invocation")
+                    held.append((root, Path(cwd)))
+        env = {"GH_TOKEN": "fixture", "WHARF_FOLLOW_INSTALLATION_ID": "23", "PATH": "/bin"}
+        with mock.patch.object(operation.event, "qualified", return_value=SUMMARY), mock.patch.object(operation, "governed", return_value=True), mock.patch.object(operation, "synchronize", side_effect=lambda source, *args: source.mkdir()), mock.patch.object(operation, "command", side_effect=command):
+            for _ in range(2):
+                self.assertEqual(operation.execute("fixture", env)["state"], "executed")
+        self.assertNotEqual(held[0][0], held[1][0])
+        self.assertTrue(all(not path.exists() for entry in held for path in entry))
+
+    def test_refused_operation_removes_only_its_disposable_state(self):
+        held = []
+        def command(argv, cwd, env):
+            held.append(Path(env["PLUMB_HOME"]).parent)
+            raise Refusal("fixture stop")
+        env = {"GH_TOKEN": "fixture", "WHARF_FOLLOW_INSTALLATION_ID": "23", "PATH": "/bin"}
+        with mock.patch.object(operation.event, "qualified", return_value=SUMMARY), mock.patch.object(operation, "governed", return_value=True), mock.patch.object(operation, "command", side_effect=command):
+            with self.assertRaisesRegex(Refusal, "fixture stop"):
+                operation.execute("fixture", env)
+        self.assertEqual(len(held), 1)
+        self.assertFalse(held[0].exists())

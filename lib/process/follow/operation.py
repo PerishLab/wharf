@@ -18,18 +18,6 @@ from lib.refusal import Refusal
 TIMEOUT = 1800
 
 
-def directory(environ):
-    value = environ.get("WHARF_FOLLOW_DATA_ROOT", "")
-    root = Path(value)
-    if not value or not root.is_absolute() or root.resolve() != root or root == Path(root.anchor):
-        raise Refusal("follow needs one explicit canonical persistent data directory")
-    for name in ("RUNNER_TEMP", "GITHUB_WORKSPACE"):
-        transient = environ.get(name)
-        if transient and root.is_relative_to(Path(transient).resolve()):
-            raise Refusal("follow data must live outside the runner's disposable directories")
-    return root
-
-
 def ownership(path, record):
     body = canonical.encode(record)
     if path.exists():
@@ -94,7 +82,7 @@ def environment(home, root, environ):
 
 
 def cancelled(number, frame):
-    raise Refusal("follow was cancelled; preserve source and Auto recovery state")
+    raise Refusal("follow was cancelled; recover Auto state from GitHub")
 
 
 @contextmanager
@@ -119,7 +107,7 @@ def reap(process):
     try:
         process.wait(timeout=5)
     except subprocess.TimeoutExpired as error:
-        raise Refusal("follow termination is unknown; preserve recovery state") from error
+        raise Refusal("follow termination is unknown; recover from GitHub") from error
 
 
 def command(argv, cwd, env):
@@ -129,9 +117,9 @@ def command(argv, cwd, env):
         try:
             process = subprocess.Popen(argv, cwd=cwd, env=env, stdout=sys.stderr, stderr=subprocess.STDOUT, start_new_session=True)
             if process.wait(timeout=TIMEOUT) != 0:
-                raise Refusal("follow step failed; preserve source and any existing Auto recovery state")
+                raise Refusal("follow step failed; recover any existing Auto state from GitHub")
         except subprocess.TimeoutExpired as error:
-            raise Refusal("released follow exceeded its finite execution budget; preserve recovery state") from error
+            raise Refusal("released follow exceeded its finite execution budget; recover from GitHub") from error
         finally:
             if process is not None:
                 reap(process)
@@ -156,14 +144,16 @@ def execute(path, environ=os.environ):
     summary = event.qualified(path, environ)
     if str(summary["installation_id"]) != environ.get("WHARF_FOLLOW_INSTALLATION_ID") or not environ.get("GH_TOKEN"):
         raise Refusal("follow token belongs to another installation or is absent")
-    root = directory(environ)
     if not governed(summary, environ["GH_TOKEN"]):
         return {"state": "not-governed", "repository": summary["repository"]}
-    source = seat(root, summary)
-    with tempfile.TemporaryDirectory(prefix="wharf-follow-home-") as temporary:
-        home = Path(temporary)
+    with tempfile.TemporaryDirectory(prefix="wharf-follow-") as temporary:
+        root = Path(temporary).resolve()
+        source = seat(root, summary)
+        home = root / "home"
+        home.mkdir()
         env = environment(home, root, environ)
         command(["gh", "auth", "setup-git", "--hostname", "github.com"], home, env)
         synchronize(source, summary, env)
+        command(["plumb", "configuration", "install"], source, env)
         command(["plumb", "follow", str(source), "--github-command", "gh", "--json"], source, env)
     return {"state": "executed", "repository": summary["repository"], "delivery": summary["delivery"]}

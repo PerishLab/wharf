@@ -74,9 +74,9 @@ def webhook(body, headers, secret):
 
 
 def qualified(path, environ=os.environ):
-    context = {"GITHUB_REPOSITORY": "PerishLab/wharf", "GITHUB_WORKFLOW_REF": WORKFLOW, "GITHUB_REF": "refs/heads/main", "GITHUB_EVENT_NAME": "repository_dispatch", "RUNNER_ENVIRONMENT": "self-hosted", "RUNNER_OS": "Linux"}
+    context = {"GITHUB_REPOSITORY": "PerishLab/wharf", "GITHUB_WORKFLOW_REF": WORKFLOW, "GITHUB_REF": "refs/heads/main", "GITHUB_EVENT_NAME": "repository_dispatch", "RUNNER_ENVIRONMENT": "github-hosted", "RUNNER_OS": "Linux"}
     if any(environ.get(field) != value for field, value in context.items()):
-        raise Refusal("follow requires the trusted main workflow on its persistent Linux runner")
+        raise Refusal("follow requires the trusted main workflow on its GitHub-hosted Linux runner")
     with Path(path).open("rb") as source:
         event = decode(source.read(LIMIT + 1))
     actor = environ.get("WHARF_FOLLOW_SENDER_ID", "")
