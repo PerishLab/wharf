@@ -5,7 +5,7 @@ import tomllib
 from pathlib import Path, PurePosixPath
 
 from lib.content import canonical, declaration, preview
-from lib.content.static import evidence
+from lib.content.static import declaration as lane, evidence
 from lib.refusal import Refusal
 
 WORKER = {"name", "account_id", "compatibility_date", "workers_dev", "assets", "previews"}
@@ -40,7 +40,7 @@ def worker(body):
     if held["workers_dev"] is not False or held["previews"] != {}:
         raise Refusal("static worker must disable production and declare empty previews")
     preview.matches(held["account_id"], preview.HEX[32], "worker account")
-    preview.slug(held["name"], "worker name")
+    lane.resource(held["name"])
     if not isinstance(held["compatibility_date"], str) or not re.fullmatch(r"\d{4}-\d{2}-\d{2}", held["compatibility_date"]):
         raise Refusal("static worker needs an explicit compatibility date")
     try:
@@ -70,14 +70,16 @@ def configuration(root, app, tracked):
         document = tomllib.loads(file(root, "plumb.toml", tracked).decode())
     except (ValueError, UnicodeError) as error:
         raise Refusal("static source declaration is invalid") from error
-    paths = declaration.previews(root)
-    declared = document.get("preview", {}).get("app", {}).get(app)
+    paths = declaration.lanes(root)
+    declared = document.get("lane", {}).get("app", {}).get(app)
     if not isinstance(declared, dict):
         raise Refusal("static app is not explicitly declared")
     path = declared["path"]
     if paths.get(path) != declared:
         raise Refusal("static app declaration disagrees with its qualified path")
     config = worker(file(root, f"{path}/wrangler.jsonc", tracked))
+    if config["account_id"] != declared["mapping"]["account"] or config["name"] != declared["mapping"]["resource"]:
+        raise Refusal("static Worker differs from its explicit lane mapping")
     package = evidence.decode(file(root, f"{path}/package.json", tracked))
     if isinstance(package, dict) and any(key in package for key in ("engines", "packageManager")):
         raise Refusal("static packages must not declare tool versions; Plumb carries the domain")

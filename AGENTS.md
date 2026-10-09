@@ -203,11 +203,18 @@ A run is complete when every job succeeded or was skipped by plan, and that is
 what the distribution record carries; the run's own page keeps what each job
 did, so wharf writes no second record of its own.
 
-Tracked worker configurations under `[preview.app.<name>].path` are preview-only:
-ordinary worker discovery validates their declaration and excludes them from ship.
-A preview target must not share its account and Worker name with any other tracked
-configuration. Invalid or missing preview paths refuse before install or deployment.
-Preview execution is a separate path, never release distribution.
+Tracked Worker configurations under `[lane.app.<name>].path` are development-only.
+Ordinary discovery reads explicit repository/app identities, default or quoted
+keyed Preview bindings, capabilities, independent authority roles and cfworker
+account/resource mappings. Retired `[preview]` declarations refuse without aliases.
+The package selector and source Worker must match the declaration; these files
+must be tracked regular files without symlink ancestry. Invalid, missing or shared
+targets refuse before install or deployment, and qualified development mappings
+are excluded from ship. Multiple bindings of one app may share its declared parent;
+separate tracked configurations may not share a development target. These source
+judgments prove neither trusted registration nor authorization. Preview execution
+remains separate from release distribution; runtime envelopes, lane state and
+public evidence publication are separate consumer work under #121.
 
 `lib/content/static/admission.py` loads current registration only from a trusted
 store and observes the fixed main Preview workflow and both actors' repository

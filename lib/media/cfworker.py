@@ -9,6 +9,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from lib.content import declaration
+from lib.content.static import evidence
 from lib.media import node
 from lib.process import git, run
 from lib.refusal import Refusal
@@ -28,18 +29,20 @@ class Deploy:
 
 
 def workers(source):
-    previews = declaration.previews(source)
-    paths = sorted(git(source, "ls-files", f"*/{CONFIG}").splitlines())
+    previews = declaration.lanes(source)
+    entries = [entry.split("\t", 1) for entry in git(source, "ls-files", "--stage", "-z").split("\0") if entry]
+    tracked = {path for held, path in entries if held.split()[0] in ("100644", "100755") and held.split()[2] == "0"}
+    if previews:
+        regular(source, "plumb.toml", tracked)
+    paths = sorted(path for _, path in entries if path.endswith(f"/{CONFIG}"))
     missing = {f"{directory}/{CONFIG}" for directory in previews} - set(paths)
     if missing:
         raise Refusal(f"preview apps must have tracked worker configurations: {sorted(missing)}")
     found = []
     targets = {}
     for path in paths:
-        if (Path(source) / path).is_symlink():
-            raise Refusal(f"{path} must not be a symlink")
-        text = re.sub(r"^\s*//.*$", "", (Path(source) / path).read_text(), flags=re.M)
-        declared = json.loads(text)
+        text = re.sub(r"^\s*//.*$", "", regular(source, path, tracked).read_text(), flags=re.M)
+        declared = evidence.decode(text)
         directory = path.rsplit("/", 1)[0]
         if not isinstance(declared, dict) or any(not isinstance(declared.get(key), str) or not declared[key] for key in ("account_id", "name")):
             raise Refusal(f"{path} must declare account_id and name")
@@ -48,14 +51,29 @@ def workers(source):
         if previous is not None and (directory in previews or previous in previews):
             raise Refusal(f"preview worker target {target} is shared by {previous} and {directory}")
         targets[target] = directory
-        package = node.manifest(source, f"{directory}/package.json")["name"]
         if directory in previews:
-            if package != previews[directory]["package"]:
+            mapping = previews[directory]["mapping"]
+            if target != (mapping["account"], mapping["resource"]):
+                raise Refusal(f"lane app {directory} Worker differs from its explicit mapping")
+            package = evidence.decode(regular(source, f"{directory}/package.json", tracked).read_bytes())
+            if not isinstance(package, dict) or package.get("name") != previews[directory]["package"]:
                 raise Refusal(f"preview app {directory} package does not match its declaration")
             continue
+        package = node.manifest(source, f"{directory}/package.json")["name"]
         domains = [route["pattern"] for route in declared.get("routes", []) if route.get("custom_domain")]
         found.append({"name": declared["name"], "directory": directory, "package": package, "domains": domains})
     return found
+
+
+def regular(source, name, tracked):
+    path = Path(source)
+    for part in Path(name).parts:
+        path = path / part
+        if path.is_symlink():
+            raise Refusal(f"{name} must not traverse a symlink")
+    if name not in tracked or not path.is_file():
+        raise Refusal(f"{name} must be a tracked regular file")
+    return path
 
 
 def basis(source, runner):
