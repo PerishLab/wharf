@@ -57,11 +57,42 @@ runs:
         node-version: ${{ inputs.node }}
 
     - name: Prepare the declared pnpm
-      if: contains(inputs.prepare, 'pnpm')
+      if: contains(inputs.prepare, 'pnpm') && runner.os != 'Windows'
       shell: bash
       env:
         PNPM: ${{ inputs.pnpm }}
       run: npm install --global "pnpm@$PNPM"
+
+    - name: Prepare the declared native Windows pnpm
+      if: contains(inputs.prepare, 'pnpm') && runner.os == 'Windows'
+      shell: pwsh
+      env:
+        PNPM: ${{ inputs.pnpm }}
+      run: |
+        $ErrorActionPreference = 'Stop'
+        if ($env:PNPM -notmatch '^[0-9]+\.[0-9]+\.[0-9]+$') { throw 'pnpm needs the exact domain version' }
+        $name = 'pnpm-win32-x64.zip'
+        $url = "https://github.com/pnpm/pnpm/releases/download/v$env:PNPM/$name"
+        $release = Invoke-RestMethod "https://api.github.com/repos/pnpm/pnpm/releases/tags/v$env:PNPM" -TimeoutSec 30
+        $assets = @($release.assets | Where-Object { $_.name -ceq $name })
+        if ($assets.Count -ne 1) { throw 'declared native pnpm asset is missing or ambiguous' }
+        $asset = $assets[0]
+        if ($asset.browser_download_url -cne $url -or $asset.digest -cnotmatch '^sha256:[0-9a-f]{64}$' -or $asset.size -gt 134217728) { throw 'native pnpm asset identity is not admitted' }
+        $root = Join-Path $env:RUNNER_TEMP ('wharf-pnpm-' + [guid]::NewGuid().ToString('N'))
+        if (Test-Path $root) { throw 'native pnpm destination already exists' }
+        New-Item -ItemType Directory -Path $root | Out-Null
+        $archive = Join-Path $root $name
+        Invoke-WebRequest $url -OutFile $archive -TimeoutSec 120
+        $digest = (Get-FileHash $archive -Algorithm SHA256).Hash.ToLowerInvariant()
+        if ((Get-Item $archive).Length -ne $asset.size -or ('sha256:' + $digest) -cne $asset.digest) { throw 'native pnpm archive differs from canonical digest' }
+        $directory = Join-Path $root 'tool'
+        Expand-Archive $archive -DestinationPath $directory
+        $program = Join-Path $directory 'pnpm.exe'
+        $actual = & $program --version
+        if ($LASTEXITCODE -ne 0 -or $actual -cne $env:PNPM) { throw 'native pnpm differs from the domain version' }
+        @{ schema = 1; version = $env:PNPM; digest = $digest; directory = $directory } | ConvertTo-Json -Compress | Set-Content (Join-Path $root 'wharf-pnpm.json')
+        Write-Output "pnpm version=$actual asset=$url sha256=$digest executable=$program"
+        $directory | Out-File -FilePath $env:GITHUB_PATH -Append
 
     - name: Prepare the pinned Mach-O signer
       if: contains(inputs.prepare, 'rcodesign')
