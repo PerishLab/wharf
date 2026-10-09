@@ -1,5 +1,6 @@
 import json
 import os
+import shutil
 import tempfile
 import unittest
 from contextlib import contextmanager
@@ -240,6 +241,22 @@ class Environment(unittest.TestCase):
             self.assertFalse((home / "npmrc").exists())
 
 
+class System(unittest.TestCase):
+    @unittest.skipUnless(os.name == "posix" and Path("/usr/sbin/sshd").is_file(), "system SSH daemon unavailable")
+    def test_snapshot_finds_prepared_system_daemon_after_tool_path_reconstruction(self):
+        env = {"PATH": "/usr/bin:/bin"}
+        self.assertIsNone(shutil.which("sshd", path=env["PATH"]))
+        snapshot.system({"env": env})
+        self.assertEqual(Path(shutil.which("sshd", path=env["PATH"])).resolve(), Path("/usr/sbin/sshd").resolve())
+        self.assertEqual(set(env), {"PATH"})
+
+    def test_windows_tool_path_is_preserved(self):
+        env = {"PATH": "trusted-windows-path"}
+        with mock.patch.object(snapshot.os, "name", "nt"):
+            snapshot.system({"env": env})
+        self.assertEqual(env["PATH"], "trusted-windows-path")
+
+
 class Home(unittest.TestCase):
     def test_snapshot_data_and_windows_homes_are_owned_and_ignore_ambient_state(self):
         ambient = {"HOME": "/host/home", "USERPROFILE": "/host/profile", "PLUMB_HOME": "/host/plumb", "APPDATA": "/host/apps", "LOCALAPPDATA": "/host/local", "PATH": "/trusted/bin"}
@@ -255,3 +272,18 @@ class Home(unittest.TestCase):
             self.assertEqual(release["RUSTUP_TOOLCHAIN"], "1.96.1")
             self.assertNotIn("USERPROFILE", evidence.clean(os.environ, home))
             self.assertNotIn("PLUMB_HOME", evidence.clean(os.environ, home))
+
+
+class Tools(unittest.TestCase):
+    def test_refusal_names_only_tool_and_status_without_child_output(self):
+        done = mock.Mock(returncode=2, stdout="PRIVATE_CHILD_OUTPUT")
+        with mock.patch.object(evidence.subprocess, "run", return_value=done):
+            with self.assertRaisesRegex(Refusal, "static tool plumb refused with exit status 2") as caught:
+                evidence.inspect(["/trusted/plumb", "guard", "PRIVATE_ARGUMENT"], "/source", {})
+        self.assertNotIn("PRIVATE", str(caught.exception))
+
+    def test_output_budget_is_distinct_from_tool_refusal(self):
+        done = mock.Mock(returncode=0, stdout="x" * (evidence.LIMIT + 1))
+        with mock.patch.object(evidence.subprocess, "run", return_value=done):
+            with self.assertRaisesRegex(Refusal, "exceeded its output budget"):
+                evidence.inspect(["/trusted/plumb"], "/source", {})

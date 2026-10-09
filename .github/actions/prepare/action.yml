@@ -29,6 +29,13 @@ runs:
         done
         echo "$HOME/.local/bin" >> "$GITHUB_PATH"
 
+    - name: Prepare Linux SSH test tools
+      if: contains(inputs.prepare, 'snapshot') && runner.os == 'Linux'
+      shell: bash
+      run: |
+        sudo apt-get update -o Acquire::Retries=0 -o Acquire::http::Timeout=30 -o Acquire::https::Timeout=30
+        sudo apt-get install -y --no-install-recommends openssh-server
+
     - name: Prepare latest stable Windows controls
       if: contains(inputs.prepare, 'snapshot') && runner.os == 'Windows'
       shell: pwsh

@@ -87,6 +87,11 @@ def rust(source, held, inspect):
         tools[name]["version"] = inspect([tools[name]["path"], "--version"], source, env).strip()
 
 
+def system(held):
+    if os.name == "posix":
+        held["env"]["PATH"] = os.pathsep.join(dict.fromkeys(held["env"]["PATH"].split(os.pathsep) + ["/usr/sbin", "/sbin"]))
+
+
 def controls(held):
     tools = held["tools"]
     versions = toolchain.checked(evidence.decode(execute(held, [tools["plumb"]["path"], "metadata", "--json"])))
@@ -261,6 +266,7 @@ def prepared(request, inspect=evidence.inspect):
             rust(source, (tools, env, path), inspect)
             if tools["rustc"]["version"].split()[1] != domain["rust.version"]:
                 raise Refusal("release snapshot requires prepared domain Rust")
+        system(held)
         clean(held)
         world = controls(held)
         execute(held, [tools["plumb"]["path"], "configuration", "install"])
