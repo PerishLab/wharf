@@ -124,7 +124,7 @@ def smoked(request, directory, runner):
     return reported
 
 
-def publish(request, runner=run):
+def publish(request, runner=run, confirm=None):
     image = request.reference
     if exists(image):
         return {"image": image, "state": "already-published"}
@@ -133,6 +133,8 @@ def publish(request, runner=run):
         version = image.rsplit(":", 1)[1]
         runner(["docker", "build", "--pull", "--platform", PLATFORM, "-f", CONTAINERFILE, "-t", image, "--label", f"org.opencontainers.image.version={version}", "."], directory)
         smoked(request, directory, runner)
+        if confirm is not None:
+            confirm()
         runner(["docker", "push", image], directory)
         digests = json.loads(runner(["docker", "image", "inspect", "--format", "{{json .RepoDigests}}", image], directory))
     finally:
@@ -142,11 +144,15 @@ def publish(request, runner=run):
     return {"image": image, "state": "published", "digests": digests}
 
 
-def publish_source(request, runner=run):
+def publish_source(request, runner=run, confirm=None):
     image = request.reference
     repository = image.rsplit(":", 1)[0]
     if exists(image):
+        if confirm is not None:
+            confirm()
         expected = registry_digest(image, runner)
+        if confirm is not None:
+            confirm()
         digest = public_digest(image, runner)
         if digest != expected:
             raise Refusal(f"{image} publicly resolved to {digest}, expected {expected}")
@@ -155,6 +161,8 @@ def publish_source(request, runner=run):
     try:
         version = image.rsplit(":", 1)[1]
         runner(["docker", "build", "--pull", "--platform", PLATFORM, "-f", CONTAINERFILE, "-t", image, "--label", f"org.opencontainers.image.version={version}", "."], directory)
+        if confirm is not None:
+            confirm()
         runner(["docker", "push", image], directory)
         local = json.loads(runner(["docker", "image", "inspect", "--format", "{{json .RepoDigests}}", image], directory))
         digest = public_digest(image, runner)

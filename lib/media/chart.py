@@ -1,6 +1,7 @@
 import re
 import subprocess
 import tempfile
+from dataclasses import dataclass
 from pathlib import Path
 
 from lib.content import declaration, resources
@@ -9,6 +10,12 @@ from lib.refusal import Refusal
 
 HOST = resources.read_json("registries.json")["oci"]["host"]
 ROOT = "charts"
+
+
+@dataclass(frozen=True)
+class Tools:
+    run: object = run
+    confirm: object = None
 
 
 def repository(owner):
@@ -41,18 +48,20 @@ def pending(source, owner, version):
     return [dict(chart, published=exists(owner, chart["name"], version)) for chart in charts(source)]
 
 
-def publish(source, owner, version, runner=run):
+def publish(source, owner, version, tools=Tools()):
     results = []
     for chart in pending(source, owner, version):
         if chart["published"]:
             results.append({"name": chart["name"], "state": "already-published"})
             continue
         with tempfile.TemporaryDirectory() as directory:
-            runner(["helm", "package", chart["path"], "--version", version, "--app-version", version, "--destination", directory], source)
+            tools.run(["helm", "package", chart["path"], "--version", version, "--app-version", version, "--destination", directory], source)
             archive = Path(directory) / f"{chart['name']}-{version}.tgz"
             if not archive.is_file():
                 raise Refusal(f"helm did not produce {archive.name}")
-            runner(["helm", "push", str(archive), repository(owner)], source)
+            if tools.confirm is not None:
+                tools.confirm()
+            tools.run(["helm", "push", str(archive), repository(owner)], source)
         if not exists(owner, chart["name"], version):
             raise Refusal(f"{chart['name']} {version} is not visible after pushing")
         results.append({"name": chart["name"], "state": "published"})

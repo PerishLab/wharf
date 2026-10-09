@@ -47,12 +47,17 @@ class Oci(unittest.TestCase):
 
 
 class Smoked(unittest.TestCase):
-    def publish(self, answer):
+    def publish(self, answer, check=None):
         repository = Repository(IMAGE)
         binary = repository.root / "built"
         binary.write_bytes(b"elf")
         request = oci.Image(repository.root, binary, "demo", "ghcr.io/perishlab/demo:0.4.0-rc.1", "v0.4.0-rc.1")
         commands = []
+
+        def confirm():
+            commands.append(["admit"])
+            if check:
+                check()
 
         def runner(argv, cwd):
             commands.append(argv[:2])
@@ -63,14 +68,21 @@ class Smoked(unittest.TestCase):
 
         with mock.patch.object(oci, "exists", side_effect=[False, True]):
             try:
-                return oci.publish(request, runner), commands
+                return oci.publish(request, runner, confirm), commands
             except Refusal as refusal:
                 return refusal, commands
 
     def test_pushes_only_after_the_image_reports_its_marker(self):
         result, commands = self.publish(lambda: "demo v0.4.0-rc.1\n")
         self.assertEqual(result["state"], "published")
-        self.assertEqual(commands, [["docker", "build"], ["docker", "run"], ["docker", "push"], ["docker", "image"]])
+        self.assertEqual(commands, [["docker", "build"], ["docker", "run"], ["admit"], ["docker", "push"], ["docker", "image"]])
+
+    def test_refuses_changed_publication_inputs_after_smoke_before_push(self):
+        def changed():
+            raise Refusal("latest package or source changed")
+        result, commands = self.publish(lambda: "demo v0.4.0-rc.1", changed)
+        self.assertIsInstance(result, Refusal)
+        self.assertEqual(commands, [["docker", "build"], ["docker", "run"], ["admit"]])
 
     def test_refuses_an_image_whose_executable_does_not_start(self):
         def failed():
@@ -103,9 +115,24 @@ class PublishedSource(unittest.TestCase):
             return ""
 
         with mock.patch.object(oci, "exists", return_value=False), mock.patch.object(oci, "public_digest", return_value="sha256:" + "0" * 64):
-            result = oci.publish_source(request, runner)
+            result = oci.publish_source(request, runner, lambda: commands.append(["admit"]))
         self.assertEqual(result["digests"], ["ghcr.io/perishlab/demo@sha256:" + "0" * 64])
-        self.assertEqual(commands, [["docker", "build"], ["docker", "push"], ["docker", "image"]])
+        self.assertEqual(commands, [["docker", "build"], ["admit"], ["docker", "push"], ["docker", "image"]])
+
+    def test_source_admission_failure_writes_no_image_and_removes_context(self):
+        repository = Repository(IMAGE)
+        request = oci.SourceImage(repository.root, "ghcr.io/perishlab/demo:0.4.0")
+        calls, directories = [], []
+        def runner(argv, cwd):
+            calls.append(argv[:2])
+            directories.append(Path(cwd))
+            return ""
+        def changed():
+            raise Refusal("stable control changed")
+        with mock.patch.object(oci, "exists", return_value=False), self.assertRaisesRegex(Refusal, "stable control changed"):
+            oci.publish_source(request, runner, changed)
+        self.assertEqual(calls, [["docker", "build"]])
+        self.assertFalse(any(directory.exists() for directory in directories))
 
     def test_public_digest_uses_an_empty_docker_configuration(self):
         seen = {}
@@ -121,9 +148,11 @@ class PublishedSource(unittest.TestCase):
         repository = Repository(IMAGE)
         request = oci.SourceImage(repository.root, "ghcr.io/perishlab/demo:0.4.0")
         digest = "sha256:" + "2" * 64
+        confirm = mock.Mock()
         with mock.patch.object(oci, "exists", return_value=True), mock.patch.object(oci, "registry_digest", return_value=digest), mock.patch.object(oci, "public_digest", return_value=digest):
-            result = oci.publish_source(request)
+            result = oci.publish_source(request, confirm=confirm)
         self.assertEqual(result, {"image": request.reference, "state": "already-published", "digests": [f"ghcr.io/perishlab/demo@{digest}"]})
+        self.assertEqual(confirm.call_count, 2)
 
     def test_an_existing_private_source_image_is_not_reused(self):
         repository = Repository(IMAGE)

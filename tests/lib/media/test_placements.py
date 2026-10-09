@@ -7,13 +7,61 @@ import tempfile
 import unittest
 import zipfile
 from pathlib import Path
+from unittest import mock
 
-from lib.media import release
+from lib.media import chart, release
+from lib.refusal import Refusal
 from tests.lib.store.memory import Memory
 
 LINUX = "x86_64-unknown-linux-gnu"
 DARWIN = "aarch64-apple-darwin"
 WINDOWS = "x86_64-pc-windows-msvc"
+
+
+class Chart(unittest.TestCase):
+    def publish(self, failure=None, published=False):
+        events, directories = [], []
+        def runner(argv, cwd):
+            events.append(argv[1])
+            if argv[1] == failure:
+                raise Refusal(f"{failure} failed")
+            if argv[1] == "package":
+                directory = Path(argv[-1])
+                directories.append(directory)
+                (directory / "demo-1.0.0.tgz").write_bytes(b"archive")
+        def confirm():
+            events.append("admit")
+            if failure == "admit":
+                raise Refusal("publication inputs changed")
+        with mock.patch.object(chart, "pending", return_value=[{"name": "demo", "path": "charts/demo", "published": published}]), mock.patch.object(chart, "exists", return_value=True):
+            try:
+                result = chart.publish(Path("/source"), "owner", "1.0.0", chart.Tools(run=runner, confirm=confirm))
+            except Refusal as refusal:
+                result = refusal
+        self.assertFalse(any(directory.exists() for directory in directories))
+        return result, events
+
+    def test_chart_admission_runs_once_after_packaging_before_push(self):
+        result, events = self.publish()
+        self.assertEqual(events, ["package", "admit", "push"])
+        self.assertEqual(result["charts"][0]["state"], "published")
+
+    def test_chart_packaging_or_admission_failure_never_pushes(self):
+        for failure, expected in (("package", ["package"]), ("admit", ["package", "admit"])):
+            with self.subTest(failure=failure):
+                result, events = self.publish(failure)
+                self.assertIsInstance(result, Refusal)
+                self.assertEqual(events, expected)
+
+    def test_existing_chart_uses_no_admission_or_package_command(self):
+        result, events = self.publish(published=True)
+        self.assertEqual(events, [])
+        self.assertEqual(result["charts"][0]["state"], "already-published")
+
+    def test_chart_push_failure_removes_packaged_files(self):
+        result, events = self.publish("push")
+        self.assertIsInstance(result, Refusal)
+        self.assertEqual(events, ["package", "admit", "push"])
 
 
 def bound(names):

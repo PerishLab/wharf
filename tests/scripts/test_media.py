@@ -46,13 +46,18 @@ class Imaged(unittest.TestCase):
         workload.publish(bucket, "b" * 64, workload.Produced(bound, {}, {}))
         plan.record(bucket, dict(CONTEXT, commit="a" * 40, tree="d" * 40), {"bind-linux": {"key": "b" * 64, "decision": "run"}, "oci": {"decision": "run"}}, {})
         seen = {}
+        admission = mock.Mock()
 
-        def pushed(image, runner):
+        def pushed(image, runner, confirm):
+            self.assertIs(runner, media.run)
+            self.assertTrue(callable(confirm))
+            confirm()
             seen.update(binary=Path(image.binary).read_bytes(), name=image.name, reference=image.reference, marker=image.marker)
             return {"state": "published"}
 
         with mock.patch.object(media.r2, "configured", return_value=bucket), mock.patch.object(media.oci, "publish", side_effect=pushed), mock.patch.object(media.oci, "advance", return_value=None) as advanced:
-            media.oci_publish(dict(CONTEXT, planned="1", source=str(source)))
+            media.oci_publish(dict(CONTEXT, planned="1", source=str(source), publication=admission))
+        admission.assert_called_once_with()
         advanced.assert_called_once_with("ghcr.io/perishlab/ensign:0.4.0")
         return seen
 
@@ -78,12 +83,28 @@ class Imaged(unittest.TestCase):
         context = dict(CONTEXT, repository="PerishLab/images")
         plan.record(bucket, dict(context, commit="a" * 40, tree="d" * 40), {"oci": {"decision": "run"}}, {})
         seen = {}
+        admission = mock.Mock()
 
-        def pushed(image, runner):
+        def pushed(image, runner, confirm):
+            self.assertIs(runner, media.run)
+            self.assertTrue(callable(confirm))
+            confirm()
             seen.update(source=image.source, reference=image.reference)
             return {"state": "published"}
 
         with mock.patch.object(media.r2, "configured", return_value=bucket), mock.patch.object(media.oci, "publish_source", side_effect=pushed), mock.patch.object(media.oci, "advance", return_value={"state": "advanced"}):
-            published = media.oci_publish(dict(context, planned="1", source=str(source)))
+            published = media.oci_publish(dict(context, planned="1", source=str(source), publication=admission))
+        admission.assert_called_once_with()
         self.assertEqual(seen, {"source": source, "reference": "ghcr.io/perishlab/images:0.4.0"})
         self.assertEqual(published["channel"], {"state": "advanced"})
+
+    def test_chart_publication_receives_the_explicit_write_admission(self):
+        admission = mock.Mock()
+        def pushed(source, owner, version, tools):
+            self.assertIs(tools.run, media.run)
+            tools.confirm()
+            return {"version": version}
+        with mock.patch.object(media.chart, "publish", side_effect=pushed):
+            result = media.chart_publish(dict(CONTEXT, source="/source", publication=admission))
+        self.assertEqual(result, {"version": "0.4.0"})
+        admission.assert_called_once_with()
