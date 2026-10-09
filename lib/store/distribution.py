@@ -33,13 +33,19 @@ def observed(context, needs):
     attempt = {"run": context["run"], "attempt": context["attempt"], "wharf": context["wharf"]}
     resolution = {}
     for name, job in MEDIA.items():
+        if name == "channel" or needs.get(job, {}).get("result") != "success":
+            continue
         reported = needs.get(job, {}).get("outputs", {}).get("snapshot")
-        if reported and needs[job].get("result") == "success":
+        if not reported:
+            raise Refusal(f"successful {name} publication has no verified snapshot")
+        try:
             verified = json.loads(reported)
-            if verified.get("source") != {field: context[field] for field in IDENTITY}:
-                raise Refusal("published package context differs from the release identity")
-            plan.combination(dict(verified, guard={}))
-            resolution[name] = verified
+        except (TypeError, ValueError) as error:
+            raise Refusal("published snapshot is not valid JSON") from error
+        if not isinstance(verified, dict) or verified.get("source") != {field: context[field] for field in IDENTITY}:
+            raise Refusal("published package context differs from the release identity")
+        plan.combination(dict(verified, guard={}))
+        resolution[name] = verified
     held = {"schema": 1, **{field: context[field] for field in IDENTITY}, "media": media, "state": state, "attempt": attempt, "completed": attempt if state == "complete" else None}
     return dict(held, resolution=resolution) if resolution else held
 

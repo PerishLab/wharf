@@ -33,7 +33,10 @@ def perform(action, handler, held):
         scoped = dict(held, source=root, snapshot=record, confirm=confirm)
         if action in PUBLISHING:
             scoped["publication"] = lambda: admit(bucket, document, request, confirm)
-        return handler(scoped)
+        result = handler(scoped)
+    if action in PUBLISHING:
+        reported(bucket, document)
+    return result
 
 
 def admit(bucket, document, request, confirm):
@@ -42,7 +45,14 @@ def admit(bucket, document, request, confirm):
         current()
         confirm()
         plan.reserve(bucket, document)
-        parameters.answer({"snapshot": json.dumps(plan.combination(document["context"]["snapshot"]), separators=(",", ":"), sort_keys=True)})
+
+
+def reported(bucket, document):
+    context = document["context"]
+    if not bucket.exists(plan.publication(context)):
+        raise Refusal("successful publication has no verified reserved combination")
+    plan.matching(bucket, context, context["snapshot"])
+    parameters.answer({"snapshot": json.dumps(plan.combination(context["snapshot"]), separators=(",", ":"), sort_keys=True)})
 
 
 def ready(held):
