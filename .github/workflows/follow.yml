@@ -15,7 +15,7 @@ concurrency:
 jobs:
   follow:
     name: "[follow] product"
-    runs-on: ${{ fromJSON(vars.WHARF_FOLLOW_RUNNER) }}
+    runs-on: ubuntu-24.04
     timeout-minutes: 45
     defaults:
       run:
@@ -73,7 +73,6 @@ jobs:
           WHARF_FOLLOW_WEBHOOK_SECRET: ${{ secrets.WHARF_FOLLOW_WEBHOOK_SECRET }}
           WHARF_FOLLOW_SENDER_ID: ${{ vars.WHARF_FOLLOW_SENDER_ID }}
           WHARF_FOLLOW_INSTALLATION_ID: ${{ steps.token.outputs.installation-id }}
-          WHARF_FOLLOW_DATA_ROOT: ${{ vars.WHARF_FOLLOW_DATA_ROOT }}
           GH_TOKEN: ${{ steps.token.outputs.token }}
           WHARF_PACKAGES_TOKEN: ${{ secrets.PERISHLAB_PACKAGES_READ }}
           WHARF_DOMAIN: ${{ steps.engines.outputs.domain }}
