@@ -9,13 +9,56 @@ from pathlib import Path
 from unittest import mock
 
 from lib.content import implementation
-from lib.content.static import bridge, runtime, workspace
+from lib.content.static import bridge, control, runtime, workspace
 from lib.refusal import Refusal
 from lib.store import handoff
 from tests.lib.content.test_assets import FILES
 from tests.lib.content.test_preview import target
-from tests.lib.content.test_static import guarded
+from tests.lib.content.test_static import GuestEngine, guarded
 from tests.lib.media.test_preview import Builder
+
+
+class Online(unittest.TestCase):
+    def setUp(self):
+        self.seat = tempfile.TemporaryDirectory()
+        self.addCleanup(self.seat.cleanup)
+        root = Path(self.seat.name)
+        for name in ("source", "controls"):
+            (root / name).mkdir()
+        self.guest = runtime.Guest(root / "source", root / "controls", ["node", "build.mjs"], {"CI": "true"})
+
+    def test_fixed_online_profile_retains_credential_and_mount_boundary(self):
+        engine = GuestEngine(self.guest)
+        runtime.run(self.guest, engine)
+        arguments = engine.calls[0]
+        self.assertEqual(arguments[arguments.index("--network") + 1], "bridge")
+        self.assertIn("--read-only", arguments)
+        self.assertEqual(arguments[arguments.index("--user") + 1], "1000:1000")
+        self.assertEqual(arguments.count("--mount"), 2)
+        self.assertIn("-i", arguments)
+        self.assertFalse(engine.live)
+
+    def test_foreign_effective_network_modes_refuse(self):
+        engine = GuestEngine(self.guest)
+        world = engine.world()
+        engine(runtime.profile(self.guest, "0" * 32, world))
+        for network in ("none", "host", "foreign"):
+            held = copy.deepcopy(engine.held)
+            held["HostConfig"]["NetworkMode"] = network
+            with self.subTest(network=network), self.assertRaisesRegex(Refusal, "fixed profile"):
+                runtime.checked(held, self.guest, world)
+
+    def test_online_frozen_install_still_disables_scripts_and_hooks(self):
+        tools = {name: {"path": "/tools/" + name, "sha256": "a" * 64, "version": "fixture"} for name in control.NAMES}
+        tools["node"]["version"], tools["pnpm"]["version"] = "v24.18.0", "11.13.0"
+        domain = {"node.version": "24.18.0", "pnpm.version": "11.13.0"}
+        replies = [mock.Mock(stdout=json.dumps(domain)), mock.Mock(stdout=None)]
+        with mock.patch.object(control, "tools", return_value=tools), mock.patch.object(control.subprocess, "run", side_effect=replies) as run:
+            result = control.execute("install", "crest-review")
+        command = run.call_args_list[-1].args[0]
+        self.assertEqual(command, ["/tools/pnpm", "install", "--frozen-lockfile", "--ignore-scripts", "--ignore-pnpmfile"])
+        self.assertIsNone(result["guard"])
+        self.assertEqual(run.call_args.kwargs["cwd"], "/source")
 
 
 class Isolated(unittest.TestCase):

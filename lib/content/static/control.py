@@ -25,7 +25,7 @@ def execute(phase, package):
     if any(before[name]["version"].lstrip("v") != domain[name + ".version"] for name in ("node", "pnpm")):
         raise RuntimeError("Preview guest tools differ from the trusted domain")
     commands = {
-        "install": [before["pnpm"]["path"], "install", "--frozen-lockfile", "--ignore-scripts", "--ignore-pnpmfile", "--offline"],
+        "install": [before["pnpm"]["path"], "install", "--frozen-lockfile", "--ignore-scripts", "--ignore-pnpmfile"],
         "guard": [before["plumb"]["path"], "guard", "--json", "/source"],
         "build": [before["pnpm"]["path"], "--filter", package, "run", "build"],
     }

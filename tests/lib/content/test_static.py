@@ -177,7 +177,7 @@ class GuestEngine:
             self.held = {"Id": self.identity, "Name": "/wharf-preview-" + self.owner, "Image": "sha256:" + "b" * 64,
                          "State": {"Status": "exited", "Running": False, "ExitCode": 0, "OOMKilled": False},
                          "Config": {"Tty": False, "OpenStdin": False, "User": "1000:1000", "Entrypoint": ["/usr/bin/env"], "Labels": {runtime.LABEL: self.owner}, "Cmd": arguments[arguments.index("ghcr.io/perishlab/images@sha256:" + "b" * 64) + 1:]},
-                         "HostConfig": {"ReadonlyRootfs": True, "Privileged": False, "CapDrop": ["ALL"], "SecurityOpt": ["no-new-privileges"], "NetworkMode": "none", "PidsLimit": 256, "Memory": 2147483648, "MemorySwap": 2147483648, "NanoCpus": 2000000000,
+                         "HostConfig": {"ReadonlyRootfs": True, "Privileged": False, "CapDrop": ["ALL"], "SecurityOpt": ["no-new-privileges"], "NetworkMode": "bridge", "PidsLimit": 256, "Memory": 2147483648, "MemorySwap": 2147483648, "NanoCpus": 2000000000,
                                         "Tmpfs": {"/tmp": f'rw,nosuid,nodev,size={runtime.POLICY["temporary"]}'}},
                          "Mounts": [{"Source": str(self.guest.source), "Destination": "/source", "RW": True, "Type": "bind"}, {"Source": str(self.guest.controls), "Destination": "/controls", "RW": False, "Type": "bind"}]}
             if self.mode == "creation-loss":
