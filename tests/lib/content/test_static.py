@@ -11,6 +11,7 @@ from lib.process import git
 from lib.refusal import Refusal
 from tests.lib.content.test_preview import intent, target
 from tests.lib.media.repository import Repository
+from tests.lib.preview.test_lane import declared
 
 WORKER = {
     "name": "crest-review", "account_id": "a" * 32, "compatibility_date": "2026-09-30", "workers_dev": False,
@@ -23,7 +24,7 @@ class StaticRepository(Repository):
     def __init__(self):
         super().__init__({
             "package.json": json.dumps({"name": "demo", "private": True}),
-            "plumb.toml": '[preview.app.crest-review]\npath="apps/review"\npackage="crest-review"\nprovider="cfworker"\naccess="public"\n',
+            "plumb.toml": declared("crest-review", "apps/review", "crest-review", "crest-review"),
             "apps/review/package.json": json.dumps(PACKAGE), "apps/review/wrangler.jsonc": json.dumps(WORKER),
             "apps/review/build.mjs": "export {};\n", ".gitignore": "dist/\nnode_modules/\n",
             "pnpm-lock.yaml": "lockfileVersion: '9.0'\n", ".npmrc": "@perishlab:registry=https://npm.pkg.github.com/\n",

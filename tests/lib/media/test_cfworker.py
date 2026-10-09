@@ -8,13 +8,14 @@ from unittest import mock
 from lib.media import cfworker
 from lib.refusal import Refusal
 from tests.lib.media.repository import Repository
+from tests.lib.preview.test_lane import declared
 
 FILES = {
     "apps/web/package.json": '{"name": "@demo/web", "private": true}\n',
-    "apps/web/wrangler.jsonc": '{\n\t// comment\n\t"name": "demo",\n\t"account_id": "acc",\n\t"routes": [{ "pattern": "demo.example", "custom_domain": true }]\n}\n',
+    "apps/web/wrangler.jsonc": '{\n\t// comment\n\t"name": "demo",\n\t"account_id": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",\n\t"routes": [{ "pattern": "demo.example", "custom_domain": true }]\n}\n',
 }
 
-PREVIEW = '[preview.app.review]\npath = "apps/review"\npackage = "@demo/review"\nprovider = "cfworker"\naccess = "public"\n'
+PREVIEW = declared()
 
 
 class Worker(unittest.TestCase):
@@ -31,8 +32,8 @@ class Worker(unittest.TestCase):
     def test_lists_workers_from_native_manifests(self):
         self.assertEqual(cfworker.workers(self.repository.root), [{"name": "demo", "directory": "apps/web", "package": "@demo/web", "domains": ["demo.example"]}])
 
-    def review(self, account="acc", name="review"):
-        self.repository.write("plumb.toml", PREVIEW)
+    def review(self, account="a" * 32, name="review"):
+        self.repository.write("plumb.toml", declared(resource=name).replace("a" * 32, account))
         self.repository.write("apps/review/package.json", '{"name":"@demo/review","private":true}')
         self.repository.write("apps/review/wrangler.jsonc", json.dumps({"name": name, "account_id": account, "assets": {"directory": "./dist"}, "previews": {}}))
         self.repository.commit()
@@ -49,7 +50,7 @@ class Worker(unittest.TestCase):
         self.assertEqual(self.calls.count(["pnpm", "exec", "wrangler", "deploy"]), 1)
 
     def test_preview_only_has_no_release_workers_and_runs_no_commands(self):
-        self.repository.write("plumb.toml", PREVIEW.replace("apps/review", "apps/web").replace("@demo/review", "@demo/web"))
+        self.repository.write("plumb.toml", declared(directory="apps/web", package="@demo/web", resource="demo"))
         self.repository.commit()
         self.assertEqual(cfworker.workers(self.repository.root), [])
         self.assertEqual(cfworker.basis(self.repository.root, "linux")["entry"]["workers"], [])
@@ -64,7 +65,7 @@ class Worker(unittest.TestCase):
         self.assertEqual(self.calls, [])
 
     def test_same_worker_name_in_different_accounts_is_not_a_shared_target(self):
-        self.review(account="review-account", name="demo")
+        self.review(account="b" * 32, name="demo")
         self.assertEqual(len(cfworker.workers(self.repository.root)), 1)
 
     def test_invalid_declarations_refuse(self):
@@ -87,7 +88,7 @@ class Worker(unittest.TestCase):
             'preview = "invalid"\n',
             '[preview]\napp = "invalid"\n',
             '[preview.app.review]\npath = [',
-            PREVIEW + '\n[preview.app.other]\npath = "apps/review"\npackage = "@demo/review"\nprovider = "cfworker"\naccess = "public"\n',
+            PREVIEW + '\n' + declared(app="other").split("\n", 2)[2],
         ]
         for body in invalid:
             with self.subTest(body=body):
@@ -115,9 +116,9 @@ class Worker(unittest.TestCase):
 
     def test_multiple_previews_cannot_share_a_target(self):
         self.review()
-        self.repository.write("plumb.toml", PREVIEW + '\n[preview.app.second]\npath = "apps/second"\npackage = "@demo/second"\nprovider = "cfworker"\naccess = "public"\n')
+        self.repository.write("plumb.toml", PREVIEW + '\n' + declared(app="second", directory="apps/second", package="@demo/second").split("\n", 2)[2])
         self.repository.write("apps/second/package.json", '{"name":"@demo/second","private":true}')
-        self.repository.write("apps/second/wrangler.jsonc", '{"name":"review","account_id":"acc"}')
+        self.repository.write("apps/second/wrangler.jsonc", json.dumps({"name": "review", "account_id": "a" * 32}))
         self.repository.commit()
         with self.assertRaisesRegex(Refusal, "shared"):
             cfworker.workers(self.repository.root)
