@@ -67,7 +67,7 @@ def oci_publish(held):
     listed = executables.declared(held["source"], release.targets(held["source"]))
     image = oci.reference(held["repository"], version.marker(held["marker"]))
     if not listed:
-        return dict(oci.publish_source(oci.SourceImage(Path(held["source"]), image), execution.writer(held, run)), channel=oci.advance(image))
+        return dict(oci.publish_source(oci.SourceImage(Path(held["source"]), image), run, lambda: execution.ready(held)), channel=oci.advance(image))
     primary = next(target for target in BUILD["targets"] if target["name"] == BUILD["primary"])
     binary = executables.placed(held["source"], "oci", listed, plan.product(document["context"]))
     if binary not in executables.built(listed, primary["target"]):
@@ -75,7 +75,7 @@ def oci_publish(held):
     directory = Path(tempfile.mkdtemp()) / "bound"
     workload.fetch(bucket, document["entries"][f"bind-{primary['name']}"]["key"], str(directory))
     artifact = bind.Artifact(directory, binary, primary["target"])
-    return dict(oci.publish(oci.Image(Path(held["source"]), artifact.file, binary, image, held["marker"]), execution.writer(held, run)), channel=oci.advance(image))
+    return dict(oci.publish(oci.Image(Path(held["source"]), artifact.file, binary, image, held["marker"]), run, lambda: execution.ready(held)), channel=oci.advance(image))
 
 
 def release_plan(held):
@@ -91,7 +91,7 @@ def chart_plan(held):
 
 
 def chart_publish(held):
-    return chart.publish(held["source"], held["repository"].split("/", 1)[0], version.marker(held["marker"]), execution.writer(held, run))
+    return chart.publish(held["source"], held["repository"].split("/", 1)[0], version.marker(held["marker"]), chart.Tools(run=run, confirm=lambda: execution.ready(held)))
 
 
 def cargo_plan(held):
