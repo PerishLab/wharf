@@ -69,8 +69,10 @@ def inspect(argv, cwd, env):
         result = subprocess.run(argv, cwd=cwd, env=env, stdout=subprocess.PIPE, stderr=sys.stderr, text=True, timeout=1800)
     except (OSError, subprocess.TimeoutExpired) as error:
         raise Refusal("static tool invocation failed or exceeded 1800 seconds") from error
-    if result.returncode != 0 or len(result.stdout) > LIMIT:
-        raise Refusal("static tool refused or exceeded its output budget")
+    if result.returncode != 0:
+        raise Refusal(f"static tool {Path(argv[0]).name} refused with exit status {result.returncode}")
+    if len(result.stdout) > LIMIT:
+        raise Refusal("static tool exceeded its output budget")
     return result.stdout
 
 

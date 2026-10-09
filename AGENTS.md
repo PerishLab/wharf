@@ -355,7 +355,12 @@ A release plan clones the immutable marker into an owned disposable checkout,
 resolves first-party stable packages with released `plumb lift`, and runs actual
 full/head Guard there. Its record keeps the original marker identity, effective
 Git tree, exact package set, control authorities and the genuine Guard result.
-Builds recreate that exact combination and refuse movement. Compilation uses the
+Builds recreate that exact combination and refuse movement. Linux snapshot
+preparation installs the system OpenSSH server for declared SSH test prerequisites;
+the isolated POSIX snapshot includes trusted system sbin directories after tool
+path reconstruction. Preview guest tool discovery remains unchanged. A refused
+control invocation names only its executable and exit status, never child output
+or arguments. Compilation uses the
 fixed sibling directory declared by `resources/build.json`; the layout is part
 of Cargo workload implementation identity. An existing destination refuses.
 Source checkouts stay unchanged and disposable directories are removed on exit.
