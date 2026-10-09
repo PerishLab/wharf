@@ -1,3 +1,4 @@
+import json
 import os
 import tempfile
 import unittest
@@ -7,9 +8,12 @@ from unittest import mock
 
 from lib.content.static import evidence
 from lib.identity.guard import execution, snapshot
+from lib.media import oci
 from lib.process import git
 from lib.refusal import Refusal
+from lib.store import plan
 from tests.lib.media.repository import Repository
+from tests.lib.store.memory import Memory
 
 
 class Execution(unittest.TestCase):
@@ -66,6 +70,77 @@ class Execution(unittest.TestCase):
         with mock.patch.object(snapshot, "prepared") as prepared:
             self.assertEqual(execution.perform("bind", handler, self.held), "bound")
         prepared.assert_not_called()
+
+
+class Publication(unittest.TestCase):
+    def setUp(self):
+        self.bucket = Memory()
+        self.answers = []
+        self.held = {"repository": "PerishLab/example", "marker": "v1.0.0", "wharf": "b" * 40, "run": "7", "planned": "1", "source": "/original"}
+        identity = dict(repository=self.held["repository"], marker=self.held["marker"], commit="a" * 40, tree="c" * 40)
+        self.expected = dict(schema="wharf.release.snapshot/v1", source=identity, head="d" * 40, tree="e" * 40, packages=[], controls={}, domain={}, guard={})
+        self.document = {"context": dict(self.held, **identity, attempt="1", snapshot=self.expected)}
+
+    def perform(self, handler, final=None):
+        @contextmanager
+        def prepared(request):
+            yield Path("/verified"), self.expected, lambda: None
+            if final:
+                final()
+        with mock.patch.object(execution.r2, "configured", return_value=self.bucket), mock.patch.object(execution.plan, "read", return_value=self.document), mock.patch.object(execution.toolchain, "versions", return_value={}):
+            with mock.patch.object(snapshot, "prepared", prepared), mock.patch.object(execution.parameters, "answer", side_effect=self.answers.append):
+                return execution.perform("oci-publish", handler, self.held)
+
+    def test_existing_binary_image_reports_only_its_reserved_combination(self):
+        plan.reserve(self.bucket, self.document)
+        runner = mock.Mock()
+        def handler(held):
+            return oci.publish(oci.Image(held["source"], Path("/binary"), "example", "registry/example:1.0.0", "v1.0.0"), runner)
+        with mock.patch.object(oci, "exists", return_value=True):
+            result = self.perform(handler)
+        runner.assert_not_called()
+        self.assertEqual(result["state"], "already-published")
+        self.assertEqual(json.loads(self.answers[0]["snapshot"]), plan.combination(self.expected))
+
+    def test_existing_publication_without_reservation_creates_no_evidence(self):
+        runner = mock.Mock()
+        def handler(held):
+            return oci.publish(oci.Image(held["source"], Path("/binary"), "example", "registry/example:1.0.0", "v1.0.0"), runner)
+        with mock.patch.object(oci, "exists", return_value=True), self.assertRaisesRegex(Refusal, "no verified reserved"):
+            self.perform(handler)
+        self.assertEqual((self.bucket.writes, self.answers), ([], []))
+
+    def test_a_different_reserved_combination_is_not_attributed_to_this_job(self):
+        plan.reserve(self.bucket, self.document)
+        key = plan.publication(self.document["context"])
+        self.bucket.objects[key] = b"different"
+        with self.assertRaisesRegex(Refusal, "another verified combination"):
+            self.perform(lambda held: {"state": "already-published"})
+        self.assertEqual(self.answers, [])
+
+    def test_admission_does_not_report_success_before_the_handler_finishes(self):
+        def handler(held):
+            held["publication"]()
+            self.assertEqual(self.answers, [])
+            return {"state": "published"}
+        self.assertEqual(self.perform(handler), {"state": "published"})
+        self.assertEqual(len(self.answers), 1)
+
+    def test_handler_failure_after_admission_reports_no_combination(self):
+        def handler(held):
+            held["publication"]()
+            raise Refusal("push failed")
+        with self.assertRaisesRegex(Refusal, "push failed"):
+            self.perform(handler)
+        self.assertEqual(self.answers, [])
+
+    def test_final_snapshot_failure_reports_no_combination(self):
+        plan.reserve(self.bucket, self.document)
+        def failed():
+            raise Refusal("source changed at exit")
+        with self.assertRaisesRegex(Refusal, "source changed at exit"):
+            self.perform(lambda held: {"state": "already-published"}, failed)
+        self.assertEqual(self.answers, [])
 
 
 class Content(unittest.TestCase):

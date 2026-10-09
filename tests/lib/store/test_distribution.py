@@ -18,6 +18,8 @@ def needs(**results):
     held = {"plan": {"result": "success", "outputs": dict(DECIDED, presence=json.dumps(PRESENCE))}, "layer-1": {"result": "success"}}
     for job, decision in DECIDED.items():
         held[job] = {"result": results.get(job, "success" if decision == "run" else "skipped")}
+        if job != "channel" and held[job]["result"] == "success":
+            held[job]["outputs"] = {"snapshot": json.dumps(SNAPSHOT)}
     return held
 
 
@@ -73,8 +75,11 @@ class Record(unittest.TestCase):
 
     def test_a_marker_recorded_at_another_commit_refuses(self):
         self.record(needs())
+        held = needs()
+        for job in ("release", "npm", "cargo"):
+            held[job]["outputs"] = {"snapshot": json.dumps(dict(SNAPSHOT, source=dict(SNAPSHOT["source"], commit="d" * 40)))}
         with self.assertRaisesRegex(Refusal, "never moves"):
-            self.record(needs(), commit="d" * 40)
+            self.record(held, commit="d" * 40)
 
     def test_a_record_not_served_as_written_refuses(self):
         with self.assertRaisesRegex(Refusal, "not served"):
@@ -85,8 +90,8 @@ class Record(unittest.TestCase):
         for name in ("release", "cargo"):
             held[name]["outputs"] = {"snapshot": json.dumps(SNAPSHOT)}
         self.record(held)
-        self.assertEqual(self.standing()["resolution"], {"binaries": SNAPSHOT})
-        self.assertNotIn("npm", self.standing()["resolution"])
+        self.assertEqual(self.standing()["resolution"], {"binaries": SNAPSHOT, "npm": SNAPSHOT})
+        self.assertNotIn("cargo", self.standing()["resolution"])
 
     def test_recovery_preserves_the_original_published_combination(self):
         held = needs(npm="failure")
@@ -109,9 +114,31 @@ class Record(unittest.TestCase):
         self.assertEqual(self.bucket.get(KEY), original)
 
     def test_a_historical_registry_presence_gains_no_current_version_claim(self):
-        self.record(needs())
-        self.record(needs(release="skipped"), attempt="2")
+        historical = distribution.observed(CONTEXT, needs())
+        historical.pop("resolution")
+        self.bucket.put(KEY, json.dumps(historical).encode())
+        self.record(needs(**{job: "skipped" for job in DECIDED}), attempt="2")
         self.assertNotIn("resolution", self.standing())
+
+    def test_a_successful_publisher_without_snapshot_writes_nothing(self):
+        for job in ("release", "npm", "oci", "chart", "cargo", "cfworker"):
+            held = needs(**{job: "success"})
+            held[job].pop("outputs")
+            with self.subTest(job=job), self.assertRaisesRegex(Refusal, "no verified snapshot"):
+                self.record(held)
+            self.assertEqual(self.bucket.writes, [])
+
+    def test_invalid_successful_snapshots_preserve_the_existing_record(self):
+        self.record(needs())
+        original = self.bucket.get(KEY)
+        writes = list(self.bucket.writes)
+        for snapshot in ("", "{", "null", "[]", "{}"):
+            held = needs()
+            held["npm"]["outputs"] = {"snapshot": snapshot}
+            with self.subTest(snapshot=snapshot), self.assertRaises(Refusal):
+                self.record(held, attempt="2")
+            self.assertEqual(self.bucket.get(KEY), original)
+            self.assertEqual(self.bucket.writes, writes)
 
     def test_a_publisher_reporting_another_release_writes_nothing(self):
         held = needs()
