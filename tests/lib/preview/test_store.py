@@ -3,7 +3,7 @@ import unittest
 
 from lib.content import canonical
 from lib.refusal import Conflict, Refusal
-from lib.store import preview
+from lib.store.lane import preview
 from lib.store.r2 import Bucket
 from tests.lib.content.test_preview import intent, result, target
 from tests.lib.store.memory import Memory
