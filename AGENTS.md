@@ -311,6 +311,22 @@ Trusted onboarding owns the origin/writer mapping, DNS/public reachability,
 resource exclusivity and retention; this source kernel proves none of those
 live facts. Workflow composition and physical provider proof remain separate.
 
+`lib/process/cfworker/observation.py` projects parent, Preview and exact deployment
+identity from bounded provider replies. The caller supplies trusted onboarding
+pins for the immutable parent identity and account subdomain; readback never
+creates or repairs those pins. This narrow dedicated-parent policy requires
+disabled ordinary workers.dev routing, enabled Preview routing, no parent
+deployment, no Preview base configuration and empty reported resource references.
+It is an adaptor precondition, not proof of complete production isolation.
+`Reader.observe` binds the selected Preview name, slug and single native URL to
+the prepared parent, then binds the exact deployment to that Preview identity and
+rereads the parent policy. Failure refuses without proving absence. The returned
+projection excludes arbitrary bindings, annotations and deployment URLs. It
+proves neither vetted content, origin reachability, atomic observation nor writer
+authorization; parent reread does not eliminate concurrent provider changes.
+The admitted opaque parent/Preview identity syntax and UUID deployment selector
+are deliberately narrow supported subsets, not a claim about all provider IDs.
+
 `lib/process/cfworker/mapping.py` maps admitted static registrations to native
 Worker Preview names, keeping parent/account and exact logical lane distinct.
 Default `preview` and keyed `preview.<key>` map injectively without truncation;

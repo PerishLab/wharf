@@ -1,14 +1,10 @@
-import re
 import urllib.error
 import urllib.request
 
 from lib.content import resources
 from lib.content.static import evidence
-from lib.process.cfworker import mapping
+from lib.process.cfworker import mapping, observation
 from lib.refusal import Refusal
-
-IDENTIFIER = re.compile(r"[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}")
-
 
 class Redirect(urllib.request.HTTPRedirectHandler):
     def redirect_request(self, *arguments):
@@ -27,7 +23,7 @@ class Reader:
         name = self._registered["name"]
         allowed = ("", f"/previews/{name}")
         deployment = f"/previews/{name}/deployments/"
-        if suffix not in allowed and (not isinstance(suffix, str) or not suffix.startswith(deployment) or not IDENTIFIER.fullmatch(suffix[len(deployment):])):
+        if suffix not in allowed and (not isinstance(suffix, str) or not suffix.startswith(deployment) or not observation.DEPLOYMENT.fullmatch(suffix[len(deployment):])):
             raise Refusal("static provider read needs one exact fixed lane identity endpoint")
         policy = resources.read_json("build.json")["cfworker"]
         account = self._registered["account"]
@@ -50,10 +46,21 @@ class Reader:
     def parent(self):
         return self.get("")
 
+    def observe(self, policy, identity):
+        if not isinstance(identity, str) or not observation.DEPLOYMENT.fullmatch(identity):
+            raise Refusal("cfworker observation needs an exact deployment identity")
+        policy = observation.prepared(policy)
+        held = observation.parent(self.parent(), self._registered, policy)
+        selected = observation.preview(self.preview(), self._registered, held)
+        deployed = observation.deployment(self.deployment(identity), selected, identity)
+        if observation.parent(self.parent(), self._registered, policy) != held:
+            raise Refusal("cfworker parent changed during observation")
+        return {"parent": held, "preview": selected, "deployment": deployed}
+
     def preview(self):
         return self.get(f"/previews/{self._registered['name']}")
 
     def deployment(self, identity):
-        if not isinstance(identity, str) or not IDENTIFIER.fullmatch(identity):
+        if not isinstance(identity, str) or not observation.DEPLOYMENT.fullmatch(identity):
             raise Refusal("static provider deployment requires an exact UUID, not latest")
         return self.get(f"/previews/{self._registered['name']}/deployments/{identity}")
