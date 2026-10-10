@@ -1,7 +1,8 @@
 import copy
 import unittest
 
-from lib.content import canonical, preview
+from lib.content import canonical
+from lib.content.lane import preview
 from lib.refusal import Refusal
 
 

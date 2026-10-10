@@ -1,7 +1,8 @@
 import copy
 import json
 
-from lib.content import canonical, preview
+from lib.content import canonical
+from lib.content.lane import preview
 from lib.refusal import Conflict, Refusal
 
 FIELDS = {"schema", "environment", "registration", "revision", "phase", "active", "last", "actual", "last_verified"}

@@ -5,7 +5,7 @@ from contextlib import contextmanager
 from dataclasses import dataclass
 from pathlib import Path
 
-from lib.content import preview
+from lib.content.lane import preview
 from lib.content.static import evidence, runtime, source
 from lib.refusal import Refusal
 

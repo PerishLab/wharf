@@ -1,0 +1,90 @@
+{
+  "fields": {
+    "address": [
+      "repository",
+      "app",
+      "lane"
+    ],
+    "source": [
+      "repository",
+      "commit",
+      "tree"
+    ],
+    "build": [
+      "inputs",
+      "world"
+    ],
+    "artifact": [
+      "digest",
+      "source",
+      "build"
+    ],
+    "authorities": [
+      "authorization",
+      "publication"
+    ],
+    "declaration": [
+      "target",
+      "adaptor",
+      "capabilities",
+      "authorities"
+    ],
+    "context": [
+      "requested",
+      "request",
+      "revision",
+      "adaptor"
+    ],
+    "selection": [
+      "policy",
+      "context",
+      "observation"
+    ],
+    "matched": [
+      "outcome",
+      "actual",
+      "artifact"
+    ],
+    "unmet": [
+      "outcome",
+      "reason"
+    ],
+    "unknown": [
+      "outcome",
+      "reason"
+    ],
+    "record": [
+      "schema",
+      "entry"
+    ],
+    "entry": [
+      "kind",
+      "value"
+    ],
+    "reference": [
+      "authority",
+      "digest"
+    ]
+  },
+  "actions": [
+    "inspect",
+    "build",
+    "publish",
+    "install",
+    "uninstall",
+    "deploy",
+    "dispose"
+  ],
+  "reasons": {
+    "unmet": [
+      "missing",
+      "unsupported",
+      "denied",
+      "conflict"
+    ],
+    "unknown": [
+      "unavailable",
+      "unverified"
+    ]
+  }
+}

@@ -1,7 +1,8 @@
 import hashlib
 from pathlib import Path
 
-from lib.content import canonical, implementation, preview
+from lib.content import canonical, implementation
+from lib.content.lane import preview
 from lib.content.static import assets, evidence, runtime
 from lib.refusal import Refusal
 from lib.store import workload
