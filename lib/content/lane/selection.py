@@ -30,15 +30,6 @@ def selection(value):
     return {"policy": policy, "context": requested, "observation": observed}
 
 
-def record(value):
-    value = shape.object_value(value, "record")
-    if type(value["schema"]) is not int or value["schema"] != 2:
-        raise Refusal("unsupported lane evidence schema")
-    entry = shape.object_value(value["entry"], "entry")
-    shape.one_of(entry["kind"], ("selection",), "record kind for this codec")
-    return {"schema": 2, "entry": {"kind": "selection", "value": selection(entry["value"])}}
-
-
 def reference(value):
     value = shape.object_value(value, "reference")
     return {"authority": identity.atom(value["authority"]), "digest": identity.hex_value(value["digest"])}
