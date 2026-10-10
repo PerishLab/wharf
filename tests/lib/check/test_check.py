@@ -4,8 +4,10 @@ import unittest
 from unittest import mock
 from pathlib import Path
 
+import lib.check
 from lib.check import actions, commands, files, imports, source, structure, vocabulary
 from lib.process import git
+from scripts import selfcheck
 
 CHECKS = (structure, source, imports, vocabulary, actions, commands)
 
@@ -15,10 +17,10 @@ def findings(root):
     return [finding for check in CHECKS for finding in check.check(root, paths)]
 
 
-class Repository(unittest.TestCase):
-    def test_this_repository_is_clean(self):
-        root = git(".", "rev-parse", "--show-toplevel")
-        self.assertEqual(findings(root), [])
+class Selfcheck(unittest.TestCase):
+    def test_runs_every_check(self):
+        declared = {path.stem for path in Path(lib.check.__file__).parent.glob("*.py") if "\ndef check(" in path.read_text()}
+        self.assertEqual({module.__name__.rsplit(".", 1)[1] for module in selfcheck.CHECKS}, declared)
 
 
 class Violations(unittest.TestCase):

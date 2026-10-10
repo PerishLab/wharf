@@ -286,7 +286,7 @@ class GuestBoundary(unittest.TestCase):
         cases = [("printf '{\"ok\":true}'; printf 'diagnostic {\"ok\":false}' >&2", '{"ok":true}'),
                  ("printf diagnostic >&2; printf selected", "selected"),
                  ("printf '\\377' >&2; printf selected", "selected"),
-                 ("i=0; while [ $i -lt 10000 ]; do printf noise >&2; i=$((i+1)); done; printf selected", "selected")]
+                 ("yes noise | head -c 262144 >&2; printf selected", "selected")]
         with mock.patch.object(runtime.sys, "stderr") as logging:
             for command, expected in cases:
                 with self.subTest(command=command):
