@@ -1,6 +1,7 @@
 import contextlib
 import io
 import json
+import sys
 import tempfile
 import unittest
 from pathlib import Path
@@ -25,6 +26,17 @@ test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; fini
 running 0 tests
 test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
 """
+
+
+class Sink(io.StringIO):
+    def __init__(self, release):
+        super().__init__()
+        self.release = release
+
+    def write(self, text):
+        if text.startswith("first"):
+            self.release.touch()
+        return super().write(text)
 
 
 class Runner:
@@ -78,3 +90,31 @@ class Suite(unittest.TestCase):
             toolchain.install(declared, ["aarch64-apple-darwin"]),
             ["rustup", "toolchain", "install", "1.96.1", "--profile", "minimal", "--component", "clippy", "--component", "rustfmt", "--target", "aarch64-apple-darwin", "--target", "x86_64-unknown-linux-gnu"],
         )
+
+
+class Attempt(unittest.TestCase):
+    def setUp(self):
+        self.root = Path(tempfile.mkdtemp())
+
+    def child(self, body):
+        return [sys.executable, "-I", "-c", body]
+
+    def test_streams_each_line_while_the_suite_runs(self):
+        release = self.root / "release"
+        body = f"import pathlib,time\nprint('first',flush=True)\nfor _ in range(200):\n    if pathlib.Path({str(release)!r}).exists(): break\n    time.sleep(0.05)\nelse: raise SystemExit(7)\nprint('second')"
+        sink = Sink(release)
+        with contextlib.redirect_stderr(sink):
+            code, log = suite.attempt(self.child(body), self.root, None)
+        self.assertEqual((code, log), (0, "first\nsecond\n"))
+        self.assertEqual(sink.getvalue(), log)
+
+    def test_returns_a_failing_exit_with_its_output(self):
+        with contextlib.redirect_stderr(io.StringIO()):
+            code, log = suite.attempt(self.child("print('broken');raise SystemExit(101)"), self.root, None)
+        self.assertEqual((code, log), (101, "broken\n"))
+
+    def test_refuses_a_suite_that_exceeds_its_timeout(self):
+        sink = io.StringIO()
+        with contextlib.redirect_stderr(sink), self.assertRaisesRegex(Refusal, "exceeded 1s"):
+            suite.attempt(self.child("import time\nprint('begun',flush=True)\ntime.sleep(30)"), self.root, None, timeout=1)
+        self.assertEqual(sink.getvalue(), "begun\n")
