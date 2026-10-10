@@ -268,7 +268,7 @@ before mutation; this component alone opens no dispatchable Preview workflow.
 Preview request, registration and result envelopes are explicit versioned contracts
 in `lib/content/lane/preview.py`. Caller and workflow fields are observations, not
 authorization; trusted onboarding and the execution adapter must establish authority.
-`lib/store/preview.py` coordinates exact requests with versioned snapshots and
+`lib/store/lane/preview.py` coordinates exact requests with versioned snapshots and
 conditional writes under `preview/v1/`, never the release namespace. Unknown
 operations retain their reservation without lease expiry or automatic takeover.
 Same-request readback is continuation evidence, never permission for a second
@@ -277,6 +277,22 @@ Discard advances the revision and retains a tombstone; an old apply cannot recre
 it. A degraded upload preserves the last verified deployment as historical evidence,
 not as a claim about the latest URL. These modules do not build, upload, provision,
 prove content or delete provider objects; the dedicated workflow owns those actions.
+
+`lib/store/lane/registration.py` and `state.py` consume the shared lane contract
+under `lane/v1/<repository>/<app>/<lane>/`, separately from release and historical
+Preview objects. Exact static registrations are versioned trusted-store documents;
+state pins their complete digest, never silently resetting after registration
+movement. Native snapshot/CAS conflicts propagate without retry or takeover.
+Requests bind exact revision, request identity, declaration admission and observed
+material. Same-request readback is continuation evidence, not another execution
+permit. Unknown and refused results retain reservations: a shared refusal alone
+does not prove writer quiescence. Only an admitted exact applied operation with
+idle writer advances revision; disposal retains absent material and history as a
+tombstone. These are supplied observations, not authenticated provider/public
+evidence. Registration and current state are separate conditional objects, not
+a multi-object transaction or atomic authorization guarantee. Trusted workflow
+composition must revalidate registration before external mutation. This source
+kernel invokes no provider, credentials, workflow, repair or installed lane CLI.
 
 Static qualification and output validation live in `lib/content/static/`.
 `lib/media/node.py` builds only an exact clean checkout and registered static app,
