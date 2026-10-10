@@ -41,5 +41,8 @@
       "platform": "linux/amd64"
     }
   },
-  "snapshot": ".wharf-effective"
+  "snapshot": ".wharf-effective",
+  "cfworker": {
+    "api": "https://api.cloudflare.com/client/v4"
+  }
 }
