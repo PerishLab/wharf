@@ -1,7 +1,7 @@
 import hashlib
 import json
 
-from lib.content.lane import identity, material, selection
+from lib.content.lane import assessment, identity, intent, material, operation, selection, shape
 from lib.refusal import Refusal
 
 READERS = {
@@ -9,7 +9,11 @@ READERS = {
     "source": material.source, "build": material.build, "artifact": material.artifact,
     "capabilities": material.capabilities, "authorities": material.authorities,
     "declaration": material.declaration, "context": selection.context,
-    "selection": selection.selection, "record": selection.record, "reference": selection.reference,
+    "selection": selection.selection, "record": operation.record, "reference": selection.reference,
+    "state": assessment.state, "authorization": assessment.authorization, "writer": assessment.writer,
+    "conditions": assessment.conditions, "assessment": assessment.assessment,
+    "intent": intent.intent, "request": intent.request, "material": operation.material,
+    "outcome": operation.outcome, "operation": operation.operation,
 }
 
 
@@ -20,11 +24,11 @@ def read(kind, value):
 
 
 def encode(kind, value):
-    return json.dumps(read(kind, value), separators=(",", ":"), ensure_ascii=False, allow_nan=False).encode()
+    return shape.encode(read(kind, value))
 
 
 def digest(kind, value):
-    return hashlib.sha256(encode(kind, value)).hexdigest()
+    return shape.digest(read(kind, value))
 
 
 def unique(pairs):
@@ -56,3 +60,17 @@ def verify(expected, observed, content):
     if encode("record", record) != content:
         raise Refusal("lane readback is not the exact canonical record")
     return record
+
+
+def admit(requested, assessed, declared=None):
+    if declared is not None:
+        return intent.declared(declared, requested, assessed)
+    return intent.admitted(requested, assessed)
+
+
+def settle(requested, expected, observed, content):
+    requested = intent.request(requested)
+    entry = verify(expected, observed, content)["entry"]
+    if entry["kind"] != "operation" or entry["value"]["request"] != requested or entry["value"]["outcome"]["outcome"] != "applied":
+        raise Refusal("lane completion needs an applied observation of the exact request")
+    return entry["value"]

@@ -64,6 +64,94 @@
     "reference": [
       "authority",
       "digest"
+    ],
+    "state-absent": [
+      "state"
+    ],
+    "state-unknown": [
+      "state"
+    ],
+    "state-present": [
+      "state",
+      "revision",
+      "digest"
+    ],
+    "authorization-granted": [
+      "state",
+      "evidence"
+    ],
+    "authorization-denied": [
+      "state",
+      "evidence"
+    ],
+    "authorization-unknown": [
+      "state"
+    ],
+    "conditions": [
+      "authorization",
+      "writer",
+      "observed"
+    ],
+    "assessment": [
+      "request",
+      "capabilities",
+      "conditions"
+    ],
+    "intent-inspect": [
+      "action"
+    ],
+    "intent-build": [
+      "action",
+      "source",
+      "build"
+    ],
+    "intent-publish": [
+      "action",
+      "artifact"
+    ],
+    "intent-install": [
+      "action",
+      "artifact"
+    ],
+    "intent-uninstall": [
+      "action"
+    ],
+    "intent-deploy": [
+      "action",
+      "artifact"
+    ],
+    "intent-dispose": [
+      "action"
+    ],
+    "request": [
+      "context",
+      "intent",
+      "expected"
+    ],
+    "material-present": [
+      "state",
+      "artifact"
+    ],
+    "material-absent": [
+      "state"
+    ],
+    "operation-applied": [
+      "outcome",
+      "material",
+      "writer"
+    ],
+    "operation-refused": [
+      "outcome",
+      "reason"
+    ],
+    "operation-unknown": [
+      "outcome",
+      "reason"
+    ],
+    "operation": [
+      "request",
+      "assessment",
+      "outcome"
     ]
   },
   "actions": [
@@ -85,6 +173,31 @@
     "unknown": [
       "unavailable",
       "unverified"
+    ]
+  },
+  "preconditions": {
+    "inspect": [
+      null
+    ],
+    "build": [
+      null
+    ],
+    "publish": [
+      "absent"
+    ],
+    "install": [
+      "absent",
+      "present"
+    ],
+    "uninstall": [
+      "present"
+    ],
+    "deploy": [
+      "absent",
+      "present"
+    ],
+    "dispose": [
+      "present"
     ]
   }
 }

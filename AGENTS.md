@@ -217,7 +217,7 @@ remains separate from release distribution; runtime envelopes, lane state and
 public evidence publication are separate consumer work under #121.
 
 `lib/content/lane/` reads and encodes the shared lane identity, artifact,
-declaration, context, exact selection and reference contracts. Ordered fields,
+declaration, context, exact selection, operation and reference contracts. Ordered fields,
 capabilities and reasons are carried in `resources/identity/lane.json`; the byte
 and digest fixtures are observations from the public Rust types at the recorded
 Plumb source, not a runtime version selector. Encoding follows typed Serde order,
@@ -225,10 +225,25 @@ not the sorted-key release codec. Readers require JSON objects, reject unknown o
 duplicate fields and return detached values; encoders validate again before use.
 Optional artifact build identity becomes explicit null. Supplied selection
 readback must match its authority, digest and exact canonical record bytes.
-These checks prove neither publication, authorization nor retention. Operation
-records and shared state are not yet consumed; they refuse rather than reuse
-legacy Preview semantics. Generic families and distribution actions remain
+These checks prove neither publication, authorization nor retention. Shared state
+is not yet consumed by runtime; no legacy Preview envelope is treated as an
+operation record. Generic families and distribution actions remain
 separate from the static Preview declaration's narrower capability requirements.
+
+Operation requests bind their canonical byte digest to an assessment and require
+action-specific explicit state preconditions. Admission keeps unsupported,
+denied, conflict, unavailable and unverified judgments distinct. Declaration
+binding additionally checks exact target/adaptor, capabilities and authorization
+authority. Applied mutations require an idle writer and the exact intended
+material; refusal and unknown outcomes preserve the admission reason. Canonical
+operation readback can settle only an applied observation of the exact request.
+These judgments validate supplied observations; they authenticate no authority,
+grant no provider write, mint no bearer permit and prove no public publication.
+Completion readback does not bind a declaration's publication authority on its
+own; trusted composition must supply that independent binding. Conditional state,
+public addressing and publication remain separate work under #121.
+Standalone State and Outcome readers mirror raw Rust wire forms; Request,
+Conditions and Operation enforce their contextual invariants before consumption.
 
 `lib/content/static/admission.py` loads current registration only from a trusted
 store and observes the fixed main Preview workflow and both actors' repository

@@ -107,7 +107,7 @@ class LaneCodec(unittest.TestCase):
         content = json.dumps(value, separators=(",", ":")).encode()
         self.assertRaises(Refusal, codec.verify, reference(content), reference(content), content)
 
-    def test_operation_records_are_explicitly_outside_this_batch(self):
+    def test_operation_records_require_their_own_contract(self):
         value = example("record")
         value["entry"]["kind"] = "operation"
         self.assertRaises(Refusal, codec.read, "record", value)
