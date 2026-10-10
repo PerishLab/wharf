@@ -239,9 +239,8 @@ material; refusal and unknown outcomes preserve the admission reason. Canonical
 operation readback can settle only an applied observation of the exact request.
 These judgments validate supplied observations; they authenticate no authority,
 grant no provider write, mint no bearer permit and prove no public publication.
-Completion readback does not bind a declaration's publication authority on its
-own; trusted composition must supply that independent binding. Conditional state,
-public addressing and publication remain separate work under #121.
+The generic supplied-byte codec does not bind a declaration's publication
+authority on its own; trusted public composition below supplies that binding.
 Standalone State and Outcome readers mirror raw Rust wire forms; Request,
 Conditions and Operation enforce their contextual invariants before consumption.
 
@@ -293,6 +292,24 @@ evidence. Registration and current state are separate conditional objects, not
 a multi-object transaction or atomic authorization guarantee. Trusted workflow
 composition must revalidate registration before external mutation. This source
 kernel invokes no provider, credentials, workflow, repair or installed lane CLI.
+
+`lib/store/lane/public.py` consumes an independently prepared publication
+authority and exact bare HTTPS DNS origin. Anonymous GET reads only
+`lane/v1/evidence/<record-digest>.json`, with a 64 KiB document budget and
+30-second network idle timeout. It forwards no credentials and accepts no
+record-selected origin, redirects, content transformation or private fallback.
+`publication.py` validates the shared finite public record, exact declaration
+target/adaptor and operation capability/authorization roles before create-only
+publication. Existing keys must hold identical private bytes and still pass
+fresh independent public readback. Digest and canonical bytes, the entire
+requested context and the prepared declaration publication authority must agree.
+Refused/unknown evidence can be published but cannot settle a request; only an
+exact applied operation also admitted by its declaration can settle. Returned
+observations are detached data, not provider authorization or a bearer permit.
+No mutable pointer, current-state update or provider execution is performed.
+Trusted onboarding owns the origin/writer mapping, DNS/public reachability,
+resource exclusivity and retention; this source kernel proves none of those
+live facts. Workflow composition and physical provider proof remain separate.
 
 Static qualification and output validation live in `lib/content/static/`.
 `lib/media/node.py` builds only an exact clean checkout and registered static app,
