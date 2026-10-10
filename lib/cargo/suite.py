@@ -1,9 +1,12 @@
+import contextlib
 import json
 import os
 import re
+import signal
 import subprocess
 import sys
 import tempfile
+import threading
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -23,12 +26,29 @@ class Suite:
     output: Path
 
 
-def attempt(argv, cwd, env):
-    try:
-        done = subprocess.run(argv, cwd=cwd, env=env, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, timeout=TIMEOUT)
-    except subprocess.TimeoutExpired:
-        raise Refusal(f"the test suite exceeded {TIMEOUT}s")
-    return done.returncode, done.stdout
+def expire(process, expired):
+    expired.set()
+    with contextlib.suppress(ProcessLookupError):
+        os.killpg(process.pid, signal.SIGKILL)
+
+
+def attempt(argv, cwd, env, timeout=TIMEOUT):
+    sys.stderr.flush()
+    lines, expired = [], threading.Event()
+    with subprocess.Popen(argv, cwd=cwd, env=env, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, start_new_session=True) as process:
+        alarm = threading.Timer(timeout, expire, (process, expired))
+        alarm.start()
+        try:
+            for line in process.stdout:
+                lines.append(line)
+                sys.stderr.write(line)
+                sys.stderr.flush()
+            code = process.wait()
+        finally:
+            alarm.cancel()
+    if expired.is_set():
+        raise Refusal(f"the test suite exceeded {timeout}s")
+    return code, "".join(lines)
 
 
 @dataclass(frozen=True)
@@ -85,7 +105,6 @@ def suite(request, tools=Tools()):
     channel = declared["channel"]
     tools.run(toolchain.install(declared), request.source)
     code, log, rustc = execute(request, tools, channel)
-    print(log, file=sys.stderr)
     targets, totals = tally(log)
     if code != 0 or totals["failed"] or not targets:
         failing = [item["target"] for item in targets if item["state"] != "ok"]
