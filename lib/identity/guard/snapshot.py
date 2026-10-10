@@ -27,6 +27,7 @@ class Request:
     domain: dict
     expected: object = None
     destination: object = None
+    recall: object = None
 
 
 def object_id(value):
@@ -201,6 +202,10 @@ def receipt(held, head, result, world):
             raise Refusal("release snapshot differs from the verified plan; prepare a fresh plan")
         proof(held, head, result, json.dumps(expected["guard"]))
         return expected
+    recalled = request.recall(observed) if request.recall is not None else None
+    if recalled is not None:
+        proof(held, head, result, json.dumps(recalled))
+        return dict(observed, guard=recalled)
     return dict(observed, guard=verified(held, head, result))
 
 

@@ -2,12 +2,14 @@ import json
 import re
 
 from lib.content import canonical, marker
-from lib.refusal import Refusal
+from lib.refusal import Conflict, Refusal
 from lib.store import workload
 
 SCHEMA = 1
 PUBLISHED = ("npm", "oci", "chart", "cargo", "release", "channel", "cfworker")
 NAMED = re.compile(r"[A-Za-z0-9._-]+/[A-Za-z0-9._-]+")
+COMMIT = re.compile(r"[0-9a-f]{40}")
+REMEMBERED = {"snapshot", "run", "attempt"}
 
 
 def named(context):
@@ -40,6 +42,39 @@ def combination(verified):
     if not isinstance(verified, dict) or set(verified) != fields or verified["schema"] != "wharf.release.snapshot/v1":
         raise Refusal("publication requires the verified release snapshot")
     return {field: verified[field] for field in sorted(fields - {"guard"})}
+
+
+def lineage(verified):
+    held = combination(verified)
+    held["source"] = {field: value for field, value in held["source"].items() if field != "marker"}
+    return held
+
+
+def verification(verified):
+    source = lineage(verified)["source"]
+    if not NAMED.fullmatch(str(source.get("repository"))) or not COMMIT.fullmatch(str(source.get("commit"))):
+        raise Refusal("a verified snapshot needs an exact repository and commit")
+    return f"verified/{source['repository']}/{source['commit']}/{canonical.digest(lineage(verified))}.json"
+
+
+def recall(bucket, observed, recalled):
+    name = verification(dict(observed, guard={}))
+    if not bucket.exists(name):
+        return None
+    held = json.loads(bucket.get(name))
+    if not isinstance(held, dict) or set(held) != REMEMBERED or lineage(held["snapshot"]) != lineage(dict(observed, guard={})) or not isinstance(held["snapshot"]["guard"], dict):
+        raise Refusal(f"{name} does not hold the verified combination it is filed under")
+    recalled.update(marker=held["snapshot"]["source"]["marker"], run=held["run"], attempt=held["attempt"])
+    return held["snapshot"]["guard"]
+
+
+def remember(bucket, context):
+    body = canonical.encode({"snapshot": context["snapshot"], "run": context["run"], "attempt": context["attempt"]})
+    try:
+        bucket.create(verification(context["snapshot"]), body)
+    except Conflict:
+        return False
+    return True
 
 
 def matching(bucket, context, verified):

@@ -1,6 +1,9 @@
 import json
 import unittest
+from pathlib import Path
+from unittest import mock
 
+from lib.identity.guard import snapshot
 from lib.refusal import Refusal
 from lib.store import plan
 from tests.lib.store.memory import Memory
@@ -15,6 +18,8 @@ CONTEXT = {
     "attempt": "1",
 }
 ENTRIES = {"binary-linux": {"key": "d" * 64, "decision": "run"}, "npm": {"decision": "skip"}}
+IDENTITY = {"repository": "PerishLab/example", "marker": "v1.0.0", "commit": "a" * 40, "tree": "b" * 40}
+RESULT = {"tree": "c" * 40, "packages": []}
 SNAPSHOT = {"schema": "wharf.release.snapshot/v1", "source": {field: CONTEXT[field] for field in ("repository", "marker", "commit", "tree")}, "head": "e" * 40, "tree": "f" * 40, "packages": [], "controls": {}, "domain": {}, "guard": {}}
 
 
@@ -146,3 +151,77 @@ class Shaped(unittest.TestCase):
         bucket = Memory()
         plan.record(bucket, CONTEXT, self.ENTRIES, {})
         self.assertEqual(plan.read(bucket, CONTEXT)["shape"], plan.layered(self.ENTRIES))
+
+
+class Recalled(unittest.TestCase):
+    def setUp(self):
+        self.bucket = Memory()
+        self.context = dict(CONTEXT, marker="v0.38.3-rc.1", snapshot=dict(SNAPSHOT, source=dict(SNAPSHOT["source"], marker="v0.38.3-rc.1"), guard={"proved": "rc"}))
+        self.observed = {field: value for field, value in SNAPSHOT.items() if field != "guard"}
+
+    def test_a_later_marker_of_the_same_commit_recalls_the_verified_guard(self):
+        self.assertTrue(plan.remember(self.bucket, self.context))
+        recalled = {}
+        self.assertEqual(plan.recall(self.bucket, self.observed, recalled), {"proved": "rc"})
+        self.assertEqual(recalled, {"marker": "v0.38.3-rc.1", "run": CONTEXT["run"], "attempt": "1"})
+
+    def test_another_combination_or_commit_recalls_nothing(self):
+        plan.remember(self.bucket, self.context)
+        changed = dict(self.observed, packages=[{"ecosystem": "cargo", "name": "plumb", "version": "changed"}])
+        moved = dict(self.observed, source=dict(self.observed["source"], commit="9" * 40))
+        for observed in (changed, moved):
+            recalled = {}
+            self.assertIsNone(plan.recall(self.bucket, observed, recalled))
+            self.assertEqual(recalled, {})
+
+    def test_the_first_verified_record_wins(self):
+        self.assertTrue(plan.remember(self.bucket, self.context))
+        later = dict(self.context, run="99", snapshot=dict(self.context["snapshot"], guard={"proved": "later"}))
+        self.assertFalse(plan.remember(self.bucket, later))
+        self.assertEqual(plan.recall(self.bucket, self.observed, {}), {"proved": "rc"})
+
+    def test_a_record_filed_under_another_combination_refuses(self):
+        name = plan.verification(dict(self.observed, guard={}))
+        forged = dict(self.context["snapshot"], packages=[{"ecosystem": "cargo", "name": "plumb", "version": "forged"}])
+        for body in ({"snapshot": forged, "run": "1", "attempt": "1"}, {"snapshot": self.context["snapshot"], "run": "1"}):
+            with self.subTest(body=sorted(body)):
+                self.bucket.objects[name] = json.dumps(body).encode()
+                with self.assertRaisesRegex(Refusal, "does not hold the verified combination"):
+                    plan.recall(self.bucket, self.observed, {})
+
+
+class Receipt(unittest.TestCase):
+    def receipt(self, recall, expected=None):
+        held = {"request": snapshot.Request(Path("/source"), IDENTITY, {"rust.version": "1"}, expected, recall=recall)}
+        return snapshot.receipt(held, "d" * 40, RESULT, {"plumb": "v1"})
+
+    def test_a_recalled_guard_is_rechecked_and_runs_no_guard(self):
+        observed = []
+        def recall(held):
+            observed.append(held)
+            return {"proved": "rc"}
+        with mock.patch.object(snapshot, "proof") as proof, mock.patch.object(snapshot, "verified") as verified:
+            receipt = self.receipt(recall)
+        verified.assert_not_called()
+        self.assertEqual(json.loads(proof.call_args.args[3]), {"proved": "rc"})
+        self.assertEqual(receipt["guard"], {"proved": "rc"})
+        self.assertEqual(observed[0], {field: value for field, value in receipt.items() if field != "guard"})
+        self.assertEqual(receipt["source"]["marker"], "v1.0.0")
+
+    def test_nothing_recalled_runs_the_actual_guard(self):
+        with mock.patch.object(snapshot, "verified", return_value={"proved": "now"}) as verified:
+            self.assertEqual(self.receipt(lambda held: None)["guard"], {"proved": "now"})
+        verified.assert_called_once()
+
+    def test_a_recalled_guard_the_running_authority_rejects_refuses(self):
+        with mock.patch.object(snapshot, "proof", side_effect=Refusal("Guard differs")), mock.patch.object(snapshot, "verified") as verified:
+            with self.assertRaisesRegex(Refusal, "Guard differs"):
+                self.receipt(lambda held: {"proved": "foreign"})
+        verified.assert_not_called()
+
+    def test_a_planned_snapshot_never_consults_recall(self):
+        recall = mock.Mock()
+        expected = {"schema": "wharf.release.snapshot/v1", "source": IDENTITY, "head": "d" * 40, "tree": "c" * 40, "packages": [], "controls": {"plumb": "v1"}, "domain": {"rust.version": "1"}, "guard": {"proved": "plan"}}
+        with mock.patch.object(snapshot, "proof"):
+            self.assertEqual(self.receipt(recall, expected), expected)
+        recall.assert_not_called()

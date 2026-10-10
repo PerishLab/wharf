@@ -136,13 +136,29 @@ class Media(unittest.TestCase):
             "source": source,
             "steps": json.dumps(observed),
         }
-        @contextmanager
-        def prepared(request):
-            yield Path(source), {}, lambda: None
-        with mock.patch.object(plan.snapshot, "prepared", prepared), mock.patch.object(plan.toolchain, "versions", return_value={}), mock.patch.object(plan.r2, "configured", return_value=Memory()), mock.patch.object(plan, "suites"), mock.patch.object(plan, "binaries") as binaries, mock.patch.object(plan.node, "carried", return_value=False), mock.patch.object(parameters, "answer"):
-            recorded = plan.record(held)
-        binaries.assert_not_called()
+        bucket = Memory()
+        recorded = recorded_with(held, source, bucket)
         self.assertEqual(recorded["entry"], {name: "run" if name == "oci" else "skip" for name in sorted(plan.MEDIA)})
+        self.assertEqual((recorded["recalled"], recorded["remembered"]), (None, True))
+        stable = dict(held, marker="v0.2.0", run="8")
+        reused = recorded_with(stable, source, bucket)
+        self.assertEqual((reused["recalled"], reused["remembered"]), ({"marker": "v0.2.0-rc.1", "run": "7", "attempt": "1"}, False))
+        document = json.loads(bucket.get(reused["plan"]))
+        self.assertEqual(document["context"]["recalled"]["marker"], "v0.2.0-rc.1")
+        self.assertEqual(document["context"]["snapshot"]["guard"], {"proved": "v0.2.0-rc.1"})
+
+
+def recorded_with(held, source, bucket):
+    identity = {field: held[field] for field in plan.IDENTITY}
+    @contextmanager
+    def prepared(request):
+        observed = {"schema": "wharf.release.snapshot/v1", "source": identity, "head": "d" * 40, "tree": "e" * 40, "packages": [], "controls": {}, "domain": {}}
+        guard = request.recall(observed) or {"proved": held["marker"]}
+        yield Path(source), dict(observed, guard=guard), lambda: None
+    with mock.patch.object(plan.snapshot, "prepared", prepared), mock.patch.object(plan.toolchain, "versions", return_value={}), mock.patch.object(plan.r2, "configured", return_value=bucket), mock.patch.object(plan, "suites"), mock.patch.object(plan, "binaries") as binaries, mock.patch.object(plan.node, "carried", return_value=False), mock.patch.object(parameters, "answer"):
+        recorded = plan.record(held)
+    binaries.assert_not_called()
+    return recorded
 
 
 def product(body):

@@ -163,7 +163,8 @@ def source(held):
 def record(held):
     bucket = r2.configured()
     identity = {field: held[field] for field in IDENTITY}
-    request = snapshot.Request(Path(held["source"]), identity, toolchain.versions(), destination=snapshot.destination(held["source"]))
+    recalled = {}
+    request = snapshot.Request(Path(held["source"]), identity, toolchain.versions(), destination=snapshot.destination(held["source"]), recall=lambda observed: plan.recall(bucket, observed, recalled))
     with snapshot.prepared(request) as (root, verified, confirm):
         plan.matching(bucket, held, verified)
         scoped = dict(held, source=root)
@@ -179,10 +180,11 @@ def record(held):
         validation(bucket, entries)
         plan.legacy(bucket, held, entries, observed)
         engines = node.expected(root) if node.carried(root) else {}
-        context = dict({field: held[field] for field in CONTEXT}, snapshot=verified)
+        context = dict({field: held[field] for field in CONTEXT}, snapshot=verified, **({"recalled": recalled} if recalled else {}))
         confirm()
         recorded = plan.record(bucket, context, entries, engines)
-        return dict(recorded, decided=emit(entries, held["attempt"], verified), entry={name: entries[name]["decision"] for name in sorted(entries)})
+        remembered = False if recalled else plan.remember(bucket, context)
+        return dict(recorded, recalled=recalled or None, remembered=remembered, decided=emit(entries, held["attempt"], verified), entry={name: entries[name]["decision"] for name in sorted(entries)})
 
 
 def named(held):

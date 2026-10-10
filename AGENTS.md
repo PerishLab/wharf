@@ -422,8 +422,17 @@ and nothing else in the run holds both those and the workload bucket's.
 
 A release plan clones the immutable marker into an owned disposable checkout,
 resolves first-party stable packages with released `plumb lift`, and runs actual
-full/head Guard there. Its record keeps the original marker identity, effective
-Git tree, exact package set, control authorities and the genuine Guard result.
+full/head Guard there unless an earlier marker of the same repository and commit
+already verified exactly the same combination. Its record keeps the original
+marker identity, effective Git tree, exact package set, control authorities and
+the genuine Guard result: one Guard actually produced for this exact combination,
+in this run or that earlier one. A verified snapshot is filed create-only under
+`verified/<owner>/<repository>/<commit>/<digest>.json`, the digest covering every
+combination field except the marker, and the first writer wins, since two genuine
+runs of one combination record different execution worlds. Reuse still prepares
+current stable controls and lift, rechecks the filed Guard against the running
+authority and this resolution, and names the marker and run it came from in the
+plan. Any difference runs Guard again, and nothing is reused across commits.
 Builds recreate that exact combination and refuse movement. Linux snapshot
 preparation installs the system OpenSSH server for declared SSH test prerequisites;
 the isolated POSIX snapshot includes trusted system sbin directories after tool
