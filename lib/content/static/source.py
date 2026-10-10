@@ -4,7 +4,8 @@ import subprocess
 import tomllib
 from pathlib import Path, PurePosixPath
 
-from lib.content import canonical, declaration, preview
+from lib.content import canonical, declaration
+from lib.content.lane import preview
 from lib.content.static import declaration as lane, evidence
 from lib.refusal import Refusal
 

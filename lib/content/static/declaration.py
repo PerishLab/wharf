@@ -1,6 +1,6 @@
 import re
 
-from lib.content import preview
+from lib.content.lane import preview
 from lib.refusal import Refusal
 
 ACTIONS = {"inspect", "build", "deploy", "dispose"}

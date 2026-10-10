@@ -3,7 +3,8 @@ import urllib.error
 import urllib.parse
 import urllib.request
 
-from lib.content import preview, resources
+from lib.content import resources
+from lib.content.lane import preview
 from lib.content.static import evidence
 from lib.refusal import Refusal
 

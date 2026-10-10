@@ -216,6 +216,20 @@ judgments prove neither trusted registration nor authorization. Preview executio
 remains separate from release distribution; runtime envelopes, lane state and
 public evidence publication are separate consumer work under #121.
 
+`lib/content/lane/` reads and encodes the shared lane identity, artifact,
+declaration, context, exact selection and reference contracts. Ordered fields,
+capabilities and reasons are carried in `resources/identity/lane.json`; the byte
+and digest fixtures are observations from the public Rust types at the recorded
+Plumb source, not a runtime version selector. Encoding follows typed Serde order,
+not the sorted-key release codec. Readers require JSON objects, reject unknown or
+duplicate fields and return detached values; encoders validate again before use.
+Optional artifact build identity becomes explicit null. Supplied selection
+readback must match its authority, digest and exact canonical record bytes.
+These checks prove neither publication, authorization nor retention. Operation
+records and shared state are not yet consumed; they refuse rather than reuse
+legacy Preview semantics. Generic families and distribution actions remain
+separate from the static Preview declaration's narrower capability requirements.
+
 `lib/content/static/admission.py` loads current registration only from a trusted
 store and observes the fixed main Preview workflow and both actors' repository
 push permissions through the read-only GitHub adapter. Apply also verifies the
@@ -237,7 +251,7 @@ workflow must exclude these readers from product guests and revalidate admission
 before mutation; this component alone opens no dispatchable Preview workflow.
 
 Preview request, registration and result envelopes are explicit versioned contracts
-in `lib/content/preview.py`. Caller and workflow fields are observations, not
+in `lib/content/lane/preview.py`. Caller and workflow fields are observations, not
 authorization; trusted onboarding and the execution adapter must establish authority.
 `lib/store/preview.py` coordinates exact requests with versioned snapshots and
 conditional writes under `preview/v1/`, never the release namespace. Unknown

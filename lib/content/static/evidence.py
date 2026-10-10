@@ -6,7 +6,7 @@ import subprocess
 import sys
 from pathlib import Path, PurePosixPath, PureWindowsPath
 
-from lib.content import preview
+from lib.content.lane import preview
 from lib.refusal import Refusal
 
 TOOLS = ("node", "pnpm", "plumb", "ectropy", "git")

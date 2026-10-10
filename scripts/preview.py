@@ -4,7 +4,8 @@ import sys
 from pathlib import Path
 
 from lib import parameters
-from lib.content import canonical, preview
+from lib.content import canonical
+from lib.content.lane import preview
 from lib.content.static import admission, workspace
 from lib.refusal import Refusal
 

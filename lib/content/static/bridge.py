@@ -4,7 +4,8 @@ import tempfile
 import zlib
 from pathlib import Path
 
-from lib.content import implementation, preview
+from lib.content import implementation
+from lib.content.lane import preview
 from lib.content.static import assets, evidence, runtime, source, workspace
 from lib.refusal import Refusal
 from lib.store import handoff

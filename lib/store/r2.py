@@ -9,7 +9,7 @@ from urllib.parse import quote, urlencode, urlsplit
 from dataclasses import dataclass, field
 
 from lib.refusal import Conflict, Refusal
-from lib.content import preview
+from lib.content.lane import preview
 from lib.store.sigv4 import Credentials, Request, sign
 
 VARIABLES = ("WHARF_R2_ENDPOINT", "WHARF_R2_BUCKET", "WHARF_R2_ACCESS_KEY_ID", "WHARF_R2_SECRET_ACCESS_KEY")

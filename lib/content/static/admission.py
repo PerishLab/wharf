@@ -1,7 +1,8 @@
 import os
 import re
 
-from lib.content import canonical, preview, resources
+from lib.content import canonical, resources
+from lib.content.lane import preview
 from lib.content.static import evidence, source
 from lib.content.static.github import LOGIN, GitHub, Routing
 from lib.refusal import Refusal
