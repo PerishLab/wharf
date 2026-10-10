@@ -311,6 +311,21 @@ Trusted onboarding owns the origin/writer mapping, DNS/public reachability,
 resource exclusivity and retention; this source kernel proves none of those
 live facts. Workflow composition and physical provider proof remain separate.
 
+`lib/process/cfworker/mapping.py` maps admitted static registrations to native
+Worker Preview names, keeping parent/account and exact logical lane distinct.
+Default `preview` and keyed `preview.<key>` map injectively without truncation;
+the combined Preview-parent DNS label must fit 63 bytes. A supplied prepared
+catalog refuses repeated logical or physical targets, but does not prove catalog
+completeness or onboarding resource exclusivity. `reader.py` uses a prepared
+read-only token with proxy-free fixed HTTPS GETs for that parent, Preview and an
+exact deployment UUID, never latest, source configuration or an arbitrary URL.
+Redirects, transformed/oversized/duplicate/malformed replies and transport or
+cleanup failures refuse; an HTTP failure is not verified absence. Successful
+object replies are raw trusted-provider observations, not validated deployment
+identity, public evidence, admission or a bearer permit. No create/upload/delete,
+parent provisioning, product command or automatic quota-eviction handling is
+implemented by this bounded source component. These remain later #122 work.
+
 Static qualification and output validation live in `lib/content/static/`.
 `lib/media/node.py` builds only an exact clean checkout and registered static app,
 using prepared tools outside product source and an allowlisted child environment.
