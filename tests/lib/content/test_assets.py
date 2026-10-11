@@ -47,6 +47,112 @@ class StaticAssets(unittest.TestCase):
             with self.subTest(body=body), self.assertRaises(Refusal):
                 assets.validate("mark.svg", body)
 
+    def test_adaptive_svg_styles_preserve_exact_content(self):
+        styling = b"path{fill:#2f679c}@media(prefers-color-scheme:dark){path{fill:#8fc7f2}}"
+        for tag in (b"style", b'style type="text/css"'):
+            for text in (styling, b"<![CDATA[" + styling + b"]]>"):
+                body = b'<svg xmlns="http://www.w3.org/2000/svg"><' + tag + b">" + text + b'</style><path d="M0 0L1 1"/></svg>'
+                files = dict(FILES, **{"mark.svg": body})
+                with self.subTest(tag=tag, text=text):
+                    self.assertEqual(assets.validate("mark.svg", body), [])
+                    self.assertIs(assets.vetted(files), files)
+                    self.assertEqual(files["mark.svg"], body)
+
+    def test_svg_styles_bind_local_references(self):
+        body = b'<svg><style>path{fill:url("../paint.svg#ink")}</style><path/></svg>'
+        self.assertEqual(assets.validate("icons/mark.svg", body), ["paint.svg"])
+        files = {"index.html": b'<img src="icons/mark.svg">', "icons/mark.svg": body}
+        with self.assertRaises(Refusal):
+            assets.vetted(files)
+        files["paint.svg"] = b'<svg><defs><linearGradient id="ink"/></defs></svg>'
+        self.assertEqual(assets.vetted(files), files)
+        self.assertEqual(assets.validate("mark.svg", b'<svg><style>path{fill:url(#ink)}</style></svg>'), [None])
+
+    def test_active_external_and_escaped_svg_styles_refuse(self):
+        values = (
+            b"@import 'x.css';", b"@im/**/port 'x.css';", b"&#x40;import 'x.css';",
+            b"path{fill:url(https://example.com/x)}", b"path{fill:u/**/rl(//example.com/x)}",
+            b"path{fill:url(data:image/svg+xml,foo)}", b"path{fill:url(javascript:run())}",
+            b"path{fill:url(../../outside.svg)}", b"path{fill:url(%2e%2e/outside.svg)}",
+            b"path{fill:e\\78pression(foo)}", b"path{behavior:url(x)}", b"path{-moz-binding:url(x)}",
+        )
+        for text in values:
+            with self.subTest(text=text), self.assertRaises(Refusal):
+                assets.validate("mark.svg", b"<svg><style>" + text + b"</style></svg>")
+
+    def test_svg_styles_require_plain_css_character_data(self):
+        values = (
+            b'<svg><style type="text/javascript">run()</style></svg>',
+            b'<svg><style type="">path{fill:red}</style></svg>',
+            b'<svg><style href="#x">path{fill:red}</style></svg>',
+            b'<svg><style media="all">path{fill:red}</style></svg>',
+            b'<svg><style onload="run()">path{fill:red}</style></svg>',
+            b'<svg><style x:type="text/css" xmlns:x="urn:foreign">path{fill:red}</style></svg>',
+            b'<svg><style><path/>path{fill:red}</style></svg>',
+            b'<svg><style xmlns="http://www.w3.org/1999/xhtml">path{fill:red}</style></svg>',
+            b'<svg><style xmlns="urn:foreign">path{fill:red}</style></svg>',
+            b'<svg><style>path{fill:red}</svg>',
+        )
+        for body in values:
+            with self.subTest(body=body), self.assertRaises(Refusal):
+                assets.validate("mark.svg", body)
+
+    def test_svg_processing_instructions_refuse(self):
+        values = (
+            b'<?xml-stylesheet type="text/css" href="https://example.com/style.css"?><svg/>',
+            b'<svg><?xml-stylesheet href="local.css"?></svg>',
+            b'<svg><style><?other value?>path{fill:red}</style></svg>',
+        )
+        for body in values:
+            with self.subTest(body=body), self.assertRaises(Refusal):
+                assets.validate("mark.svg", body)
+        self.assertEqual(assets.validate("mark.svg", b'<?xml version="1.0"?><svg/>'), [])
+
+    def test_svg_styles_require_utf8(self):
+        body = '<svg><style>path{fill:red}</style></svg>'
+        for encoding in ("utf-16", "utf-32"):
+            with self.subTest(encoding=encoding), self.assertRaises(Refusal):
+                assets.validate("mark.svg", body.encode(encoding))
+        with self.assertRaises(Refusal):
+            assets.validate("mark.svg", b"<svg><style>\xff</style></svg>")
+
+    def test_inline_svg_reuses_exact_static_validation(self):
+        values = (
+            b'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48"><style>path{fill:#2f679c}@media(prefers-color-scheme:dark){path{fill:#8fc7f2}}</style><path d="M0 0L1 1"/></svg>',
+            b'<svg><defs><linearGradient id="ink"/></defs><path fill="url(#ink)"/></svg>',
+            b'<svg><svg><path/></svg></svg>', b'<svg/>',
+        )
+        for body in values:
+            page = b'<html>\n<p>\xc3\xa9</p>\n' + body + b'<img src="mark.png"></html>'
+            with self.subTest(body=body):
+                self.assertEqual(assets.validate("index.html", page), assets.validate("mark.svg", body) + ["mark.png"])
+
+    def test_inline_svg_binds_local_references_and_html_afterward(self):
+        body = b'<svg><style>path{fill:url(paint.svg#ink)}</style><path/></svg>'
+        files = {"index.html": body}
+        with self.assertRaises(Refusal):
+            assets.vetted(files)
+        files["paint.svg"] = b"<svg/>"
+        self.assertEqual(assets.vetted(files), files)
+        for tail in (b'<script>run()</script>', b'<img onerror="run()">', b'<svg onload="run()"/>'):
+            with self.subTest(tail=tail), self.assertRaises(Refusal):
+                assets.validate("index.html", body + tail)
+
+    def test_inline_svg_active_foreign_or_malformed_content_refuses(self):
+        values = (
+            b'<svg><script>run()</script></svg>', b'<svg onload="run()"/>',
+            b'<svg><foreignObject><div>content</div></foreignObject></svg>',
+            b'<svg><style>@import "https://example.com/style.css";</style></svg>',
+            b'<svg><style xmlns="http://www.w3.org/1999/xhtml">path{fill:red}</style></svg>',
+            b'<svg><use href="https://example.com/x"/></svg>',
+            b'<svg><?xml-stylesheet href="x.css"?></svg>',
+            b'<svg><path d="a" d="b"/></svg>', b'<svg><path></svg>',
+            b'<svg><svg></svg>', b'<svg><path/>', b'<svg></svg unsupported>',
+        )
+        for body in values:
+            with self.subTest(body=body), self.assertRaises(Refusal):
+                assets.validate("index.html", b'<html>' + body + b'</html>')
+
     def test_missing_and_escaping_references_refuse(self):
         for body in (b'<img src="missing.png">', b'<img src="../outside.png">', b'<img src="%2e%2e/outside.png">', b'<img src="//example.com/x">'):
             with self.subTest(body=body), self.assertRaises(Refusal):
