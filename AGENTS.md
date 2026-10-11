@@ -343,6 +343,15 @@ parent provisioning, product command or automatic quota-eviction handling is
 implemented by this bounded source component. These remain later #122 work.
 
 Static qualification and output validation live in `lib/content/static/`.
+Standalone and inline SVG accept only UTF-8 static elements and a narrow text-only `style`
+element with optional exact `type="text/css"`. Its character data reuses the CSS
+and local-reference checks, including media queries for adaptive icons, without
+rewriting the vetted bytes. Child elements, other style attributes/types, foreign
+namespace styles, entities and XML processing instructions refuse. Every admitted
+local file reference must exist in the immutable content set. This is a bounded
+static subset, not a complete CSS sanitizer or browser confinement proof. HTML
+validation passes each complete original inline SVG fragment to the same validator;
+unclosed or malformed fragments refuse and surrounding HTML remains checked.
 `lib/media/node.py` builds only an exact clean checkout and registered static app,
 using prepared tools outside product source and an allowlisted child environment.
 Script-disabled installation alone may hold the package reader; full/head Guard

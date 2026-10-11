@@ -65,13 +65,27 @@ def css(text, name):
 
 
 class Html(HTMLParser):
-    def __init__(self, name):
+    def __init__(self, name, text):
         super().__init__(convert_charrefs=True)
         self.name = name
+        self.text = text
+        self.lines = [0] + [match.end() for match in re.finditer("\n", text)]
         self.references = []
         self.styling = False
+        self.depth = 0
+        self.start = None
+
+    def position(self):
+        line, column = self.getpos()
+        return self.lines[line - 1] + column
 
     def handle_starttag(self, tag, attrs):
+        if self.depth or tag == "svg":
+            if tag == "svg":
+                if not self.depth:
+                    self.start = self.position()
+                self.depth += 1
+            return
         if tag not in TAGS or len(dict(attrs)) != len(attrs):
             raise Refusal("static HTML contains unsupported tags or repeated attributes")
         for key, value in attrs:
@@ -86,29 +100,59 @@ class Html(HTMLParser):
         self.styling = tag == "style" or self.styling
 
     def handle_startendtag(self, tag, attrs):
+        if self.depth:
+            return
+        if tag == "svg":
+            self.references.extend(svg(self.get_starttag_text().encode("utf-8"), self.name))
+            return
         self.handle_starttag(tag, attrs)
         self.handle_endtag(tag)
 
     def handle_endtag(self, tag):
+        if self.depth:
+            if tag == "svg":
+                self.depth -= 1
+                if not self.depth:
+                    ending = re.compile(r"</svg\s*>", re.I).match(self.text, self.position())
+                    if ending is None:
+                        raise Refusal("static inline SVG has a malformed closing element")
+                    body = self.text[self.start:ending.end()].encode("utf-8")
+                    self.references.extend(svg(body, self.name))
+                    self.start = None
+            return
         if tag == "style":
             self.styling = False
 
     def handle_data(self, data):
-        if self.styling:
+        if self.styling and not self.depth:
             self.references.extend(css(data, self.name))
+
+    def close(self):
+        super().close()
+        if self.depth:
+            raise Refusal("static inline SVG is unclosed")
 
 
 def svg(body, name):
+    try:
+        text = body.decode("utf-8")
+    except UnicodeError as error:
+        raise Refusal("static SVG must be UTF-8") from error
     if re.search(br"<!DOCTYPE|<!ENTITY", body, re.I):
         raise Refusal("static SVG must not contain XML declarations with entities")
+    if re.search(r"<\?(?!xml\s)", text):
+        raise Refusal("static SVG must not contain XML processing instructions")
     try:
-        root = ElementTree.fromstring(body)
+        root = ElementTree.fromstring(text)
     except ElementTree.ParseError as error:
         raise Refusal("static SVG is malformed") from error
     references = []
     if root.tag.removeprefix("{http://www.w3.org/2000/svg}") != "svg":
         raise Refusal("static SVG needs an svg root element")
     for node in root.iter():
+        if node.tag.removeprefix("{http://www.w3.org/2000/svg}") == "style":
+            references.extend(styling(node, name))
+            continue
         if node.tag.removeprefix("{http://www.w3.org/2000/svg}") not in SVG:
             raise Refusal("static SVG contains active or unsupported elements")
         for key, value in node.attrib.items():
@@ -120,6 +164,12 @@ def svg(body, name):
                     raise Refusal("static SVG href must reference its own document")
             references.extend(css(value, name))
     return references
+
+
+def styling(node, name):
+    if len(node) or set(node.attrib) - {"type"} or node.get("type", "text/css") != "text/css":
+        raise Refusal("static SVG style must contain only CSS character data")
+    return css(node.text or "", name)
 
 
 def validate(name, body):
@@ -137,7 +187,7 @@ def validate(name, body):
             raise Refusal("static text must be UTF-8") from error
         if suffix == ".css":
             return css(text, name)
-        parser = Html(name)
+        parser = Html(name, text)
         parser.feed(text)
         parser.close()
         return parser.references
