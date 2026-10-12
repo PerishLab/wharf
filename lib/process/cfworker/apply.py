@@ -4,7 +4,7 @@ from lib.content.static import evidence
 from lib.process.cfworker import discard, inventory, mapping, observation
 from lib.refusal import Refusal
 from lib.store import handoff
-from lib.store.lane import documents, registration, state
+from lib.store.lane import documents, publication, registration, state
 
 BUILD = tuple(shape.CONTRACT["fields"]["build"])
 
@@ -30,13 +30,13 @@ def identity(document):
                                    "build": dict(zip(BUILD, (document["key"], world)))})
 
 
-def checked(value):
+def readable(value):
     value = documents.object_value(documents.decode(documents.encode(value)), ("registration", "current", "workload", "artifact"))
     registered = registration.checked(value["registration"])
     selected = mapping.selected(registered)
     current = state.checked(value["current"], registered)
-    if current["phase"] != "reserved" or current["active"] is None:
-        raise Refusal("cfworker apply payload needs a fresh exact reservation; no recovery write")
+    if current["phase"] not in ("reserved", "unknown") or current["active"] is None:
+        raise Refusal("cfworker apply observation needs an exact active reservation")
     active = current["active"]
     registration.admitted(registered, active["request"], active["assessment"])
     requested = active["request"]
@@ -47,6 +47,13 @@ def checked(value):
     if artifact["source"]["repository"] != selected["target"]["repository"] or artifact["build"] is None or artifact["build"][BUILD[0]] != workload:
         raise Refusal("cfworker apply needs source-bound exact workload and build identity")
     return {"registration": registered, "current": current, "workload": workload, "artifact": artifact}
+
+
+def checked(value):
+    value = readable(value)
+    if value["current"]["phase"] != "reserved":
+        raise Refusal("cfworker apply payload needs a fresh exact reservation; no recovery write")
+    return value
 
 
 def matches(plan, document):
@@ -72,6 +79,13 @@ def qualified(plan, document, bodies):
     return plan, files
 
 
+def readable_content(plan, document, bodies):
+    plan = readable(plan)
+    document, files = content(document, bodies)
+    matches(plan, document)
+    return plan, files
+
+
 def deployment_status(value, selected, policy):
     value = documents.object_value(documents.decode(documents.encode(value)), ("parent", "previews", "preview", "deployments"))
     held = discard.status({key: value[key] for key in ("parent", "previews", "preview")}, selected, policy)
@@ -86,8 +100,14 @@ def deployment_prepare(plan, observed, policy):
 
 
 def deployment_checked(value):
+    value = deployment_readable(value)
+    checked(value["apply"])
+    return value
+
+
+def deployment_readable(value):
     value = documents.object_value(documents.decode(documents.encode(value)), ("apply", "before", "policy"))
-    plan = checked(value["apply"])
+    plan = readable(value["apply"])
     policy = observation.prepared(value["policy"])
     before = deployment_status(value["before"], mapping.selected(plan["registration"]), policy)
     if len(before["deployments"]) >= 99:
@@ -98,7 +118,7 @@ def deployment_checked(value):
 
 
 def deployment_confirm(plan, observed, deployed):
-    plan = deployment_checked(plan)
+    plan = deployment_readable(plan)
     before = plan["before"]
     deployed = inventory.history([deployed], before["preview"])[0]
     if deployed in before["deployments"]:
@@ -108,3 +128,61 @@ def deployment_confirm(plan, observed, deployed):
     if after != expected:
         raise Refusal("cfworker deployment readback changed identities or retired retained deployments")
     return dict(deployed)
+
+
+def resume(plan, current):
+    plan = deployment_readable(plan)
+    original = plan["apply"]["current"]
+    current = state.checked(documents.decode(documents.encode(current)), plan["apply"]["registration"])
+    if current["phase"] != "unknown" or current["last"]["outcome"]["outcome"] != "unknown":
+        raise Refusal("cfworker read-only recovery needs an unknown exact original request")
+    if any(current[key] != original[key] for key in ("target", "registration", "revision", "active", "observed")):
+        raise Refusal("cfworker recovery changed the original reservation or settled material")
+    return deployment_readable(dict(plan, apply=dict(plan["apply"], current=current)))
+
+
+def candidate(plan, observed):
+    plan = deployment_readable(plan)
+    before = plan["before"]
+    after = deployment_status(observed, mapping.selected(plan["apply"]["registration"]), plan["policy"])
+    retained = {item["id"] for item in before["deployments"]}
+    new = [item for item in after["deployments"] if item["id"] not in retained]
+    if len(new) != 1:
+        raise Refusal("cfworker recovery needs exactly one new retained deployment; no latest inference")
+    return deployment_confirm(plan, after, new[0])
+
+
+def readback(plan, observed, value):
+    plan = deployment_readable(plan)
+    value = documents.object_value(documents.decode(documents.encode(value)), ("request", "artifact", "deployment", "address", "files"))
+    deployed = deployment_confirm(plan, observed, value["deployment"])
+    active = plan["apply"]["current"]["active"]
+    if value["request"] != codec.digest("request", active["request"]) or codec.read("artifact", value["artifact"]) != plan["apply"]["artifact"]:
+        raise Refusal("cfworker content readback differs from the exact request or artifact")
+    if value["address"] != observation.address(plan["before"]["parent"], deployed["id"]) or type(value["files"]) is not int or not 2 <= value["files"] <= 1001:
+        raise Refusal("cfworker content readback differs from exact immutable routing or bounded files")
+    return value
+
+
+def settle(plan, observed, proof, writer):
+    plan = deployment_readable(plan)
+    if codec.read("writer", writer) != "idle":
+        raise Refusal("cfworker apply cannot settle without original-writer quiescence")
+    readback(plan, observed, proof)
+    active = plan["apply"]["current"]["active"]
+    return codec.read("operation", dict(active, outcome={"outcome": "applied", "material": {"state": "present", "artifact": plan["apply"]["artifact"]}, "writer": "idle"}))
+
+
+def unknown(plan, reason):
+    plan = deployment_readable(plan)
+    active = plan["apply"]["current"]["active"]
+    return codec.read("operation", dict(active, outcome={"outcome": "unknown", "reason": reason}))
+
+
+def published(plan, reader, reference):
+    plan = deployment_readable(plan)
+    active = plan["apply"]["current"]["active"]
+    operation = publication.settle(reader, plan["apply"]["registration"]["declaration"], reference, active["request"])
+    if operation["assessment"] != active["assessment"]:
+        raise Refusal("cfworker public outcome changed the exact original reservation assessment")
+    return operation

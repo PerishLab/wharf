@@ -42,13 +42,10 @@ def policy(headers, name):
 
 class Readback:
     def __init__(self, plan, observed, deployed):
-        held = apply.deployment_checked(plan)
+        held = apply.deployment_readable(plan)
         self._deployment = apply.deployment_confirm(held, observed, deployed)
         self._plan = held["apply"]
-        host = self._deployment["id"] + held["before"]["parent"]["suffix"]
-        if len(host.split(".")[0]) > 63 or len(host) > 253:
-            raise Refusal("cfworker immutable deployment address exceeds DNS limits; no truncation")
-        self._origin = "https://" + host
+        self._origin = observation.address(held["before"]["parent"], self._deployment["id"])
         self._client = urllib.request.build_opener(urllib.request.ProxyHandler({}), Redirect())
 
     def _get(self, route, selected):
@@ -70,11 +67,11 @@ class Readback:
             raise Refusal("cfworker content readback failed; no deployment retry or fallback") from error
 
     def read(self, document, bodies):
-        plan, files = apply.qualified(self._plan, document, bodies)
+        plan, files = apply.readable_content(self._plan, document, bodies)
         routes = payload.routes(files)
         for route, selected in routes.items():
             self._get(route, selected)
-        if apply.qualified(self._plan, document, bodies)[1] != files:
+        if apply.readable_content(self._plan, document, bodies)[1] != files:
             raise Refusal("cfworker handoff changed during deployed content readback")
         return {"request": codec.digest("request", plan["current"]["active"]["request"]), "artifact": plan["artifact"],
                 "deployment": dict(self._deployment), "address": self._origin, "files": len(routes)}

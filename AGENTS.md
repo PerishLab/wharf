@@ -471,7 +471,29 @@ all reads. The finite result binds request, artifact, deployment and immutable
 address; it proves neither current mutable-lane selection, atomic provider state,
 original-writer quiescence, authenticated admission nor public evidence publication.
 The 30-second transport limit is a network idle timeout, not a whole-read deadline.
-No applied operation, state settlement, unknown recovery or workflow is supplied.
+Unknown reservation observation is admitted separately from fresh write payloads;
+no state settlement or workflow is supplied by the reader.
+
+`apply.resume` admits read-only observation of the exact original unknown request,
+with unchanged registration, revision, active request/assessment and historical
+settled material. `candidate` requires retained old deployments and exactly one
+new selected UUID with unchanged parent/Preview/siblings, never latest inference.
+Neither action grants a new writer attempt. All upload/create/deployment payloads
+still require a fresh reserved plan; unknown plans refuse those writes.
+`apply.settle` validates supplied finite content readback against the exact request,
+artifact, confirmed deployment, prepared immutable address and bounded file count,
+and requires explicit idle original writer. It returns the existing shared applied
+operation. `unknown` preserves unavailable/unverified reasons in that same contract;
+the existing state kernel retains reservation/revision/historical material without
+pretending an unverified new deployment is absent or the historical one is current.
+`apply.published` uses independent prepared public readback to bind the exact
+original request and assessment before returning an eligible applied operation.
+Existing public publication/readback consumes shared records unchanged; no private
+provider fields or second ledger enter the wire contract. These supplied projections
+authenticate no observation, prove no actual quiescence and publish nothing alone.
+Trusted workflow owns authenticated readback execution, fresh admission/registration,
+exclusive writer custody and public-evidence-before-current-CAS ordering. No timeout
+authorizes recovery or a second write, and no live/installed lifecycle is claimed.
 
 Static qualification and output validation live in `lib/content/static/`.
 Standalone and inline SVG accept only UTF-8 static elements and a narrow text-only `style`
