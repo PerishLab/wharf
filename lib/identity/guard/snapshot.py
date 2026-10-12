@@ -177,9 +177,10 @@ def proof(held, head, result, body):
     request = held["request"]
     document = evidence.decode(body)
     commit = document.get("commit") if isinstance(document, dict) else None
-    source = {"commit": head, "tree": result["tree"]} if commit == head else {"commit": object_id(commit), "tree": request.identity["tree"]}
+    rooted = commit == head
+    source = {"commit": head, "tree": result["tree"]} if rooted else {"commit": object_id(commit), "tree": request.identity["tree"]}
     intent = {"repository": request.identity["repository"], "source": source}
-    proof = evidence.guard(body, intent, held["tools"]["plumb"]["version"])
+    proof = evidence.guard(body, intent, held["tools"]["plumb"]["version"], rooted)
     if {"producer": proof["guard"]["plumb"], "depot": proof["guard"]["depot"]} != held["authority"]:
         raise Refusal("release snapshot Guard differs from its running authority")
     resolved = proof["guard"].get("resolution")

@@ -203,7 +203,7 @@ def record(held):
         confirm()
         recorded = plan.record(bucket, context, entries, engines)
         remembered = False if recalled else plan.remember(bucket, context)
-        return dict(recorded, recalled=recalled or None, remembered=remembered, decided=emit(entries, held["attempt"], verified), entry={name: entries[name]["decision"] for name in sorted(entries)})
+        return dict(recorded, recalled=recalled or None, pulled=taken, remembered=remembered, decided=emit(entries, held["attempt"], verified), entry={name: entries[name]["decision"] for name in sorted(entries)})
 
 
 def named(held):

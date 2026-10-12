@@ -140,7 +140,7 @@ class Media(unittest.TestCase):
         bucket = Memory()
         recorded = recorded_with(held, source, bucket)
         self.assertEqual(recorded["entry"], {name: "run" if name == "oci" else "skip" for name in sorted(plan.MEDIA)})
-        self.assertEqual((recorded["recalled"], recorded["remembered"]), (None, True))
+        self.assertEqual((recorded["recalled"], recorded["pulled"], recorded["remembered"]), (None, None, True))
         stable = dict(held, marker="v0.2.0", run="8")
         reused = recorded_with(stable, source, bucket)
         self.assertEqual((reused["recalled"], reused["remembered"]), ({"marker": "v0.2.0-rc.1", "run": "7", "attempt": "1"}, False))

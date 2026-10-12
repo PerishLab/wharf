@@ -9,6 +9,7 @@ import zipfile
 from pathlib import Path
 from unittest import mock
 
+from lib.content.static import evidence
 from lib.identity import guard
 from lib.identity.guard import coverage, pull, snapshot
 from lib.media import release
@@ -181,7 +182,7 @@ AUTHORITY = {"producer": "v0.87.0@" + "2" * 40, "depot": "3" * 64}
 def runtime(commit="9" * 40, tree=MARKER, **changed):
     proof = {"schema": "plumb.guard-proof/v1", "repository": "PerishLab/example", "tree": tree, "plumb": AUTHORITY["producer"], "depot": AUTHORITY["depot"], "platform": "linux", "digest": "4" * 64, "actions": [{"name": "guard/test", "input": "5" * 64, "world": "6" * 64}], "resolution": {"context": "ci-latest", "tree": LIFTED, "packages": []}}
     proof.update(changed.pop("proof", {}))
-    return json.dumps(dict({"schema": "plumb.guard-runtime/v1", "root": "/runner/work/example", "ok": True, "strength": "full", "boundary": "head", "commit": commit, "digest": "1" * 64, "guard": proof}, **changed))
+    return json.dumps(dict({"schema": "plumb.guard-runtime/v1", "root": ".", "ok": True, "strength": "full", "boundary": "head", "commit": commit, "digest": "1" * 64, "guard": proof}, **changed))
 
 
 def checked(body):
@@ -191,8 +192,14 @@ def checked(body):
 
 class Adopted(unittest.TestCase):
     def test_the_plan_guard_and_a_pull_request_guard_of_the_marker_tree_both_prove_the_combination(self):
-        self.assertEqual(checked(runtime(commit=HEAD, tree=LIFTED))["commit"], HEAD)
+        self.assertEqual(checked(runtime(commit=HEAD, tree=LIFTED, root="/work/effective"))["commit"], HEAD)
         self.assertEqual(checked(runtime())["commit"], "9" * 40)
+
+    def test_only_a_pull_request_guard_may_name_the_relative_root_the_organization_workflow_reports(self):
+        with self.assertRaisesRegex(Refusal, "absolute source root"):
+            checked(runtime(commit=HEAD, tree=LIFTED))
+        with self.assertRaisesRegex(Refusal, "absolute source root"):
+            evidence.guard(runtime(), {"repository": "PerishLab/example", "source": {"commit": "9" * 40, "tree": MARKER}}, "plumb v0.87.0")
 
     def test_a_pull_request_guard_of_anything_else_refuses(self):
         resolution = {"context": "ci-latest", "tree": LIFTED, "packages": [{"ecosystem": "cargo", "name": "plumb", "version": "0.1.0"}]}
