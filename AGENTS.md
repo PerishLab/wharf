@@ -368,7 +368,8 @@ plan is detached data, not a bearer permit or authenticated observation.
 `writer.py` separately holds the prepared DELETE credential and binds one immutable
 selected Preview ID, refusing ambiguous mutable names and unknown recovery writes.
 An attempted writer is consumed even on response loss; no retry or parent/sibling
-endpoint exists. A successful acknowledgement does not prove absence. Supplied
+endpoint exists. A lock serializes one instance, not durable cross-instance custody.
+A successful acknowledgement does not prove absence. Supplied
 settlement requires selected absence, unchanged parent/sibling identity projections
 and explicit idle original-writer observation; it proves neither public URL teardown
 nor sibling content preservation. Trusted workflow composition must authenticate
@@ -376,6 +377,30 @@ observations, establish original-writer quiescence and revalidate current admiss
 registration and reservation before mutation, then bind public evidence and state.
 No such workflow, authenticated recovery, actual provider write or CLI is supplied
 by these source primitives; repeated status is not an atomic authorization check.
+
+`discard.resume` binds read-only continuation to the original unknown dispose,
+unchanged registration, revision, active request/assessment and historical material.
+It grants no new DELETE attempt; a refused result or elapsed timeout is not recovery
+authority. `unknown` returns shared unavailable/unverified operations, retaining the
+reservation. `published` requires independent public applied absence for the entire
+original request and assessment before returning an eligible shared operation.
+These validate supplied facts, not live absence, writer idleness or execution order.
+
+`reader.inspection` binds an inspect request and assessment to the exact registered
+current revision and settled material without reserving or advancing current state.
+Busy/unknown mutations and uncertain writer observations refuse verified inspection;
+historical material cannot stand for current routing. `Inspection` consumes complete
+status and, for presence, saved immutable vetted handoff bytes without a product
+checkout, build, script or writer credential. Full artifact/source/app/generation
+identity and every canonical asset's exact bytes/media/security policy must agree
+at the prepared mutable lane origin. Handoff bytes are checked before and after.
+Selected control-plane absence with settled absent material consumes no content and
+does no content HTTP read; it does not prove URL teardown. Finite applied inspection
+uses the shared operation contract and exposes no private provider fields or UUID
+selection claim. `reader.published` binds its entire exact request and assessment to
+independent public readback with idle writer. Trusted workflow owns current admission,
+authenticated complete status, original-writer quiescence, registration/state reread
+and public evidence sequencing; these reads are not an atomic provider snapshot.
 
 `lib/process/cfworker/apply.py` binds one reserved deploy request to a verified
 immutable handoff, exact registered repository/app/configuration generation and

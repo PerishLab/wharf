@@ -6,8 +6,9 @@ from pathlib import PurePosixPath
 from lib.content import resources
 from lib.content.lane import codec
 from lib.content.static import assets, evidence
-from lib.process.cfworker import apply, inventory, mapping, observation, payload
+from lib.process.cfworker import apply, discard, inventory, mapping, observation, payload
 from lib.refusal import Refusal
+from lib.store.lane import documents, publication, registration, state
 
 class Redirect(urllib.request.HTTPRedirectHandler):
     def redirect_request(self, *arguments):
@@ -40,6 +41,32 @@ def policy(headers, name):
         raise Refusal("cfworker content readback is transformed or partial")
 
 
+def inspection(value):
+    value = documents.object_value(documents.decode(documents.encode(value)), ("registration", "current", "inspection", "policy"))
+    registered = registration.checked(value["registration"])
+    mapping.selected(registered)
+    current = state.checked(value["current"], registered)
+    active = state.reservation(value["inspection"])
+    registration.admitted(registered, active["request"], active["assessment"])
+    if active["request"]["intent"]["action"] != "inspect" or active["request"]["context"]["revision"] != current["revision"]:
+        raise Refusal("cfworker inspection needs an exact current inspect request")
+    conditions = active["assessment"]["conditions"]
+    if current["active"] is not None or conditions["writer"] != "idle" or conditions["observed"] != current["observed"]:
+        raise Refusal("cfworker inspection cannot claim historical material while a writer is uncertain")
+    return {"registration": registered, "current": current, "inspection": active, "policy": observation.prepared(value["policy"])}
+
+
+def published(plan, reader, reference):
+    plan = inspection(plan)
+    active = plan["inspection"]
+    operation = publication.settle(reader, plan["registration"]["declaration"], reference, active["request"])
+    current = plan["current"]
+    material = {"state": "absent"} if current["observed"]["state"] == "absent" else current["last"]["outcome"]["material"]
+    if operation["assessment"] != active["assessment"] or operation["outcome"]["writer"] != "idle" or operation["outcome"]["material"] != material:
+        raise Refusal("cfworker public inspection changed the exact assessment, writer or material")
+    return operation
+
+
 class Readback:
     def __init__(self, plan, observed, deployed):
         held = apply.deployment_readable(plan)
@@ -55,7 +82,7 @@ class Readback:
         try:
             with self._client.open(request, timeout=30) as response:
                 if response.status != 200 or response.geturl() != url:
-                    raise Refusal("cfworker content readback is not its exact immutable endpoint")
+                    raise Refusal("cfworker content readback is not its exact prepared endpoint")
                 policy(response.headers, name)
                 lengths = values(response.headers, "Content-Length")
                 if lengths and lengths != [str(len(expected))]:
@@ -75,6 +102,38 @@ class Readback:
             raise Refusal("cfworker handoff changed during deployed content readback")
         return {"request": codec.digest("request", plan["current"]["active"]["request"]), "artifact": plan["artifact"],
                 "deployment": dict(self._deployment), "address": self._origin, "files": len(routes)}
+
+
+class Inspection(Readback):
+    def __init__(self, plan, observed):
+        self._plan = inspection(plan)
+        selected = mapping.selected(self._plan["registration"])
+        self._observed = discard.status(documents.decode(documents.encode(observed)), selected, self._plan["policy"])
+        if (self._observed["preview"] is None) != (self._plan["current"]["observed"]["state"] == "absent"):
+            raise Refusal("cfworker inspection control-plane presence differs from settled material")
+        self._origin = "https://" + selected["name"] + self._observed["parent"]["suffix"]
+        self._client = urllib.request.build_opener(urllib.request.ProxyHandler({}), Redirect())
+
+    def read(self, document, bodies):
+        plan = inspection(self._plan)
+        material = {"state": "absent"}
+        if self._observed["preview"] is not None:
+            document, files = apply.content(document, bodies)
+            artifact = apply.identity(document)
+            if artifact != plan["current"]["last"]["outcome"]["material"]["artifact"]:
+                raise Refusal("cfworker inspection handoff differs from settled content")
+            apply.matches({"registration": plan["registration"], "workload": document["key"], "artifact": artifact}, document)
+            if artifact["source"]["repository"] != plan["current"]["target"]["repository"]:
+                raise Refusal("cfworker inspection handoff belongs to another repository")
+            routes = payload.routes(files)
+            for route, selected in routes.items():
+                self._get(route, selected)
+            if apply.content(document, bodies)[1] != files:
+                raise Refusal("cfworker handoff changed during current content inspection")
+            material = {"state": "present", "artifact": artifact}
+        elif document is not None or bodies is not None:
+            raise Refusal("cfworker absent inspection consumes no content or checkout")
+        return codec.read("operation", dict(plan["inspection"], outcome={"outcome": "applied", "material": material, "writer": "idle"}))
 
 
 class Reader:
