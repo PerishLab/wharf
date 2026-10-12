@@ -191,8 +191,8 @@ class Recalled(unittest.TestCase):
 
 
 class Receipt(unittest.TestCase):
-    def receipt(self, recall, expected=None):
-        held = {"request": snapshot.Request(Path("/source"), IDENTITY, {"rust.version": "1"}, expected, recall=recall)}
+    def receipt(self, recall, expected=None, pull=None):
+        held = {"request": snapshot.Request(Path("/source"), IDENTITY, {"rust.version": "1"}, expected, recall=recall, pull=pull)}
         return snapshot.receipt(held, "d" * 40, RESULT, {"plumb": "v1"})
 
     def test_a_recalled_guard_is_rechecked_and_runs_no_guard(self):
@@ -225,3 +225,16 @@ class Receipt(unittest.TestCase):
         with mock.patch.object(snapshot, "proof"):
             self.assertEqual(self.receipt(recall, expected), expected)
         recall.assert_not_called()
+
+    def test_a_pull_request_verdict_is_tried_only_after_recall_and_before_the_actual_guard(self):
+        pull = mock.Mock(return_value=["pulled"])
+        with mock.patch.object(snapshot, "proof", return_value={"proved": "pull"}), mock.patch.object(snapshot, "verified") as verified:
+            self.assertEqual(self.receipt(lambda held: None, pull=pull)["guard"], {"proved": "pull"})
+            self.receipt(lambda held: {"proved": "rc"}, pull=pull)
+        verified.assert_not_called()
+        pull.assert_called_once_with()
+
+    def test_rejected_pull_request_verdicts_run_the_actual_guard(self):
+        with mock.patch.object(snapshot, "proof", side_effect=Refusal("another combination")), mock.patch.object(snapshot, "verified", return_value={"proved": "now"}) as verified:
+            self.assertEqual(self.receipt(lambda held: None, pull=lambda: ["foreign"])["guard"], {"proved": "now"})
+        verified.assert_called_once()

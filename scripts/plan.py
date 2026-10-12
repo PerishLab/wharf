@@ -8,7 +8,7 @@ from lib.content import executables, implementation, marker, resources
 from lib.debian import package
 from lib.debian.version import debian
 from lib.media import cfworker, node, npm, release
-from lib.identity.guard import coverage, snapshot
+from lib.identity.guard import coverage, pull, snapshot
 from lib.process import git
 from lib.refusal import Refusal
 from lib.store import plan, r2, workload
@@ -160,11 +160,29 @@ def source(held):
     return parameters.answer({field: git(held["source"], "rev-parse", "HEAD" if field == "commit" else "HEAD^{tree}") for field in ("commit", "tree")})
 
 
+def pulled(identity, offers):
+    try:
+        found = pull.offered(identity["repository"], identity["tree"])
+    except Refusal as refusal:
+        offers["refused"] = str(refusal)
+        return []
+    offers["sources"] = {digest: source for source, digest, body in found}
+    return [body for source, digest, body in found]
+
+
+def attributed(offers, guard):
+    if "refused" in offers:
+        return {"refused": offers["refused"]}
+    if "sources" not in offers:
+        return None
+    return offers["sources"].get(guard.get("digest"), {"offered": len(offers["sources"])})
+
+
 def record(held):
     bucket = r2.configured()
     identity = {field: held[field] for field in IDENTITY}
-    recalled = {}
-    request = snapshot.Request(Path(held["source"]), identity, toolchain.versions(), destination=snapshot.destination(held["source"]), recall=lambda observed: plan.recall(bucket, observed, recalled))
+    recalled, offers = {}, {}
+    request = snapshot.Request(Path(held["source"]), identity, toolchain.versions(), destination=snapshot.destination(held["source"]), recall=lambda observed: plan.recall(bucket, observed, recalled), pull=lambda: pulled(identity, offers))
     with snapshot.prepared(request) as (root, verified, confirm):
         plan.matching(bucket, held, verified)
         scoped = dict(held, source=root, snapshot=verified)
@@ -180,7 +198,8 @@ def record(held):
         validation(bucket, entries)
         plan.legacy(bucket, held, entries, observed)
         engines = node.expected(root) if node.carried(root) else {}
-        context = dict({field: held[field] for field in CONTEXT}, snapshot=verified, **({"recalled": recalled} if recalled else {}))
+        taken = attributed(offers, verified["guard"])
+        context = dict({field: held[field] for field in CONTEXT}, snapshot=verified, **({"recalled": recalled} if recalled else {}), **({"pulled": taken} if taken is not None else {}))
         confirm()
         recorded = plan.record(bucket, context, entries, engines)
         remembered = False if recalled else plan.remember(bucket, context)
