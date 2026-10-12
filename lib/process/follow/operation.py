@@ -79,7 +79,7 @@ def environment(home, root, environ):
     held.update({"HOME": str(home), "GH_CONFIG_DIR": str(home / "gh"), "GH_HOST": "github.com", "GH_TOKEN": environ["GH_TOKEN"], "GIT_CONFIG_GLOBAL": str(home / "gitconfig"), "GIT_CONFIG_NOSYSTEM": "1", "GIT_TERMINAL_PROMPT": "0", "GIT_NO_REPLACE_OBJECTS": "1", "PLUMB_HOME": str(root / "plumb"), "RUSTUP_HOME": environ.get("RUSTUP_HOME", str(Path.home() / ".rustup")), "CARGO_HOME": environ.get("CARGO_HOME", str(Path.home() / ".cargo"))})
     if environ.get(node.READER):
         held[node.READER] = environ[node.READER]
-    return node.reading(home, held)
+    return node.reading(home, held, literal=True)
 
 
 def cancelled():
