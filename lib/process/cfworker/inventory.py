@@ -1,5 +1,6 @@
 from lib.process.cfworker import observation
 from lib.refusal import Refusal
+from lib.store.lane import documents
 
 SIZE = 100
 PAGES = 10
@@ -55,4 +56,36 @@ def project(value, parent):
     name = value.get("name") if isinstance(value, dict) else None
     if not isinstance(name, str) or not observation.LABEL.fullmatch(name) or not observation.LABEL.fullmatch(name + "-" + parent["name"]):
         raise Refusal("cfworker inventory has an unsupported Preview name")
-    return observation.preview(value, {"name": name}, parent)
+    return observation.resource(value, {"name": name}, parent)
+
+
+def deployments(api, selected):
+    values, total, size, pages = page(api.deployment_page(1), 1)
+    if total > SIZE:
+        raise Refusal("cfworker retained deployment catalog exceeds its native bound")
+    catalog = []
+    for number in range(1, pages + 1):
+        if number > 1:
+            values, observed, width, count = page(api.deployment_page(number), number)
+            if (observed, width, count) != (total, size, pages):
+                raise Refusal("cfworker deployment pagination moved during observation")
+        for value in values:
+            identity = value.get("id") if isinstance(value, dict) else None
+            catalog.append(observation.deployment(value, selected, identity))
+    if len(catalog) != total:
+        raise Refusal("cfworker retained deployment catalog is incomplete")
+    return history(catalog, selected)
+
+
+def history(values, selected):
+    if not isinstance(values, list) or len(values) > SIZE:
+        raise Refusal("cfworker retained deployments need one bounded complete projection")
+    catalog, identities = [], set()
+    for value in values:
+        value = documents.object_value(value, ("id", "preview", "parent"))
+        identity = value["id"]
+        if not isinstance(identity, str) or not observation.DEPLOYMENT.fullmatch(identity) or value["preview"] != selected["id"] or value["parent"] != selected["parent"] or identity in identities:
+            raise Refusal("cfworker retained deployment identity is malformed, repeated or foreign")
+        identities.add(identity)
+        catalog.append(dict(value))
+    return sorted(catalog, key=lambda item: item["id"])

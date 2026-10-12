@@ -432,6 +432,32 @@ remain separate until complete deployment-history preconditions can avoid native
 automatic old-deployment eviction. No live call, registration activation, workflow,
 release or installed CLI is exercised by this source primitive or its mock tests.
 
+`Reader.history` binds the complete currently retained deployment catalog to a
+present selected Preview, with fixed page/per_page GETs and bounded pagination.
+Repeated catalogs and complete status observations must agree, including parent
+and sibling identities. Missing metadata, duplicate/foreign UUIDs, failed reads
+and movement refuse, not prove absence. Identity-only control-plane status permits
+undeployed Previews with absent/empty optional URLs; any nonempty URL still must
+match prepared routing. Strict deployed Preview-address observation is unchanged.
+The catalog is not an all-time history, content proof or atomic provider snapshot.
+
+`apply.deployment_prepare` binds a finite write plan to the exact fresh apply
+reservation, prepared parent policy and supplied complete selected-present catalog.
+Absent settled material needs no retained deployment; present material needs some.
+Ambiguous Preview ID/name routing and catalogs of 99 or more deployments refuse.
+`writer.Deployer` holds separate writer and private completion custody, serializes
+one instance and sends one assets-only verified multipart POST to that immutable
+Preview ID with fixed `ignore_defaults=true`. Each payload revalidates the exact
+handoff and complete supplied pre-write observation. An attempt is spent before
+I/O; no retry, latest, patch, fallback, cleanup or unknown recovery write exists.
+Finite acknowledgements omit private fields and credentials. Supplied readback
+requires unchanged parent/Preview/sibling identities and every previous deployment
+plus the exact new deployment, not an applied outcome, content/public proof or
+original-writer quiescence. Quota headroom is not atomic capacity reservation;
+trusted workflow must establish exclusive serialized custody, authenticated fresh
+admission, registration/reservation and actual content/material observations.
+No live call, activation, workflow, release or installed CLI is proved by mocks.
+
 Static qualification and output validation live in `lib/content/static/`.
 Standalone and inline SVG accept only UTF-8 static elements and a narrow text-only `style`
 element with optional exact `type="text/css"`. Its character data reuses the CSS

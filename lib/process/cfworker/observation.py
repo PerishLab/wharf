@@ -58,3 +58,11 @@ def deployment(value, held, requested):
     if not isinstance(value, dict) or value.get("id") != requested or value.get("preview_id") != held["id"] or value.get("preview_name") != held["name"]:
         raise Refusal("cfworker deployment identity differs from selected Preview")
     return {"id": requested, "preview": held["id"], "parent": held["parent"]}
+
+
+def resource(value, selected, held):
+    if not isinstance(value, dict) or value.get("name") != selected["name"] or value.get("slug") != selected["name"]:
+        raise Refusal("cfworker resource identity differs from selected Preview")
+    if value.get("urls") not in (None, []):
+        return preview(value, selected, held)
+    return {"id": identity(value.get("id")), "name": selected["name"], "parent": held["id"]}
