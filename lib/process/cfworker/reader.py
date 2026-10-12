@@ -1,14 +1,83 @@
+import http.client
 import urllib.error
 import urllib.request
+from pathlib import PurePosixPath
 
 from lib.content import resources
-from lib.content.static import evidence
-from lib.process.cfworker import inventory, mapping, observation
+from lib.content.lane import codec
+from lib.content.static import assets, evidence
+from lib.process.cfworker import apply, inventory, mapping, observation, payload
 from lib.refusal import Refusal
 
 class Redirect(urllib.request.HTTPRedirectHandler):
     def redirect_request(self, *arguments):
         raise Refusal("static provider redirects are not admitted")
+
+
+def values(headers, name):
+    if hasattr(headers, "get_all"):
+        result = headers.get_all(name, [])
+    else:
+        value = headers.get(name)
+        result = [] if value is None else [value]
+    if not isinstance(result, list) or any(not isinstance(item, str) for item in result):
+        raise Refusal("cfworker content readback has malformed headers")
+    return result
+
+
+def policy(headers, name):
+    required = {"Content-Security-Policy": assets.CSP, "X-Content-Type-Options": "nosniff", "Cache-Control": "no-store"}
+    if any(values(headers, key) != [value] for key, value in required.items()):
+        raise Refusal("cfworker content readback differs from vetted security policy")
+    robots = [item.strip().lower() for value in values(headers, "X-Robots-Tag") for item in value.split(",")]
+    if set(robots) != {"noindex", "nofollow"}:
+        raise Refusal("cfworker content readback differs from vetted indexing policy")
+    types = values(headers, "Content-Type")
+    parts = [item.strip().lower() for item in types[0].split(";")] if len(types) == 1 else []
+    if not parts or parts[0] != payload.MIME.get(PurePosixPath(name).suffix.lower()) or parts[1:] not in ([], ["charset=utf-8"], ['charset="utf-8"']):
+        raise Refusal("cfworker content readback has a different static media type")
+    if values(headers, "Content-Encoding") not in ([], ["identity"]) or values(headers, "Content-Range"):
+        raise Refusal("cfworker content readback is transformed or partial")
+
+
+class Readback:
+    def __init__(self, plan, observed, deployed):
+        held = apply.deployment_checked(plan)
+        self._deployment = apply.deployment_confirm(held, observed, deployed)
+        self._plan = held["apply"]
+        host = self._deployment["id"] + held["before"]["parent"]["suffix"]
+        if len(host.split(".")[0]) > 63 or len(host) > 253:
+            raise Refusal("cfworker immutable deployment address exceeds DNS limits; no truncation")
+        self._origin = "https://" + host
+        self._client = urllib.request.build_opener(urllib.request.ProxyHandler({}), Redirect())
+
+    def _get(self, route, selected):
+        name, expected = selected
+        url = self._origin + route
+        request = urllib.request.Request(url, headers={"Accept-Encoding": "identity", "Cache-Control": "no-cache", "User-Agent": "wharf-lane"}, method="GET")
+        try:
+            with self._client.open(request, timeout=30) as response:
+                if response.status != 200 or response.geturl() != url:
+                    raise Refusal("cfworker content readback is not its exact immutable endpoint")
+                policy(response.headers, name)
+                lengths = values(response.headers, "Content-Length")
+                if lengths and lengths != [str(len(expected))]:
+                    raise Refusal("cfworker content readback differs from exact asset length")
+                body = response.read(len(expected) + 1)
+                if not isinstance(body, bytes) or body != expected:
+                    raise Refusal("cfworker content readback differs from exact vetted bytes")
+        except (OSError, urllib.error.URLError, TimeoutError, http.client.HTTPException) as error:
+            raise Refusal("cfworker content readback failed; no deployment retry or fallback") from error
+
+    def read(self, document, bodies):
+        plan, files = apply.qualified(self._plan, document, bodies)
+        routes = payload.routes(files)
+        for route, selected in routes.items():
+            self._get(route, selected)
+        if apply.qualified(self._plan, document, bodies)[1] != files:
+            raise Refusal("cfworker handoff changed during deployed content readback")
+        return {"request": codec.digest("request", plan["current"]["active"]["request"]), "artifact": plan["artifact"],
+                "deployment": dict(self._deployment), "address": self._origin, "files": len(routes)}
 
 
 class Reader:
