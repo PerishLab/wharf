@@ -1,7 +1,7 @@
 from lib.content import canonical
 from lib.content.lane import codec, shape
 from lib.content.static import evidence
-from lib.process.cfworker import mapping
+from lib.process.cfworker import discard, inventory, mapping, observation
 from lib.refusal import Refusal
 from lib.store import handoff
 from lib.store.lane import documents, registration, state
@@ -70,3 +70,41 @@ def qualified(plan, document, bodies):
     document, files = content(document, bodies)
     matches(plan, document)
     return plan, files
+
+
+def deployment_status(value, selected, policy):
+    value = documents.object_value(documents.decode(documents.encode(value)), ("parent", "previews", "preview", "deployments"))
+    held = discard.status({key: value[key] for key in ("parent", "previews", "preview")}, selected, policy)
+    preview = held["preview"]
+    if preview is None or preview["id"] in {item["name"] for item in held["previews"]}:
+        raise Refusal("cfworker deployment needs a present unambiguous immutable Preview")
+    return dict(held, deployments=inventory.history(value["deployments"], preview))
+
+
+def deployment_prepare(plan, observed, policy):
+    return deployment_checked({"apply": plan, "before": observed, "policy": policy})
+
+
+def deployment_checked(value):
+    value = documents.object_value(documents.decode(documents.encode(value)), ("apply", "before", "policy"))
+    plan = checked(value["apply"])
+    policy = observation.prepared(value["policy"])
+    before = deployment_status(value["before"], mapping.selected(plan["registration"]), policy)
+    if len(before["deployments"]) >= 99:
+        raise Refusal("cfworker deployment needs quota headroom; no automatic retirement")
+    if (plan["current"]["observed"]["state"] == "absent") != (not before["deployments"]):
+        raise Refusal("cfworker retained deployments disagree with reserved settled presence")
+    return {"apply": plan, "before": before, "policy": policy}
+
+
+def deployment_confirm(plan, observed, deployed):
+    plan = deployment_checked(plan)
+    before = plan["before"]
+    deployed = inventory.history([deployed], before["preview"])[0]
+    if deployed in before["deployments"]:
+        raise Refusal("cfworker deployment acknowledgement repeats an existing identity")
+    after = deployment_status(observed, mapping.selected(plan["apply"]["registration"]), plan["policy"])
+    expected = dict(before, deployments=inventory.history(before["deployments"] + [deployed], before["preview"]))
+    if after != expected:
+        raise Refusal("cfworker deployment readback changed identities or retired retained deployments")
+    return dict(deployed)

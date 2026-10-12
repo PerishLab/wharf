@@ -28,7 +28,8 @@ class Reader:
     def reply(self, suffix):
         name = self._registered["name"]
         listing = tuple(f"/previews?page={number}&per_page={inventory.SIZE}" for number in range(1, inventory.PAGES + 1))
-        allowed = ("", f"/previews/{name}", *listing)
+        history = tuple(f"/previews/{name}/deployments?page={number}&per_page={inventory.SIZE}" for number in range(1, inventory.PAGES + 1))
+        allowed = ("", f"/previews/{name}", *listing, *history)
         deployment = f"/previews/{name}/deployments/"
         if suffix not in allowed and (not isinstance(suffix, str) or not suffix.startswith(deployment) or not observation.DEPLOYMENT.fullmatch(suffix[len(deployment):])):
             raise Refusal("static provider read needs one exact fixed lane identity endpoint")
@@ -58,18 +59,35 @@ class Reader:
     def parent(self):
         return self.get("")
 
+    def deployment_page(self, number):
+        if type(number) is not int or not 1 <= number <= inventory.PAGES:
+            raise Refusal("cfworker deployment catalog needs one bounded exact page number")
+        return self.reply(f"/previews/{self._registered['name']}/deployments?page={number}&per_page={inventory.SIZE}")
+
     def status(self, policy):
         policy = observation.prepared(policy)
         held = observation.parent(self.parent(), self._registered, policy)
         catalog = inventory.read(self, held)
         selected = next((item for item in catalog if item["name"] == self._registered["name"]), None)
-        if selected is not None and observation.preview(self.preview(), self._registered, held) != selected:
+        if selected is not None and observation.resource(self.preview(), self._registered, held) != selected:
             raise Refusal("cfworker selected Preview moved after inventory")
         if inventory.read(self, held) != catalog:
             raise Refusal("cfworker Preview inventory moved during status")
         if observation.parent(self.parent(), self._registered, policy) != held:
             raise Refusal("cfworker parent changed during status")
         return {"parent": held, "previews": catalog, "preview": selected}
+
+    def history(self, policy):
+        before = self.status(policy)
+        selected = before["preview"]
+        if selected is None:
+            raise Refusal("cfworker deployment catalog needs a present selected Preview")
+        catalog = inventory.deployments(self, selected)
+        if inventory.deployments(self, selected) != catalog:
+            raise Refusal("cfworker retained deployment catalog moved during observation")
+        if self.status(policy) != before:
+            raise Refusal("cfworker parent, selected Preview or siblings moved during deployment observation")
+        return dict(before, deployments=catalog)
 
     def observe(self, policy, identity):
         if not isinstance(identity, str) or not observation.DEPLOYMENT.fullmatch(identity):
