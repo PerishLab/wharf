@@ -22,9 +22,14 @@ class Writer:
             raise Refusal("cfworker DELETE identity is ambiguous with a mutable Preview name")
         self._token = token
         self._spent = False
+        self._lock = threading.Lock()
         self._client = urllib.request.build_opener(urllib.request.ProxyHandler({}), reader.Redirect())
 
     def delete(self, observed):
+        with self._lock:
+            return self._delete(observed)
+
+    def _delete(self, observed):
         plan = self._plan
         selected = mapping.selected(plan["registration"])
         if discard.status(observed, selected, plan["policy"]) != plan["before"]:

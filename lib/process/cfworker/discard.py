@@ -1,7 +1,7 @@
 from lib.content.lane import codec
 from lib.process.cfworker import inventory, mapping, observation
 from lib.refusal import Refusal
-from lib.store.lane import documents, registration, state
+from lib.store.lane import documents, publication, registration, state
 
 
 def status(value, selected, policy):
@@ -66,3 +66,28 @@ def settle(plan, observed, writer):
         raise Refusal("cfworker discard readback changed parent, siblings or selected absence")
     active = plan["current"]["active"]
     return codec.read("operation", dict(active, outcome={"outcome": "applied", "material": {"state": "absent"}, "writer": "idle"}))
+
+
+def resume(plan, current):
+    plan = checked(plan)
+    original = plan["current"]
+    current = state.checked(documents.decode(documents.encode(current)), plan["registration"])
+    if current["phase"] != "unknown" or current["last"]["outcome"]["outcome"] != "unknown":
+        raise Refusal("cfworker discard recovery needs the exact original unknown request")
+    if any(current[key] != original[key] for key in ("target", "registration", "revision", "active", "observed")):
+        raise Refusal("cfworker discard recovery changed the original reservation or material")
+    return checked(dict(plan, current=current))
+
+
+def unknown(plan, reason):
+    plan = checked(plan)
+    return codec.read("operation", dict(plan["current"]["active"], outcome={"outcome": "unknown", "reason": reason}))
+
+
+def published(plan, reader, reference):
+    plan = checked(plan)
+    active = plan["current"]["active"]
+    operation = publication.settle(reader, plan["registration"]["declaration"], reference, active["request"])
+    if operation["assessment"] != active["assessment"]:
+        raise Refusal("cfworker public discard changed the original reservation assessment")
+    return operation
