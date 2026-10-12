@@ -389,6 +389,23 @@ of uploaded content. Provider upload/create/deploy, capacity/eviction checks,
 authenticated custody/recovery, exact deployment/content readback and immutable
 public result binding remain later work; this preparation performs no network I/O.
 
+`lib/process/cfworker/upload.py` holds separately prepared asset-session custody
+and emits fixed proxy-free POSTs only to the registered parent's asset-session
+and account bulk-upload endpoints. Every request revalidates the exact plan and
+immutable handoff. Provider buckets must select unique admitted cache identities;
+the entire catalog is checked before upload custody is accepted. Multipart uses
+base64 bytes and fixed static media types, never product code or configuration.
+Session and bucket attempts are consumed before network I/O; ambiguous replies
+block further uploads and completion, without retries or fallback. Workflow owns
+bucket scheduling. A lock serializes one instance; this is not durable admission,
+cross-instance exactly-once execution or original-writer quiescence. Finite results
+omit private JWTs; the explicit completion accessor returns private transport
+material only after all required acknowledgements and fresh byte verification.
+Only the documented bulk protocol is supported; single-asset mode refuses.
+Upload completion is not Preview deployment, content/readback/public proof, live
+acceptance, capacity safety or permission to activate a registration. These remain
+separate workflow/adaptor work; no actual provider write is exercised by mocks.
+
 Static qualification and output validation live in `lib/content/static/`.
 Standalone and inline SVG accept only UTF-8 static elements and a narrow text-only `style`
 element with optional exact `type="text/css"`. Its character data reuses the CSS
