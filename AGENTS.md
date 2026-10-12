@@ -556,8 +556,11 @@ class; it needs no runner labels, persistent data directory or recovery bucket.
 in this workflow. `WHARF_FOLLOW_WEBHOOK_SECRET` matches the receiver's webhook
 secret; package resolution reads `PERISHLAB_PACKAGES_READ`. The App token is scoped
 to the signed repository and exactly Contents, Pull requests and Issues write plus
-Metadata read. Read back the actual registration, push subscription and installations
-before treating runtime setup as complete.
+Metadata, Checks and Actions read. The read grants verify the exact candidate's
+required Guard check and workflow identity on private repositories. Registration,
+installation approval and the workflow's explicit token request must agree. Read
+back those grants, push subscription and installations before treating runtime
+setup as complete.
 
 Each run creates an owned disposable main checkout and private home with a fresh
 Plumb state directory. They are removed after owned commands terminate, including

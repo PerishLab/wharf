@@ -47,6 +47,8 @@ jobs:
           permission-pull-requests: write
           permission-issues: write
           permission-metadata: read
+          permission-checks: read
+          permission-actions: read
 
       - name: "[prepare] machine"
         uses: ./wharf/.github/actions/prepare
