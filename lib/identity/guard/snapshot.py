@@ -28,6 +28,7 @@ class Request:
     expected: object = None
     destination: object = None
     recall: object = None
+    pull: object = None
 
 
 def object_id(value):
@@ -174,7 +175,10 @@ def committed(held, result):
 
 def proof(held, head, result, body):
     request = held["request"]
-    intent = {"repository": request.identity["repository"], "source": {"commit": head, "tree": result["tree"]}}
+    document = evidence.decode(body)
+    commit = document.get("commit") if isinstance(document, dict) else None
+    source = {"commit": head, "tree": result["tree"]} if commit == head else {"commit": object_id(commit), "tree": request.identity["tree"]}
+    intent = {"repository": request.identity["repository"], "source": source}
     proof = evidence.guard(body, intent, held["tools"]["plumb"]["version"])
     if {"producer": proof["guard"]["plumb"], "depot": proof["guard"]["depot"]} != held["authority"]:
         raise Refusal("release snapshot Guard differs from its running authority")
@@ -203,10 +207,21 @@ def receipt(held, head, result, world):
         proof(held, head, result, json.dumps(expected["guard"]))
         return expected
     recalled = request.recall(observed) if request.recall is not None else None
+    if recalled is None and request.pull is not None:
+        recalled = adopted(held, head, result, request.pull())
     if recalled is not None:
         proof(held, head, result, json.dumps(recalled))
         return dict(observed, guard=recalled)
     return dict(observed, guard=verified(held, head, result))
+
+
+def adopted(held, head, result, bodies):
+    for body in bodies:
+        try:
+            return proof(held, head, result, body)
+        except Refusal:
+            continue
+    return None
 
 
 def unchanged(held, head, tree):

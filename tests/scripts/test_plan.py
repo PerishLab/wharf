@@ -148,6 +148,13 @@ class Media(unittest.TestCase):
         self.assertEqual(document["context"]["recalled"]["marker"], "v0.2.0-rc.1")
         self.assertEqual(document["context"]["snapshot"]["guard"], {"proved": "v0.2.0-rc.1"})
 
+    def test_a_pull_request_verdict_is_attributed_and_its_absence_explained(self):
+        identity, found = {"repository": "PerishLab/example", "tree": "b" * 40}, [({"run": 1}, "1" * 64, "body")]
+        for side, bodies, explained, offers in ((None, ["body"], [{"run": 1}, {"offered": 1}], {}), (Refusal("unreadable"), [], [{"refused": "unreadable"}] * 2, {})):
+            with mock.patch.object(plan.pull, "offered", side_effect=side, return_value=found):
+                self.assertEqual(plan.pulled(identity, offers), bodies)
+            self.assertEqual([plan.attributed(offers, {"digest": digest}) for digest in ("1" * 64, "2" * 64)], explained)
+
 
 def recorded_with(held, source, bucket):
     identity = {field: held[field] for field in plan.IDENTITY}

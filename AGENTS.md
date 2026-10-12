@@ -641,16 +641,32 @@ and nothing else in the run holds both those and the workload bucket's.
 A release plan clones the immutable marker into an owned disposable checkout,
 resolves first-party stable packages with released `plumb lift`, and runs actual
 full/head Guard there unless an earlier marker of the same repository and commit
+or the organization Guard of the pull request that produced the marker's tree
 already verified exactly the same combination. Its record keeps the original
 marker identity, effective Git tree, exact package set, control authorities and
 the genuine Guard result: one Guard actually produced for this exact combination,
-in this run or that earlier one. A verified snapshot is filed create-only under
+in this run, that earlier one or that pull request. A verified snapshot is filed create-only under
 `verified/<owner>/<repository>/<commit>/<digest>.json`, the digest covering every
 combination field except the marker, and the first writer wins, since two genuine
 runs of one combination record different execution worlds. Reuse still prepares
 current stable controls and lift, rechecks the filed Guard against the running
 authority and this resolution, and names the marker and run it came from in the
-plan. Any difference runs Guard again, and nothing is reused across commits.
+plan. Any difference runs Guard again, and nothing filed under another commit is
+recalled.
+When nothing is recalled, the plan next takes the organization Guard's verdict
+from the pull request that produced the marker's tree before it runs Guard
+itself. The organization Guard uploads its runtime document as the
+`guard-runtime` artifact; `lib/identity/guard/pull.py` lists those artifacts,
+keeps the ones whose run head has the marker's tree, and downloads each through
+its redirect without the token. Such a document proves a different commit and
+the checked-out tree instead of the lifted one, so the proof check binds it to
+the marker's tree, to this resolution's `ci-latest` tree and packages, and to
+the running authority, never to a commit; the plan's own Guard keeps the
+stricter binding to its head. The first admitted verdict stands as the
+snapshot's Guard and is filed create-only like one the plan produced. The plan
+names the run, artifact and head it came from, or why none was taken, under
+`pulled` in its context. An unreadable listing, no matching artifact or a
+rejected verdict runs Guard as before.
 Builds recreate that exact combination and refuse movement. Linux snapshot
 preparation installs the system OpenSSH server for declared SSH test prerequisites;
 the isolated POSIX snapshot includes trusted system sbin directories after tool
@@ -776,6 +792,9 @@ that keeps them.
   job, and checks out without persisting it. A mint failure stops the job
   because the App is broken or the repository is outside the organization.
   This reads source and writes nothing, so it is not a bucket credential.
+  The plan job also mints, for the same repository, actions and contents read
+  alone as `WHARF_GUARD_TOKEN`, to read the pull request Guard verdict; Guard's
+  environment never holds it.
 - A job that installs a pnpm workspace — a layer unit and the worker deploy —
   holds the run's own token with packages read alone, as `WHARF_PACKAGES_TOKEN`,
   because GitHub Packages answers no anonymous install, not even of a public
