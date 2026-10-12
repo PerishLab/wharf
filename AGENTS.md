@@ -355,6 +355,21 @@ quiescence, URL teardown, content integrity, quota safety or mutation authority.
 Exact deployment UUID observation remains separate; no latest selector, checkout,
 writer operation, automatic recovery or installed status command is supplied here.
 
+`lib/process/cfworker/discard.py` binds supplied complete status projections to
+an exact registered dispose reservation and prepared parent identity. Its finite
+plan is detached data, not a bearer permit or authenticated observation.
+`writer.py` separately holds the prepared DELETE credential and binds one immutable
+selected Preview ID, refusing ambiguous mutable names and unknown recovery writes.
+An attempted writer is consumed even on response loss; no retry or parent/sibling
+endpoint exists. A successful acknowledgement does not prove absence. Supplied
+settlement requires selected absence, unchanged parent/sibling identity projections
+and explicit idle original-writer observation; it proves neither public URL teardown
+nor sibling content preservation. Trusted workflow composition must authenticate
+observations, establish original-writer quiescence and revalidate current admission,
+registration and reservation before mutation, then bind public evidence and state.
+No such workflow, authenticated recovery, actual provider write or CLI is supplied
+by these source primitives; repeated status is not an atomic authorization check.
+
 Static qualification and output validation live in `lib/content/static/`.
 Standalone and inline SVG accept only UTF-8 static elements and a narrow text-only `style`
 element with optional exact `type="text/css"`. Its character data reuses the CSS
