@@ -3,7 +3,7 @@ import urllib.request
 
 from lib.content import resources
 from lib.content.static import evidence
-from lib.process.cfworker import mapping, observation
+from lib.process.cfworker import inventory, mapping, observation
 from lib.refusal import Refusal
 
 class Redirect(urllib.request.HTTPRedirectHandler):
@@ -20,8 +20,15 @@ class Reader:
         self._client = urllib.request.build_opener(urllib.request.ProxyHandler({}), Redirect())
 
     def get(self, suffix):
+        reply = self.reply(suffix)
+        if not isinstance(reply.get("result"), dict):
+            raise Refusal("static provider read is not a successful object observation")
+        return reply["result"]
+
+    def reply(self, suffix):
         name = self._registered["name"]
-        allowed = ("", f"/previews/{name}")
+        listing = tuple(f"/previews?page={number}&per_page={inventory.SIZE}" for number in range(1, inventory.PAGES + 1))
+        allowed = ("", f"/previews/{name}", *listing)
         deployment = f"/previews/{name}/deployments/"
         if suffix not in allowed and (not isinstance(suffix, str) or not suffix.startswith(deployment) or not observation.DEPLOYMENT.fullmatch(suffix[len(deployment):])):
             raise Refusal("static provider read needs one exact fixed lane identity endpoint")
@@ -39,12 +46,30 @@ class Reader:
         except (OSError, urllib.error.URLError, TimeoutError) as error:
             raise Refusal("static provider read failed; no absence or authority inferred") from error
         reply = evidence.decode(body)
-        if not isinstance(reply, dict) or reply.get("success") is not True or reply.get("errors") != [] or not isinstance(reply.get("result"), dict):
-            raise Refusal("static provider read is not a successful object observation")
-        return reply["result"]
+        if not isinstance(reply, dict) or reply.get("success") is not True or "errors" not in reply or reply["errors"] not in (None, []):
+            raise Refusal("static provider read is not a successful observation")
+        return reply
+
+    def page(self, number):
+        if type(number) is not int or not 1 <= number <= inventory.PAGES:
+            raise Refusal("cfworker inventory needs one bounded exact page number")
+        return self.reply(f"/previews?page={number}&per_page={inventory.SIZE}")
 
     def parent(self):
         return self.get("")
+
+    def status(self, policy):
+        policy = observation.prepared(policy)
+        held = observation.parent(self.parent(), self._registered, policy)
+        catalog = inventory.read(self, held)
+        selected = next((item for item in catalog if item["name"] == self._registered["name"]), None)
+        if selected is not None and observation.preview(self.preview(), self._registered, held) != selected:
+            raise Refusal("cfworker selected Preview moved after inventory")
+        if inventory.read(self, held) != catalog:
+            raise Refusal("cfworker Preview inventory moved during status")
+        if observation.parent(self.parent(), self._registered, policy) != held:
+            raise Refusal("cfworker parent changed during status")
+        return {"parent": held, "previews": catalog, "preview": selected}
 
     def observe(self, policy, identity):
         if not isinstance(identity, str) or not observation.DEPLOYMENT.fullmatch(identity):
