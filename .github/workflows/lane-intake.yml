@@ -1,0 +1,256 @@
+name: '[build] product lane'
+run-name: '[build] product lane'
+on:
+  workflow_call:
+    inputs:
+      request:
+        description: Exact shared lane dispatch document
+        required: true
+        type: string
+    secrets:
+      WHARF_APP_PRIVATE_KEY:
+        required: true
+      PERISHLAB_PACKAGES_READ:
+        required: true
+      WHARF_R2_ACCESS_KEY_ID:
+        required: true
+      WHARF_R2_SECRET_ACCESS_KEY:
+        required: true
+      WHARF_LANE_READER_ACCESS_KEY_ID:
+        required: true
+      WHARF_LANE_READER_SECRET_ACCESS_KEY:
+        required: true
+      WHARF_LANE_STATE_ACCESS_KEY_ID:
+        required: true
+      WHARF_LANE_STATE_SECRET_ACCESS_KEY:
+        required: true
+      WHARF_LANE_WORKLOAD_READER_ACCESS_KEY_ID:
+        required: true
+      WHARF_LANE_WORKLOAD_READER_SECRET_ACCESS_KEY:
+        required: true
+    outputs:
+      operation:
+        value: ${{ jobs.admission.outputs.operation }}
+      repository:
+        value: ${{ jobs.admission.outputs.repository }}
+      commit:
+        value: ${{ jobs.admission.outputs.commit }}
+      tree:
+        value: ${{ jobs.admission.outputs.tree }}
+      admitted:
+        value: ${{ jobs.admission.outputs.admitted }}
+      workload:
+        value: ${{ jobs.build.outputs.workload }}
+      artifact:
+        value: ${{ jobs.build.outputs.artifact }}
+      prepared:
+        value: ${{ jobs.reserve.outputs.prepared }}
+      consumed:
+        value: ${{ jobs.consume.outputs.consumed }}
+permissions: {}
+concurrency:
+  group: wharf-static-lane-intake
+  cancel-in-progress: false
+jobs:
+  admission:
+    name: '[verify] request lane'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      actions: read
+    outputs:
+      operation: ${{ steps.admission.outputs.operation }}
+      repository: ${{ steps.admission.outputs.repository }}
+      commit: ${{ steps.admission.outputs.commit }}
+      tree: ${{ steps.admission.outputs.tree }}
+      admitted: ${{ steps.admission.outputs.observed }}
+      domain: ${{ steps.engines.outputs.domain }}
+      node: ${{ steps.engines.outputs.node }}
+      pnpm: ${{ steps.engines.outputs.pnpm }}
+    steps:
+      - name: '[checkout] wharf lane'
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: ${{ github.sha }}
+          path: wharf
+          persist-credentials: false
+
+      - name: '[verify] request lane'
+        id: admission
+        uses: ./wharf/.github/actions/lane-admission
+        with:
+          request: ${{ inputs.request }}
+          control-token: ${{ github.token }}
+          client-id: ${{ vars.WHARF_APP_CLIENT_ID }}
+          private-key: ${{ secrets.WHARF_APP_PRIVATE_KEY }}
+          endpoint: ${{ vars.WHARF_LANE_STATE_ENDPOINT }}
+          bucket: ${{ vars.WHARF_LANE_STATE_BUCKET }}
+          access-key-id: ${{ secrets.WHARF_LANE_READER_ACCESS_KEY_ID }}
+          secret-access-key: ${{ secrets.WHARF_LANE_READER_SECRET_ACCESS_KEY }}
+
+      - name: '[prepare] machine lane'
+        uses: ./wharf/.github/actions/prepare
+        with:
+          prepare: snapshot
+
+      - name: '[read] engines lane'
+        id: engines
+        working-directory: wharf
+        run: python3 -B -m scripts.preview lane-engines
+
+  build:
+    name: '[build] product lane'
+    needs: [admission]
+    if: needs.admission.result == 'success' && needs.admission.outputs.operation == 'apply'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    permissions:
+      contents: read
+      actions: read
+    outputs:
+      workload: ${{ steps.content.outputs.workload }}
+      artifact: ${{ steps.content.outputs.artifact }}
+    steps:
+      - name: '[checkout] wharf lane'
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: ${{ github.sha }}
+          path: wharf
+          persist-credentials: false
+
+      - name: '[prepare] machine lane'
+        uses: ./wharf/.github/actions/prepare
+        with:
+          prepare: snapshot node pnpm
+          node: ${{ needs.admission.outputs.node }}
+          pnpm: ${{ needs.admission.outputs.pnpm }}
+
+      - name: '[checkout] source lane'
+        uses: ./wharf/.github/actions/preview-source
+        with:
+          repository: ${{ needs.admission.outputs.repository }}
+          commit: ${{ needs.admission.outputs.commit }}
+          tree: ${{ needs.admission.outputs.tree }}
+          client-id: ${{ vars.WHARF_APP_CLIENT_ID }}
+          private-key: ${{ secrets.WHARF_APP_PRIVATE_KEY }}
+
+      - name: '[record] product lane'
+        id: content
+        working-directory: wharf
+        env:
+          WHARF_REQUEST: ${{ inputs.request }}
+          WHARF_ADMITTED: ${{ needs.admission.outputs.admitted }}
+          WHARF_SOURCE: ${{ github.workspace }}/preview-product
+          WHARF_DOMAIN: ${{ needs.admission.outputs.domain }}
+          WHARF_PACKAGES_TOKEN: ${{ secrets.PERISHLAB_PACKAGES_READ }}
+          WHARF_R2_ENDPOINT: ${{ vars.WHARF_R2_ENDPOINT }}
+          WHARF_R2_BUCKET: ${{ vars.WHARF_R2_BUCKET }}
+          WHARF_R2_ACCESS_KEY_ID: ${{ secrets.WHARF_R2_ACCESS_KEY_ID }}
+          WHARF_R2_SECRET_ACCESS_KEY: ${{ secrets.WHARF_R2_SECRET_ACCESS_KEY }}
+        run: python3 -B -m scripts.preview lane-build
+
+  reserve:
+    name: '[bind] request lane'
+    needs: [admission, build]
+    if: always() && needs.admission.result == 'success' && ((needs.admission.outputs.operation == 'apply' && needs.build.result == 'success') || (needs.admission.outputs.operation != 'apply' && needs.build.result == 'skipped'))
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      actions: read
+    outputs:
+      prepared: ${{ steps.reserved.outputs.prepared }}
+    steps:
+      - name: '[checkout] wharf lane'
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: ${{ github.sha }}
+          path: wharf
+          persist-credentials: false
+
+      - name: '[verify] request lane'
+        id: admission
+        uses: ./wharf/.github/actions/lane-admission
+        with:
+          request: ${{ inputs.request }}
+          control-token: ${{ github.token }}
+          client-id: ${{ vars.WHARF_APP_CLIENT_ID }}
+          private-key: ${{ secrets.WHARF_APP_PRIVATE_KEY }}
+          endpoint: ${{ vars.WHARF_LANE_STATE_ENDPOINT }}
+          bucket: ${{ vars.WHARF_LANE_STATE_BUCKET }}
+          access-key-id: ${{ secrets.WHARF_LANE_READER_ACCESS_KEY_ID }}
+          secret-access-key: ${{ secrets.WHARF_LANE_READER_SECRET_ACCESS_KEY }}
+
+      - name: '[bind] request lane'
+        id: reserved
+        working-directory: wharf
+        env:
+          WHARF_REQUEST: ${{ inputs.request }}
+          WHARF_ARTIFACT: ${{ needs.build.outputs.artifact || 'null' }}
+          WHARF_PREVIEW_CONTROL_TOKEN: ${{ github.token }}
+          WHARF_PREVIEW_PRODUCT_TOKEN: ${{ steps.admission.outputs.product-token }}
+          WHARF_LANE_READER_ENDPOINT: ${{ vars.WHARF_LANE_STATE_ENDPOINT }}
+          WHARF_LANE_READER_BUCKET: ${{ vars.WHARF_LANE_STATE_BUCKET }}
+          WHARF_LANE_READER_ACCESS_KEY_ID: ${{ secrets.WHARF_LANE_READER_ACCESS_KEY_ID }}
+          WHARF_LANE_READER_SECRET_ACCESS_KEY: ${{ secrets.WHARF_LANE_READER_SECRET_ACCESS_KEY }}
+          WHARF_R2_ENDPOINT: ${{ vars.WHARF_LANE_STATE_ENDPOINT }}
+          WHARF_R2_BUCKET: ${{ vars.WHARF_LANE_STATE_BUCKET }}
+          WHARF_R2_ACCESS_KEY_ID: ${{ secrets.WHARF_LANE_STATE_ACCESS_KEY_ID }}
+          WHARF_R2_SECRET_ACCESS_KEY: ${{ secrets.WHARF_LANE_STATE_SECRET_ACCESS_KEY }}
+        run: python3 -B -m scripts.preview lane-reserve
+
+  consume:
+    name: '[verify] product lane'
+    needs: [admission, build, reserve]
+    if: always() && needs.admission.result == 'success' && needs.reserve.result == 'success' && ((needs.admission.outputs.operation == 'apply' && needs.build.result == 'success') || (needs.admission.outputs.operation != 'apply' && needs.build.result == 'skipped'))
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      actions: read
+    outputs:
+      consumed: ${{ steps.content.outputs.consumed }}
+    steps:
+      - name: '[checkout] wharf lane'
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: ${{ github.sha }}
+          path: wharf
+          persist-credentials: false
+
+      - name: '[read] request lane'
+        id: request
+        working-directory: wharf
+        env:
+          WHARF_REQUEST: ${{ inputs.request }}
+        run: python3 -B -m scripts.preview lane-request
+
+      - name: '[prepare] installation lane'
+        id: token
+        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1
+        with:
+          client-id: ${{ vars.WHARF_APP_CLIENT_ID }}
+          private-key: ${{ secrets.WHARF_APP_PRIVATE_KEY }}
+          owner: ${{ steps.request.outputs.owner }}
+          repositories: ${{ steps.request.outputs.name }}
+          permission-contents: read
+
+      - name: '[verify] product lane'
+        id: content
+        working-directory: wharf
+        env:
+          WHARF_REQUEST: ${{ inputs.request }}
+          WHARF_PREPARED: ${{ needs.reserve.outputs.prepared }}
+          WHARF_WORKLOAD: ${{ needs.build.outputs.workload || 'none' }}
+          WHARF_PREVIEW_CONTROL_TOKEN: ${{ github.token }}
+          WHARF_PREVIEW_PRODUCT_TOKEN: ${{ steps.token.outputs.token }}
+          WHARF_LANE_READER_ENDPOINT: ${{ vars.WHARF_LANE_STATE_ENDPOINT }}
+          WHARF_LANE_READER_BUCKET: ${{ vars.WHARF_LANE_STATE_BUCKET }}
+          WHARF_LANE_READER_ACCESS_KEY_ID: ${{ secrets.WHARF_LANE_READER_ACCESS_KEY_ID }}
+          WHARF_LANE_READER_SECRET_ACCESS_KEY: ${{ secrets.WHARF_LANE_READER_SECRET_ACCESS_KEY }}
+          WHARF_LANE_WORKLOAD_READER_ENDPOINT: ${{ vars.WHARF_R2_ENDPOINT }}
+          WHARF_LANE_WORKLOAD_READER_BUCKET: ${{ vars.WHARF_R2_BUCKET }}
+          WHARF_LANE_WORKLOAD_READER_ACCESS_KEY_ID: ${{ secrets.WHARF_LANE_WORKLOAD_READER_ACCESS_KEY_ID }}
+          WHARF_LANE_WORKLOAD_READER_SECRET_ACCESS_KEY: ${{ secrets.WHARF_LANE_WORKLOAD_READER_SECRET_ACCESS_KEY }}
+        run: python3 -B -m scripts.preview lane-consume

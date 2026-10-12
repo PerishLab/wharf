@@ -1,0 +1,86 @@
+name: lane-admission
+description: Read exact shared lane registration and independent main run and source admission
+inputs:
+  request:
+    description: Bounded lane dispatch document without credentials or store routing
+    required: true
+  control-token:
+    description: Prepared control Actions and Contents reader
+    required: true
+  client-id:
+    description: Product source App client id
+    required: true
+  private-key:
+    description: Product source App private key
+    required: true
+  endpoint:
+    description: Trusted lane registration and current store origin
+    required: true
+  bucket:
+    description: Trusted lane registration and current bucket
+    required: true
+  access-key-id:
+    description: Prepared lane registration and current reader identity
+    required: true
+  secret-access-key:
+    description: Prepared lane registration and current reader credential
+    required: true
+outputs:
+  repository:
+    description: Exact selected repository
+    value: ${{ steps.named.outputs.repository }}
+  operation:
+    description: Exact selected operation
+    value: ${{ steps.named.outputs.operation }}
+  commit:
+    description: Apply source commit or no source for inspect and dispose
+    value: ${{ steps.named.outputs.commit }}
+  tree:
+    description: Apply source tree or no source for inspect and dispose
+    value: ${{ steps.named.outputs.tree }}
+  intent:
+    description: Dispatch digest, not a bearer permit
+    value: ${{ steps.named.outputs.intent }}
+  admission:
+    description: Current independent admission observation digest
+    value: ${{ steps.admitted.outputs.admission }}
+  observed:
+    description: Trusted job-local admission projection, never a bearer permit
+    value: ${{ steps.admitted.outputs.observed }}
+  product-token:
+    description: Local trusted read token, not a cross-job authorization grant
+    value: ${{ steps.token.outputs.token }}
+runs:
+  using: composite
+  steps:
+    - name: '[identify] request lane'
+      id: named
+      shell: bash
+      working-directory: wharf
+      env:
+        WHARF_REQUEST: ${{ inputs.request }}
+      run: python3 -B -m scripts.preview lane-request
+
+    - name: '[prepare] source lane'
+      id: token
+      uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1
+      with:
+        client-id: ${{ inputs.client-id }}
+        private-key: ${{ inputs.private-key }}
+        owner: ${{ steps.named.outputs.owner }}
+        repositories: ${{ steps.named.outputs.name }}
+        permission-contents: read
+
+    - name: '[verify] request lane'
+      id: admitted
+      shell: bash
+      working-directory: wharf
+      env:
+        WHARF_REQUEST: ${{ inputs.request }}
+        WHARF_PREVIEW_CONTROL_TOKEN: ${{ inputs.control-token }}
+        WHARF_PREVIEW_PRODUCT_TOKEN: ${{ steps.token.outputs.token }}
+        WHARF_LANE_READER_ENDPOINT: ${{ inputs.endpoint }}
+        WHARF_LANE_READER_BUCKET: ${{ inputs.bucket }}
+        WHARF_LANE_READER_ACCESS_KEY_ID: ${{ inputs.access-key-id }}
+        WHARF_LANE_READER_SECRET_ACCESS_KEY: ${{ inputs.secret-access-key }}
+      run: python3 -B -m scripts.preview lane-admit

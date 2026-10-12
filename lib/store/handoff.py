@@ -32,7 +32,7 @@ def recipe(receipt):
     if not isinstance(receipt["implementation"], dict) or not receipt["implementation"]:
         raise Refusal("static build receipt must bind its implementation")
     for name, digest in receipt["implementation"].items():
-        if not isinstance(name, str) or not (name.startswith("lib.") or name in ("resource:registries.json", "resource:build.json")):
+        if not isinstance(name, str) or not (name.startswith("lib.") or name in ("resource:registries.json", "resource:build.json", "resource:identity/lane.json")):
             raise Refusal("static implementation identity is malformed")
         preview.matches(digest, preview.HEX[64], "implementation digest")
     if isolated:
@@ -198,4 +198,4 @@ def observed(value):
 
 def world(isolated=False):
     modules = MODULES + (("lib.content.static.bridge", "lib.content.static.control") if isolated else ())
-    return implementation.resourced(modules, ["registries.json"] + (["build.json"] if isolated else []))
+    return implementation.resourced(modules, ["registries.json", "identity/lane.json"] + (["build.json"] if isolated else []))

@@ -23,8 +23,8 @@ def requested(body):
     return intent
 
 
-def context(environ=os.environ):
-    policy = resources.read_json("build.json")["admission"]
+def context(environ=os.environ, policy=None):
+    policy = policy or resources.read_json("build.json")["admission"]
     expected = {"GITHUB_ACTIONS": "true", "GITHUB_EVENT_NAME": "workflow_dispatch", "GITHUB_REPOSITORY": policy["repository"],
                 "GITHUB_REF": "refs/heads/" + policy["branch"],
                 "GITHUB_WORKFLOW_REF": f"{policy['repository']}/{policy['workflow']}@refs/heads/{policy['branch']}"}
@@ -93,13 +93,13 @@ def actors(api, run, name):
     return result
 
 
-def workflow(api, context):
+def workflow(api, context, policy=None):
     preview.shape(context, {"run", "attempt", "commit"}, "trusted run context")
     for key in ("run", "attempt"):
         if type(context[key]) is not int or context[key] < 1:
             raise Refusal("Preview trusted run and attempt must be positive")
     preview.matches(context["commit"], preview.HEX[40], "trusted control commit")
-    policy = resources.read_json("build.json")["admission"]
+    policy = policy or resources.read_json("build.json")["admission"]
     control = api.repository(policy["repository"])
     expected = repository(control, policy["repository"])
     run = api.run(context["run"])
