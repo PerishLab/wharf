@@ -1,3 +1,4 @@
+import functools
 import json
 import os
 import signal
@@ -81,17 +82,24 @@ def environment(home, root, environ):
     return node.reading(home, held)
 
 
-def cancelled(number, frame):
+def cancelled():
     raise Refusal("follow was cancelled; recover Auto state from GitHub")
+
+
+def received(held, number, frame):
+    held["received"] = True
+    if held["started"]:
+        cancelled()
 
 
 @contextmanager
 def cancellation():
     previous = {number: signal.getsignal(number) for number in (signal.SIGTERM, signal.SIGINT)}
+    held = {"started": False, "received": False}
     try:
         for number in previous:
-            signal.signal(number, cancelled)
-        yield
+            signal.signal(number, functools.partial(received, held))
+        yield held
     finally:
         for number, handler in previous.items():
             signal.signal(number, handler)
@@ -112,10 +120,13 @@ def reap(process):
 
 def command(argv, cwd, env):
     print(json.dumps({"command": argv}), file=sys.stderr)
-    with cancellation():
+    with cancellation() as held:
         process = None
         try:
             process = subprocess.Popen(argv, cwd=cwd, env=env, stdout=sys.stderr, stderr=subprocess.STDOUT, start_new_session=True)
+            held["started"] = True
+            if held["received"]:
+                cancelled()
             if process.wait(timeout=TIMEOUT) != 0:
                 raise Refusal("follow step failed; recover any existing Auto state from GitHub")
         except subprocess.TimeoutExpired as error:
