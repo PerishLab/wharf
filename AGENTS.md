@@ -544,6 +544,20 @@ The main Follow workflow accepts only authenticated `follow-push` dispatches.
 GitHub App webhook secret and a separate `WHARF_FOLLOW_DISPATCH_TOKEN` restricted
 to Wharf Contents write, enforces a 25 MiB body limit and a finite request/read
 deadline, and retains failed GitHub delivery identities for explicit replay.
+Prepared POSIX synchronous workers enforce an eight-second wall-clock budget from
+application entry through body reading and dispatch acknowledgement, with a
+five-second upstream socket timeout. Existing process timers and threaded workers
+refuse before dispatch. This bounds application handling, not transit or ingress
+queueing before application entry. Unknown acknowledgement returns 503 and never
+asserts that dispatch did not execute. Credential-free stderr records distinguish
+unverified arrival identities from authenticated delivery/repository/head and
+dispatching, dispatched or unverified outcomes; host log retention is required.
+Recovery reads App delivery records, matching workflow runs and Auto/PR/Guard/merge
+facts before one explicitly qualified original redelivery. A completed operation
+needs no retry, and an unknown operation never authorizes an automatic retry.
+GitHub.com exposes recent App deliveries and original redelivery for three days;
+host logs and retained evidence must not imply indefinite provider replay.
+See GitHub's [delivery retention and redelivery documentation](https://docs.github.com/en/webhooks/testing-and-troubleshooting-webhooks/redelivering-webhooks).
 The receiver verifies the original webhook HMAC and signs a bounded push summary
 with a separate purpose prefix. It holds no App private key. The workflow verifies
 that signature, the configured dispatch sender, main runtime and minted installation
