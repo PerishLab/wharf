@@ -7,6 +7,7 @@ from pathlib import Path
 from unittest import mock
 
 from lib.identity import guard
+from lib.identity.guard import coverage
 from lib.media import release
 from lib.refusal import Refusal
 from tests.lib.store.memory import Memory
@@ -145,3 +146,24 @@ class Sealed(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+COMMAND = ["cargo", "test", "--locked"]
+
+
+def proved(ok=True, strength="full", names=("guard/rust", "guard/test")):
+    actions = [{"name": name, "input": "a" * 64, "world": "b" * 64} for name in names]
+    return {"guard": {"schema": "plumb.guard-runtime/v1", "ok": ok, "strength": strength, "guard": {"schema": "plumb.guard-proof/v1", "actions": actions}}}
+
+
+class Tested(unittest.TestCase):
+    def test_a_successful_full_guard_that_ran_the_test_action_covers_the_suite(self):
+        self.assertTrue(coverage.tested(proved()))
+
+    def test_anything_less_leaves_the_suite_planned(self):
+        for held in (proved(names=("guard/rust",)), proved(strength="fast"), proved(ok=False), {"guard": {"ok": True, "strength": "full"}}, {}, None):
+            with self.subTest(held=held):
+                self.assertFalse(coverage.tested(held))
+
+    def test_the_skip_relies_on_the_command_plumb_pins_for_the_test_action(self):
+        message = "suite linux is skipped because guard/test runs this on a virtual workspace, pinned in Plumb too (PerishLab/plumb#229); change both together"
+        self.assertEqual((coverage.SUITE["action"], coverage.SUITE["command"]), ("guard/test", COMMAND), message)

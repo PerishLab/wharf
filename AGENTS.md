@@ -134,7 +134,14 @@ from the tracked source context and proves the public repository digest instead 
 inventing an executable. Binaries and channel are recorded none, and the
 distribution record alone says the marker is distributed. Suites follow
 the source that is there: a tracked `Cargo.toml` plans the cargo suite and a
-tracked root `package.json` the node suite, and neither is planned without it. The product's
+tracked root `package.json` the node suite, and neither is planned without it.
+The cargo suite is not planned either when the plan's full Guard for this
+combination succeeded with a `guard/test` action and the root `Cargo.toml` is a
+virtual workspace without `default-members`: Guard then ran `cargo test --locked`
+over every member, the tests the suite would repeat. Guard evidence names actions,
+not their commands, so that command is pinned by a test on each side
+(`resources/identity/coverage.json` here, PerishLab/plumb#229 there), and the two
+change together. The product's
 `plumb.toml` is likewise the one declaration of what else publishes: npm publishes
 exactly the packages `[release.npm]` lists, cargo exactly the crates
 `[release.cargo]` lists, chart exactly the chart `[release.chart]` names and

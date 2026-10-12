@@ -96,3 +96,9 @@ def unversioned(source, root, workspace):
         version = read(source, f"{directory}/Cargo.toml")["package"].get("version")
         if version not in ({"workspace": True}, "0.0.0"):
             raise Refusal(f"{directory}/Cargo.toml must not declare a version other than 0.0.0")
+
+
+def virtual(source):
+    root = read(source, "Cargo.toml")
+    workspace = root.get("workspace")
+    return "package" not in root and isinstance(workspace, dict) and "default-members" not in workspace

@@ -3,12 +3,12 @@ import sys
 from pathlib import Path
 
 from lib import parameters
-from lib.cargo import basis, toolchain
+from lib.cargo import basis, manifest, toolchain
 from lib.content import executables, implementation, marker, resources
 from lib.debian import package
 from lib.debian.version import debian
 from lib.media import cfworker, node, npm, release
-from lib.identity.guard import snapshot
+from lib.identity.guard import coverage, snapshot
 from lib.process import git
 from lib.refusal import Refusal
 from lib.store import plan, r2, workload
@@ -84,7 +84,7 @@ def placements(held, bucket, entries):
 
 def suites(held, bucket, entries):
     source = held["source"]
-    if basis.carried(source):
+    if basis.carried(source) and not (coverage.tested(held.get("snapshot")) and manifest.virtual(source)):
         entries["suite-linux"] = decided(bucket, basis.suite(source, RUNNER), (["lib.cargo.basis", "lib.cargo.suite"], ["build.json"]), entries)
     if node.carried(source):
         entries["suite-node"] = decided(bucket, node.basis(source, RUNNER), (["lib.media.node"], []), entries)
@@ -167,7 +167,7 @@ def record(held):
     request = snapshot.Request(Path(held["source"]), identity, toolchain.versions(), destination=snapshot.destination(held["source"]), recall=lambda observed: plan.recall(bucket, observed, recalled))
     with snapshot.prepared(request) as (root, verified, confirm):
         plan.matching(bucket, held, verified)
-        scoped = dict(held, source=root)
+        scoped = dict(held, source=root, snapshot=verified)
         entries = {}
         observed = reported(held["steps"])
         if release.carried(root):
