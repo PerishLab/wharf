@@ -66,3 +66,13 @@ def resource(value, selected, held):
     if value.get("urls") not in (None, []):
         return preview(value, selected, held)
     return {"id": identity(value.get("id")), "name": selected["name"], "parent": held["id"]}
+
+
+def address(held, requested):
+    if not isinstance(requested, str) or not DEPLOYMENT.fullmatch(requested):
+        raise Refusal("cfworker immutable address requires an exact deployment UUID")
+    host = requested + held["suffix"]
+    labels = host.split(".")
+    if len(labels) != 4 or labels[-2:] != ["workers", "dev"] or len(host) > 253 or any(not LABEL.fullmatch(label) for label in labels):
+        raise Refusal("cfworker immutable deployment address exceeds DNS limits or routing policy; no truncation")
+    return "https://" + host
