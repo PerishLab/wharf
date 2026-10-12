@@ -7,6 +7,8 @@ from lib import parameters
 from lib.content import canonical
 from lib.content.lane import preview
 from lib.content.static import admission, workspace
+from lib.cargo import toolchain
+from lib.process.lane import build, entry, reservation, transfer
 from lib.refusal import Refusal
 
 NAMED = ("repository", "commit", "tree")
@@ -41,13 +43,53 @@ def admit(held):
     return parameters.answer({"intent": canonical.digest(intent), "admission": canonical.digest(observation)})
 
 
-ACTIONS = {"named": named, "source": source, "request": request, "admit": admit}
+def lane_request(held):
+    intent = entry.requested(held["request"])
+    entry.platform()
+    owner, name = intent["target"]["repository"].split("/")
+    origin = intent["source"] or {}
+    return parameters.answer({"owner": owner, "name": name, "repository": intent["target"]["repository"], "operation": intent["operation"],
+                              "intent": canonical.digest(intent), "commit": origin.get("commit", ""), "tree": origin.get("tree", "")})
+
+
+def lane_admit(held):
+    intent = entry.requested(held["request"])
+    observation = entry.observe(intent)
+    return parameters.answer({"intent": canonical.digest(intent), "admission": canonical.digest(observation), "observed": canonical.encode(observation).decode()})
+
+
+def lane_engines(held):
+    versions = toolchain.resolve()
+    return parameters.answer({"domain": toolchain.encoded(versions), "node": versions["node.version"], "pnpm": versions["pnpm.version"]})
+
+
+def lane_build(held):
+    result = build.record(held)
+    return parameters.answer(dict(result, artifact=json.dumps(result["artifact"], separators=(",", ":"))))
+
+
+def lane_reserve(held):
+    result = reservation.prepare(held)
+    return parameters.answer({"prepared": canonical.encode(result).decode()})
+
+
+def lane_consume(held):
+    result = transfer.prepare(held)
+    return parameters.answer({"consumed": canonical.encode(result).decode()})
+
+
+ACTIONS = {"named": named, "source": source, "request": request, "admit": admit,
+           "lane-request": lane_request, "lane-admit": lane_admit, "lane-engines": lane_engines, "lane-build": lane_build,
+           "lane-reserve": lane_reserve, "lane-consume": lane_consume}
+NAMES = {"named": NAMED, "source": SOURCED, "request": REQUESTED, "admit": REQUESTED,
+         "lane-request": REQUESTED, "lane-admit": REQUESTED, "lane-engines": (), "lane-build": (*REQUESTED, "source", "admitted"),
+         "lane-reserve": (*REQUESTED, "artifact"), "lane-consume": (*REQUESTED, "prepared", "workload")}
 
 
 def main(argv=None):
     try:
         action, rest = parameters.acted("preview", ACTIONS, sys.argv[1:] if argv is None else argv)
-        values, origins = parameters.resolve(action, {"named": NAMED, "source": SOURCED, "request": REQUESTED, "admit": REQUESTED}[action], rest)
+        values, origins = parameters.resolve(action, NAMES[action], rest)
         result = ACTIONS[action](values)
     except Refusal as error:
         print(f"preview: refused: {error}", file=sys.stderr)

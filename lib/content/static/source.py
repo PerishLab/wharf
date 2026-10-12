@@ -8,6 +8,7 @@ from lib.content import canonical, declaration
 from lib.content.lane import preview
 from lib.content.static import declaration as lane, evidence
 from lib.refusal import Refusal
+from lib.store.lane import registration
 
 WORKER = {"name", "account_id", "compatibility_date", "workers_dev", "assets", "previews"}
 
@@ -124,9 +125,7 @@ def duplicate(root, path, config, tracked):
 
 
 def qualify(root, intent, target, env):
-    preview.admitted(intent, target)
-    if intent["operation"] != "apply":
-        raise Refusal("static source qualification only accepts apply")
+    mapping = admitted_source(intent, target)
     root = Path(root).resolve()
     if git(root, ["rev-parse", "--show-toplevel"], env) != str(root) or git(root, ["status", "--porcelain", "--untracked-files=all"], env):
         raise Refusal("static build requires an exact clean repository root")
@@ -140,9 +139,24 @@ def qualify(root, intent, target, env):
         raise Refusal("static build does not admit submodule source")
     tracked = set(git(root, ["ls-files"], env).splitlines())
     config = configuration(root, intent["app"], tracked)
-    if config["digest"] != intent["source"]["declaration"] or config["worker"]["account_id"] != target["account"] or config["worker"]["name"] != target["worker"]:
+    if config["digest"] != intent["source"]["declaration"] or config["worker"]["account_id"] != mapping["account"] or config["worker"]["name"] != mapping["resource"]:
         raise Refusal("static declaration or Worker identity differs from its exact request/registration")
     return config
+
+
+def admitted_source(intent, target):
+    if isinstance(intent, dict) and intent.get("schema") == "wharf.lane.build-source/v1":
+        preview.shape(intent, {"schema", "repository", "app", "source", "registration"}, "lane build source")
+        target = registration.checked(target)
+        address = target["declaration"]["target"]
+        preview.source(intent["source"])
+        if not target["enabled"] or any(intent[key] != address[key] for key in ("repository", "app")) or intent["registration"] != registration.digest(target) or intent["source"]["declaration"] != target["generation"]:
+            raise Refusal("lane build source differs from its exact enabled registration")
+        return target["mapping"]
+    preview.admitted(intent, target)
+    if intent["operation"] != "apply":
+        raise Refusal("static source qualification only accepts apply")
+    return {"account": target["account"], "resource": target["worker"]}
 
 
 def output(root, name):

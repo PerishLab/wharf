@@ -534,12 +534,40 @@ unclosed or malformed fragments refuse and surrounding HTML remains checked.
 using prepared tools outside product source and an allowlisted child environment.
 Script-disabled installation alone may hold the package reader; full/head Guard
 and build hold neither that reader nor provider/storage credentials. Tool/source
-changes refuse. These child boundaries are not a filesystem sandbox: workflow
-integration must keep write credentials entirely outside the product build job.
+changes refuse. These child boundaries are not a filesystem sandbox. Trusted
+first-party lane build control may hold only the workload writer to vet, record
+and independently fetch content. Install, Guard and build children receive no
+storage/provider writer; the job holds no deployment, lane-state or public-evidence
+write authority.
 `lib/store/handoff.py` records vetted bytes, source manifest and fixed no-script,
 no-external-content/no-store headers as an immutable verified content workload.
 Its key binds exact source, Guard, tools and implementation, not environment names
 or request IDs. Reuse is content evidence, never deployment authorization.
+
+`lib/process/lane/entry.py` admits the exact shared dispatch against current trusted
+registration/state and independently observed fixed-main control run, both actors'
+push authority and remote source commit/tree. `build.py` binds its admitted source,
+actual domain/tool/Guard world and vetted content to an immutable recorded workload.
+`reservation.py` rereads admission, reserves only an exact apply/dispose request and
+records create-only original run/attempt custody with independent readback. Inspect
+reserves nothing. Busy state, CAS movement and ambiguous custody refuse; no retry,
+takeover or unknown continuation writer is granted.
+
+`execution.py` independently rereads original custody, registration/reservation and
+current authenticated run authority before and after observation. `transfer.py`
+holds exact bounded GET-only workload readers, independently validates every byte
+and full artifact identity, and rechecks execution authority after consumption.
+It runs no product checkout/build/script and accepts no writer or private fallback.
+These observations are not bearer permits, provider results or writer quiescence.
+
+`lane-intake.yml` exposes only a reusable workflow, with no dispatch/push/schedule
+trigger. It remains admitted solely from the fixed-main `lane.yml` caller; no
+incomplete caller is supplied by this source child. Its outputs bind admission,
+workload, reservation and verified consumption, not complete execution. The intake
+concurrency group is distinct from the complete caller's custody group so nested
+calls do not self-block. Only #174 enables the complete entry after #170–#173;
+provider execution, immutable public evidence and final state settlement remain
+separate required children of #123. No live or installed consumer is claimed here.
 
 `lib/content/static/runtime.py` owns the bounded local Preview guest primitive.
 Only disposable temporary product directories and separate read-only trusted
