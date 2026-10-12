@@ -458,6 +458,21 @@ trusted workflow must establish exclusive serialized custody, authenticated fres
 admission, registration/reservation and actual content/material observations.
 No live call, activation, workflow, release or installed CLI is proved by mocks.
 
+`reader.Readback` holds no credentials and derives its fixed immutable workers.dev
+origin from the exact confirmed deployment UUID and prepared parent suffix, never
+provider-returned URLs, mutable lane addresses or latest selectors. DNS limits
+refuse without truncation. Fresh apply/handoff validation precedes anonymous GETs
+of every vetted asset, including the identity file, through fixed canonical HTML
+routes. Ambiguous or unsupported canonical routing refuses before I/O. Exact
+bounded bytes, fixed media types and vetted security/indexing headers must agree;
+redirects, transformation, partial/error replies and transport/cleanup failures
+refuse without retries, fallback or mutations. Handoff bytes are revalidated after
+all reads. The finite result binds request, artifact, deployment and immutable
+address; it proves neither current mutable-lane selection, atomic provider state,
+original-writer quiescence, authenticated admission nor public evidence publication.
+The 30-second transport limit is a network idle timeout, not a whole-read deadline.
+No applied operation, state settlement, unknown recovery or workflow is supplied.
+
 Static qualification and output validation live in `lib/content/static/`.
 Standalone and inline SVG accept only UTF-8 static elements and a narrow text-only `style`
 element with optional exact `type="text/css"`. Its character data reuses the CSS

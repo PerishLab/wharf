@@ -10,7 +10,7 @@ from lib.content.static import assets, evidence
 from lib.process.cfworker import apply, mapping, payload, reader
 from lib.refusal import Refusal
 
-MIME = {".html": "text/html", ".css": "text/css", ".svg": "image/svg+xml", ".png": "image/png", ".jpg": "image/jpeg", ".jpeg": "image/jpeg", ".ico": "image/x-icon", ".woff": "font/woff", ".woff2": "font/woff2", ".json": "application/json"}
+MIME = payload.MIME
 
 
 def jwt(value):
