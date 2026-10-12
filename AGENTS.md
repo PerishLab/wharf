@@ -16,7 +16,7 @@ organization-wide policy; this file owns Wharf's repository-specific exceptions.
 | `.github/actions/` | composite actions, one directory each; `prepare` readies a machine for a layer unit |
 | `lib/` | every piece of shared logic, one module per function |
 | `scripts/` | thin entry points run as `python -m scripts.<name>` from the repository root |
-| `tests/` | tests mirroring `lib/` and `scripts/` |
+| `tests/` | tests mirroring `lib/` and `scripts/`, with native provider protocol tests under `tests/cfworker/` |
 | `resources/` | non-code files, read only through `lib/content/resources.py` |
 | `.githooks/pre-commit` | the only gate |
 
@@ -412,6 +412,25 @@ Only the documented bulk protocol is supported; single-asset mode refuses.
 Upload completion is not Preview deployment, content/readback/public proof, live
 acceptance, capacity safety or permission to activate a registration. These remain
 separate workflow/adaptor work; no actual provider write is exercised by mocks.
+
+`lib/process/cfworker/create.py` binds one atomic name-only Preview collection
+POST to the fresh exact deploy reservation, verified immutable handoff and supplied
+complete selected-absence status. The fixed `ignore_base_config=true` query prevents
+implicit Base inheritance. Catalogs of 99 or more Previews refuse, leaving headroom
+below the documented minimum 100-Preview quota; no eviction or cleanup endpoint
+exists. Content and complete status are rechecked before the single attempt is
+consumed. A lock serializes one instance, not durable or cross-instance execution.
+Response loss, malformed identity and transport/cleanup failure remain unacknowledged;
+no retry, fallback or unknown recovery write exists. Finite acknowledgements omit
+credentials and arbitrary provider fields. Supplied readback confirms only the
+created identity and unchanged parent/sibling identity catalog, not deployment,
+content, public reachability or an applied operation. Prepared observations cannot
+reserve quota atomically; trusted workflow composition must authenticate current
+admission, registration and reservation and establish resource exclusivity and
+serialization. Acknowledgement is not original-writer quiescence. Deployment writes
+remain separate until complete deployment-history preconditions can avoid native
+automatic old-deployment eviction. No live call, registration activation, workflow,
+release or installed CLI is exercised by this source primitive or its mock tests.
 
 Static qualification and output validation live in `lib/content/static/`.
 Standalone and inline SVG accept only UTF-8 static elements and a narrow text-only `style`
