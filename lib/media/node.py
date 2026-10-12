@@ -63,11 +63,14 @@ def prepared(source, runner=run):
     return held
 
 
-def reading(directory, env):
+def reading(directory, env, literal=False):
     if not env.get(READER):
         return env
+    reader = env[READER] if literal else f"${{{READER}}}"
+    if literal and any(character in reader for character in ("\r", "\n")):
+        raise Refusal("package reader must occupy one configuration line")
     path = Path(directory) / "npmrc"
-    lines = [f"//{urllib.parse.urlsplit(location).netloc}/:_authToken=${{{READER}}}" for location in sorted(set(REGISTRIES.values()))]
+    lines = [f"//{urllib.parse.urlsplit(location).netloc}/:_authToken={reader}" for location in sorted(set(REGISTRIES.values()))]
     path.write_text("\n".join(lines) + "\n")
     path.chmod(0o600)
     return dict(env, NPM_CONFIG_USERCONFIG=str(path))

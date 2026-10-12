@@ -66,6 +66,31 @@ class Workspace(unittest.TestCase):
 
 
 class Qualification(unittest.TestCase):
+    def test_guard_configuration_does_not_need_reader_environment_inheritance(self):
+        with tempfile.TemporaryDirectory() as directory:
+            home = Path(directory)
+            child = operation.environment(home, home / "owned", {"PATH": "/bin", "GH_TOKEN": "app", "WHARF_PACKAGES_TOKEN": "fixture-reader"})
+            child.pop("WHARF_PACKAGES_TOKEN")
+            config = Path(child["NPM_CONFIG_USERCONFIG"])
+            self.assertEqual(config.read_text(), "//npm.pkg.github.com/:_authToken=fixture-reader\n")
+            self.assertEqual(config.stat().st_mode & 0o077, 0)
+
+    def test_reader_line_injection_refuses_before_writing_configuration(self):
+        with tempfile.TemporaryDirectory() as directory:
+            home = Path(directory)
+            for reader in ("private\nregistry=https://elsewhere/", "private\rnext"):
+                with self.assertRaises(Refusal) as refused:
+                    operation.environment(home, home / "owned", {"GH_TOKEN": "app", "WHARF_PACKAGES_TOKEN": reader})
+                self.assertNotIn("private", str(refused.exception))
+                self.assertFalse((home / "npmrc").exists())
+
+    def test_absent_reader_creates_no_credential_file(self):
+        with tempfile.TemporaryDirectory() as directory:
+            home = Path(directory)
+            child = operation.environment(home, home / "owned", {"GH_TOKEN": "app"})
+            self.assertNotIn("NPM_CONFIG_USERCONFIG", child)
+            self.assertFalse((home / "npmrc").exists())
+
     def test_missing_root_declaration_is_a_no_op(self):
         replies = iter([{"id": 17, "full_name": "PerishLab/example", "default_branch": "main", "archived": False}, None])
         self.assertFalse(operation.governed(SUMMARY, "fixture", lambda *args: next(replies)))
