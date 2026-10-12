@@ -370,6 +370,25 @@ registration and reservation before mutation, then bind public evidence and stat
 No such workflow, authenticated recovery, actual provider write or CLI is supplied
 by these source primitives; repeated status is not an atomic authorization check.
 
+`lib/process/cfworker/apply.py` binds one reserved deploy request to a verified
+immutable handoff, exact registered repository/app/configuration generation and
+full content/source/build identity. Static artifact build inputs name the content
+workload key; build world hashes its prepared tools and implementation projection.
+Every payload serialization revalidates the exact handoff bytes and current trusted
+implementation. Unknown reservations refuse new write payloads. Supplied plans
+authenticate neither acquisition nor admission and grant no provider write.
+`payload.py` prepares native asset manifests using the official direct-upload
+SHA-256 example over base64 bytes plus extension, truncated to 32 hex characters.
+That provider cache identifier is not the full content digest or SDK BLAKE3 byte
+identity; differing byte/extension collisions refuse. The identity file stays an
+asset; fixed vetted `_headers` bytes enter a separate multipart deployment file.
+Assets-only metadata has fixed routing and no main module, bindings or migrations.
+Its completion JWT and serialized multipart bytes are private transport material,
+never plan or public evidence. Their shape grants no completion authority or proof
+of uploaded content. Provider upload/create/deploy, capacity/eviction checks,
+authenticated custody/recovery, exact deployment/content readback and immutable
+public result binding remain later work; this preparation performs no network I/O.
+
 Static qualification and output validation live in `lib/content/static/`.
 Standalone and inline SVG accept only UTF-8 static elements and a narrow text-only `style`
 element with optional exact `type="text/css"`. Its character data reuses the CSS
