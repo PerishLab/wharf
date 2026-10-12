@@ -661,8 +661,9 @@ keeps the ones whose run head has the marker's tree, and downloads each through
 its redirect without the token. Such a document proves a different commit and
 the checked-out tree instead of the lifted one, so the proof check binds it to
 the marker's tree, to this resolution's `ci-latest` tree and packages, and to
-the running authority, never to a commit; the plan's own Guard keeps the
-stricter binding to its head. The first admitted verdict stands as the
+the running authority, never to a commit or to the root it ran in, which the
+organization workflow reports as `.`; the plan's own Guard keeps the stricter
+binding to its head and its absolute root. The first admitted verdict stands as the
 snapshot's Guard and is filed create-only like one the plan produced. The plan
 names the run, artifact and head it came from, or why none was taken, under
 `pulled` in its context. An unreadable listing, no matching artifact or a

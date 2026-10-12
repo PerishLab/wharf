@@ -76,11 +76,11 @@ def inspect(argv, cwd, env):
     return result.stdout
 
 
-def guard(body, intent, version):
+def guard(body, intent, version, rooted=True):
     held = decode(body)
     if not isinstance(held, dict) or held.get("schema") != "plumb.guard-runtime/v1" or held.get("ok") is not True or held.get("strength") != "full" or held.get("boundary") != "head" or held.get("commit") != intent["source"]["commit"]:
         raise Refusal("static build needs actual successful full/head Guard for this commit")
-    if not isinstance(held.get("root"), str) or not (PurePosixPath(held["root"]).is_absolute() or PureWindowsPath(held["root"]).is_absolute()):
+    if not isinstance(held.get("root"), str) or rooted and not (PurePosixPath(held["root"]).is_absolute() or PureWindowsPath(held["root"]).is_absolute()):
         raise Refusal("static Guard evidence must identify its absolute source root")
     proof = held.get("guard")
     if not isinstance(proof, dict) or proof.get("schema") != "plumb.guard-proof/v1" or proof.get("repository") != intent["repository"] or proof.get("tree") != intent["source"]["tree"] or not isinstance(proof.get("plumb"), str) or proof["plumb"].split("@")[0] != version.removeprefix("plumb "):
