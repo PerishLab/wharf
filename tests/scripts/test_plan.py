@@ -1,3 +1,4 @@
+import contextlib
 import json
 import os
 import re
@@ -173,7 +174,7 @@ PLUMB = '[release]\nproduct = "plumb"\nbinaries = ["plumb"]\ntargets = ["x86_64-
 class Derived(unittest.TestCase):
     HELD = {"repository": "PerishLab/plumb", "marker": "v0.38.3-rc.7", "commit": "a" * 40, "tree": "b" * 40, "source": product(PLUMB)}
 
-    def entries(self, rust=True):
+    def entries(self, rust=True, covered=(False, False)):
         entries = {}
         patches = (
             mock.patch.object(plan.basis, "carried", return_value=rust),
@@ -183,8 +184,12 @@ class Derived(unittest.TestCase):
             mock.patch.object(plan.basis, "suite", return_value={"entry": "suite"}),
             mock.patch.object(plan.node, "carried", return_value=False),
             mock.patch.object(plan.cfworker, "workers", return_value=[]),
+            mock.patch.object(plan.coverage, "tested", return_value=covered[0]),
+            mock.patch.object(plan.manifest, "virtual", return_value=covered[1]),
         )
-        with patches[0], patches[1], patches[2], patches[3], patches[4], patches[5], patches[6]:
+        with contextlib.ExitStack() as stack:
+            for patch in patches:
+                stack.enter_context(patch)
             plan.binaries(self.HELD, Memory(), entries)
             plan.suites(self.HELD, Memory(), entries)
         entries["release"] = {"decision": "run"}
@@ -223,6 +228,11 @@ class Derived(unittest.TestCase):
     def test_a_product_without_a_cargo_workspace_plans_no_cargo_suite(self):
         self.assertIn("suite-linux", self.entries())
         self.assertNotIn("suite-linux", self.entries(rust=False))
+
+    def test_a_virtual_workspace_its_full_guard_tested_plans_no_cargo_suite(self):
+        self.assertNotIn("suite-linux", self.entries(covered=(True, True)))
+        for covered in ((True, False), (False, True)):
+            self.assertIn("suite-linux", self.entries(covered=covered))
 
     def test_a_product_with_no_binaries_plans_no_validation(self):
         entries = {"release": {"decision": "skip"}}

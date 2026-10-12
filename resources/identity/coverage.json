@@ -1,0 +1,4 @@
+{
+  "action": "guard/test",
+  "command": ["cargo", "test", "--locked"]
+}
