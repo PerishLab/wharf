@@ -342,6 +342,19 @@ identity, public evidence, admission or a bearer permit. No create/upload/delete
 parent provisioning, product command or automatic quota-eviction handling is
 implemented by this bounded source component. These remain later #122 work.
 
+`lib/process/cfworker/inventory.py` reads a bounded complete native Preview catalog
+through fixed page-number GETs. Page/count/total metadata, stable pagination and
+unique names/identities are required; incomplete, oversized or malformed catalogs
+refuse. `Reader.status` validates prepared parent policy, projects the selected
+Preview, directly binds a present selection and independently repeats the entire
+catalog and parent observations. Only complete successful listings establish a
+selected Preview's observed control-plane absence; HTTP errors never do. Successful
+envelopes require explicit empty or null errors. Projections omit arbitrary private
+fields. Repeated agreement is not an atomic provider snapshot, original-writer
+quiescence, URL teardown, content integrity, quota safety or mutation authority.
+Exact deployment UUID observation remains separate; no latest selector, checkout,
+writer operation, automatic recovery or installed status command is supplied here.
+
 Static qualification and output validation live in `lib/content/static/`.
 Standalone and inline SVG accept only UTF-8 static elements and a narrow text-only `style`
 element with optional exact `type="text/css"`. Its character data reuses the CSS

@@ -148,6 +148,14 @@ class StaticProvider(unittest.TestCase):
         self.assertEqual(factory.call_args.args[0].proxies, {})
         self.assertIsInstance(factory.call_args.args[1], reader.Redirect)
 
+    def test_explicit_null_errors_are_supported_but_missing_errors_refuse(self):
+        self.assertEqual(self.client({"success": True, "errors": None, "result": {}}).parent(), {})
+        for errors in (False, {}, "", ["denied"]):
+            with self.subTest(errors=errors), self.assertRaises(Refusal):
+                self.client({"success": True, "errors": errors, "result": {}}).parent()
+        with self.assertRaises(Refusal):
+            self.client({"success": True, "result": {}}).parent()
+
 
 if __name__ == "__main__":
     unittest.main()
