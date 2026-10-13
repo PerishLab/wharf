@@ -130,11 +130,25 @@ def channel(version):
     return matched.group(1) or "latest"
 
 
+DEVELOPMENT = "source"
+
+
 def stamp(source, package, version):
     path = Path(source) / package["path"]
     declared = json.loads(path.read_text())
     declared["version"] = version
+    if "exports" in declared:
+        declared["exports"] = shipped(declared["exports"], "exports")
     path.write_text(json.dumps(declared, indent="\t") + "\n")
+
+
+def shipped(value, field):
+    if not isinstance(value, dict):
+        return value
+    kept = {key: shipped(held, f"{field}[{key}]") for key, held in value.items() if key != DEVELOPMENT}
+    if not kept:
+        raise Refusal(f"{field} serves only the {DEVELOPMENT} condition, which never ships")
+    return kept
 
 
 def userconfig(directory, registries):
