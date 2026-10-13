@@ -5,10 +5,10 @@ from pathlib import Path
 
 from lib import parameters
 from lib.content import canonical
-from lib.content.lane import preview
+from lib.content.lane import codec, preview
 from lib.content.static import admission, workspace
 from lib.cargo import toolchain
-from lib.process.lane import build, deployment, disposal, entry, provider, reservation, transfer
+from lib.process.lane import build, deployment, disposal, entry, provider, publication, reservation, transfer
 from lib.refusal import Refusal
 
 NAMED = ("repository", "commit", "tree")
@@ -93,14 +93,20 @@ def lane_apply(held):
     return parameters.answer({"result": canonical.encode(result).decode()})
 
 
+def lane_evidence(held):
+    result = publication.perform(held)
+    return parameters.answer({"reference": codec.encode("reference", result).decode()})
+
+
 ACTIONS = {"named": named, "source": source, "request": request, "admit": admit,
            "lane-request": lane_request, "lane-admit": lane_admit, "lane-engines": lane_engines, "lane-build": lane_build,
-           "lane-reserve": lane_reserve, "lane-consume": lane_consume, "lane-observe": lane_observe, "lane-dispose": lane_dispose, "lane-apply": lane_apply}
+           "lane-reserve": lane_reserve, "lane-consume": lane_consume, "lane-observe": lane_observe, "lane-dispose": lane_dispose, "lane-apply": lane_apply,
+           "lane-evidence": lane_evidence}
 NAMES = {"named": NAMED, "source": SOURCED, "request": REQUESTED, "admit": REQUESTED,
          "lane-request": REQUESTED, "lane-admit": REQUESTED, "lane-engines": (), "lane-build": (*REQUESTED, "source", "admitted"),
          "lane-reserve": (*REQUESTED, "artifact"), "lane-consume": (*REQUESTED, "prepared", "workload"),
          "lane-observe": (*REQUESTED, "prepared", "workload"), "lane-dispose": (*REQUESTED, "prepared", "provider"),
-         "lane-apply": (*REQUESTED, "prepared", "provider", "workload")}
+         "lane-apply": (*REQUESTED, "prepared", "provider", "workload"), "lane-evidence": (*REQUESTED, "prepared", "provider")}
 
 
 def main(argv=None):
