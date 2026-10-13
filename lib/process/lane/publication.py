@@ -2,6 +2,7 @@ import datetime
 import http.client
 import os
 import re
+import xml.etree.ElementTree as ElementTree
 
 from lib.content import canonical
 from lib.content.lane import codec, preview
@@ -29,6 +30,13 @@ def configured(environ, role="EVIDENCE"):
 
 
 class Bucket(r2.Bucket):
+    def conditional(self, operation):
+        status, answer, _ = self.request(operation)
+        if status == 412 or status == 409 and locked(answer):
+            raise Conflict("lane evidence immutable key requires exact collision readback")
+        if status != 200:
+            raise Refusal("lane evidence create response is unverified; no retry")
+
     def permitted(self, operation):
         if operation.query or operation.method not in ("GET", "PUT") or operation.method == "PUT" and operation.headers.get("If-None-Match") != "*":
             raise Refusal("lane evidence store accepts only exact reads and create-only writes")
@@ -56,6 +64,18 @@ class Bucket(r2.Bucket):
                     connection.close()
                 except (OSError, http.client.HTTPException):
                     raise Refusal("lane evidence store cleanup is unverified") from None
+
+
+def locked(body):
+    try:
+        text = body.decode("utf-8")
+        if "<!" in text or "\x00" in text:
+            return False
+        root = ElementTree.fromstring(text)
+    except (UnicodeDecodeError, ElementTree.ParseError):
+        return False
+    codes = root.findall("Code")
+    return root.tag == "Error" and len(codes) == 1 and len(codes[0]) == 0 and codes[0].text == "ObjectLockedByBucketPolicy"
 
 
 class Writer:

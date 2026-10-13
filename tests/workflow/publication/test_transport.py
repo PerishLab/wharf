@@ -74,6 +74,30 @@ class Transport(unittest.TestCase):
             bucket.get("lane/v1/evidence/x")
         connection.close.assert_called_once()
 
+    def test_only_qualified_retained_collision_enters_readback_without_retry(self):
+        body = b'<?xml version="1.0"?><Error><Code>ObjectLockedByBucketPolicy</Code><Message>The object is locked by the bucket policy.</Message></Error>'
+        bucket, connection, _ = self.prepared(409, body)
+        with self.assertRaises(Conflict):
+            bucket.create("lane/v1/evidence/x", b"{}")
+        self.assertEqual(connection.request.call_count, 1)
+        connection.close.assert_called_once()
+
+    def test_unrelated_malformed_or_ambiguous_conflicts_refuse(self):
+        locked = b"<Error><Code>ObjectLockedByBucketPolicy</Code></Error>"
+        cases = ((403, locked), (500, locked), (409, b""), (409, b"not XML"), (409, locked.decode().encode("utf-16")),
+                 (409, b"<Error><Code>OperationAborted</Code></Error>"),
+                 (409, b"<Other><Code>ObjectLockedByBucketPolicy</Code></Other>"),
+                 (409, b"<Error><Code>ObjectLockedByBucketPolicy</Code><Code>Other</Code></Error>"),
+                 (409, b"<Error><Code>ObjectLockedByBucketPolicy<Other/></Code></Error>"),
+                 (409, b'<!DOCTYPE Error [<!ENTITY code "ObjectLockedByBucketPolicy">]><Error><Code>&code;</Code></Error>'))
+        for status, body in cases:
+            bucket, connection, _ = self.prepared(status, body)
+            with self.subTest(status=status, body=body), self.assertRaises(Refusal) as caught:
+                bucket.create("lane/v1/evidence/x", b"{}")
+            self.assertNotIsInstance(caught.exception, Conflict)
+            self.assertEqual(connection.request.call_count, 1)
+            connection.close.assert_called_once()
+
 
 if __name__ == "__main__":
     unittest.main()
