@@ -615,7 +615,13 @@ bucket and exposes create/get for one exact immutable key/body, with fresh origi
 authority and registration/reservation before and after store access. Private
 responses share the 64 KiB evidence document budget and refuse transformation;
 the fixed transport accepts only GET and conditional create-only PUT, with a
-30-second network idle timeout, not a whole-operation deadline. Identical
+30-second network idle timeout, not a whole-operation deadline. Only 412 and the
+observed 409 with a well-formed S3 Error containing exactly one leaf Code equal to
+ObjectLockedByBucketPolicy enter collision readback; unrelated or malformed 409,
+403 and ambiguous responses refuse. This evidence-only mapping does not change
+generic R2 state or release writes and does not itself establish identical bytes.
+The bounded retained onboarding probe qualifies transport, not a live lane run.
+Identical
 collisions still require independent anonymous canonical byte/digest readback;
 different bytes, unknown writes and failed public reads refuse without retry,
 private fallback, rollback or current-state update. A second public read binds the
