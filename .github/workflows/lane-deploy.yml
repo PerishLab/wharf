@@ -1,0 +1,76 @@
+name: '[deploy] cfworker lane'
+on:
+  workflow_call:
+    inputs:
+      request:
+        required: true
+        type: string
+      prepared:
+        required: true
+        type: string
+      provider:
+        required: true
+        type: string
+      workload:
+        required: true
+        type: string
+    secrets:
+      WHARF_APP_PRIVATE_KEY:
+        required: true
+      WHARF_LANE_READER_ACCESS_KEY_ID:
+        required: true
+      WHARF_LANE_READER_SECRET_ACCESS_KEY:
+        required: true
+      WHARF_LANE_PROVIDER_READER_TOKEN:
+        required: true
+      WHARF_LANE_DEPLOYMENT_TOKEN:
+        required: true
+      WHARF_LANE_WORKLOAD_READER_ACCESS_KEY_ID:
+        required: true
+      WHARF_LANE_WORKLOAD_READER_SECRET_ACCESS_KEY:
+        required: true
+    outputs:
+      result:
+        value: ${{ jobs.apply.outputs.result }}
+permissions: {}
+jobs:
+  apply:
+    name: '[deploy] cfworker lane'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    permissions:
+      contents: read
+      actions: read
+    outputs:
+      result: ${{ steps.deployment.outputs.result }}
+    steps:
+      - name: '[checkout] wharf lane'
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: ${{ github.sha }}
+          path: wharf
+          persist-credentials: false
+
+      - name: '[deploy] cfworker lane'
+        id: deployment
+        uses: ./wharf/.github/actions/lane-deployment
+        with:
+          request: ${{ inputs.request }}
+          prepared: ${{ inputs.prepared }}
+          provider: ${{ inputs.provider }}
+          workload: ${{ inputs.workload }}
+          control-token: ${{ github.token }}
+          client-id: ${{ vars.WHARF_APP_CLIENT_ID }}
+          private-key: ${{ secrets.WHARF_APP_PRIVATE_KEY }}
+          endpoint: ${{ vars.WHARF_LANE_STATE_ENDPOINT }}
+          bucket: ${{ vars.WHARF_LANE_STATE_BUCKET }}
+          access-key-id: ${{ secrets.WHARF_LANE_READER_ACCESS_KEY_ID }}
+          secret-access-key: ${{ secrets.WHARF_LANE_READER_SECRET_ACCESS_KEY }}
+          parent-id: ${{ vars.WHARF_LANE_PARENT_ID }}
+          subdomain: ${{ vars.WHARF_LANE_SUBDOMAIN }}
+          reader-token: ${{ secrets.WHARF_LANE_PROVIDER_READER_TOKEN }}
+          writer-token: ${{ secrets.WHARF_LANE_DEPLOYMENT_TOKEN }}
+          workload-endpoint: ${{ vars.WHARF_R2_ENDPOINT }}
+          workload-bucket: ${{ vars.WHARF_R2_BUCKET }}
+          workload-access-key-id: ${{ secrets.WHARF_LANE_WORKLOAD_READER_ACCESS_KEY_ID }}
+          workload-secret-access-key: ${{ secrets.WHARF_LANE_WORKLOAD_READER_SECRET_ACCESS_KEY }}

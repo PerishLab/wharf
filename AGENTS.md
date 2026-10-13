@@ -569,6 +569,43 @@ calls do not self-block. Only #174 enables the complete entry after #170–#173;
 provider execution, immutable public evidence and final state settlement remain
 separate required children of #123. No live or installed consumer is claimed here.
 
+`lib/process/lane/provider.py` binds fresh original-run execution to complete
+cfworker observations under prepared parent/subdomain pins. Apply/dispose return
+content-bound preflight observations, not bearer permits. Inspect consumes only
+the saved verified workload for settled presence and checks every current-origin
+asset; selected absence consumes no content and proves no URL teardown. Complete
+status and execution authority are reread before a result is returned.
+
+`disposal.py` permits only the fixed original dispose job and records a create-only,
+fsynced attempt marker in its prepared runner temporary seat before one selected-ID
+DELETE. The marker remains after failure and protects that seat against repeat
+processes, not distributed or adversarial exactly-once execution. Retries with a
+different original run/attempt refuse. Ambiguous acknowledgement returns unknown
+without an idle claim, retry or cleanup. Applied absence additionally requires
+independent complete selected absence, unchanged parent/siblings and fresh authority.
+
+`deployment.py` consumes verified recorded content without product checkout or
+execution. Fresh original run/attempt, registration/reservation and complete provider
+state precede every creation, session, bucket and deployment write. Created identity
+and siblings are independently confirmed; prior deployment history is retained.
+Private completion JWT remains inside one controlled uploader/deployer process,
+never in plans, job outputs or public records. Ambiguous writes stop all further
+writes without retry, rollback or cleanup. The same local marker limitations apply.
+Every vetted asset must match at both exact immutable UUID and prepared current lane
+origins, followed by unchanged history and fresh authority. `Readback.current` is
+idempotent; its result cannot replace immutable deployment proof in `apply.settle`.
+Idle is supplied only after this synchronous acknowledged writer's attempts return;
+it is not independent global quiescence or timeout-based recovery authority.
+
+`lane-observe.yml`, `lane-deploy.yml` and `lane-dispose.yml` expose only callable
+reusable units. They inherit the authenticated fixed-main caller context and accept
+only explicit prepared readers and the selected provider writer, never bucket
+writers or inherited secrets. Runtime revalidates A's exact authenticated boundary;
+#174 alone connects all producer dependencies and the complete serialized entry.
+These units publish no public evidence and settle no current state. Public binding,
+failure convergence and complete entry remain #172–#174. Tests prove neither live
+topology, physical exclusivity, provider credential scope nor installed behavior.
+
 `lib/content/static/runtime.py` owns the bounded local Preview guest primitive.
 Only disposable temporary product directories and separate read-only trusted
 controls are mounted. The public Images stable reference and resource budgets

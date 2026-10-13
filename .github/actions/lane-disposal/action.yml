@@ -1,0 +1,89 @@
+name: '[deploy] cfworker disposal'
+description: Execute one original-run disposal and independently observe its result
+inputs:
+  request:
+    required: true
+    description: Exact lane dispatch
+  prepared:
+    required: true
+    description: Exact reserved original-run projection
+  provider:
+    required: true
+    description: Independently observed disposal preflight
+  control-token:
+    required: true
+    description: Prepared control repository reader
+  client-id:
+    required: true
+    description: Prepared product App identity
+  private-key:
+    required: true
+    description: Prepared product App custody
+  endpoint:
+    required: true
+    description: Prepared lane state origin
+  bucket:
+    required: true
+    description: Prepared lane state bucket
+  access-key-id:
+    required: true
+    description: Prepared lane state reader
+  secret-access-key:
+    required: true
+    description: Prepared lane state reader custody
+  parent-id:
+    required: true
+    description: Prepared dedicated parent identity
+  subdomain:
+    required: true
+    description: Prepared provider account subdomain
+  reader-token:
+    required: true
+    description: Prepared provider reader custody
+  writer-token:
+    required: true
+    description: Prepared provider disposal custody
+outputs:
+  result:
+    description: Finite original-run operation observation
+    value: ${{ steps.disposal.outputs.result }}
+runs:
+  using: composite
+  steps:
+    - name: '[read] request lane'
+      id: request
+      working-directory: wharf
+      shell: bash
+      env:
+        WHARF_REQUEST: ${{ inputs.request }}
+      run: python3 -B -m scripts.preview lane-request
+
+    - name: '[prepare] installation lane'
+      id: token
+      uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1
+      with:
+        client-id: ${{ inputs.client-id }}
+        private-key: ${{ inputs.private-key }}
+        owner: ${{ steps.request.outputs.owner }}
+        repositories: ${{ steps.request.outputs.name }}
+        permission-contents: read
+
+    - name: '[deploy] cfworker disposal'
+      id: disposal
+      working-directory: wharf
+      shell: bash
+      env:
+        WHARF_REQUEST: ${{ inputs.request }}
+        WHARF_PREPARED: ${{ inputs.prepared }}
+        WHARF_PROVIDER: ${{ inputs.provider }}
+        WHARF_PREVIEW_CONTROL_TOKEN: ${{ inputs.control-token }}
+        WHARF_PREVIEW_PRODUCT_TOKEN: ${{ steps.token.outputs.token }}
+        WHARF_LANE_READER_ENDPOINT: ${{ inputs.endpoint }}
+        WHARF_LANE_READER_BUCKET: ${{ inputs.bucket }}
+        WHARF_LANE_READER_ACCESS_KEY_ID: ${{ inputs.access-key-id }}
+        WHARF_LANE_READER_SECRET_ACCESS_KEY: ${{ inputs.secret-access-key }}
+        WHARF_LANE_PARENT_ID: ${{ inputs.parent-id }}
+        WHARF_LANE_SUBDOMAIN: ${{ inputs.subdomain }}
+        WHARF_LANE_PROVIDER_READER_TOKEN: ${{ inputs.reader-token }}
+        WHARF_LANE_PROVIDER_TOKEN: ${{ inputs.writer-token }}
+      run: python3 -B -m scripts.preview lane-dispose

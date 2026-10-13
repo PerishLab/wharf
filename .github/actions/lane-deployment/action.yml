@@ -1,0 +1,109 @@
+name: '[deploy] cfworker lane'
+description: Apply exact reserved recorded content with private completion custody
+inputs:
+  request:
+    required: true
+    description: Prepared request
+  prepared:
+    required: true
+    description: Prepared prepared
+  provider:
+    required: true
+    description: Prepared provider
+  workload:
+    required: true
+    description: Prepared workload
+  control-token:
+    required: true
+    description: Prepared control-token
+  client-id:
+    required: true
+    description: Prepared client-id
+  private-key:
+    required: true
+    description: Prepared private-key
+  endpoint:
+    required: true
+    description: Prepared endpoint
+  bucket:
+    required: true
+    description: Prepared bucket
+  access-key-id:
+    required: true
+    description: Prepared access-key-id
+  secret-access-key:
+    required: true
+    description: Prepared secret-access-key
+  parent-id:
+    required: true
+    description: Prepared parent-id
+  subdomain:
+    required: true
+    description: Prepared subdomain
+  reader-token:
+    required: true
+    description: Prepared reader-token
+  writer-token:
+    required: true
+    description: Prepared writer-token
+  workload-endpoint:
+    required: true
+    description: Prepared workload-endpoint
+  workload-bucket:
+    required: true
+    description: Prepared workload-bucket
+  workload-access-key-id:
+    required: true
+    description: Prepared workload-access-key-id
+  workload-secret-access-key:
+    required: true
+    description: Prepared workload-secret-access-key
+outputs:
+  result:
+    description: Finite original-run operation observation
+    value: ${{ steps.deployment.outputs.result }}
+runs:
+  using: composite
+  steps:
+    - name: '[read] request lane'
+      id: request
+      working-directory: wharf
+      shell: bash
+      env:
+        WHARF_REQUEST: ${{ inputs.request }}
+      run: python3 -B -m scripts.preview lane-request
+
+    - name: '[prepare] installation lane'
+      id: token
+      uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1
+      with:
+        client-id: ${{ inputs.client-id }}
+        private-key: ${{ inputs.private-key }}
+        owner: ${{ steps.request.outputs.owner }}
+        repositories: ${{ steps.request.outputs.name }}
+        permission-contents: read
+
+    - name: '[deploy] cfworker lane'
+      id: deployment
+      working-directory: wharf
+      shell: bash
+      env:
+        WHARF_REQUEST: ${{ inputs.request }}
+        WHARF_PREPARED: ${{ inputs.prepared }}
+        WHARF_PROVIDER: ${{ inputs.provider }}
+        WHARF_WORKLOAD: ${{ inputs.workload }}
+        WHARF_PREVIEW_CONTROL_TOKEN: ${{ inputs.control-token }}
+        WHARF_LANE_READER_ENDPOINT: ${{ inputs.endpoint }}
+        WHARF_LANE_READER_BUCKET: ${{ inputs.bucket }}
+        WHARF_LANE_READER_ACCESS_KEY_ID: ${{ inputs.access-key-id }}
+        WHARF_LANE_READER_SECRET_ACCESS_KEY: ${{ inputs.secret-access-key }}
+        WHARF_LANE_PARENT_ID: ${{ inputs.parent-id }}
+        WHARF_LANE_SUBDOMAIN: ${{ inputs.subdomain }}
+        WHARF_LANE_PROVIDER_READER_TOKEN: ${{ inputs.reader-token }}
+        WHARF_LANE_PROVIDER_TOKEN: ${{ inputs.writer-token }}
+        WHARF_LANE_WORKLOAD_READER_ENDPOINT: ${{ inputs.workload-endpoint }}
+        WHARF_LANE_WORKLOAD_READER_BUCKET: ${{ inputs.workload-bucket }}
+        WHARF_LANE_WORKLOAD_READER_ACCESS_KEY_ID: ${{ inputs.workload-access-key-id }}
+        WHARF_LANE_WORKLOAD_READER_SECRET_ACCESS_KEY: ${{ inputs.workload-secret-access-key }}
+        WHARF_PREVIEW_PRODUCT_TOKEN: ${{ steps.token.outputs.token }}
+      run: python3 -B -m scripts.preview lane-apply
