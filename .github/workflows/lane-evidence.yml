@@ -22,7 +22,13 @@ on:
         required: true
       WHARF_LANE_EVIDENCE_SECRET_ACCESS_KEY:
         required: true
+      WHARF_LANE_STATE_ACCESS_KEY_ID:
+        required: true
+      WHARF_LANE_STATE_SECRET_ACCESS_KEY:
+        required: true
     outputs:
+      settled:
+        value: ${{ jobs.state.outputs.settled }}
       reference:
         value: ${{ jobs.evidence.outputs.reference }}
 permissions: {}
@@ -81,3 +87,60 @@ jobs:
           WHARF_LANE_PUBLICATION_AUTHORITY: ${{ vars.WHARF_LANE_PUBLICATION_AUTHORITY }}
           WHARF_LANE_PUBLICATION_ORIGIN: ${{ vars.WHARF_LANE_PUBLICATION_ORIGIN }}
         run: python3 -B -m scripts.preview lane-evidence
+
+  state:
+    name: '[record] state lane'
+    needs: [evidence]
+    if: always() && needs.evidence.result == 'success'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      actions: read
+    outputs:
+      settled: ${{ steps.settlement.outputs.settled }}
+    steps:
+      - name: '[checkout] wharf lane'
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: ${{ github.sha }}
+          path: wharf
+          persist-credentials: false
+
+      - name: '[read] request lane'
+        id: request
+        working-directory: wharf
+        env:
+          WHARF_REQUEST: ${{ inputs.request }}
+        run: python3 -B -m scripts.preview lane-request
+
+      - name: '[prepare] installation lane'
+        id: token
+        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1
+        with:
+          client-id: ${{ vars.WHARF_APP_CLIENT_ID }}
+          private-key: ${{ secrets.WHARF_APP_PRIVATE_KEY }}
+          owner: ${{ steps.request.outputs.owner }}
+          repositories: ${{ steps.request.outputs.name }}
+          permission-contents: read
+
+      - name: '[record] state lane'
+        id: settlement
+        working-directory: wharf
+        env:
+          WHARF_REQUEST: ${{ inputs.request }}
+          WHARF_PREPARED: ${{ inputs.prepared }}
+          WHARF_REFERENCE: ${{ needs.evidence.outputs.reference }}
+          WHARF_PREVIEW_CONTROL_TOKEN: ${{ github.token }}
+          WHARF_PREVIEW_PRODUCT_TOKEN: ${{ steps.token.outputs.token }}
+          WHARF_LANE_READER_ENDPOINT: ${{ vars.WHARF_LANE_STATE_ENDPOINT }}
+          WHARF_LANE_READER_BUCKET: ${{ vars.WHARF_LANE_STATE_BUCKET }}
+          WHARF_LANE_READER_ACCESS_KEY_ID: ${{ secrets.WHARF_LANE_READER_ACCESS_KEY_ID }}
+          WHARF_LANE_READER_SECRET_ACCESS_KEY: ${{ secrets.WHARF_LANE_READER_SECRET_ACCESS_KEY }}
+          WHARF_LANE_STATE_ENDPOINT: ${{ vars.WHARF_LANE_STATE_ENDPOINT }}
+          WHARF_LANE_STATE_BUCKET: ${{ vars.WHARF_LANE_STATE_BUCKET }}
+          WHARF_LANE_STATE_ACCESS_KEY_ID: ${{ secrets.WHARF_LANE_STATE_ACCESS_KEY_ID }}
+          WHARF_LANE_STATE_SECRET_ACCESS_KEY: ${{ secrets.WHARF_LANE_STATE_SECRET_ACCESS_KEY }}
+          WHARF_LANE_PUBLICATION_AUTHORITY: ${{ vars.WHARF_LANE_PUBLICATION_AUTHORITY }}
+          WHARF_LANE_PUBLICATION_ORIGIN: ${{ vars.WHARF_LANE_PUBLICATION_ORIGIN }}
+        run: python3 -B -m scripts.preview lane-settle

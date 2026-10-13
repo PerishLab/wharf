@@ -101,20 +101,23 @@ class Boundaries(unittest.TestCase):
         with self.assertRaises(Refusal):
             publication.configured({name.replace("WHARF_LANE_EVIDENCE_", "WHARF_R2_"): value for name, value in env.items()})
 
-    def test_reusable_evidence_workflow_and_script_expose_only_reference(self):
+    def test_evidence_job_and_script_expose_only_reference_without_other_writers(self):
         root = Path(publication.__file__).resolve().parents[3]
         body = (root / ".github/workflows/lane-evidence.yml").read_text()
         self.assertIn("workflow_call:", body)
         self.assertIn("value: ${{ jobs.evidence.outputs.reference }}", body)
         self.assertIn("ref: ${{ github.sha }}", body)
+        job = body.split("\n  evidence:\n", 1)[1].split("\n  state:\n", 1)[0]
         for forbidden in ("workflow_dispatch", "push:", "schedule:", "secrets: inherit", "WHARF_R2_ACCESS_KEY_ID",
                           "WHARF_R2_SECRET_ACCESS_KEY", "WHARF_LANE_PROVIDER_TOKEN", "WHARF_LANE_DEPLOYMENT_TOKEN",
                           "WHARF_LANE_DISPOSAL_TOKEN", "WHARF_LANE_STATE_ACCESS_KEY_ID", "WHARF_LANE_WORKLOAD_", "preview-source", "upload-artifact"):
+            self.assertNotIn(forbidden, job)
+        for forbidden in ("workflow_dispatch", "push:", "schedule:", "secrets: inherit"):
             self.assertNotIn(forbidden, body)
         reference = {"authority": "wharf", "digest": "1" * 64}
         with mock.patch.object(publication, "perform", return_value=reference), mock.patch.object(preview.parameters, "answer", side_effect=lambda value: value):
             self.assertEqual(preview.lane_evidence({}), {"reference": codec.encode("reference", reference).decode()})
-        self.assertFalse((root / ".github/workflows/lane.yml").exists())
+        self.assertTrue((root / ".github/workflows/lane.yml").exists())
 
 
 if __name__ == "__main__":

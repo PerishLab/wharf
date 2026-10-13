@@ -107,11 +107,14 @@ class Transport(unittest.TestCase):
             settlement.perform(held["held"], held["env"])
         self.assertFalse(any(call[0] in ("create", "swap") for call in held["store"].calls))
 
-    def test_reusable_state_workflow_exposes_only_state_writer_and_settlement_result(self):
+    def test_state_job_exposes_only_state_writer_and_consumes_exact_evidence_result(self):
         root = Path(settlement.__file__).resolve().parents[3]
-        body = (root / ".github/workflows/lane-state.yml").read_text()
-        for required in ("workflow_call:", "ref: ${{ github.sha }}", "actions: read", "WHARF_LANE_STATE_ACCESS_KEY_ID",
-                         "WHARF_REFERENCE: ${{ inputs.reference }}", "value: ${{ jobs.state.outputs.settled }}"):
+        body = (root / ".github/workflows/lane-evidence.yml").read_text()
+        self.assertIn("workflow_call:", body)
+        self.assertIn("value: ${{ jobs.state.outputs.settled }}", body)
+        body = body.split("\n  state:\n", 1)[1]
+        for required in ("needs: [evidence]", "needs.evidence.result == 'success'", "ref: ${{ github.sha }}", "actions: read", "WHARF_LANE_STATE_ACCESS_KEY_ID",
+                         "WHARF_REFERENCE: ${{ needs.evidence.outputs.reference }}"):
             self.assertIn(required, body)
         for forbidden in ("workflow_dispatch", "push:", "schedule:", "secrets: inherit", "WHARF_LANE_EVIDENCE_",
                           "WHARF_R2_ACCESS_KEY_ID", "WHARF_LANE_DEPLOYMENT_TOKEN", "WHARF_LANE_DISPOSAL_TOKEN", "WHARF_LANE_WORKLOAD_"):
@@ -119,7 +122,7 @@ class Transport(unittest.TestCase):
         result = {"phase": "settled", "revision": 2, "reference": {"authority": "wharf", "digest": "1" * 64}}
         with mock.patch.object(settlement, "perform", return_value=result), mock.patch.object(preview.parameters, "answer", side_effect=lambda value: value):
             self.assertEqual(preview.lane_settle({}), {"settled": canonical.encode(result).decode()})
-        self.assertFalse((root / ".github/workflows/lane.yml").exists())
+        self.assertFalse((root / ".github/workflows/lane-state.yml").exists())
 
 
 if __name__ == "__main__":

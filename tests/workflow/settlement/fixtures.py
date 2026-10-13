@@ -23,7 +23,7 @@ def bundle(action="apply", outcome="applied"):
     jobs = [{"id": index + 1, "name": name, "run_id": CONTEXT["run"], "run_attempt": CONTEXT["attempt"],
              "head_sha": CONTEXT["commit"], "status": "completed", "conclusion": conclusion}
             for index, (name, conclusion) in enumerate(execution.producer_names(action).items())]
-    jobs.append({"id": 99, "name": "[record] state lane / [record] state lane", "run_id": CONTEXT["run"],
+    jobs.append({"id": 99, "name": "[record] evidence lane / [record] state lane", "run_id": CONTEXT["run"],
                  "run_attempt": CONTEXT["attempt"], "head_sha": CONTEXT["commit"], "status": "in_progress", "conclusion": None})
     held["jobs"] = {"total_count": len(jobs), "jobs": jobs}
     held["api"] = fixtures.provider()
