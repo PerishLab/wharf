@@ -56,10 +56,14 @@ class Reader:
                     raise Refusal("lane workload read cleanup failed") from None
 
 
-def prepare(held, environ=os.environ):
+def readonly(environ):
     forbidden = (*build.FORBIDDEN, "WHARF_R2_ACCESS_KEY_ID", "WHARF_R2_SECRET_ACCESS_KEY", "WHARF_CLOUDFLARE_TOKEN")
     if any(r2.secret(environ, name) for name in forbidden):
         raise Refusal("lane content consumption holds readers only, never writers")
+
+
+def prepare(held, environ=os.environ):
+    readonly(environ)
     intent = entry.requested(held["request"])
     before = execution.observe(intent, evidence.decode(held["prepared"]), environ)
     value = before["prepared"]

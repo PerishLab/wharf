@@ -1,0 +1,108 @@
+name: '[read] cfworker lane'
+on:
+  workflow_call:
+    inputs:
+      request:
+        required: true
+        type: string
+      prepared:
+        required: true
+        type: string
+      workload:
+        required: true
+        type: string
+    secrets:
+      WHARF_APP_PRIVATE_KEY:
+        required: true
+      WHARF_LANE_READER_ACCESS_KEY_ID:
+        required: true
+      WHARF_LANE_READER_SECRET_ACCESS_KEY:
+        required: true
+      WHARF_LANE_PROVIDER_READER_TOKEN:
+        required: true
+      WHARF_LANE_WORKLOAD_READER_ACCESS_KEY_ID:
+        required: true
+      WHARF_LANE_WORKLOAD_READER_SECRET_ACCESS_KEY:
+        required: true
+    outputs:
+      consumed:
+        value: ${{ jobs.observe.outputs.consumed }}
+      provider:
+        value: ${{ jobs.observe.outputs.provider }}
+permissions: {}
+jobs:
+  observe:
+    name: '[verify] product lane'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      actions: read
+    outputs:
+      consumed: ${{ steps.content.outputs.consumed }}
+      provider: ${{ steps.provider.outputs.provider }}
+    steps:
+      - name: '[checkout] wharf lane'
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: ${{ github.sha }}
+          path: wharf
+          persist-credentials: false
+
+      - name: '[read] request lane'
+        id: request
+        working-directory: wharf
+        env:
+          WHARF_REQUEST: ${{ inputs.request }}
+        run: python3 -B -m scripts.preview lane-request
+
+      - name: '[prepare] installation lane'
+        id: token
+        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1
+        with:
+          client-id: ${{ vars.WHARF_APP_CLIENT_ID }}
+          private-key: ${{ secrets.WHARF_APP_PRIVATE_KEY }}
+          owner: ${{ steps.request.outputs.owner }}
+          repositories: ${{ steps.request.outputs.name }}
+          permission-contents: read
+
+      - name: '[verify] product lane'
+        id: content
+        working-directory: wharf
+        env:
+          WHARF_REQUEST: ${{ inputs.request }}
+          WHARF_PREPARED: ${{ inputs.prepared }}
+          WHARF_WORKLOAD: ${{ inputs.workload }}
+          WHARF_PREVIEW_CONTROL_TOKEN: ${{ github.token }}
+          WHARF_PREVIEW_PRODUCT_TOKEN: ${{ steps.token.outputs.token }}
+          WHARF_LANE_READER_ENDPOINT: ${{ vars.WHARF_LANE_STATE_ENDPOINT }}
+          WHARF_LANE_READER_BUCKET: ${{ vars.WHARF_LANE_STATE_BUCKET }}
+          WHARF_LANE_READER_ACCESS_KEY_ID: ${{ secrets.WHARF_LANE_READER_ACCESS_KEY_ID }}
+          WHARF_LANE_READER_SECRET_ACCESS_KEY: ${{ secrets.WHARF_LANE_READER_SECRET_ACCESS_KEY }}
+          WHARF_LANE_WORKLOAD_READER_ENDPOINT: ${{ vars.WHARF_R2_ENDPOINT }}
+          WHARF_LANE_WORKLOAD_READER_BUCKET: ${{ vars.WHARF_R2_BUCKET }}
+          WHARF_LANE_WORKLOAD_READER_ACCESS_KEY_ID: ${{ secrets.WHARF_LANE_WORKLOAD_READER_ACCESS_KEY_ID }}
+          WHARF_LANE_WORKLOAD_READER_SECRET_ACCESS_KEY: ${{ secrets.WHARF_LANE_WORKLOAD_READER_SECRET_ACCESS_KEY }}
+        run: python3 -B -m scripts.preview lane-consume
+
+      - name: '[read] cfworker lane'
+        id: provider
+        working-directory: wharf
+        env:
+          WHARF_REQUEST: ${{ inputs.request }}
+          WHARF_PREPARED: ${{ inputs.prepared }}
+          WHARF_WORKLOAD: ${{ inputs.workload }}
+          WHARF_PREVIEW_CONTROL_TOKEN: ${{ github.token }}
+          WHARF_PREVIEW_PRODUCT_TOKEN: ${{ steps.token.outputs.token }}
+          WHARF_LANE_READER_ENDPOINT: ${{ vars.WHARF_LANE_STATE_ENDPOINT }}
+          WHARF_LANE_READER_BUCKET: ${{ vars.WHARF_LANE_STATE_BUCKET }}
+          WHARF_LANE_READER_ACCESS_KEY_ID: ${{ secrets.WHARF_LANE_READER_ACCESS_KEY_ID }}
+          WHARF_LANE_READER_SECRET_ACCESS_KEY: ${{ secrets.WHARF_LANE_READER_SECRET_ACCESS_KEY }}
+          WHARF_LANE_WORKLOAD_READER_ENDPOINT: ${{ vars.WHARF_R2_ENDPOINT }}
+          WHARF_LANE_WORKLOAD_READER_BUCKET: ${{ vars.WHARF_R2_BUCKET }}
+          WHARF_LANE_WORKLOAD_READER_ACCESS_KEY_ID: ${{ secrets.WHARF_LANE_WORKLOAD_READER_ACCESS_KEY_ID }}
+          WHARF_LANE_WORKLOAD_READER_SECRET_ACCESS_KEY: ${{ secrets.WHARF_LANE_WORKLOAD_READER_SECRET_ACCESS_KEY }}
+          WHARF_LANE_PARENT_ID: ${{ vars.WHARF_LANE_PARENT_ID }}
+          WHARF_LANE_SUBDOMAIN: ${{ vars.WHARF_LANE_SUBDOMAIN }}
+          WHARF_LANE_PROVIDER_READER_TOKEN: ${{ secrets.WHARF_LANE_PROVIDER_READER_TOKEN }}
+        run: python3 -B -m scripts.preview lane-observe

@@ -72,8 +72,13 @@ class Readback:
         held = apply.deployment_readable(plan)
         self._deployment = apply.deployment_confirm(held, observed, deployed)
         self._plan = held["apply"]
+        self._suffix = held["before"]["parent"]["suffix"]
         self._origin = observation.address(held["before"]["parent"], self._deployment["id"])
         self._client = urllib.request.build_opener(urllib.request.ProxyHandler({}), Redirect())
+
+    def current(self):
+        self._origin = "https://" + mapping.selected(self._plan["registration"])["name"] + self._suffix
+        return self
 
     def _get(self, route, selected):
         name, expected = selected

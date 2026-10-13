@@ -5,6 +5,7 @@
     "admitted": "string",
     "artifact": "string",
     "prepared": "string",
+    "provider": "string",
     "workload": "string",
     "attempt": "string",
     "commit": "string",
