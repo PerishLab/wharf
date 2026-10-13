@@ -157,3 +157,33 @@ class Vet(unittest.TestCase):
         with mock.patch.dict(os.environ, {npm.TOKEN: "secret"}), self.assertRaisesRegex(Refusal, "does not carry"):
             npm.prepare(repository.root, "1.2.3", repository.root / "archives", registry.run)
         self.assertFalse(any(argv[:2] == ["pnpm", "publish"] for argv, _ in registry.runs))
+
+
+class Source(unittest.TestCase):
+    def stamped(self, exports):
+        repository = declared({"packages/lib/package.json": json.dumps({"name": "@perishlab/lib", "version": "0.0.0", "exports": exports})})
+        npm.stamp(repository.root, {"path": "packages/lib/package.json"}, "1.2.3")
+        return json.loads((repository.root / "packages/lib/package.json").read_text())
+
+    def test_the_source_condition_never_ships(self):
+        manifest = self.stamped({".": {"source": "./src/lib.ts", "types": "./dist/lib.d.ts", "default": "./dist/lib.js"}, "./theme.scss": "./src/theme.scss"})
+        self.assertEqual(manifest["version"], "1.2.3")
+        self.assertEqual(manifest["exports"], {".": {"types": "./dist/lib.d.ts", "default": "./dist/lib.js"}, "./theme.scss": "./src/theme.scss"})
+
+    def test_a_subpath_served_only_by_source_refuses(self):
+        with self.assertRaisesRegex(Refusal, r"exports\[\./vite\] serves only the source condition"):
+            self.stamped({".": "./dist/lib.js", "./vite": {"source": "./src/vite.ts"}})
+
+    def test_a_package_naming_source_publishes_only_its_build(self):
+        registry = Registry()
+        exports = {".": {"source": "./src/lib.ts", "types": "./dist/lib.d.ts", "default": "./dist/lib.js"}}
+        repository = declared({
+            "packages/lib/package.json": json.dumps({"name": "@perishlab/lib", "version": "0.0.0", "exports": exports}),
+            "packages/lib/dist/lib.js": "", "packages/lib/dist/lib.d.ts": "",
+        })
+        with mock.patch.dict(os.environ, {npm.TOKEN: "secret"}):
+            receipt = npm.prepare(repository.root, "1.2.3", repository.root / "archives", registry.run)
+        with tarfile.open(repository.root / "archives" / receipt["packages"][0]["file"]) as archive:
+            shipped = json.load(archive.extractfile("package/package.json"))
+        self.assertNotIn("source", json.dumps(shipped["exports"]))
+        self.assertEqual(json.loads((repository.root / "packages/lib/package.json").read_text())["exports"], exports)
