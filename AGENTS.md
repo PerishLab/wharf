@@ -606,6 +606,33 @@ These units publish no public evidence and settle no current state. Public bindi
 failure convergence and complete entry remain #172–#174. Tests prove neither live
 topology, physical exclusivity, provider credential scope nor installed behavior.
 
+`lib/process/lane/publication.py` consumes B's finite original-run result only
+after fresh authenticated execution, exact request/assessment and declaration
+binding. Supplied result digests and plans are observations, never bearer permits;
+private plans are not published. Prepared publication authority and bare origin
+remain outside inputs. Its writer holds only the independently prepared evidence
+bucket and exposes create/get for one exact immutable key/body, with fresh original
+authority and registration/reservation before and after store access. Private
+responses share the 64 KiB evidence document budget and refuse transformation;
+the fixed transport accepts only GET and conditional create-only PUT, with a
+30-second network idle timeout, not a whole-operation deadline. Identical
+collisions still require independent anonymous canonical byte/digest readback;
+different bytes, unknown writes and failed public reads refuse without retry,
+private fallback, rollback or current-state update. A second public read binds the
+entire exact operation before a final authority check returns only its immutable
+shared reference. Applied/refused/unknown remain distinct; publication does not
+turn non-applied observations into completion or new provider-write authority.
+
+`lane-evidence.yml` is a non-dispatching reusable unit with the fixed evidence job,
+explicit evidence-only writer and required state/control/product readers. No
+provider/workload/state writer, source acquisition, product execution or inherited
+secrets enter it. #174 owns native producer dependency wiring in the complete caller;
+this component cannot independently authenticate supplied prior provider writes,
+prove global writer quiescence, physical credential scope, origin/bucket mapping,
+retention or live topology. Trusted onboarding and the complete workflow own those
+facts. #173 alone performs verified-public-evidence-before-current-CAS settlement.
+No live or installed capability is claimed by these source tests.
+
 `lib/content/static/runtime.py` owns the bounded local Preview guest primitive.
 Only disposable temporary product directories and separate read-only trusted
 controls are mounted. The public Images stable reference and resource budgets
@@ -811,7 +838,7 @@ name is rendered from the verb and object `resources/units.json` gives it.
 | | Within wharf |
 | --- | --- |
 | Verbs | ship, lodge, follow, plan, build, test, bind, smoke, validate, publish, deploy, point, record, checkout, verify, identify, prepare, login, read, decide |
-| Objects | entries, binary, binaries, deb, suite, npm, oci, chart, cargo, cfworker, channel, distribution, plan, wharf, product, request, source, registry, installation, engines, machine, autocrlf, node, pnpm, plumb, manager, and the Depot kinds |
+| Objects | entries, binary, binaries, deb, suite, npm, oci, chart, cargo, cfworker, channel, distribution, plan, wharf, product, request, source, registry, installation, engines, machine, autocrlf, node, pnpm, plumb, manager, evidence, and the Depot kinds |
 
 A name that cannot be written as one verb over one object marks a job doing two
 things; that is how writing the seal and moving the channel came apart.
