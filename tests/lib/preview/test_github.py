@@ -84,6 +84,27 @@ class GitHub(unittest.TestCase):
         api.run(123)
         api.get.assert_called_with("/repos/PerishLab/wharf/actions/runs/123")
 
+    def test_jobs_selects_exact_original_attempt_and_only_fixed_identity_endpoint(self):
+        api = self.client()
+        api.get = mock.Mock(return_value={"total_count": 0, "jobs": []})
+        self.assertEqual(api.jobs(123, 2), {"total_count": 0, "jobs": []})
+        api.get.assert_called_once_with("/repos/PerishLab/wharf/actions/runs/123/attempts/2/jobs")
+        for run, attempt in ((True, 1), (123, False), (0, 1), (123, -1), ("123", 1)):
+            with self.assertRaises(Refusal):
+                api.jobs(run, attempt)
+
+    def test_real_jobs_transport_remains_bounded_get_without_pagination_or_mutation(self):
+        api = self.client(b'{"total_count":0,"jobs":[]}')
+        url = "https://api.github.com/repos/PerishLab/wharf/actions/runs/123/attempts/1/jobs"
+        api._client.open.return_value.geturl = lambda: url
+        self.assertEqual(api.jobs(123, 1), {"total_count": 0, "jobs": []})
+        request = api._client.open.call_args.args[0]
+        self.assertEqual(request.full_url, url)
+        self.assertEqual(request.get_method(), "GET")
+        for suffix in ("?page=2", "/logs", "/rerun"):
+            with self.assertRaises(Refusal):
+                api.get("/repos/PerishLab/wharf/actions/runs/123/attempts/1/jobs" + suffix)
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -18,9 +18,9 @@ def confirm(before, environ):
         raise Refusal("lane evidence original-run authority or exact reservation moved")
 
 
-def configured(environ):
+def configured(environ, role="EVIDENCE"):
     names = ("ENDPOINT", "BUCKET", "ACCESS_KEY_ID", "SECRET_ACCESS_KEY")
-    endpoint, bucket, access, secret = (r2.secret(environ, "WHARF_LANE_EVIDENCE_" + name) for name in names)
+    endpoint, bucket, access, secret = (r2.secret(environ, "WHARF_LANE_" + role + "_" + name) for name in names)
     preview.matches(endpoint, re.compile(r"https://[0-9a-f]{32}\.r2\.cloudflarestorage\.com"), "lane evidence store origin")
     preview.matches(bucket, re.compile(r"[a-z0-9][a-z0-9-]{1,61}[a-z0-9]"), "lane evidence store bucket")
     if any(not value or any(not 33 <= ord(char) <= 126 for char in value) for value in (access, secret)):
@@ -29,9 +29,12 @@ def configured(environ):
 
 
 class Bucket(r2.Bucket):
-    def request(self, operation):
+    def permitted(self, operation):
         if operation.query or operation.method not in ("GET", "PUT") or operation.method == "PUT" and operation.headers.get("If-None-Match") != "*":
             raise Refusal("lane evidence store accepts only exact reads and create-only writes")
+
+    def request(self, operation):
+        self.permitted(operation)
         path = self.path(operation.key)
         signed = sign(Request(operation.method, self.host, path, operation.body, operation.headers), self.credentials, datetime.datetime.now(datetime.UTC))
         connection = None

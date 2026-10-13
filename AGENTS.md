@@ -633,6 +633,40 @@ retention or live topology. Trusted onboarding and the complete workflow own tho
 facts. #173 alone performs verified-public-evidence-before-current-CAS settlement.
 No live or installed capability is claimed by these source tests.
 
+`lib/process/lane/settlement.py` consumes only the original request/prepared value
+and C's public reference. It reauthenticates the original run/attempt, actors,
+registration, reserved current and custody, then independently GETs the exact
+attempt's native jobs with Actions read permission. A complete single default
+page of at most 30 unique job names/IDs is required; truncation, another run/head,
+unexpected jobs, producer failure/cancellation or nonterminal writers refuse.
+`execution.producer_names` fixes the complete caller's reusable job display names
+and action-specific success/skipped conclusions; #174 must supply that graph,
+including both conditional provider writers. An inactive provider call can
+appear as a skipped caller-only name instead of its expanded reusable name;
+both presentations identify the same branch and duplicates still refuse.
+Only the current state job may
+remain in progress. These authenticated native conclusions prove producer
+quiescence, not provider effect or physical credential custody.
+
+The independent anonymous applied record must bind the entire original request
+and assessment. Public unknown/refused records, unavailable output and failed
+readback leave the original reservation, revision, observed material and history
+unchanged; no synthetic outcome is recorded. Inspect verifies evidence without
+state writes. Mutation reuses `state.record` through an exact-key/body wrapper:
+only immutable verified operation history and its one expected current CAS can
+be written. Fresh authority, native quiescence and public readback precede each
+write. Conflicts and ambiguous writes refuse without retry or rollback; history
+may already exist when the current CAS refuses. Success additionally requires
+independent exact current, registration and original custody readback. Disposal
+advances revision with an absent tombstone, never removes current or history.
+Registration/current remain separate objects, not an atomic authorization
+transaction. A later settled/unknown/replayed execution cannot continue writing.
+
+`lane-state.yml` is non-dispatching, holds only the state writer and required
+readers, and admits no provider, evidence or workload writer. It supplies no
+recovery, takeover, second provider attempt or timeout-based repair. Source
+regressions prove neither the complete live caller nor installed consumption.
+
 `lib/content/static/runtime.py` owns the bounded local Preview guest primitive.
 Only disposable temporary product directories and separate read-only trusted
 controls are mounted. The public Images stable reference and resource budgets

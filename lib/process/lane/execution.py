@@ -77,3 +77,58 @@ def observe(intent, value, environ=os.environ):
     product = GitHub(r2.secret(environ, "WHARF_PREVIEW_PRODUCT_TOKEN"))
     api = Routing(intent["target"]["repository"], control, product)
     return admit(intent, evidence.decode(value) if isinstance(value, str) else value, reader, (context, api))
+
+
+def producer_names(action):
+    intake = "[verify] request lane"
+    return {
+        intake + " / [verify] request lane": "success",
+        intake + " / [build] product lane": "success" if action == "apply" else "skipped",
+        intake + " / [bind] request lane": "success",
+        intake + " / [verify] product lane": "success" if action == "apply" else "skipped",
+        "[read] cfworker lane / [verify] product lane": "success",
+        "[deploy] cfworker lane / [deploy] cfworker lane": "success" if action == "apply" else "skipped",
+        "[deploy] cfworker disposal / [deploy] cfworker disposal": "success" if action == "dispose" else "skipped",
+        "[record] evidence lane / [record] evidence lane": "success",
+    }
+
+
+def native_jobs(intent, context, api):
+    value = api.jobs(context["run"], context["attempt"])
+    if not isinstance(value, dict) or type(value.get("total_count")) is not int or not isinstance(value.get("jobs"), list):
+        raise Refusal("lane original-attempt native jobs are unavailable or malformed")
+    jobs = value["jobs"]
+    if value["total_count"] != len(jobs) or not 1 <= len(jobs) <= 30:
+        raise Refusal("lane native job read is incomplete or exceeds its single-page budget")
+    expected = producer_names(intent["operation"])
+    names, identities = set(), set()
+    for job in jobs:
+        if not isinstance(job, dict) or type(job.get("id")) is not int or job["id"] < 1 or not isinstance(job.get("name"), str):
+            raise Refusal("lane native job identity is malformed")
+        name = job["name"]
+        inactive = "[deploy] cfworker disposal" if intent["operation"] == "apply" else "[deploy] cfworker lane"
+        if name == inactive and job.get("conclusion") == "skipped":
+            name += " / " + inactive
+        if intent["operation"] == "inspect" and name == "[deploy] cfworker disposal" and job.get("conclusion") == "skipped":
+            name += " / [deploy] cfworker disposal"
+        if name in names or job["id"] in identities:
+            raise Refusal("lane native job identities or names are ambiguous")
+        names.add(name)
+        identities.add(job["id"])
+        attempt = job.get("run_attempt", context["attempt"])
+        if type(job.get("run_id")) is not int or type(attempt) is not int or job["run_id"] != context["run"] or job.get("head_sha") != context["commit"] or attempt != context["attempt"]:
+            raise Refusal("lane native job belongs to another original run/attempt or commit")
+        if name == "[record] state lane / [record] state lane":
+            if job.get("status") != "in_progress" or job.get("conclusion") is not None:
+                raise Refusal("lane state job must be the current native writer")
+        elif name not in expected or job.get("status") != "completed" or job.get("conclusion") != expected[name]:
+            raise Refusal("lane native producer is absent, unsuccessful or not quiescent")
+    if names != set(expected) | {"[record] state lane / [record] state lane"}:
+        raise Refusal("lane native producers are missing; no idle writer inferred")
+    return value
+
+
+def quiescence(intent, environ=os.environ):
+    context = entry.platform(environ)
+    api = GitHub(r2.secret(environ, "WHARF_PREVIEW_CONTROL_TOKEN"))
+    return native_jobs(intent, context, api)
