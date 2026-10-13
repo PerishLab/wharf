@@ -85,7 +85,7 @@ def producer_names(action):
         intake + " / [verify] request lane": "success",
         intake + " / [build] product lane": "success" if action == "apply" else "skipped",
         intake + " / [bind] request lane": "success",
-        intake + " / [verify] product lane": "success" if action == "apply" else "skipped",
+        intake + " / [verify] product lane": "success",
         "[read] cfworker lane / [verify] product lane": "success",
         "[deploy] cfworker lane / [deploy] cfworker lane": "success" if action == "apply" else "skipped",
         "[deploy] cfworker disposal / [deploy] cfworker disposal": "success" if action == "dispose" else "skipped",
@@ -118,12 +118,12 @@ def native_jobs(intent, context, api):
         attempt = job.get("run_attempt", context["attempt"])
         if type(job.get("run_id")) is not int or type(attempt) is not int or job["run_id"] != context["run"] or job.get("head_sha") != context["commit"] or attempt != context["attempt"]:
             raise Refusal("lane native job belongs to another original run/attempt or commit")
-        if name == "[record] state lane / [record] state lane":
+        if name == "[record] evidence lane / [record] state lane":
             if job.get("status") != "in_progress" or job.get("conclusion") is not None:
                 raise Refusal("lane state job must be the current native writer")
         elif name not in expected or job.get("status") != "completed" or job.get("conclusion") != expected[name]:
             raise Refusal("lane native producer is absent, unsuccessful or not quiescent")
-    if names != set(expected) | {"[record] state lane / [record] state lane"}:
+    if names != set(expected) | {"[record] evidence lane / [record] state lane"}:
         raise Refusal("lane native producers are missing; no idle writer inferred")
     return value
 

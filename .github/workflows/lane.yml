@@ -1,0 +1,116 @@
+name: '[deploy] product lane'
+run-name: '[deploy] product lane'
+on:
+  workflow_dispatch:
+    inputs:
+      request:
+        description: Exact shared lane dispatch document
+        required: true
+        type: string
+permissions: {}
+concurrency:
+  group: wharf-static-lane
+  cancel-in-progress: false
+jobs:
+  intake:
+    name: '[verify] request lane'
+    if: github.ref == 'refs/heads/main' && github.repository == 'PerishLab/wharf'
+    permissions:
+      contents: read
+      actions: read
+    uses: ./.github/workflows/lane-intake.yml
+    with:
+      request: ${{ inputs.request }}
+    secrets:
+      WHARF_APP_PRIVATE_KEY: ${{ secrets.WHARF_APP_PRIVATE_KEY }}
+      PERISHLAB_PACKAGES_READ: ${{ secrets.PERISHLAB_PACKAGES_READ }}
+      WHARF_R2_ACCESS_KEY_ID: ${{ secrets.WHARF_R2_ACCESS_KEY_ID }}
+      WHARF_R2_SECRET_ACCESS_KEY: ${{ secrets.WHARF_R2_SECRET_ACCESS_KEY }}
+      WHARF_LANE_READER_ACCESS_KEY_ID: ${{ secrets.WHARF_LANE_READER_ACCESS_KEY_ID }}
+      WHARF_LANE_READER_SECRET_ACCESS_KEY: ${{ secrets.WHARF_LANE_READER_SECRET_ACCESS_KEY }}
+      WHARF_LANE_STATE_ACCESS_KEY_ID: ${{ secrets.WHARF_LANE_STATE_ACCESS_KEY_ID }}
+      WHARF_LANE_STATE_SECRET_ACCESS_KEY: ${{ secrets.WHARF_LANE_STATE_SECRET_ACCESS_KEY }}
+      WHARF_LANE_WORKLOAD_READER_ACCESS_KEY_ID: ${{ secrets.WHARF_LANE_WORKLOAD_READER_ACCESS_KEY_ID }}
+      WHARF_LANE_WORKLOAD_READER_SECRET_ACCESS_KEY: ${{ secrets.WHARF_LANE_WORKLOAD_READER_SECRET_ACCESS_KEY }}
+
+  observe:
+    name: '[read] cfworker lane'
+    needs: [intake]
+    if: always() && needs.intake.result == 'success'
+    permissions:
+      contents: read
+      actions: read
+    uses: ./.github/workflows/lane-observe.yml
+    with:
+      request: ${{ inputs.request }}
+      prepared: ${{ needs.intake.outputs.prepared }}
+      workload: ${{ needs.intake.outputs.workload || 'none' }}
+    secrets:
+      WHARF_APP_PRIVATE_KEY: ${{ secrets.WHARF_APP_PRIVATE_KEY }}
+      WHARF_LANE_READER_ACCESS_KEY_ID: ${{ secrets.WHARF_LANE_READER_ACCESS_KEY_ID }}
+      WHARF_LANE_READER_SECRET_ACCESS_KEY: ${{ secrets.WHARF_LANE_READER_SECRET_ACCESS_KEY }}
+      WHARF_LANE_PROVIDER_READER_TOKEN: ${{ secrets.WHARF_LANE_PROVIDER_READER_TOKEN }}
+      WHARF_LANE_WORKLOAD_READER_ACCESS_KEY_ID: ${{ secrets.WHARF_LANE_WORKLOAD_READER_ACCESS_KEY_ID }}
+      WHARF_LANE_WORKLOAD_READER_SECRET_ACCESS_KEY: ${{ secrets.WHARF_LANE_WORKLOAD_READER_SECRET_ACCESS_KEY }}
+
+  apply:
+    name: '[deploy] cfworker lane'
+    needs: [intake, observe]
+    if: always() && needs.intake.result == 'success' && needs.observe.result == 'success' && needs.intake.outputs.operation == 'apply'
+    permissions:
+      contents: read
+      actions: read
+    uses: ./.github/workflows/lane-deploy.yml
+    with:
+      request: ${{ inputs.request }}
+      prepared: ${{ needs.intake.outputs.prepared }}
+      provider: ${{ needs.observe.outputs.provider }}
+      workload: ${{ needs.intake.outputs.workload }}
+    secrets:
+      WHARF_APP_PRIVATE_KEY: ${{ secrets.WHARF_APP_PRIVATE_KEY }}
+      WHARF_LANE_READER_ACCESS_KEY_ID: ${{ secrets.WHARF_LANE_READER_ACCESS_KEY_ID }}
+      WHARF_LANE_READER_SECRET_ACCESS_KEY: ${{ secrets.WHARF_LANE_READER_SECRET_ACCESS_KEY }}
+      WHARF_LANE_PROVIDER_READER_TOKEN: ${{ secrets.WHARF_LANE_PROVIDER_READER_TOKEN }}
+      WHARF_LANE_DEPLOYMENT_TOKEN: ${{ secrets.WHARF_LANE_DEPLOYMENT_TOKEN }}
+      WHARF_LANE_WORKLOAD_READER_ACCESS_KEY_ID: ${{ secrets.WHARF_LANE_WORKLOAD_READER_ACCESS_KEY_ID }}
+      WHARF_LANE_WORKLOAD_READER_SECRET_ACCESS_KEY: ${{ secrets.WHARF_LANE_WORKLOAD_READER_SECRET_ACCESS_KEY }}
+
+  dispose:
+    name: '[deploy] cfworker disposal'
+    needs: [intake, observe]
+    if: always() && needs.intake.result == 'success' && needs.observe.result == 'success' && needs.intake.outputs.operation == 'dispose'
+    permissions:
+      contents: read
+      actions: read
+    uses: ./.github/workflows/lane-dispose.yml
+    with:
+      request: ${{ inputs.request }}
+      prepared: ${{ needs.intake.outputs.prepared }}
+      provider: ${{ needs.observe.outputs.provider }}
+    secrets:
+      WHARF_APP_PRIVATE_KEY: ${{ secrets.WHARF_APP_PRIVATE_KEY }}
+      WHARF_LANE_READER_ACCESS_KEY_ID: ${{ secrets.WHARF_LANE_READER_ACCESS_KEY_ID }}
+      WHARF_LANE_READER_SECRET_ACCESS_KEY: ${{ secrets.WHARF_LANE_READER_SECRET_ACCESS_KEY }}
+      WHARF_LANE_PROVIDER_READER_TOKEN: ${{ secrets.WHARF_LANE_PROVIDER_READER_TOKEN }}
+      WHARF_LANE_DISPOSAL_TOKEN: ${{ secrets.WHARF_LANE_DISPOSAL_TOKEN }}
+
+  evidence:
+    name: '[record] evidence lane'
+    needs: [intake, observe, apply, dispose]
+    if: always() && needs.intake.result == 'success' && needs.observe.result == 'success' && ((needs.intake.outputs.operation == 'apply' && needs.apply.result == 'success' && needs.dispose.result == 'skipped') || (needs.intake.outputs.operation == 'dispose' && needs.dispose.result == 'success' && needs.apply.result == 'skipped') || (needs.intake.outputs.operation == 'inspect' && needs.apply.result == 'skipped' && needs.dispose.result == 'skipped'))
+    permissions:
+      contents: read
+      actions: read
+    uses: ./.github/workflows/lane-evidence.yml
+    with:
+      request: ${{ inputs.request }}
+      prepared: ${{ needs.intake.outputs.prepared }}
+      provider: ${{ needs.intake.outputs.operation == 'apply' && needs.apply.outputs.result || needs.intake.outputs.operation == 'dispose' && needs.dispose.outputs.result || needs.intake.outputs.operation == 'inspect' && needs.observe.outputs.provider || '' }}
+    secrets:
+      WHARF_APP_PRIVATE_KEY: ${{ secrets.WHARF_APP_PRIVATE_KEY }}
+      WHARF_LANE_READER_ACCESS_KEY_ID: ${{ secrets.WHARF_LANE_READER_ACCESS_KEY_ID }}
+      WHARF_LANE_READER_SECRET_ACCESS_KEY: ${{ secrets.WHARF_LANE_READER_SECRET_ACCESS_KEY }}
+      WHARF_LANE_EVIDENCE_ACCESS_KEY_ID: ${{ secrets.WHARF_LANE_EVIDENCE_ACCESS_KEY_ID }}
+      WHARF_LANE_EVIDENCE_SECRET_ACCESS_KEY: ${{ secrets.WHARF_LANE_EVIDENCE_SECRET_ACCESS_KEY }}
+      WHARF_LANE_STATE_ACCESS_KEY_ID: ${{ secrets.WHARF_LANE_STATE_ACCESS_KEY_ID }}
+      WHARF_LANE_STATE_SECRET_ACCESS_KEY: ${{ secrets.WHARF_LANE_STATE_SECRET_ACCESS_KEY }}

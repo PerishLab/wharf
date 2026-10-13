@@ -232,8 +232,8 @@ not the sorted-key release codec. Readers require JSON objects, reject unknown o
 duplicate fields and return detached values; encoders validate again before use.
 Optional artifact build identity becomes explicit null. Supplied selection
 readback must match its authority, digest and exact canonical record bytes.
-These checks prove neither publication, authorization nor retention. Shared state
-is not yet consumed by runtime; no legacy Preview envelope is treated as an
+These checks prove neither publication, authorization nor retention. Static runtime
+consumes shared state below; no legacy Preview envelope is treated as an
 operation record. Generic families and distribution actions remain
 separate from the static Preview declaration's narrower capability requirements.
 
@@ -561,13 +561,13 @@ It runs no product checkout/build/script and accepts no writer or private fallba
 These observations are not bearer permits, provider results or writer quiescence.
 
 `lane-intake.yml` exposes only a reusable workflow, with no dispatch/push/schedule
-trigger. It remains admitted solely from the fixed-main `lane.yml` caller; no
-incomplete caller is supplied by this source child. Its outputs bind admission,
+trigger. It remains admitted solely from the fixed-main `lane.yml` caller; it
+cannot independently dispatch. Its outputs bind admission,
 workload, reservation and verified consumption, not complete execution. The intake
 concurrency group is distinct from the complete caller's custody group so nested
-calls do not self-block. Only #174 enables the complete entry after #170–#173;
-provider execution, immutable public evidence and final state settlement remain
-separate required children of #123. No live or installed consumer is claimed here.
+calls do not self-block. The complete entry connects admission and build to the
+separate provider, immutable public evidence and final settlement stages.
+No live or installed consumer is claimed by these source components.
 
 `lib/process/lane/provider.py` binds fresh original-run execution to complete
 cfworker observations under prepared parent/subdomain pins. Apply/dispose return
@@ -601,9 +601,9 @@ it is not independent global quiescence or timeout-based recovery authority.
 reusable units. They inherit the authenticated fixed-main caller context and accept
 only explicit prepared readers and the selected provider writer, never bucket
 writers or inherited secrets. Runtime revalidates A's exact authenticated boundary;
-#174 alone connects all producer dependencies and the complete serialized entry.
-These units publish no public evidence and settle no current state. Public binding,
-failure convergence and complete entry remain #172–#174. Tests prove neither live
+The complete entry connects all producer dependencies and serializes custody.
+These units publish no public evidence and settle no current state; the subsequent
+evidence/state composition owns those obligations. Tests prove neither live
 topology, physical exclusivity, provider credential scope nor installed behavior.
 
 `lib/process/lane/publication.py` consumes B's finite original-run result only
@@ -623,14 +623,14 @@ entire exact operation before a final authority check returns only its immutable
 shared reference. Applied/refused/unknown remain distinct; publication does not
 turn non-applied observations into completion or new provider-write authority.
 
-`lane-evidence.yml` is a non-dispatching reusable unit with the fixed evidence job,
-explicit evidence-only writer and required state/control/product readers. No
-provider/workload/state writer, source acquisition, product execution or inherited
-secrets enter it. #174 owns native producer dependency wiring in the complete caller;
-this component cannot independently authenticate supplied prior provider writes,
+`lane-evidence.yml` is a non-dispatching reusable unit with separate evidence and
+state jobs. The evidence job holds its evidence-only writer and required
+state/control/product readers, never provider/workload/state writers, source
+acquisition, product execution or inherited secrets. Complete caller wiring
+names every producing stage; publication alone cannot authenticate prior writes,
 prove global writer quiescence, physical credential scope, origin/bucket mapping,
 retention or live topology. Trusted onboarding and the complete workflow own those
-facts. #173 alone performs verified-public-evidence-before-current-CAS settlement.
+facts. The separate state job performs verified-public-evidence-before-current-CAS settlement.
 No live or installed capability is claimed by these source tests.
 
 `lib/process/lane/settlement.py` consumes only the original request/prepared value
@@ -640,7 +640,7 @@ attempt's native jobs with Actions read permission. A complete single default
 page of at most 30 unique job names/IDs is required; truncation, another run/head,
 unexpected jobs, producer failure/cancellation or nonterminal writers refuse.
 `execution.producer_names` fixes the complete caller's reusable job display names
-and action-specific success/skipped conclusions; #174 must supply that graph,
+and action-specific success/skipped conclusions supplied by the complete graph,
 including both conditional provider writers. An inactive provider call can
 appear as a skipped caller-only name instead of its expanded reusable name;
 both presentations identify the same branch and duplicates still refuse.
@@ -662,10 +662,28 @@ advances revision with an absent tombstone, never removes current or history.
 Registration/current remain separate objects, not an atomic authorization
 transaction. A later settled/unknown/replayed execution cannot continue writing.
 
-`lane-state.yml` is non-dispatching, holds only the state writer and required
+The state job in `lane-evidence.yml` holds only the state writer and required
 readers, and admits no provider, evidence or workload writer. It supplies no
 recovery, takeover, second provider attempt or timeout-based repair. Source
 regressions prove neither the complete live caller nor installed consumption.
+
+`lane.yml` is the sole fixed-main exact-request dispatch entry. One non-cancelling
+global custody group serializes static lanes without overlapping nested intake
+custody. Intake, complete provider observation and the selected apply/dispose call
+are explicit direct producers of evidence; failed, cancelled or unexpectedly
+skipped stages cannot enter publication. Inspect calls neither provider writer.
+Evidence and state remain distinct native jobs in one callable composition so
+the final state job can independently observe every completed producer, including
+its evidence job, without depending on a nonterminal separate reusable caller.
+Intake content consumption succeeds for all actions; non-apply consumes no new
+workload. Unknown/refused provider observations may produce public evidence but
+never settle current. Missing results, failed publication or cancelled writers
+leave reservations intact; no synthetic failure, retry or automatic recovery is
+introduced. Explicit job environments retain reader/writer separation; provider
+and bucket grants, public origin, retention and parent pins still require trusted
+operational onboarding. Formal release workflows are unreachable from this entry.
+Source regressions do not prove registration activation, real Crest operations,
+browser access, timings or installed Plumb consumption; those remain downstream.
 
 `lib/content/static/runtime.py` owns the bounded local Preview guest primitive.
 Only disposable temporary product directories and separate read-only trusted
@@ -872,7 +890,7 @@ name is rendered from the verb and object `resources/units.json` gives it.
 | | Within wharf |
 | --- | --- |
 | Verbs | ship, lodge, follow, plan, build, test, bind, smoke, validate, publish, deploy, point, record, checkout, verify, identify, prepare, login, read, decide |
-| Objects | entries, binary, binaries, deb, suite, npm, oci, chart, cargo, cfworker, channel, distribution, plan, wharf, product, request, source, registry, installation, engines, machine, autocrlf, node, pnpm, plumb, manager, evidence, and the Depot kinds |
+| Objects | entries, binary, binaries, deb, suite, npm, oci, chart, cargo, cfworker, channel, distribution, plan, wharf, product, request, source, registry, installation, engines, machine, autocrlf, node, pnpm, plumb, manager, evidence, state, and the Depot kinds |
 
 A name that cannot be written as one verb over one object marks a job doing two
 things; that is how writing the seal and moving the channel came apart.
