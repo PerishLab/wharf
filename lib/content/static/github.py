@@ -26,7 +26,7 @@ class GitHub:
 
     def get(self, path):
         repository = r"[A-Za-z0-9_-]+/[A-Za-z0-9_-]+"
-        suffix = r"(?:/actions/runs/[1-9][0-9]*|/git/commits/[0-9a-f]{40}|/collaborators/[A-Za-z0-9][A-Za-z0-9-]{0,38}(?:%5Bbot%5D)?/permission)?"
+        suffix = r"(?:/actions/runs/[1-9][0-9]*(?:/attempts/[1-9][0-9]*/jobs)?|/git/commits/[0-9a-f]{40}|/collaborators/[A-Za-z0-9][A-Za-z0-9-]{0,38}(?:%5Bbot%5D)?/permission)?"
         if not isinstance(path, str) or not re.fullmatch(r"/repos/" + repository + suffix, path):
             raise Refusal("Preview GitHub endpoint is not a fixed read-only identity endpoint")
         policy = resources.read_json("build.json")["admission"]
@@ -57,6 +57,12 @@ class GitHub:
         preview.matches(repository, preview.REPOSITORY, "GitHub permission repository")
         preview.matches(login, LOGIN, "GitHub actor login")
         return self.get(f"/repos/{repository}/collaborators/{urllib.parse.quote(login, safe='')}/permission")
+
+    def jobs(self, identity, attempt):
+        if any(type(value) is not int or value < 1 for value in (identity, attempt)):
+            raise Refusal("lane native jobs require the exact positive run and attempt")
+        repository = resources.read_json("build.json")["admission"]["repository"]
+        return self.get(f"/repos/{repository}/actions/runs/{identity}/attempts/{attempt}/jobs")
 
     def commit(self, repository, identity):
         preview.matches(repository, preview.REPOSITORY, "GitHub source repository")
