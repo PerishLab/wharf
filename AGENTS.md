@@ -726,6 +726,9 @@ source/caller/target authentication remains a prerequisite for workflow wiring.
 independent Git checkout, never a writable mount of a canonical worktree.
 Acquisition readback admits real absolute independent checkouts in the trusted
 runner workspace; only separately staged guest mounts require temporary placement.
+Origin readback admits only the exact independently selected repository's
+credential-free GitHub HTTPS address, with or without terminal `.git`, as the
+official checkout writes the suffix-free form. No other spelling is normalized.
 The source entry preserves paths for qualification rather than resolving aliases.
 Prepared system Git uses an isolated home and fixed control configuration; source
 hooks, local configuration, ignored files and shared object storage are not copied.

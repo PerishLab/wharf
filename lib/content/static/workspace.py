@@ -71,7 +71,8 @@ def acquired(root, expected):
         for key, expression in (("commit", "HEAD"), ("tree", "HEAD^{tree}")):
             if source.git(root, ["rev-parse", expression], env) != expected[key]:
                 raise Refusal("Preview acquired commit/tree differs from its exact request")
-        if source.git(root, ["remote", "get-url", "origin"], env) != f"https://github.com/{expected['repository']}.git":
+        origin = f"https://github.com/{expected['repository']}"
+        if source.git(root, ["remote", "get-url", "origin"], env) not in (origin, origin + ".git"):
             raise Refusal("Preview acquired origin differs from its exact repository")
         if any(line.startswith("160000 ") for line in source.git(root, ["ls-files", "--stage"], env).splitlines()):
             raise Refusal("Preview source acquisition does not admit submodules")
