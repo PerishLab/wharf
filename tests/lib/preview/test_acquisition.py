@@ -37,6 +37,30 @@ class Acquisition(unittest.TestCase):
         self.assertEqual(result, {"schema": "wharf.preview.acquisition/v1", "root": str(self.root), **self.expected})
         self.assertFalse((self.root / ".git/hooks").exists())
 
+    def test_exact_github_origin_spellings(self):
+        for origin in ("https://github.com/PerishLab/crest", "https://github.com/PerishLab/crest.git"):
+            with self.subTest(origin=origin):
+                self.git("remote", "set-url", "origin", origin)
+                self.assertEqual(workspace.acquired(self.root, self.expected)["repository"], "PerishLab/crest")
+                self.assertEqual(self.git("remote", "get-url", "origin"), origin)
+                with mock.patch.object(preview.parameters, "answer", side_effect=lambda value: value):
+                    self.assertEqual(preview.source(dict(self.expected, source=str(self.root)))["commit"], self.expected["commit"])
+
+    def test_foreign_and_ambiguous_github_origins_refuse(self):
+        origins = (
+            "http://github.com/PerishLab/crest", "https://github.com/PerishLab/other.git",
+            "https://github.com/perishlab/crest", "https://github.com/PerishLab/crest/",
+            "https://github.com/PerishLab/crest.git.git", "https://github.com/PerishLab/crest?x=1",
+            "https://github.com/PerishLab/crest#main", "https://github.com/PerishLab/crest%2Egit",
+            "https://github.com.example/PerishLab/crest", "https://private-fixture-secret@github.com/PerishLab/crest.git",
+            "ssh://git@github.com/PerishLab/crest.git", "git@github.com:PerishLab/crest.git",
+        )
+        for origin in origins:
+            self.git("remote", "set-url", "origin", origin)
+            with self.subTest(origin=origin), self.assertRaisesRegex(Refusal, "origin differs") as raised:
+                workspace.acquired(self.root, self.expected)
+            self.assertNotIn("private-fixture-secret", str(raised.exception))
+
     def test_runner_checkout_outside_temporary_root(self):
         temporary = Path(tempfile.gettempdir()).resolve()
         directory = next(path for path in (Path.home().resolve(), Path("/var/tmp"), Path.cwd().resolve()) if path.is_dir() and not path.is_relative_to(temporary) and os.access(path, os.W_OK))
