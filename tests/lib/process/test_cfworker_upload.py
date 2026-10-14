@@ -1,5 +1,6 @@
 import base64
 import copy
+import io
 import json
 import unittest
 from concurrent.futures import ThreadPoolExecutor
@@ -133,6 +134,32 @@ class Upload(unittest.TestCase):
         with self.assertRaises(Refusal):
             self.bucket(api)
         self.assertEqual(api._client.open.call_count, 1)
+
+    def test_unknown_diagnostics_are_finite_safe_and_never_enable_continuation(self):
+        secret = JWT + '\n::error::private-session-credential'
+        cases = [(TimeoutError(secret), 'timeout'), (OSError(secret), 'transport'), (Refusal(secret), 'protocol'), (upload.urllib.error.HTTPError('https://private.invalid', 403, secret, {}, io.BytesIO(secret.encode())), 'http'), (upload.urllib.error.HTTPError(secret, secret, secret, {}, io.BytesIO(secret.encode())), 'http')]
+        for phase in ('session', 'bucket'):
+            for error, category in cases:
+                api = self.client()
+                if phase == 'bucket':
+                    self.session(api)
+                api._client.open.side_effect = error
+                with mock.patch('sys.stderr', new_callable=io.StringIO) as stream:
+                    result = self.session(api) if phase == 'session' else self.bucket(api)
+                held = json.loads(stream.getvalue())
+                self.assertEqual(held, {'schema': 'wharf.cfworker.diagnostic/v1', 'stage': phase + '-response', 'category': category, 'status': 403 if category == 'http' and error.code == 403 else None})
+                self.assertFalse(result['acknowledged'])
+                self.assertEqual(set(result), {'request', 'acknowledged', 'buckets', 'complete'})
+                with self.assertRaises(Refusal):
+                    self.session(api) if phase == 'session' else self.bucket(api)
+                with self.assertRaises(Refusal):
+                    api.completion(self.document, self.bodies.__getitem__)
+                self.assertEqual(api._client.open.call_count, 1 if phase == 'session' else 2)
+
+    def test_diagnostic_rejects_foreign_stage_without_printing_it(self):
+        with mock.patch('sys.stderr', new_callable=io.StringIO) as stream, self.assertRaises(Refusal):
+            upload.diagnostic(JWT, Refusal(JWT))
+        self.assertEqual(stream.getvalue(), '')
 
     def test_lost_bucket_reply_blocks_other_buckets_and_completion(self):
         api = self.client([[self.hashes[0]], self.hashes[1:]])

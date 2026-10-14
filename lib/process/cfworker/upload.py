@@ -1,4 +1,6 @@
 import base64
+import json
+import sys
 import threading
 import urllib.error
 import urllib.request
@@ -11,6 +13,24 @@ from lib.process.cfworker import apply, mapping, payload, reader
 from lib.refusal import Refusal
 
 MIME = payload.MIME
+
+
+def diagnostic(stage, error):
+    stages = ('session-response', 'session-shape', 'session-jwt', 'session-buckets', 'bucket-response', 'bucket-shape', 'bucket-jwt', 'deployment-response')
+    if stage not in stages:
+        raise Refusal('cfworker diagnostic stage is unsupported')
+    status = None
+    if isinstance(error, urllib.error.HTTPError):
+        category = 'http'
+        if type(error.code) is int and 100 <= error.code <= 599:
+            status = error.code
+    elif isinstance(error, TimeoutError):
+        category = 'timeout'
+    elif isinstance(error, Refusal):
+        category = 'protocol'
+    else:
+        category = 'transport'
+    print(json.dumps({'schema': 'wharf.cfworker.diagnostic/v1', 'stage': stage, 'category': category, 'status': status}), file=sys.stderr, flush=True)
 
 
 def jwt(value):
@@ -101,14 +121,19 @@ class Uploader:
             material = ({"Content-Type": "application/json", "Content-Length": str(len(body))}, body)
             suffix = f"/workers/scripts/{self._selected['parent']}/assets-upload-session"
             self._attempted = True
+            stage = 'session-response'
             try:
                 status, reply = self._post(suffix, material, self._token)
+                stage = 'session-shape'
                 if status != 200 or set(reply) != {"jwt", "buckets"}:
                     raise Refusal("cfworker asset session reply has unsupported fields or status")
+                stage = 'session-jwt'
                 private = jwt(reply["jwt"])
+                stage = 'session-buckets'
                 groups = buckets(reply["buckets"], manifest)
-            except (OSError, urllib.error.URLError, TimeoutError, Refusal):
+            except (OSError, urllib.error.URLError, TimeoutError, Refusal) as error:
                 self._blocked = True
+                diagnostic(stage, error)
                 return self.result(False)
             self._buckets, self._upload = groups, private
             if not groups:
@@ -122,15 +147,19 @@ class Uploader:
             _, files = apply.qualified(self._plan, document, bodies)
             material = multipart(self._buckets[number], files, self._request)
             self._done.add(number)
+            stage = 'bucket-response'
             try:
                 status, reply = self._post("/workers/assets/upload?base64=true", material, self._upload)
+                stage = 'bucket-shape'
                 final = len(self._done) == len(self._buckets)
                 if (final and (status != 201 or set(reply) != {"jwt"})) or (not final and (status != 200 or reply != {})):
                     raise Refusal("cfworker upload acknowledgement differs from its exact completion position")
                 if final:
+                    stage = 'bucket-jwt'
                     self._completion = jwt(reply["jwt"])
-            except (OSError, urllib.error.URLError, TimeoutError, Refusal):
+            except (OSError, urllib.error.URLError, TimeoutError, Refusal) as error:
                 self._blocked = True
+                diagnostic(stage, error)
                 return self.result(False)
             return self.result(True)
 
