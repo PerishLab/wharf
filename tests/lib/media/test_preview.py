@@ -1,6 +1,7 @@
 import copy
 import json
 import os
+import shutil
 import tempfile
 import time
 import unittest
@@ -23,6 +24,7 @@ DOMAIN = {"node.version": "24.18.0", "pnpm.version": "11.13.0", "rust.version": 
 class Builder:
     def __init__(self):
         self.repository = StaticRepository()
+        shutil.rmtree(self.repository.root / ".git/hooks")
         self.intent = self.repository.request()
         self.destination = Path(tempfile.mkdtemp()) / "handoff"
         self.calls = []
@@ -61,7 +63,8 @@ class CredentialBoundary(unittest.TestCase):
         self.assertEqual(handoff.local(builder.destination), document)
         calls = [(argv, env) for kind, argv, env in builder.calls if kind == "execute"]
         self.assertEqual(calls[0][0][1:], ["install", "--frozen-lockfile", "--ignore-scripts", "--ignore-pnpmfile"])
-        self.assertEqual(calls[1][0][1:], ["--filter", "crest-review", "run", "build"])
+        self.assertEqual(calls[1][0][1:], ["configuration", "install"])
+        self.assertEqual(calls[2][0][1:], ["--filter", "crest-review", "run", "build"])
         self.assertEqual(calls[0][1][node.READER], "read-only")
         self.assertNotIn(node.READER, calls[1][1])
         for kind, argv, child in builder.calls:
@@ -72,6 +75,31 @@ class CredentialBoundary(unittest.TestCase):
                     self.assertNotIn(node.READER, child)
                 self.assertNotIn(toolchain.VARIABLE, child)
         self.assertFalse(Path(calls[0][1]["NPM_CONFIG_USERCONFIG"]).exists())
+
+    def test_installation_policy_does_not_enter_trusted_controls_or_build(self):
+        builder = Builder()
+        builder.build(dict(os.environ, WHARF_PACKAGES_TOKEN="read-only"))
+        flags = {"NPM_CONFIG_IGNORE_SCRIPTS", "NPM_CONFIG_IGNORE_PNPMFILE"}
+        selected = [(argv, env) for _, argv, env in builder.calls if "install" in argv or "guard" in argv or "build" in argv]
+        self.assertEqual(len(selected), 4)
+        self.assertTrue(all(selected[0][1][key] == "true" for key in flags))
+        for argv, env in selected[1:]:
+            with self.subTest(command=argv):
+                self.assertFalse(flags & set(env))
+                self.assertFalse({node.READER, "NPM_CONFIG_USERCONFIG"} & set(env))
+        self.assertEqual(selected[1][0][1:], ["configuration", "install"])
+        self.assertEqual(selected[2][0][1:3], ["guard", "--json"])
+
+    def test_source_hooks_and_unsafe_configuration_refuse_before_control_projection(self):
+        for unsafe in ("hooks", "configuration"):
+            builder = Builder()
+            if unsafe == "hooks":
+                (builder.repository.root / ".git/hooks").mkdir()
+            else:
+                builder.repository.git("config", "credential.helper", "private-source-control")
+            with self.subTest(unsafe=unsafe), self.assertRaises(Refusal):
+                builder.build()
+            self.assertFalse(builder.calls)
 
     def test_guard_selectors_are_explicit_and_no_source_receipt_is_trusted(self):
         builder = Builder()

@@ -90,6 +90,40 @@ class RecordedBuild(unittest.TestCase):
         self.assertFalse(bucket.objects)
         self.assertFalse(any("build" in argv for _, argv, _ in builder.calls))
 
+    def test_configuration_refusal_records_nothing_and_never_enters_guard(self):
+        builder, held, env = self.prepared()
+        original = builder.execute
+
+        def execute(argv, cwd, child):
+            original(argv, cwd, child)
+            if "configuration" in argv:
+                raise Refusal("trusted configuration failed")
+
+        builder.execute = execute
+        bucket = fixtures.Store(fixtures.registered())
+        with self.assertRaisesRegex(Refusal, "configuration failed"):
+            self.run_build(builder, held, env, bucket)
+        self.assertFalse(any("guard" in argv or "build" in argv for _, argv, _ in builder.calls))
+        self.assertFalse(bucket.objects)
+
+    def test_configuration_source_or_tool_movement_refuses_before_guard(self):
+        for changed in ("source", "tool"):
+            builder, held, env = self.prepared()
+            original = builder.execute
+
+            def execute(argv, cwd, child):
+                original(argv, cwd, child)
+                if "configuration" in argv:
+                    path = builder.repository.root / "plumb.toml" if changed == "source" else builder.bin / "plumb"
+                    path.write_text("changed")
+
+            builder.execute = execute
+            bucket = fixtures.Store(fixtures.registered())
+            with self.subTest(changed=changed), self.assertRaises(Refusal):
+                self.run_build(builder, held, env, bucket)
+            self.assertFalse(any("guard" in argv or "build" in argv for _, argv, _ in builder.calls))
+            self.assertFalse(bucket.objects)
+
     def test_admission_from_other_run_or_altered_registration_refuses(self):
         builder, held, env = self.prepared()
         for path in (("workflow", "run"), ("workflow", "attempt"), ("registration", "enabled")):
