@@ -1,4 +1,6 @@
 import copy
+import io
+import json
 import unittest
 from unittest import mock
 
@@ -8,6 +10,8 @@ from lib.refusal import Refusal
 from lib.store.lane import public, publication, registration, state
 from tests.cfworker import test_readback
 from tests.lib.identity import test_publication
+from tests.lib.process import test_cfworker_upload
+from tests.lib.process.test_cfworker import Response
 from tests.lib.preview.test_store import Store
 from tests.lib.store.memory import Memory
 
@@ -189,3 +193,89 @@ class Outcome(unittest.TestCase):
             self.assertEqual(publication.settle(reader, self.declared, reference, operation["request"]), operation)
             with self.assertRaisesRegex(Refusal, "original reservation assessment"):
                 apply.published(self.plan, reader, reference)
+
+
+class Bulk(unittest.TestCase):
+    def setUp(self):
+        self.fixture = test_cfworker_upload.Upload()
+        self.fixture.setUp()
+
+    def client(self, groups=None):
+        if groups is None:
+            groups = [[self.fixture.hashes[0]], self.fixture.hashes[1:]]
+        api = self.fixture.client(groups)
+        self.assertTrue(self.fixture.session(api)['acknowledged'])
+        return api
+
+    def response(self, api, envelope, status=200):
+        body = json.dumps(envelope).encode()
+        def received(request, timeout):
+            value = Response(body, request.full_url)
+            value.status = status
+            return value
+        api._client.open.side_effect = received
+
+    def test_optional_intermediate_reply_can_continue_once_to_exact_completion(self):
+        for envelope in ({'success': True, 'errors': []}, {'success': True, 'errors': [], 'result': None}, {'success': True, 'errors': [], 'result': {}}):
+            api = self.client()
+            self.response(api, envelope)
+            with mock.patch('sys.stderr', new_callable=io.StringIO) as stream:
+                result = self.fixture.bucket(api, 0)
+            self.assertTrue(result['acknowledged'])
+            self.assertFalse(result['complete'])
+            self.assertEqual(stream.getvalue(), '')
+            self.assertEqual(set(result), {'request', 'acknowledged', 'buckets', 'complete'})
+            with self.assertRaises(Refusal):
+                self.fixture.bucket(api, 0)
+            with self.assertRaises(Refusal):
+                api.completion(self.fixture.document, self.fixture.bodies.__getitem__)
+            self.fixture.response(api, {'jwt': test_cfworker_upload.FINAL})
+            self.assertTrue(self.fixture.bucket(api, 1)['complete'])
+            self.assertEqual(api.completion(self.fixture.document, self.fixture.bodies.__getitem__), test_cfworker_upload.FINAL)
+            self.assertEqual(api._client.open.call_count, 3)
+
+    def test_optional_results_never_relax_the_session_object(self):
+        for envelope in ({'success': True, 'errors': []}, {'success': True, 'errors': [], 'result': None}):
+            api = self.fixture.client()
+            self.response(api, envelope)
+            with mock.patch('sys.stderr', new_callable=io.StringIO) as stream:
+                result = self.fixture.session(api)
+            self.assertFalse(result['acknowledged'])
+            self.assertEqual(json.loads(stream.getvalue())['stage'], 'session-response')
+            with self.assertRaises(Refusal):
+                self.fixture.session(api)
+            with self.assertRaises(Refusal):
+                self.fixture.bucket(api)
+            self.assertEqual(api._client.open.call_count, 1)
+
+    def blocked(self, api):
+        with mock.patch('sys.stderr', new_callable=io.StringIO) as stream:
+            result = self.fixture.bucket(api, 0)
+        self.assertFalse(result['acknowledged'])
+        self.assertFalse(result['complete'])
+        self.assertNotIn(test_cfworker_upload.JWT, stream.getvalue())
+        self.assertNotIn('private-provider-value', stream.getvalue())
+        for number in (0, 1):
+            with self.assertRaises(Refusal):
+                self.fixture.bucket(api, number)
+        with self.assertRaises(Refusal):
+            api.completion(self.fixture.document, self.fixture.bodies.__getitem__)
+        self.assertEqual(api._client.open.call_count, 2)
+
+    def test_final_reply_still_requires_exact_status_shape_and_jwt(self):
+        cases = [(None, 200), (None, 201), ({}, 200), ({}, 201), ({'jwt': 'bad'}, 201), ({'jwt': test_cfworker_upload.FINAL}, 200), ({'jwt': test_cfworker_upload.FINAL, 'private': 'private-provider-value'}, 201)]
+        for value, status in cases:
+            api = self.client([self.fixture.hashes])
+            self.response(api, {'success': True, 'errors': [], 'result': value}, status)
+            self.blocked(api)
+        api = self.client([self.fixture.hashes])
+        self.response(api, {'success': True, 'errors': []}, 201)
+        self.blocked(api)
+
+    def test_non_final_reply_cannot_accept_early_completion_or_malformed_envelope(self):
+        cases = [({'success': True, 'errors': [], 'result': {'jwt': test_cfworker_upload.FINAL}}, 201), ({'success': False, 'errors': [], 'result': None}, 200), ({'success': True, 'result': None}, 200), ({'success': True, 'errors': ['private-provider-value'], 'result': None}, 200)]
+        cases.extend(({'success': True, 'errors': [], 'result': value}, 200) for value in (False, [], 'private-provider-value', {'private': 'private-provider-value'}))
+        for envelope, status in cases:
+            api = self.client()
+            self.response(api, envelope, status)
+            self.blocked(api)
