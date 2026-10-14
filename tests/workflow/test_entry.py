@@ -11,8 +11,8 @@ from tests.workflow import fixtures
 
 
 class Admission(unittest.TestCase):
-    def test_default_and_keyed_bindings_use_shared_namespace(self):
-        for lane in ("preview", "preview.design", "preview.review"):
+    def test_explicit_flat_bindings_use_shared_names(self):
+        for lane in ("preview", "design", "review"):
             target = fixtures.registered(lane=lane)
             requested = fixtures.request(target=target)
             store = fixtures.Store(target)

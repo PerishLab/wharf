@@ -10,10 +10,8 @@ def atom(value):
 
 
 def name(value):
-    if not isinstance(value, str) or len(value.split(".")) > 2:
-        raise Refusal("lane name requires a family and optional key")
-    for part in value.split("."):
-        atom(part)
+    if not isinstance(value, str) or len(value) > 48 or not re.fullmatch(r"[a-z][a-z0-9]*", value):
+        raise Refusal("lane name needs 1..48 lowercase ASCII letters or digits, starting with a letter")
     return value
 
 

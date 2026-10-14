@@ -48,8 +48,8 @@ class Create(unittest.TestCase):
     def after(self, identity):
         return {"parent": self.parent, "previews": self.before["previews"] + [identity], "preview": identity}
 
-    def test_default_and_two_keyed_creations_use_fixed_parent_without_inheritance(self):
-        for lane in ("preview", "preview.design", "preview.review"):
+    def test_three_explicit_creations_use_fixed_parent_without_inheritance(self):
+        for lane in ("preview", "design", "review"):
             plan = create.prepare(self.fixture.prepared(lane), self.before, self.policy)
             api = self.client(plan)
             result = self.invoke(api)
@@ -57,7 +57,7 @@ class Create(unittest.TestCase):
             request = api._client.open.call_args.args[0]
             self.assertEqual(request.full_url, "https://api.cloudflare.com/client/v4/accounts/" + "a" * 32 + "/workers/workers/crest-development/previews?ignore_base_config=true")
             self.assertEqual(request.get_method(), "POST")
-            self.assertEqual(json.loads(request.data), {"name": lane.replace(".", "-")})
+            self.assertEqual(json.loads(request.data), {"name": lane})
             self.assertEqual(request.get_header("Content-length"), str(len(request.data)))
             self.assertEqual(request.get_header("Authorization"), "Bearer private-create-credential")
             self.assertEqual(api._client.open.call_args.kwargs, {"timeout": 30})

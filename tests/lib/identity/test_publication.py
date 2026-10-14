@@ -132,7 +132,7 @@ class Publication(unittest.TestCase):
         self.assertEqual((self.writer.writes, self.connection.calls), ([], []))
 
     def test_declared_target_adaptor_capabilities_and_authorization_bind(self):
-        for field, value in (("target", dict(declared()["target"], lane="preview.other")), ("adaptor", "other"),
+        for field, value in (("target", dict(declared()["target"], lane="other")), ("adaptor", "other"),
                              ("capabilities", ["inspect", "deploy"]),
                              ("authorities", {"authorization": "other", "publication": "wharf"})):
             wrong = declared()

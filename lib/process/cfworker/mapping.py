@@ -8,7 +8,7 @@ def selected(value):
     if not value["enabled"]:
         raise Refusal("static provider registration is disabled")
     target = value["declaration"]["target"]
-    name = target["lane"].replace(".", "-")
+    name = target["lane"]
     parent = value["mapping"]["resource"]
     if len(name + "-" + parent) > 63:
         raise Refusal("static Preview and parent exceed one public DNS label; no truncation")

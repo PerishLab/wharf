@@ -54,9 +54,9 @@ class LaneState(unittest.TestCase):
         self.assertEqual((current["revision"], current["phase"], etag), (1, "vacant", None))
         self.assertEqual(len(self.bucket.writes), count)
 
-    def test_default_and_keyed_lanes_are_independent(self):
+    def test_explicit_flat_lanes_are_independent(self):
         first = reserve(self.bucket, self.value)
-        second = operation("preview.review")
+        second = operation("review")
         registration.write(self.bucket, registered(second), None)
         reserve(self.bucket, second)
         state.record(self.bucket, second)
@@ -212,7 +212,7 @@ class LaneState(unittest.TestCase):
         for field, value in (("enabled", False), ("enabled", 1)):
             self.bucket.put(key, documents.encode(dict(self.registered, **{field: value})))
             self.assertRaises(Refusal, reserve, self.bucket, self.value)
-        for field, value in (("target", dict(self.registered["declaration"]["target"], lane="preview.other")),
+        for field, value in (("target", dict(self.registered["declaration"]["target"], lane="other")),
                              ("authorities", {"authorization": "other", "publication": "wharf"})):
             wrong = copy.deepcopy(self.registered)
             wrong["declaration"][field] = value

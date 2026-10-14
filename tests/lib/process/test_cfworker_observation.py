@@ -26,8 +26,8 @@ class Observation(unittest.TestCase):
         api._client.open.side_effect = lambda request, timeout: Response(json.dumps({"success": True, "errors": [], "result": next(replies)}).encode(), request.full_url)
         return api
 
-    def test_default_and_two_keyed_identities(self):
-        for lane in ("preview", "preview.design", "preview.review"):
+    def test_three_explicit_identities(self):
+        for lane in ("preview", "design", "review"):
             selected = mapping.selected(registered(operation(lane)))
             parent = observation.parent(self.parent, selected, self.policy)
             value = dict(self.preview, name=selected["name"], slug=selected["name"], urls=["https://" + selected["name"] + parent["suffix"]])

@@ -35,10 +35,10 @@ class StaticProvider(unittest.TestCase):
         api._client.open.side_effect = lambda request, timeout: Response(json.dumps(reply).encode(), request.full_url)
         return api
 
-    def test_default_and_two_keyed_lanes_share_only_parent(self):
-        values = [registered(operation(name)) for name in ("preview", "preview.review", "preview.design")]
+    def test_three_explicit_lanes_share_only_parent(self):
+        values = [registered(operation(name)) for name in ("preview", "review", "design")]
         held = mapping.catalog(values)
-        self.assertEqual([item["name"] for item in held], ["preview", "preview-review", "preview-design"])
+        self.assertEqual([item["name"] for item in held], ["preview", "review", "design"])
         self.assertEqual({item["parent"] for item in held}, {"crest-development"})
         self.assertEqual([item["target"] for item in held], [item["declaration"]["target"] for item in values])
 
@@ -50,6 +50,13 @@ class StaticProvider(unittest.TestCase):
         for value in (self.registered, foreign, other):
             with self.subTest(value=value), self.assertRaises(Refusal):
                 mapping.catalog([self.registered, value])
+
+    def test_invalid_lane_names_are_not_encoded_as_aliases(self):
+        for name in ("preview.review", "preview-review", "Review", "1a", "", "a" * 49):
+            value = copy.deepcopy(self.registered)
+            value["declaration"]["target"]["lane"] = name
+            with self.subTest(name=name), self.assertRaises(Refusal):
+                mapping.selected(value)
 
     def test_distinct_accounts_and_parents_do_not_collide(self):
         for key, value in (("account", "b" * 32), ("resource", "another-development")):
@@ -64,9 +71,9 @@ class StaticProvider(unittest.TestCase):
         self.registered["mapping"]["resource"] = "a" * 56
         with self.assertRaises(Refusal):
             mapping.selected(self.registered)
-        keyed = registered(operation("preview." + "a" * 48))
+        bounded = registered(operation("a" * 48))
         with self.assertRaises(Refusal):
-            mapping.selected(keyed)
+            mapping.selected(bounded)
 
     def test_registration_validation_and_detachment(self):
         held = mapping.selected(self.registered)
