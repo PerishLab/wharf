@@ -75,12 +75,15 @@ runs:
       shell: pwsh
       env:
         PNPM: ${{ inputs.pnpm }}
+        GH_TOKEN: ${{ github.token }}
       run: |
         $ErrorActionPreference = 'Stop'
         if ($env:PNPM -notmatch '^[0-9]+\.[0-9]+\.[0-9]+$') { throw 'pnpm needs the exact domain version' }
         $name = 'pnpm-win32-x64.zip'
         $url = "https://github.com/pnpm/pnpm/releases/download/v$env:PNPM/$name"
-        $release = Invoke-RestMethod "https://api.github.com/repos/pnpm/pnpm/releases/tags/v$env:PNPM" -TimeoutSec 30
+        if ([string]::IsNullOrWhiteSpace($env:GH_TOKEN)) { throw 'native pnpm metadata requires the workflow token' }
+        $headers = @{ Authorization = "Bearer $env:GH_TOKEN"; Accept = 'application/vnd.github+json' }
+        $release = Invoke-RestMethod "https://api.github.com/repos/pnpm/pnpm/releases/tags/v$env:PNPM" -Headers $headers -TimeoutSec 30
         $assets = @($release.assets | Where-Object { $_.name -ceq $name })
         if ($assets.Count -ne 1) { throw 'declared native pnpm asset is missing or ambiguous' }
         $asset = $assets[0]
