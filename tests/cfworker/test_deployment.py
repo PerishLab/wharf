@@ -67,9 +67,9 @@ class Deployment(unittest.TestCase):
     def invoke(self, api, observed=None):
         return api.deploy(self.before if observed is None else observed, self.document, self.bodies.__getitem__)
 
-    def test_default_and_two_keyed_writes_bind_exact_immutable_preview_and_payload(self):
-        for lane in ("preview", "preview.design", "preview.review"):
-            self.preview["name"] = lane.replace(".", "-")
+    def test_three_explicit_writes_bind_exact_immutable_preview_and_payload(self):
+        for lane in ("preview", "design", "review"):
+            self.preview["name"] = lane
             plan = apply.deployment_prepare(self.fixture.prepared(lane), self.before, self.policy)
             api = self.client(plan)
             result = self.invoke(api)

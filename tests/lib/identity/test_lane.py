@@ -20,9 +20,28 @@ def reference(content):
 
 
 class LaneCodec(unittest.TestCase):
+    def test_flat_name_alphabet_and_boundaries(self):
+        for number in range(128):
+            char = chr(number)
+            for value, valid in ((char, "a" <= char <= "z"), ("a" + char, "a" <= char <= "z" or "0" <= char <= "9")):
+                if valid:
+                    self.assertEqual(codec.read("name", value), value)
+                else:
+                    self.assertRaises(Refusal, codec.read, "name", value)
+        self.assertEqual(codec.read("name", "a" * 48), "a" * 48)
+        for value in ("a" * 49, "", "preview.review", "preview-review", "é", "aé", True, None):
+            self.assertRaises(Refusal, codec.read, "name", value)
+
+    def test_independent_atoms_preserve_hyphenated_adaptors_and_authorities(self):
+        for value in ("static", "private-npm", "wharf-public", "a-10"):
+            self.assertEqual(codec.read("atom", value), value)
+        self.assertRaises(Refusal, codec.read, "name", "private-npm")
+        for value in ("wharf.key", "a--b", "A", "1a", ""):
+            self.assertRaises(Refusal, codec.read, "atom", value)
+
     def test_actual_rust_byte_and_digest_observations(self):
-        self.assertEqual(len(CASES), 157)
-        self.assertEqual(sum(not case["refused"] for case in CASES.values()), 43)
+        self.assertEqual(len(CASES), 178)
+        self.assertEqual(sum(not case["refused"] for case in CASES.values()), 52)
         for case in FIXTURE["cases"]:
             with self.subTest(case=case["id"]):
                 if case["refused"]:
@@ -55,10 +74,10 @@ class LaneCodec(unittest.TestCase):
         artifact["build"] = {}
         self.assertRaises(Refusal, codec.read, "artifact", artifact)
 
-    def test_generic_families_and_adaptors_do_not_require_static_actions(self):
+    def test_flat_lanes_and_adaptors_do_not_require_static_actions(self):
         declaration = example("declaration")
         declaration.update(adaptor="binary", capabilities=["install", "publish", "uninstall"])
-        declaration["target"]["lane"] = "binary.review"
+        declaration["target"]["lane"] = "review"
         value = codec.read("declaration", declaration)
         self.assertEqual(value["capabilities"], ["publish", "install", "uninstall"])
         declaration["capabilities"] = []
@@ -73,7 +92,7 @@ class LaneCodec(unittest.TestCase):
 
     def test_encoder_revalidates_a_mutated_value(self):
         value = codec.read("selection", example("selection"))
-        value["observation"]["actual"]["lane"] = "preview.other"
+        value["observation"]["actual"]["lane"] = "other"
         self.assertRaises(Refusal, codec.encode, "selection", value)
         self.assertRaises(Refusal, codec.digest, "selection", value)
 

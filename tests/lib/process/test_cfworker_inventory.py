@@ -48,10 +48,10 @@ class Inventory(unittest.TestCase):
             self.assertIsNone(call.args[0].data)
             self.assertEqual(call.kwargs, {"timeout": 30})
 
-    def test_default_and_two_keyed_selections_have_distinct_projected_identities(self):
-        values = [self.preview(name) for name in ("preview", "preview-design", "preview-review")]
-        for lane in ("preview", "preview.design", "preview.review"):
-            selected = next(item for item in values if item["name"] == lane.replace(".", "-"))
+    def test_three_explicit_selections_have_distinct_projected_identities(self):
+        values = [self.preview(name) for name in ("preview", "design", "review")]
+        for lane in ("preview", "design", "review"):
+            selected = next(item for item in values if item["name"] == lane)
             api = self.client([self.parent_reply(), listing(values), {"success": True, "errors": [], "result": selected}, listing(list(reversed(values))), self.parent_reply()], lane)
             held = api.status(self.policy)
             self.assertEqual(held["preview"]["id"], selected["id"])
@@ -61,11 +61,11 @@ class Inventory(unittest.TestCase):
             self.assertNotIn("latest", json.dumps(held))
 
     def test_absent_selected_lane_retains_two_siblings(self):
-        values = [self.preview(name) for name in ("preview-design", "preview-review")]
+        values = [self.preview(name) for name in ("design", "review")]
         api = self.client([self.parent_reply(), listing(values), listing(values), self.parent_reply()])
         held = api.status(self.policy)
         self.assertIsNone(held["preview"])
-        self.assertEqual([item["name"] for item in held["previews"]], ["preview-design", "preview-review"])
+        self.assertEqual([item["name"] for item in held["previews"]], ["design", "review"])
 
     def test_complete_two_page_status_scans_twice(self):
         values = [self.preview("lane-" + str(number)) for number in range(101)]

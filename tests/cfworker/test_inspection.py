@@ -60,8 +60,8 @@ class Inspection(unittest.TestCase):
             self.assertIsNone(call.args[0].get_header("Authorization"))
         self.assertNotIn("deployment", operation["outcome"])
 
-    def test_default_and_two_keyed_current_origins(self):
-        for lane in ("preview", "preview.design", "preview.review"):
+    def test_three_explicit_current_origins(self):
+        for lane in ("preview", "design", "review"):
             plan = copy.deepcopy(self.plan)
             target = dict(plan["current"]["target"], lane=lane)
             plan["registration"]["declaration"]["target"] = target
@@ -72,9 +72,9 @@ class Inspection(unittest.TestCase):
             plan["inspection"]["request"]["context"]["requested"] = target
             plan["inspection"]["assessment"]["request"] = codec.digest("request", plan["inspection"]["request"])
             observed = copy.deepcopy(self.observed)
-            observed["preview"]["name"] = lane.replace(".", "-")
-            observed["previews"][0]["name"] = lane.replace(".", "-")
-            self.origin = "https://" + lane.replace(".", "-") + observed["parent"]["suffix"]
+            observed["preview"]["name"] = lane
+            observed["previews"][0]["name"] = lane
+            self.origin = "https://" + lane + observed["parent"]["suffix"]
             self.assertEqual(self.invoke(self.client(plan, observed))["request"]["context"]["requested"], target)
 
     def test_verified_absence_needs_no_handoff_checkout_or_http(self):

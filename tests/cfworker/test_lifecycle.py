@@ -51,7 +51,7 @@ class Lifecycle(unittest.TestCase):
         registration.write(self.store, registered, None)
         active = held["current"]["active"]
         held["current"] = state.reserve(self.store, active["request"], active["assessment"])
-        self.deployment.preview["name"] = lane.replace(".", "-")
+        self.deployment.preview["name"] = lane
         before = copy.deepcopy(self.deployment.before)
         absent = {"parent": before["parent"], "preview": None, "previews": [before["previews"][1]]}
         creation = create.prepare(held, absent, self.deployment.policy)
@@ -80,8 +80,8 @@ class Lifecycle(unittest.TestCase):
             self.assertEqual(api._client.open.call_count, count)
         return plan, after, current
 
-    def test_default_and_two_keyed_complete_source_lifecycles(self):
-        for lane in ("preview", "preview.design", "preview.review"):
+    def test_three_explicit_complete_source_lifecycles(self):
+        for lane in ("preview", "design", "review"):
             plan, after, current = self.deploy(lane)
             registered = plan["apply"]["registration"]
             self.fixture.registered, self.fixture.current = registered, current

@@ -1,6 +1,6 @@
 import re
 
-from lib.content.lane import preview
+from lib.content.lane import identity, preview
 from lib.refusal import Refusal
 
 ACTIONS = {"inspect", "build", "deploy", "dispose"}
@@ -15,12 +15,7 @@ def repository(value):
 
 
 def name(value):
-    if not isinstance(value, str) or len(value.split(".")) > 2:
-        raise Refusal("lane name must have one family and at most one key")
-    for part in value.split("."):
-        preview.slug(part, "lane atom")
-    if value.split(".")[0] != "preview":
-        raise Refusal("first static binding requires preview or preview.<key>")
+    identity.name(value)
 
 
 def resource(value):

@@ -5,7 +5,7 @@ from lib.content.lane import assessment, identity, intent, material, operation, 
 from lib.refusal import Refusal
 
 READERS = {
-    "name": identity.name, "digest": identity.hex_value, "address": material.address,
+    "name": identity.name, "atom": identity.atom, "digest": identity.hex_value, "address": material.address,
     "source": material.source, "build": material.build, "artifact": material.artifact,
     "capabilities": material.capabilities, "authorities": material.authorities,
     "declaration": material.declaration, "context": selection.context,

@@ -30,18 +30,18 @@ class LaneDeclaration(unittest.TestCase):
     def document(self):
         return tomllib.loads(declared())
 
-    def test_default_keyed_and_identity_separation(self):
+    def test_explicit_flat_lanes_and_identity_separation(self):
         value = self.document()
         app = value["lane"]["app"]["review"]
-        app["binding"]["preview.a"] = copy.deepcopy(app["binding"]["preview"])
+        app["binding"]["a"] = copy.deepcopy(app["binding"]["preview"])
         value["lane"]["app"] = {"design": app}
         self.assertEqual(declaration.read(value), {"design": app})
-        self.assertEqual(set(app["binding"]), {"preview", "preview.a"})
+        self.assertEqual(set(app["binding"]), {"preview", "a"})
         self.assertEqual(app["mapping"]["resource"], "review")
         self.assertEqual(declaration.read({}), {})
 
     def test_binding_names_and_capabilities_refuse(self):
-        for name in ("preview.a.b", "preview-a", "Preview", "preview.", "preview.1a", "v1.2.3-lane.a", "preview." + "a" * 49):
+        for name in ("", "1a", "a_b", "é", "a\n", "preview.a", "preview.a.b", "preview-a", "Preview", "preview.", "preview.1a", "v1.2.3-lane.a", "a" * 49):
             value = self.document()
             app = value["lane"]["app"]["review"]
             app["binding"] = {name: app["binding"]["preview"]}
@@ -98,8 +98,18 @@ class LaneDeclaration(unittest.TestCase):
         app["binding"]["preview"]["capabilities"] += ["build", "dispose"]
         self.assertEqual(declaration.read(value), {"review": app})
 
-    def test_quoted_keyed_toml_is_required(self):
-        body = declared().replace("binding.preview", "binding.'preview.a'")
-        self.assertEqual(set(declaration.read(tomllib.loads(body))["review"]["binding"]), {"preview.a"})
-        with self.assertRaises(Refusal):
-            declaration.read(tomllib.loads(body.replace("'preview.a'", "preview.a")))
+    def test_flat_toml_names_need_no_namespace_or_quotes(self):
+        for name in ("a", "a0", "review", "preview", "lane", "a" * 48):
+            for key in (name, f"'{name}'"):
+                body = declared().replace("binding.preview", f"binding.{key}")
+                self.assertEqual(set(declaration.read(tomllib.loads(body))["review"]["binding"]), {name})
+        for key in ("'preview.a'", "preview.a"):
+            body = declared().replace("binding.preview", f"binding.{key}")
+            with self.assertRaises(Refusal):
+                declaration.read(tomllib.loads(body))
+
+    def test_lane_tightening_does_not_change_other_identity_grammars(self):
+        body = declared(app="crest-review", package="@demo/review-app", resource="crest-development")
+        body = body.replace('authorization = "ensign"', 'authorization = "ensign-read"')
+        body = body.replace('publication = "wharf"', 'publication = "wharf-public"')
+        self.assertEqual(set(declaration.read(tomllib.loads(body))), {"crest-review"})

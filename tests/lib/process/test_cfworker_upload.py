@@ -48,8 +48,8 @@ class Upload(unittest.TestCase):
             return reply
         api._client.open.side_effect = received
 
-    def test_default_and_two_keyed_sessions_use_only_parent_asset_endpoint(self):
-        for lane in ("preview", "preview.design", "preview.review"):
+    def test_three_explicit_sessions_use_only_parent_asset_endpoint(self):
+        for lane in ("preview", "design", "review"):
             self.plan = self.fixture.prepared(lane)
             api = self.client()
             result = self.session(api)

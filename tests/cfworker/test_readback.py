@@ -54,9 +54,9 @@ class Readback(unittest.TestCase):
         self.fixture.document, self.fixture.bodies = fixture.document, fixture.bodies
         self.plan = apply.deployment_prepare(fixture.plan, self.fixture.before, self.fixture.policy)
 
-    def test_default_and_two_keyed_lanes_read_every_exact_asset_without_credentials(self):
-        for lane in ("preview", "preview.design", "preview.review"):
-            self.fixture.preview["name"] = lane.replace(".", "-")
+    def test_three_explicit_lanes_read_every_exact_asset_without_credentials(self):
+        for lane in ("preview", "design", "review"):
+            self.fixture.preview["name"] = lane
             plan = self.fixture.fixture.prepared(lane)
             self.plan = apply.deployment_prepare(plan, self.fixture.before, self.fixture.policy)
             api = self.client()

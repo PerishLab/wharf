@@ -32,7 +32,7 @@ class LaneRelease(unittest.TestCase):
 
     def test_multiple_bindings_share_one_parent_without_releasing_it(self):
         body = declared()
-        binding = body[body.index("[lane.app.review.binding.preview]"):].replace("binding.preview", "binding.'preview.a'")
+        binding = body[body.index("[lane.app.review.binding.preview]"):].replace("binding.preview", "binding.'a'")
         self.repository.write("plumb.toml", body + binding)
         workers = cfworker.workers(self.repository.root)
         self.assertEqual([worker["name"] for worker in workers], ["demo"])

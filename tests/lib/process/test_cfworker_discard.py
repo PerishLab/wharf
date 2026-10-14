@@ -31,8 +31,8 @@ class Discard(unittest.TestCase):
         deletion["request"]["context"]["requested"]["lane"] = lane
         deletion["assessment"]["request"] = codec.digest("request", deletion["request"])
         reserved = state.started(previous, {key: deletion[key] for key in ("request", "assessment")}, held)
-        values = [{"id": name + "-id", "name": name, "parent": self.parent["id"]} for name in ("preview", "preview-design", "preview-review")]
-        selected = next(item for item in values if item["name"] == lane.replace(".", "-"))
+        values = [{"id": name + "-id", "name": name, "parent": self.parent["id"]} for name in ("preview", "design", "review")]
+        selected = next(item for item in values if item["name"] == lane)
         before = {"parent": self.parent, "previews": values, "preview": selected}
         return discard.prepare(held, reserved, before, self.policy)
 
@@ -49,8 +49,8 @@ class Discard(unittest.TestCase):
         api._client.open.side_effect = lambda request, timeout: Response(body, request.full_url)
         return api
 
-    def test_default_and_two_keyed_deletes_bind_only_immutable_selection(self):
-        for lane in ("preview", "preview.design", "preview.review"):
+    def test_three_explicit_deletes_bind_only_immutable_selection(self):
+        for lane in ("preview", "design", "review"):
             plan = self.prepared(lane)
             api = self.client(plan)
             result = api.delete(plan["before"])
@@ -135,7 +135,7 @@ class Discard(unittest.TestCase):
                 writer.Writer(token, self.plan)
 
     def test_ambiguous_id_name_routing_refuses_before_network(self):
-        for name in ("preview", "preview-review"):
+        for name in ("preview", "review"):
             plan = copy.deepcopy(self.plan)
             plan["before"]["preview"]["id"] = name
             for item in plan["before"]["previews"]:

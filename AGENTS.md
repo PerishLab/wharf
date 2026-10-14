@@ -215,8 +215,8 @@ what the distribution record carries; the run's own page keeps what each job
 did, so wharf writes no second record of its own.
 
 Tracked Worker configurations under `[lane.app.<name>].path` are development-only.
-Ordinary discovery reads explicit repository/app identities, default or quoted
-keyed Preview bindings, capabilities, independent authority roles and cfworker
+Ordinary discovery reads explicit repository/app identities and flat lane
+bindings, capabilities, independent authority roles and cfworker
 account/resource mappings. Retired `[preview]` declarations refuse without aliases.
 The package selector and source Worker must match the declaration; these files
 must be tracked regular files without symlink ancestry. Invalid, missing or shared
@@ -238,7 +238,7 @@ Optional artifact build identity becomes explicit null. Supplied selection
 readback must match its authority, digest and exact canonical record bytes.
 These checks prove neither publication, authorization nor retention. Static runtime
 consumes shared state below; no legacy Preview envelope is treated as an
-operation record. Generic families and distribution actions remain
+operation record. Generic adaptors and distribution actions remain
 separate from the static Preview declaration's narrower capability requirements.
 
 Operation requests bind their canonical byte digest to an assessment and require
@@ -340,7 +340,9 @@ are deliberately narrow supported subsets, not a claim about all provider IDs.
 
 `lib/process/cfworker/mapping.py` maps admitted static registrations to native
 Worker Preview names, keeping parent/account and exact logical lane distinct.
-Default `preview` and keyed `preview.<key>` map injectively without truncation;
+Lane names fully match `[a-z][a-z0-9]*` at 1..48 ASCII bytes, without family,
+key, normalization, aliases or privileged `preview`. Each maps directly to the
+same native Preview slug, with no implicit selection or fallback;
 the combined Preview-parent DNS label must fit 63 bytes. A supplied prepared
 catalog refuses repeated logical or physical targets, but does not prove catalog
 completeness or onboarding resource exclusivity. `reader.py` uses a prepared

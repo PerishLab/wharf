@@ -41,8 +41,8 @@ class Apply(unittest.TestCase):
         message = BytesParser(policy=policy.default).parsebytes(("Content-Type: " + headers["Content-Type"] + "\r\nMIME-Version: 1.0\r\n\r\n").encode() + body)
         return headers, body, list(message.iter_parts())
 
-    def test_default_and_two_keyed_plans_bind_exact_material_and_generation(self):
-        for lane in ("preview", "preview.design", "preview.review"):
+    def test_three_explicit_plans_bind_exact_material_and_generation(self):
+        for lane in ("preview", "design", "review"):
             plan = self.prepared(lane)
             self.assertEqual(plan["current"]["active"]["request"]["context"]["requested"]["lane"], lane)
             self.assertEqual(plan["artifact"]["digest"], self.document["content"])

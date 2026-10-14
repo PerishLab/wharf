@@ -38,16 +38,16 @@ class History(unittest.TestCase):
     def full(self, pages):
         return self.client(self.status() + pages + pages + self.status())
 
-    def test_undeployed_default_and_two_keyed_previews_have_complete_empty_history(self):
-        for lane in ("preview", "preview.design", "preview.review"):
-            self.preview.update(name=lane.replace(".", "-"), slug=lane.replace(".", "-"))
+    def test_undeployed_three_explicit_previews_have_complete_empty_history(self):
+        for lane in ("preview", "design", "review"):
+            self.preview.update(name=lane, slug=lane)
             api = self.client(self.status() + [test_cfworker_inventory.listing([])] * 2 + self.status(), lane)
             held = api.history(self.policy)
             self.assertEqual(held["deployments"], [])
-            self.assertEqual(held["preview"]["name"], lane.replace(".", "-"))
+            self.assertEqual(held["preview"]["name"], lane)
             calls = api._client.open.call_args_list
             self.assertEqual(len(calls), 12)
-            self.assertTrue(calls[5].args[0].full_url.endswith("/previews/" + lane.replace(".", "-") + "/deployments?page=1&per_page=100"))
+            self.assertTrue(calls[5].args[0].full_url.endswith("/previews/" + lane + "/deployments?page=1&per_page=100"))
             for call in calls:
                 self.assertEqual(call.args[0].get_method(), "GET")
                 self.assertIsNone(call.args[0].data)
