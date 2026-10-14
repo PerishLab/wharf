@@ -438,6 +438,12 @@ cross-instance exactly-once execution or original-writer quiescence. Finite resu
 omit private JWTs; the explicit completion accessor returns private transport
 material only after all required acknowledgements and fresh byte verification.
 Only the documented bulk protocol is supported; single-asset mode refuses.
+Unknown session, bucket and deployment acknowledgements emit one finite JSON
+diagnostic on stderr, separate from result and public operation contracts.
+Allowlisted phase/category and a bounded integer HTTP status identify the stopped
+attempt without provider text, private JWTs, credentials or bodies. Protocol
+validation remains distinct from transport/timeout/HTTP failure. These observations
+grant no retry, continuation, repair or inference that a write was not accepted.
 Upload completion is not Preview deployment, content/readback/public proof, live
 acceptance, capacity safety or permission to activate a registration. These remain
 separate workflow/adaptor work; no actual provider write is exercised by mocks.

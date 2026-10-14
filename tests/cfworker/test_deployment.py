@@ -1,4 +1,5 @@
 import copy
+import io
 import json
 import unittest
 from concurrent.futures import ThreadPoolExecutor
@@ -186,6 +187,40 @@ class Deployment(unittest.TestCase):
             with self.assertRaises(Refusal):
                 self.invoke(api)
             self.assertEqual(api._client.open.call_count, 1)
+
+    def test_deployment_diagnostics_are_safe_and_do_not_repair_unknown_writes(self):
+        secret = test_cfworker_upload.FINAL + '\n::error::private-deploy-credential'
+        cases = [(TimeoutError(secret), 'timeout'), (OSError(secret), 'transport'), (Refusal(secret), 'protocol'), (writer.urllib.error.HTTPError('https://private.invalid', 403, secret, {}, io.BytesIO(secret.encode())), 'http')]
+        for error, category in cases:
+            api = self.client()
+            api._client.open.side_effect = error
+            with mock.patch('sys.stderr', new_callable=io.StringIO) as stream:
+                result = self.invoke(api)
+            self.assertEqual(json.loads(stream.getvalue()), {'schema': 'wharf.cfworker.diagnostic/v1', 'stage': 'deployment-response', 'category': category, 'status': 403 if category == 'http' else None})
+            self.assertEqual(set(result), {'request', 'acknowledged', 'deployment'})
+            self.assertFalse(result['acknowledged'])
+            self.assertIsNone(result['deployment'])
+            with self.assertRaises(Refusal):
+                self.invoke(api)
+            self.assertEqual(api._client.open.call_count, 1)
+
+    def test_upload_protocol_stages_do_not_expose_bad_jwt_or_catalog(self):
+        fixture = test_cfworker_upload.Upload()
+        fixture.setUp()
+        mode = 'header.' + test_cfworker_upload.base64.urlsafe_b64encode(b'{"wrangler_single_asset_uploads":true}').decode().rstrip('=') + '.private'
+        cases = [('session', {}, 200, 'session-shape'), ('session', {'jwt': mode, 'buckets': []}, 200, 'session-jwt'), ('session', {'jwt': test_cfworker_upload.JWT, 'buckets': [['private']]}, 200, 'session-buckets'), ('bucket', {}, 200, 'bucket-shape'), ('bucket', {'jwt': mode}, 201, 'bucket-jwt')]
+        for phase, reply, status, stage in cases:
+            api = fixture.client()
+            if phase == 'bucket':
+                fixture.session(api)
+            fixture.response(api, reply, status)
+            with mock.patch('sys.stderr', new_callable=io.StringIO) as stream:
+                result = fixture.session(api) if phase == 'session' else fixture.bucket(api)
+            self.assertEqual(json.loads(stream.getvalue()), {'schema': 'wharf.cfworker.diagnostic/v1', 'stage': stage, 'category': 'protocol', 'status': None})
+            self.assertFalse(result['acknowledged'])
+            with self.assertRaises(Refusal):
+                fixture.bucket(api)
+            self.assertEqual(api._client.open.call_count, 1 if phase == 'session' else 2)
 
     def test_malformed_foreign_repeated_and_latest_reply_identities_are_unknown(self):
         self.plan = self.populated()

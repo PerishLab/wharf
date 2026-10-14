@@ -100,6 +100,7 @@ class Deployer:
             self._spent = True
             try:
                 deployed = self._post(material)
-            except (OSError, urllib.error.URLError, TimeoutError, Refusal):
+            except (OSError, urllib.error.URLError, TimeoutError, Refusal) as error:
+                upload.diagnostic('deployment-response', error)
                 return {"request": self._request, "acknowledged": False, "deployment": None}
             return {"request": self._request, "acknowledged": True, "deployment": deployed}
