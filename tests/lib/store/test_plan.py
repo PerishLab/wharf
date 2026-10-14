@@ -191,6 +191,38 @@ class Recalled(unittest.TestCase):
 
 
 class Receipt(unittest.TestCase):
+    def expected(self):
+        return {"schema": "wharf.release.snapshot/v1", "source": IDENTITY, "head": "d" * 40, "tree": "c" * 40, "packages": [], "controls": {"plumb": "v1"}, "domain": {"rust.version": "1"}, "guard": {"proved": "plan"}}
+
+    def test_changed_fields_are_named_without_any_private_values_or_keys(self):
+        for name in ("schema", "source", "head", "tree", "packages", "controls", "domain", "PRIVATE_KEY"):
+            expected = self.expected()
+            expected[name] = {"PRIVATE_KEY": "/private/PRIVATE_VALUE"}
+            with self.subTest(name=name), mock.patch.object(snapshot, "verified") as verified, mock.patch.object(snapshot, "proof") as proof:
+                with self.assertRaisesRegex(Refusal, "fresh plan") as caught:
+                    self.receipt(mock.Mock(), expected)
+            self.assertNotIn("PRIVATE", str(caught.exception))
+            self.assertNotIn("/private", str(caught.exception))
+            self.assertIn(name if name != "PRIVATE_KEY" else "structure", str(caught.exception))
+            verified.assert_not_called()
+            proof.assert_not_called()
+
+    def test_missing_guard_is_distinct_from_a_changed_combination(self):
+        expected = self.expected()
+        del expected["guard"]
+        with self.assertRaisesRegex(Refusal, "guard missing or malformed"):
+            self.receipt(mock.Mock(), expected)
+
+    def test_nested_public_fields_are_named_and_values_are_not_echoed(self):
+        expected = self.expected()
+        expected["controls"]["plumb"] = "PRIVATE_VALUE"
+        expected["domain"]["rust.version"] = "PRIVATE_VALUE"
+        with self.assertRaises(Refusal) as caught:
+            self.receipt(mock.Mock(), expected)
+        self.assertIn("controls.plumb", str(caught.exception))
+        self.assertIn("domain.rust.version", str(caught.exception))
+        self.assertNotIn("PRIVATE", str(caught.exception))
+
     def receipt(self, recall, expected=None, pull=None):
         held = {"request": snapshot.Request(Path("/source"), IDENTITY, {"rust.version": "1"}, expected, recall=recall, pull=pull)}
         return snapshot.receipt(held, "d" * 40, RESULT, {"plumb": "v1"})

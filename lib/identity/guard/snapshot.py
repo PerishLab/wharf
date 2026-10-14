@@ -11,6 +11,7 @@ from pathlib import Path
 from lib.cargo import toolchain
 from lib.content import resources
 from lib.content.static import evidence
+from lib.identity.guard import mismatch
 from lib.media import release
 from lib.refusal import Refusal
 
@@ -178,14 +179,14 @@ def proof(held, head, result, body):
     document = evidence.decode(body)
     commit = document.get("commit") if isinstance(document, dict) else None
     rooted = commit == head
-    source = {"commit": head, "tree": result["tree"]} if rooted else {"commit": object_id(commit), "tree": request.identity["tree"]}
+    source = {"commit": head, "tree": result["tree"]} if rooted else {"commit": mismatch.guard(commit, object_id), "tree": request.identity["tree"]}
     intent = {"repository": request.identity["repository"], "source": source}
     proof = evidence.guard(body, intent, held["tools"]["plumb"]["version"], rooted)
     if {"producer": proof["guard"]["plumb"], "depot": proof["guard"]["depot"]} != held["authority"]:
         raise Refusal("release snapshot Guard differs from its running authority")
     resolved = proof["guard"].get("resolution")
     if resolved != {"context": "ci-latest", "tree": result["tree"], "packages": result["packages"]}:
-        raise Refusal("latest packages changed during full Guard; prepare and verify a fresh plan")
+        raise Refusal(mismatch.resolution(resolved, {"context": "ci-latest", "tree": result["tree"], "packages": result["packages"]}))
     return proof
 
 
@@ -203,8 +204,7 @@ def receipt(held, head, result, world):
     observed = {"schema": "wharf.release.snapshot/v1", "source": request.identity, "head": head, "tree": result["tree"], "packages": result["packages"], "controls": world, "domain": request.domain}
     if request.expected is not None:
         expected = request.expected
-        if not isinstance(expected, dict) or {key: value for key, value in expected.items() if key != "guard"} != observed or not isinstance(expected.get("guard"), dict):
-            raise Refusal("release snapshot differs from the verified plan; prepare a fresh plan")
+        mismatch.check(expected, observed)
         proof(held, head, result, json.dumps(expected["guard"]))
         return expected
     recalled = request.recall(observed) if request.recall is not None else None
