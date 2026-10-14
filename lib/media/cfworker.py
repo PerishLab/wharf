@@ -117,12 +117,12 @@ def deploy(request, runner=run, probe=answer, sleep=time.sleep):
     with tempfile.TemporaryDirectory() as directory:
         runner(["pnpm", "install", "--frozen-lockfile"], request.source, node.reading(directory, dict(os.environ)))
     for worker in listed:
-        runner(["pnpm", "--filter", worker["package"], "build"], request.source)
+        runner(["pnpm", "--filter", worker["package"], "build"], request.source, node.withheld(dict(os.environ)))
     results = []
     for worker in listed:
         if request.confirm is not None:
             request.confirm()
-        runner(["pnpm", "exec", "wrangler", "deploy"], request.source / worker["directory"])
+        runner(["pnpm", "exec", "wrangler", "deploy"], request.source / worker["directory"], node.withheld(dict(os.environ)))
         answered = {domain: reached(f"https://{domain}/", probe, sleep) for domain in worker["domains"]}
         if any(status != 200 for status in answered.values()):
             raise Refusal(f"{worker['name']} answered {answered} after deploying")

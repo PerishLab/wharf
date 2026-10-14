@@ -187,3 +187,13 @@ class Source(unittest.TestCase):
             shipped = json.load(archive.extractfile("package/package.json"))
         self.assertNotIn("source", json.dumps(shipped["exports"]))
         self.assertEqual(json.loads((repository.root / "packages/lib/package.json").read_text())["exports"], exports)
+
+    def test_the_caller_npm_configuration_never_reaches_packing(self):
+        registry = Registry()
+        repository = declared({"packages/lib/package.json": json.dumps({"name": "@perishlab/lib", "version": "0.0.0", "exports": "./dist/lib.js"}), "packages/lib/dist/lib.js": ""})
+        with mock.patch.dict(os.environ, {npm.TOKEN: "secret", "WHARF_PACKAGES_TOKEN": "r", "NPM_CONFIG_USERCONFIG": "/caller/npmrc", "npm_config_userconfig": "/caller/npmrc"}):
+            npm.prepare(repository.root, "1.2.3", repository.root / "archives", registry.run)
+        for argv, env in registry.runs:
+            self.assertNotIn("/caller/npmrc", env.values(), argv)
+            if argv[:2] != ["pnpm", "install"]:
+                self.assertFalse({"NPM_CONFIG_USERCONFIG", "WHARF_PACKAGES_TOKEN", npm.TOKEN} & set(env), argv)

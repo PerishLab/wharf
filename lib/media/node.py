@@ -63,7 +63,12 @@ def prepared(source, runner=run):
     return held
 
 
+def withheld(env):
+    return {key: value for key, value in env.items() if key.upper() != "NPM_CONFIG_USERCONFIG" and key != READER}
+
+
 def reading(directory, env, literal=False):
+    env = {key: value for key, value in env.items() if key.upper() != "NPM_CONFIG_USERCONFIG"}
     if not env.get(READER):
         return env
     reader = env[READER] if literal else f"${{{READER}}}"
@@ -95,8 +100,7 @@ def suite(request, runner=run, execute=attempt):
         env = dict(os.environ, HOME=home, CI="true")
         env.pop("NODE_AUTH_TOKEN", None)
         execute(["pnpm", "install", "--frozen-lockfile"], request.source, reading(home, env))
-        env.pop(READER, None)
-        execute(["pnpm", "-r", "test"], request.source, env)
+        execute(["pnpm", "-r", "test"], request.source, withheld(env))
     request.output.mkdir(parents=True)
     receipt = {"action": "ship.node.suite", "toolchain": held, "commands": ["pnpm install --frozen-lockfile", "pnpm -r test"]}
     (request.output / "receipt.json").write_text(json.dumps(receipt, indent=2, sort_keys=True) + "\n")
