@@ -10,7 +10,7 @@ from pathlib import Path
 
 from lib.cargo import toolchain
 from lib.content import resources
-from lib.content.static import assets, evidence, source as static
+from lib.content.static import assets, evidence, workspace, source as static
 from lib.process import git, run
 from lib.refusal import Refusal
 from lib.store import handoff
@@ -121,6 +121,12 @@ def preview_commands(held, execute, inspect):
     qualified = static.qualify(root, held["request"].intent, held["request"].target, env)
     if qualified != config:
         raise Refusal("static source changed during installation")
+    env = {name: value for name, value in env.items() if name not in ("NPM_CONFIG_IGNORE_SCRIPTS", "NPM_CONFIG_IGNORE_PNPMFILE")}
+    evidence.unchanged(tools)
+    execute([tools["plumb"]["path"], "configuration", "install"], root, env)
+    if static.qualify(root, held["request"].intent, held["request"].target, env) != config:
+        raise Refusal("static source changed during trusted configuration")
+    evidence.unchanged(tools)
     guarded = dict(env, PLUMB_GUARD_STRENGTH="full", PLUMB_GUARD_BOUNDARY="head")
     body = inspect([tools["plumb"]["path"], "guard", "--json", str(root)], root, guarded)
     proof = evidence.guard(body, held["request"].intent, tools["plumb"]["version"])
@@ -142,6 +148,8 @@ def preview_build(request, execute=None, inspect=evidence.inspect, environ=os.en
         raise Refusal("static build handoff must be an absent directory outside product source")
     with tempfile.TemporaryDirectory() as home, tempfile.TemporaryDirectory() as installation:
         env = evidence.clean(environ, home)
+        acquired = {"repository": request.intent["repository"], **{key: request.intent["source"][key] for key in ("commit", "tree")}}
+        workspace.acquired(Path(request.source), acquired)
         tools = evidence.tools(root, env, inspect)
         config = static.qualify(root, request.intent, request.target, env)
         static.fresh(root, env)

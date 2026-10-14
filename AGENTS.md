@@ -537,7 +537,13 @@ unclosed or malformed fragments refuse and surrounding HTML remains checked.
 `lib/media/node.py` builds only an exact clean checkout and registered static app,
 using prepared tools outside product source and an allowlisted child environment.
 Script-disabled installation alone may hold the package reader; full/head Guard
-and build hold neither that reader nor provider/storage credentials. Tool/source
+and build hold neither that reader nor provider/storage credentials. Independent
+source acquisition is rechecked before any control invocation. Installation
+policy overrides remain in that phase alone. Released Plumb projects its trusted
+configuration into the acquired owned checkout without inherited source hooks or
+configuration; tracked source and prepared tools must remain unchanged before
+genuine full/head Guard and build proceed. Neither phase inherits installation
+overrides or its reader configuration. Tool/source
 changes refuse. These child boundaries are not a filesystem sandbox. Trusted
 first-party lane build control may hold only the workload writer to vet, record
 and independently fetch content. Install, Guard and build children receive no
