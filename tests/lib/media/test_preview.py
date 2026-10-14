@@ -1,4 +1,5 @@
 import copy
+import errno
 import json
 import os
 import shutil
@@ -19,6 +20,22 @@ from tests.lib.content.test_static import StaticRepository, guarded
 
 VERSIONS = {"node": "v24.18.0", "pnpm.cjs": "11.13.0", "pnpm": "11.13.0", "plumb": "plumb v0.66.0", "ectropy": "ectropy v0.1.0", "git": "git version 2.0.0"}
 DOMAIN = {"node.version": "24.18.0", "pnpm.version": "11.13.0", "rust.version": "1.95.0"}
+
+
+def stopped(gate):
+    for _ in range(1000):
+        try:
+            descriptor = os.open(gate, os.O_WRONLY | os.O_NONBLOCK)
+        except OSError as error:
+            if error.errno == errno.ENXIO:
+                return True
+            raise
+        os.close(descriptor)
+        time.sleep(0.01)
+    descriptor = os.open(gate, os.O_WRONLY | os.O_NONBLOCK)
+    os.write(descriptor, b"\n")
+    os.close(descriptor)
+    return False
 
 
 class Builder:
@@ -198,10 +215,11 @@ class CredentialBoundary(unittest.TestCase):
     def test_product_descendants_are_stopped_after_the_command(self):
         with tempfile.TemporaryDirectory() as directory:
             env = evidence.clean(os.environ, directory)
-            command = ["/bin/sh", "-c", "(sleep 0.2; touch late-write) & exit 0"]
+            for name in ("gate", "ready"):
+                os.mkfifo(Path(directory) / name)
+            command = ["/bin/sh", "-c", "(exec 3<>gate; echo > ready; read line <&3) & read line < ready; exit 0"]
             node.preview_execute(command, directory, env)
-            time.sleep(0.3)
-            self.assertFalse((Path(directory) / "late-write").exists())
+            self.assertTrue(stopped(Path(directory) / "gate"))
 
 
 class DisposableSource(unittest.TestCase):
