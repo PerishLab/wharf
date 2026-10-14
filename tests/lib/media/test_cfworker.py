@@ -142,7 +142,16 @@ class Worker(unittest.TestCase):
             cfworker.deploy(cfworker.Deploy(self.repository.root, self.repository.root / "out"), self.runner, lambda url: 200)
         installed = self.envs[self.calls.index(["pnpm", "install", "--frozen-lockfile"])]
         self.assertIn("NPM_CONFIG_USERCONFIG", installed)
-        self.assertTrue(all(env is None for argv, env in zip(self.calls, self.envs) if argv[:2] != ["pnpm", "install"] and argv[0] == "pnpm"))
+        for argv, env in zip(self.calls, self.envs):
+            if argv[0] == "pnpm" and argv[1] not in ("install", "--version"):
+                self.assertEqual(env[cfworker.TOKEN], "t", argv)
+                self.assertFalse({"NPM_CONFIG_USERCONFIG", "WHARF_PACKAGES_TOKEN"} & set(env), argv)
+
+    def test_the_caller_npm_configuration_never_reaches_install_build_or_deploy(self):
+        with mock.patch.dict(os.environ, {cfworker.TOKEN: "t", "NPM_CONFIG_USERCONFIG": "/caller/npmrc", "npm_config_userconfig": "/caller/npmrc"}):
+            os.environ.pop("WHARF_PACKAGES_TOKEN", None)
+            cfworker.deploy(cfworker.Deploy(self.repository.root, self.repository.root / "out"), self.runner, lambda url: 200)
+        self.assertTrue(all("/caller/npmrc" not in env.values() for argv, env in zip(self.calls, self.envs) if argv[0] == "pnpm" and argv[1] != "--version"))
 
     def test_refuses_without_a_token_or_when_unreachable(self):
         with mock.patch.dict(os.environ, {cfworker.TOKEN: ""}), self.assertRaises(Refusal):

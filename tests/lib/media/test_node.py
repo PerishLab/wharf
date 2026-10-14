@@ -1,5 +1,6 @@
 import json
 import os
+import tempfile
 import unittest
 from unittest import mock
 from pathlib import Path
@@ -50,20 +51,37 @@ class Suite(unittest.TestCase):
         self.assertEqual([argv for argv, _ in calls], [["pnpm", "install", "--frozen-lockfile"], ["pnpm", "-r", "test"]])
         self.assertNotEqual(calls[0][1], str(Path.home()))
 
-    def test_install_alone_reads_the_registries_and_tests_hold_no_token(self):
+    def observed(self, ambient):
         repository = Repository()
         calls = []
         runner = lambda argv, cwd: {"node": "v24.18.0\n", "pnpm": "11.13.0\n"}[argv[0]]
         def execute(argv, cwd, env):
-            config = env.get("NPM_CONFIG_USERCONFIG")
-            calls.append((argv, env.get(node.READER), config and Path(config).read_text()))
-        with mock.patch.dict(os.environ, {node.READER: "r"}):
+            configs = [value for key, value in env.items() if key.upper() == "NPM_CONFIG_USERCONFIG"]
+            calls.append((argv, env, [Path(config).read_text() for config in configs]))
+        with mock.patch.dict(os.environ, ambient):
+            for key in [key for key in os.environ if key.upper() == "NPM_CONFIG_USERCONFIG" and key not in ambient]:
+                del os.environ[key]
             node.suite(node.Suite(repository.root, repository.root / "out"), runner, execute)
-        (_, token, config), (_, tested, unconfigured) = calls
-        self.assertEqual(token, "r")
-        self.assertEqual(config, "//npm.pkg.github.com/:_authToken=${WHARF_PACKAGES_TOKEN}\n")
-        self.assertIsNone(tested)
-        self.assertIsNone(unconfigured)
+        return calls
+
+    def test_install_alone_reads_the_registries_and_tests_hold_no_token(self):
+        for ambient in ({}, {"NPM_CONFIG_USERCONFIG": os.devnull}):
+            with self.subTest(ambient):
+                (_, installed, config), (_, tested, unconfigured) = self.observed(dict(ambient, **{node.READER: "r"}))
+                self.assertEqual(installed[node.READER], "r")
+                self.assertEqual(config, ["//npm.pkg.github.com/:_authToken=${WHARF_PACKAGES_TOKEN}\n"])
+                self.assertNotIn(node.READER, tested)
+                self.assertEqual(unconfigured, [])
+
+    def test_the_caller_npm_configuration_never_reaches_installation_or_tests(self):
+        canary = Path(self.enterContext(tempfile.TemporaryDirectory())) / "npmrc"
+        canary.write_text("//npm.pkg.github.com/:_authToken=CANARY_ONLY_SAFE\n")
+        for reader in ({}, {node.READER: "r"}):
+            with self.subTest(reader):
+                calls = self.observed(dict(reader, NPM_CONFIG_USERCONFIG=str(canary), npm_config_userconfig=str(canary)))
+                for argv, env, configs in calls:
+                    self.assertNotIn(str(canary), env.values(), argv)
+                    self.assertFalse(any("CANARY_ONLY_SAFE" in config for config in configs), argv)
 
     def test_refuses_a_different_prepared_toolchain(self):
         repository = Repository()
