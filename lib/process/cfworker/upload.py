@@ -105,9 +105,13 @@ class Uploader:
                 raise Refusal("cfworker upload reply is not its exact untransformed endpoint")
             status, body = response.status, response.read(evidence.LIMIT + 1)
         reply = evidence.decode(body)
-        if not isinstance(reply, dict) or reply.get("success") is not True or "errors" not in reply or reply["errors"] not in (None, []) or not isinstance(reply.get("result"), dict):
+        if not isinstance(reply, dict) or reply.get("success") is not True or "errors" not in reply or reply["errors"] not in (None, []):
             raise Refusal("cfworker upload reply is not a successful bounded object")
-        return status, reply["result"]
+        value = reply.get("result")
+        intermediate = suffix == "/workers/assets/upload?base64=true" and status == 200
+        if not isinstance(value, dict) and not (intermediate and value is None):
+            raise Refusal("cfworker upload reply has an unsupported endpoint result")
+        return status, value
 
     def result(self, acknowledged):
         return {"request": self._request, "acknowledged": acknowledged, "buckets": len(self._buckets), "complete": self._completion is not None and not self._blocked}
@@ -152,7 +156,7 @@ class Uploader:
                 status, reply = self._post("/workers/assets/upload?base64=true", material, self._upload)
                 stage = 'bucket-shape'
                 final = len(self._done) == len(self._buckets)
-                if (final and (status != 201 or set(reply) != {"jwt"})) or (not final and (status != 200 or reply != {})):
+                if (final and (status != 201 or set(reply) != {"jwt"})) or (not final and (status != 200 or reply not in (None, {}))):
                     raise Refusal("cfworker upload acknowledgement differs from its exact completion position")
                 if final:
                     stage = 'bucket-jwt'

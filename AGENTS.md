@@ -437,6 +437,11 @@ bucket scheduling. A lock serializes one instance; this is not durable admission
 cross-instance exactly-once execution or original-writer quiescence. Finite results
 omit private JWTs; the explicit completion accessor returns private transport
 material only after all required acknowledgements and fresh byte verification.
+Only successful HTTP 200 non-final bulk replies admit an absent, null or empty
+result. Session replies still require their exact JWT/bucket object, and final
+completion still requires HTTP 201 with exactly a verified private JWT at its
+proper bucket position. This endpoint-specific optional result is neither
+completion nor permission to continue after an unknown or failed acknowledgement.
 Only the documented bulk protocol is supported; single-asset mode refuses.
 Unknown session, bucket and deployment acknowledgements emit one finite JSON
 diagnostic on stderr, separate from result and public operation contracts.
