@@ -179,6 +179,9 @@ def attributed(offers, guard):
 
 
 def record(held):
+    source = Path(held["source"])
+    if basis.carried(source):
+        manifest.unbound(source)
     bucket = r2.configured()
     identity = {field: held[field] for field in IDENTITY}
     recalled, offers = {}, {}

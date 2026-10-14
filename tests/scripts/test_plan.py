@@ -163,7 +163,7 @@ def recorded_with(held, source, bucket):
         observed = {"schema": "wharf.release.snapshot/v1", "source": identity, "head": "d" * 40, "tree": "e" * 40, "packages": [], "controls": {}, "domain": {}}
         guard = request.recall(observed) or {"proved": held["marker"]}
         yield Path(source), dict(observed, guard=guard), lambda: None
-    with mock.patch.object(plan.snapshot, "prepared", prepared), mock.patch.object(plan.toolchain, "versions", return_value={}), mock.patch.object(plan.r2, "configured", return_value=bucket), mock.patch.object(plan, "suites"), mock.patch.object(plan, "binaries") as binaries, mock.patch.object(plan.node, "carried", return_value=False), mock.patch.object(parameters, "answer"):
+    with mock.patch.object(plan.snapshot, "prepared", prepared), mock.patch.object(plan.toolchain, "versions", return_value={}), mock.patch.object(plan.r2, "configured", return_value=bucket), mock.patch.object(plan.basis, "carried", return_value=False), mock.patch.object(plan, "suites"), mock.patch.object(plan, "binaries") as binaries, mock.patch.object(plan.node, "carried", return_value=False), mock.patch.object(parameters, "answer"):
         recorded = plan.record(held)
     binaries.assert_not_called()
     return recorded

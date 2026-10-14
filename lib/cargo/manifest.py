@@ -98,6 +98,11 @@ def unversioned(source, root, workspace):
             raise Refusal(f"{directory}/Cargo.toml must not declare a version other than 0.0.0")
 
 
+def unbound(source):
+    root = read(source, "Cargo.toml")
+    unversioned(source, root, members(source, root))
+
+
 def virtual(source):
     root = read(source, "Cargo.toml")
     workspace = root.get("workspace")

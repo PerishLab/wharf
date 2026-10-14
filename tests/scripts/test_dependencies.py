@@ -8,8 +8,52 @@ from unittest import mock
 from lib.refusal import Refusal
 from lib.store import plan
 from scripts import ship
+from scripts import plan as planning
+from tests.lib.media.repository import Repository
 from tests.lib.store.memory import Memory
 from tests.scripts.test_ship import CONTEXT
+
+
+class Unbound(unittest.TestCase):
+    def source(self, versions):
+        workspace, member = versions
+        return Repository({"Cargo.toml": '[workspace]\nmembers=["crates/cli"]\n[workspace.package]\nversion="' + workspace + '"\n', "crates/cli/Cargo.toml": '[package]\nname="example"\nversion=' + member + '\n'})
+
+    def test_invalid_versions_refuse_before_snapshot_or_storage(self):
+        for versions in [("0.1.0", "{workspace=true}"), ("0.0.0", '"0.1.0"')]:
+            source = self.source(versions)
+            before = source.root.joinpath("Cargo.toml").read_bytes()
+            with self.subTest(versions=versions), mock.patch.object(planning.snapshot, "prepared") as snapshot, mock.patch.object(planning.r2, "configured") as storage:
+                with self.assertRaisesRegex(Refusal, "0.0.0"):
+                    planning.record({"source": str(source.root)})
+            snapshot.assert_not_called()
+            storage.assert_not_called()
+            self.assertEqual(source.root.joinpath("Cargo.toml").read_bytes(), before)
+
+    def test_valid_unbound_source_continues_to_snapshot(self):
+        source = self.source(("0.0.0", "{workspace=true}"))
+        self.continues(source)
+
+    def test_node_only_source_continues_without_cargo_checks(self):
+        source = Repository()
+        with mock.patch.object(planning.manifest, "unbound") as unbound:
+            self.continues(source)
+        unbound.assert_not_called()
+
+    def continues(self, source):
+        held = dict(CONTEXT, source=str(source.root), commit="a" * 40, tree="b" * 40, steps="{}")
+        with mock.patch.object(planning.r2, "configured", return_value=Memory()), mock.patch.object(planning.toolchain, "versions", return_value={}), mock.patch.object(planning.snapshot, "prepared", side_effect=Refusal("reached snapshot")) as snapshot:
+            with self.assertRaisesRegex(Refusal, "reached snapshot"):
+                planning.record(held)
+        snapshot.assert_called_once()
+
+    def test_incomplete_workspace_refuses_before_snapshot(self):
+        source = Repository({"Cargo.toml": '[workspace]\nmembers=["missing"]\n'})
+        with mock.patch.object(planning.snapshot, "prepared") as snapshot, mock.patch.object(planning.r2, "configured") as storage:
+            with self.assertRaisesRegex(Refusal, "no tracked members"):
+                planning.record({"source": str(source.root)})
+        snapshot.assert_not_called()
+        storage.assert_not_called()
 
 
 class Inheriting(unittest.TestCase):
