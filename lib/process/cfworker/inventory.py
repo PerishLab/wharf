@@ -60,18 +60,18 @@ def project(value, parent):
 
 
 def deployments(api, selected):
-    values, total, size, pages = page(api.deployment_page(1), 1)
+    values, total, size, pages = page(api.deployment_page(1, selected), 1)
     if total > SIZE:
         raise Refusal("cfworker retained deployment catalog exceeds its native bound")
     catalog = []
     for number in range(1, pages + 1):
         if number > 1:
-            values, observed, width, count = page(api.deployment_page(number), number)
+            values, observed, width, count = page(api.deployment_page(number, selected), number)
             if (observed, width, count) != (total, size, pages):
                 raise Refusal("cfworker deployment pagination moved during observation")
         for value in values:
             identity = value.get("id") if isinstance(value, dict) else None
-            catalog.append(observation.deployment(value, selected, identity))
+            catalog.append(observation.endpoint(value, selected, identity))
     if len(catalog) != total:
         raise Refusal("cfworker retained deployment catalog is incomplete")
     return history(catalog, selected)

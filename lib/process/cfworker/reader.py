@@ -155,11 +155,17 @@ class Reader:
             raise Refusal("static provider read is not a successful object observation")
         return reply["result"]
 
-    def reply(self, suffix):
+    def reply(self, suffix, selected=None):
         name = self._registered["name"]
+        if selected is not None:
+            selected = documents.object_value(selected, ("id", "name", "parent"))
+            if selected["name"] != name or selected["id"] == name:
+                raise Refusal("cfworker bound catalog differs from its exact unambiguous selected Preview")
+            observation.identity(selected["parent"])
+            name = observation.identity(selected["id"])
         listing = tuple(f"/previews?page={number}&per_page={inventory.SIZE}" for number in range(1, inventory.PAGES + 1))
         history = tuple(f"/previews/{name}/deployments?page={number}&per_page={inventory.SIZE}" for number in range(1, inventory.PAGES + 1))
-        allowed = ("", f"/previews/{name}", *listing, *history)
+        allowed = history if selected is not None else ("", f"/previews/{name}", *listing, *history)
         deployment = f"/previews/{name}/deployments/"
         if suffix not in allowed and (not isinstance(suffix, str) or not suffix.startswith(deployment) or not observation.DEPLOYMENT.fullmatch(suffix[len(deployment):])):
             raise Refusal("static provider read needs one exact fixed lane identity endpoint")
@@ -189,10 +195,11 @@ class Reader:
     def parent(self):
         return self.get("")
 
-    def deployment_page(self, number):
+    def deployment_page(self, number, selected):
         if type(number) is not int or not 1 <= number <= inventory.PAGES:
             raise Refusal("cfworker deployment catalog needs one bounded exact page number")
-        return self.reply(f"/previews/{self._registered['name']}/deployments?page={number}&per_page={inventory.SIZE}")
+        selected = documents.object_value(selected, ("id", "name", "parent"))
+        return self.reply(f"/previews/{selected['id']}/deployments?page={number}&per_page={inventory.SIZE}", selected)
 
     def status(self, policy):
         policy = observation.prepared(policy)
@@ -212,6 +219,8 @@ class Reader:
         selected = before["preview"]
         if selected is None:
             raise Refusal("cfworker deployment catalog needs a present selected Preview")
+        if selected["id"] in {item["name"] for item in before["previews"]}:
+            raise Refusal("cfworker deployment catalog cannot use an ambiguous Preview ID/name alias")
         catalog = inventory.deployments(self, selected)
         if inventory.deployments(self, selected) != catalog:
             raise Refusal("cfworker retained deployment catalog moved during observation")

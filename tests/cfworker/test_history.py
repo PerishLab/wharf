@@ -3,6 +3,7 @@ import json
 import unittest
 from unittest import mock
 
+from lib.content import resources
 from lib.process.cfworker import inventory, observation, reader
 from lib.refusal import Refusal
 from tests.lib.process import test_cfworker_inventory, test_cfworker_observation
@@ -11,6 +12,16 @@ from tests.lib.store.test_lane import operation, registered
 
 
 class History(unittest.TestCase):
+    def test_actual_catalog_omissions_under_explicit_endpoint_context(self):
+        fixture = resources.read_json("identity/deployment-observation.json")
+        api = mock.Mock()
+        api.deployment_page.return_value = fixture["catalog"]
+        held = fixture["context"]
+        deployed = fixture["catalog"]["result"][0]
+        self.assertEqual(inventory.deployments(api, held), [{"id": deployed["id"], "preview": held["id"], "parent": held["parent"]}])
+        with self.assertRaises(Refusal):
+            observation.deployment(deployed, held, deployed["id"])
+
     def setUp(self):
         fixture = test_cfworker_observation.Observation()
         fixture.setUp()
@@ -47,7 +58,7 @@ class History(unittest.TestCase):
             self.assertEqual(held["preview"]["name"], lane)
             calls = api._client.open.call_args_list
             self.assertEqual(len(calls), 12)
-            self.assertTrue(calls[5].args[0].full_url.endswith("/previews/" + lane + "/deployments?page=1&per_page=100"))
+            self.assertTrue(calls[5].args[0].full_url.endswith("/previews/" + self.selected["id"] + "/deployments?page=1&per_page=100"))
             for call in calls:
                 self.assertEqual(call.args[0].get_method(), "GET")
                 self.assertIsNone(call.args[0].data)
@@ -69,6 +80,52 @@ class History(unittest.TestCase):
         second = test_cfworker_inventory.listing([self.raw(0), self.raw(1)])
         api = self.client(self.status() + [first, second] + self.status())
         self.assertEqual([item["id"] for item in api.history(self.policy)["deployments"]], [self.raw(0)["id"], self.raw(1)["id"]])
+
+    def test_omitted_fields_do_not_invent_provider_identity_or_relax_present_fields(self):
+        for omitted in (("preview_id",), ("preview_name",), ("preview_id", "preview_name")):
+            value = self.raw()
+            for key in omitted:
+                del value[key]
+            value.update(env={"SECRET": "private"}, annotations={"private": "hidden"})
+            api = self.full([test_cfworker_inventory.listing([value])])
+            observed = api.history(self.policy)["deployments"]
+            self.assertEqual(observed, [{"id": value["id"], "preview": self.selected["id"], "parent": self.selected["parent"]}])
+            self.assertNotIn("private", json.dumps(observed))
+        for key in ("preview_id", "preview_name"):
+            for value in (None, "", True, "foreign"):
+                raw = dict(self.raw(), **{key: value})
+                self.assertRaises(Refusal, observation.endpoint, raw, self.selected, raw["id"])
+
+    def test_contextual_projection_requires_complete_valid_exact_context_and_uuid(self):
+        for selected in (None, {}, dict(self.selected, name="bad/name"), dict(self.selected, id="../other"),
+                         dict(self.selected, parent=True), dict(self.selected, private="hidden")):
+            self.assertRaises(Refusal, observation.endpoint, self.raw(), selected, self.raw()["id"])
+        for requested in (None, True, "latest", "ABCDEFAB-1234-1234-1234-123456789abc", "ffffffff-ffff-ffff-ffff-ffffffffffff"):
+            self.assertRaises(Refusal, observation.endpoint, self.raw(), self.selected, requested)
+        for value in (None, [], {}, dict(self.raw(), id=True)):
+            self.assertRaises(Refusal, observation.endpoint, value, self.selected, self.raw()["id"])
+
+    def test_bound_catalog_context_rejects_foreign_or_unsafe_selectors_before_io(self):
+        api = self.client([])
+        for selected in (None, {}, dict(self.selected, name="foreign"), dict(self.selected, id="../other"),
+                         dict(self.selected, id="preview"), dict(self.selected, parent="../other"),
+                         dict(self.selected, secret="private")):
+            self.assertRaises(Refusal, api.deployment_page, 1, selected)
+        for suffix in ("/previews/preview/deployments?page=1&per_page=100", "/previews/foreign/deployments?page=1&per_page=100",
+                       "/previews/" + self.selected["id"] + "/deployments/latest", "https://foreign.invalid"):
+            self.assertRaises(Refusal, api.reply, suffix, self.selected)
+        api._client.open.assert_not_called()
+
+    def test_ambiguous_immutable_id_and_mutable_name_refuse_before_catalog_io(self):
+        self.preview["id"] = "sibling"
+        sibling = dict(self.preview, id="other-id", name="sibling", slug="sibling")
+        replies = self.status()
+        replies[1] = test_cfworker_inventory.listing([self.preview, sibling])
+        replies[3] = test_cfworker_inventory.listing([self.preview, sibling])
+        api = self.client(replies)
+        self.assertRaises(Refusal, api.history, self.policy)
+        self.assertEqual(api._client.open.call_count, 5)
+        self.assertTrue(all("/deployments" not in call.args[0].full_url for call in api._client.open.call_args_list))
 
     def test_absent_selected_preview_never_becomes_empty_deployment_history(self):
         api = self.client([self.object(self.parent), test_cfworker_inventory.listing([]), test_cfworker_inventory.listing([]), self.object(self.parent)])
@@ -92,7 +149,7 @@ class History(unittest.TestCase):
             api.history(dict(self.policy, id="../parent"))
         for number in (None, True, 0, -1, 1.0, "1", 11):
             with self.assertRaises(Refusal):
-                api.deployment_page(number)
+                api.deployment_page(number, self.selected)
         for suffix in ("/previews/foreign/deployments?page=1&per_page=100", "/previews/preview/deployments", "/previews/preview/deployments?page=01&per_page=100", "/previews/preview/deployments?page=1&per_page=101", "/previews/preview/deployments/latest"):
             with self.assertRaises(Refusal):
                 api.reply(suffix)
