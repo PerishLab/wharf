@@ -60,6 +60,19 @@ def deployment(value, held, requested):
     return {"id": requested, "preview": held["id"], "parent": held["parent"]}
 
 
+def endpoint(value, held, requested):
+    if not isinstance(held, dict) or set(held) != {"id", "name", "parent"} or not isinstance(held["name"], str) or not LABEL.fullmatch(held["name"]):
+        raise Refusal("cfworker deployment catalog needs exact prepared Preview endpoint context")
+    identity(held["id"])
+    identity(held["parent"])
+    if not isinstance(requested, str) or not DEPLOYMENT.fullmatch(requested) or not isinstance(value, dict) or value.get("id") != requested:
+        raise Refusal("cfworker deployment catalog identity differs from its exact UUID")
+    for key, expected in (("preview_id", held["id"]), ("preview_name", held["name"])):
+        if key in value and value[key] != expected:
+            raise Refusal("cfworker deployment catalog has an explicit foreign Preview identity")
+    return {"id": requested, "preview": held["id"], "parent": held["parent"]}
+
+
 def resource(value, selected, held):
     if not isinstance(value, dict) or value.get("name") != selected["name"] or value.get("slug") != selected["name"]:
         raise Refusal("cfworker resource identity differs from selected Preview")

@@ -507,13 +507,34 @@ automatic old-deployment eviction. No live call, registration activation, workfl
 release or installed CLI is exercised by this source primitive or its mock tests.
 
 `Reader.history` binds the complete currently retained deployment catalog to a
-present selected Preview, with fixed page/per_page GETs and bounded pagination.
+present selected Preview, with fixed page/per_page GETs under its immutable
+Preview ID and bounded pagination. A Preview ID colliding with any observed
+mutable Preview name refuses before deployment catalog I/O.
 Repeated catalogs and complete status observations must agree, including parent
 and sibling identities. Missing metadata, duplicate/foreign UUIDs, failed reads
 and movement refuse, not prove absence. Identity-only control-plane status permits
 undeployed Previews with absent/empty optional URLs; any nonempty URL still must
 match prepared routing. Strict deployed Preview-address observation is unchanged.
 The catalog is not an all-time history, content proof or atomic provider snapshot.
+
+`observation.endpoint` projects read-only catalog replies under an explicit
+UUID and exact validated Preview ID/name/parent context. Embedded
+`preview_id` and `preview_name` may be absent; either field, when present,
+must match exactly, and explicit null or foreign values refuse. The projection
+records the independently supplied endpoint context; it invents no provider
+fields and authenticates nothing alone. `Reader.history` supplies that context
+only after complete pinned-parent/Preview observations and repeats the complete
+catalog and status afterward. Bound transport accepts only that exact immutable
+Preview endpoint, never another selected name or arbitrary URL.
+
+`resources/identity/deployment-observation.json` retains a sanitized
+source-addressed sample from #203's repeated authenticated GET observations;
+raw payloads and historical POST bytes were not retained. Historical provider
+sample names are not logical flat Name aliases or a registration migration.
+Strict `observation.deployment` still governs POST acknowledgements and standalone
+exact-deployment observation. Prefix/address/content qualification remains #214:
+catalog acceptance does not establish immutable routing, content, indexing,
+writer quiescence, state settlement or unknown-write recovery authority.
 
 `apply.deployment_prepare` binds a finite write plan to the exact fresh apply
 reservation, prepared parent policy and supplied complete selected-present catalog.

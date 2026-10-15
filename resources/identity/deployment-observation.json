@@ -1,0 +1,36 @@
+{
+  "provenance": {
+    "issue": "PerishLab/wharf#203",
+    "time": "2026-10-15T10:08:17.047811+00:00",
+    "control": "b33c14b305ad8bd531b4e87d13e49a50f0fa1e9c",
+    "sdk": "56748ebfc9fc2a39b0695ea2c04692e6e975ebe7",
+    "probe_sha256": "5c6f2a4798cad3723ed4b09a2e9e17b7af54e0df658d31151672ce43f4173a98",
+    "artifact": "native-readonly-20261015",
+    "archive_sha256": "21fa2f5d491d23daac6caff1b772cd78e5c44edde8267f2f25ded0352386eb10",
+    "scope": "sanitized fields from repeated authenticated immutable parent/Preview GETs; raw payloads and POST body not retained"
+  },
+  "context": {
+    "id": "de605d58cc9d43439ec0b926e117990d",
+    "name": "preview-design",
+    "parent": "f037b088dc6c4d04b714c7a9206842e3"
+  },
+  "catalog": {
+    "success": true,
+    "errors": [],
+    "result": [
+      {
+        "id": "7f201597-ae2e-4df9-8715-2936dad7c1b8",
+        "created_on": "2026-10-14T13:24:30.826654Z",
+        "urls": [
+          "https://7f201597-crest-development.862457174.workers.dev"
+        ]
+      }
+    ],
+    "result_info": {
+      "page": 1,
+      "per_page": 100,
+      "count": 1,
+      "total_count": 1
+    }
+  }
+}
