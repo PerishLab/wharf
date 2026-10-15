@@ -322,6 +322,38 @@ Trusted onboarding owns the origin/writer mapping, DNS/public reachability,
 resource exclusivity and retention; this source kernel proves none of those
 live facts. Workflow composition and physical provider proof remain separate.
 
+`lib/process/domains/identity.py` validates explicit app/account/Worker and
+domain/zone/certificate pins against one exact static registration. The dedicated
+base is exactly `lane.<app>.perish.uk`; no inferred pins, alias or normalization is
+admitted. Domain replies must independently match hostname, service, zone and
+certificate identity and explicitly report `enabled=false` and
+`previews_enabled=true`. Other provider fields are omitted from the detached
+projection. Worker pins are retained but a domain service name does not prove the
+immutable Worker identity; independent parent observation remains required.
+
+`addresses` formats separate current-lane and unique-deployment custom-domain
+origins under DNS limits. The supported deployment URL prefix is an explicit
+eight-character lowercase hexadecimal selector, never an automatically shortened
+UUID, latest selector or provider-returned URL. This validates syntax only:
+the caller must independently qualify the prefix-to-deployment relationship
+under #203. The function neither proves reachability nor repairs that contract.
+`lib/process/domains/reader.py` consumes a separately prepared read-only token
+and uses only the exact pinned account/domain GET endpoint, without proxies,
+redirects, transformations, retries, write endpoints or arbitrary URLs. Replies
+are bounded to the existing evidence budget and network idle timeout. Transport,
+HTTP, parsing and cleanup failure refuse without proving absence or readiness.
+
+These source primitives follow the official
+[Preview custom-domain](https://developers.cloudflare.com/workers/previews/custom-domains/)
+and [domain GET](https://developers.cloudflare.com/api/resources/workers/subresources/domains/methods/get/)
+contracts. Supplied pins, routing flags and certificate IDs prove neither actual
+DNS/TLS coverage, permission scope, physical exclusivity nor activation. The
+runtime empty-reference and workers.dev policies below remain unchanged until
+explicit integration under #210; read-only readiness remains #211. No domain,
+DNS, certificate or credential writer is added. Daily deployment holds no domain
+onboarding authority. Existing state/public record contracts and unknown custody
+are unchanged, and #203/#204 plus operational .github#103 still own their evidence.
+
 `lib/process/cfworker/observation.py` projects parent, Preview and exact deployment
 identity from bounded provider replies. The caller supplies trusted onboarding
 pins for the immutable parent identity and account subdomain; readback never
