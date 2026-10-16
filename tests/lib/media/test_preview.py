@@ -18,8 +18,8 @@ from tests.lib.content.test_assets import FILES
 from tests.lib.content.test_preview import target
 from tests.lib.content.test_static import StaticRepository, guarded
 
-VERSIONS = {"node": "v24.18.0", "pnpm.cjs": "11.13.0", "pnpm": "11.13.0", "plumb": "plumb v0.66.0", "ectropy": "ectropy v0.1.0", "git": "git version 2.0.0"}
-DOMAIN = {"node.version": "24.18.0", "pnpm.version": "11.13.0", "rust.version": "1.95.0"}
+VERSIONS = {"node": "v24.18.0", "pnpm.cjs": "11.28.5", "pnpm": "11.28.5", "plumb": "plumb v0.66.0", "ectropy": "ectropy v0.1.0", "git": "git version 2.0.0"}
+DOMAIN = {"node.version": "24.18.0", "pnpm.version": "11.28.5", "rust.version": "1.95.0"}
 
 
 def stopped(gate):

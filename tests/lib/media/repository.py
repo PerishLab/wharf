@@ -4,7 +4,7 @@ from pathlib import Path
 
 from lib.process import git
 
-ROOT = {"name": "demo", "private": True, "engines": {"node": "24.18.0", "pnpm": "11.13.0"}}
+ROOT = {"name": "demo", "private": True, "engines": {"node": "24.18.0", "pnpm": "11.28.5"}}
 FILES = {
     "package.json": json.dumps(ROOT, indent="\t") + "\n",
     "pnpm-workspace.yaml": "catalog:\n  vite: 1.0.0\n\npackages:\n  - apps/*\n  - \"packages/*\"\n\nallowBuilds:\n  esbuild: false\n",
