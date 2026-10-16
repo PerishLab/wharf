@@ -348,8 +348,9 @@ These source primitives follow the official
 and [domain GET](https://developers.cloudflare.com/api/resources/workers/subresources/domains/methods/get/)
 contracts. Supplied pins, routing flags and certificate IDs prove neither actual
 DNS/TLS coverage, permission scope, physical exclusivity nor activation. The
-runtime empty-reference and workers.dev policies below remain unchanged until
-explicit integration under #210; read-only readiness remains #211. No domain,
+unqualified empty-reference policy remains strict. Explicit domain-aware native
+readers and plans below consume these pins; workflow selection remains #221
+under #210, and read-only readiness remains #211. No domain,
 DNS, certificate or credential writer is added. Daily deployment holds no domain
 onboarding authority. Existing state/public record contracts and unknown custody
 are unchanged, and #203/#204 plus operational .github#103 still own their evidence.
@@ -365,8 +366,33 @@ has been checked. Inputs are unchanged and the bounded detached result contains
 only the parent and domain projections. Ordinary parent observation still refuses
 all nonempty references. This pure supplied-data qualification authenticates no
 endpoint, proves no DNS/TLS or isolation beyond reported references, activates
-no runtime path and grants no write authority. #210 retains complete runtime,
-content-routing and workflow propagation.
+no runtime path by itself and grants no write authority. Domain-aware readers
+compose it below; #210 retains complete workflow integration acceptance.
+
+`lib/process/domains/context.py` validates explicit domain pins in private parent
+policy and retains them in detached parent/status/plan projections. Native
+`Reader.status` reads the fixed domain endpoint and independently bound parent
+before and after the complete Preview inventory. History and exact routing
+repeat those checks, refusing movement or failed reads without fallback.
+Create, deploy, inspect and dispose validators bind the same exact private
+context; omitting or substituting it refuses. No shared registration, current
+or public evidence wire form changes. These supplied projections authenticate
+no endpoint and grant no writer; trusted workflow must execute the reads.
+
+The supported domain-aware policy retains enabled native Preview routing and
+admits exactly the two reconstructed native/custom-domain URLs, in either order,
+with no duplicate or additional origin. Undeployed Previews may omit URLs;
+deployed Preview and deployment observations must corroborate both configured
+origins. Full UUID identity and independently qualified eight-hex prefix remain
+distinct. Anonymous immutable content reads use only
+`<prefix>-<preview>.lane.<app>.perish.uk`, and current/inspect reads use only
+`<preview>.lane.<app>.perish.uk`. Domain content failure never falls back to
+workers.dev; all original byte/media/security/indexing checks remain strict.
+The original unqualified native-only policy remains strict, not an automatic
+fallback for missing domain pins. This bounded source policy does not prove
+actual provider URL catalogs, DNS/TLS, permissions or live indexing behavior;
+those still require onboarding qualification. #221 supplies explicit trusted
+workflow selection and holds no domain provisioning writer.
 
 `lib/process/cfworker/observation.py` projects parent, Preview and exact deployment
 identity from bounded provider replies. The caller supplies trusted onboarding

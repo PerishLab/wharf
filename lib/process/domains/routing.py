@@ -1,18 +1,14 @@
 import re
 
 from lib.process.cfworker import discard, inventory, observation
+from lib.process.domains import context as prepared_context
 from lib.refusal import Refusal
 from lib.store.lane import documents
 
 
 def context(value, selected, registered):
     value = documents.object_value(value, ("parent", "previews", "preview"))
-    parent = documents.object_value(value["parent"], ("id", "name", "account", "suffix"))
-    suffix = parent["suffix"]
-    start = "-" + registered["parent"] + "."
-    if not isinstance(suffix, str) or not suffix.startswith(start) or not suffix.endswith(".workers.dev"):
-        raise Refusal("cfworker namespace context has foreign parent routing")
-    policy = {"id": parent["id"], "subdomain": suffix[len(start):-len(".workers.dev")]}
+    policy = prepared_context.restore(value["parent"], registered)
     status = discard.status(value, registered, policy)
     names = {item["name"] for item in status["previews"]}
     if len(status["previews"]) > inventory.SIZE or selected not in status["previews"] or status["preview"] is None or selected["id"] in names:
@@ -23,8 +19,7 @@ def context(value, selected, registered):
 def project(value, selected, parent):
     deployed = observation.endpoint(value, selected, value.get("id") if isinstance(value, dict) else None)
     prefix = deployed["id"][:8]
-    if value.get("urls") != [observation.address(parent, deployed["id"], prefix)]:
-        raise Refusal("cfworker deployment URL does not corroborate its canonical routing prefix")
+    prepared_context.urls(value.get("urls"), parent, selected["name"], deployed["id"])
     return {"id": deployed["id"], "prefix": prefix}
 
 
@@ -73,4 +68,4 @@ def checked(value, observed, deployed):
             selected = [{"id": item["id"], "preview": preview["id"], "parent": preview["parent"]} for item in values]
     if selected is None or inventory.history(selected, observed["preview"]) != inventory.history(observed["deployments"], observed["preview"]) or deployed not in selected:
         raise Refusal("cfworker routing selected catalog differs from complete exact deployment history")
-    return observation.address(observed["parent"], deployed["id"], deployed["id"][:8])
+    return prepared_context.address(observed["parent"], observed["preview"]["name"], deployed["id"], deployed["id"][:8])

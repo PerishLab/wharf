@@ -4,8 +4,8 @@ import urllib.request
 
 from lib.content import resources
 from lib.content.static import evidence
-from lib.process.cfworker.reader import Redirect
 from lib.process.domains import identity
+from lib.process.domains.transport import Redirect
 from lib.refusal import Refusal
 from lib.store.lane import registration
 

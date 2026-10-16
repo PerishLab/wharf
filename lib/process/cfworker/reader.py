@@ -7,14 +7,10 @@ from lib.content import resources
 from lib.content.lane import codec
 from lib.content.static import assets, evidence
 from lib.process.cfworker import apply, discard, inventory, mapping, observation, payload
-from lib.process.domains import routing
+from lib.process.domains import context, reader as domains, routing
+from lib.process.domains.transport import Redirect
 from lib.refusal import Refusal
 from lib.store.lane import documents, publication, registration, state
-
-class Redirect(urllib.request.HTTPRedirectHandler):
-    def redirect_request(self, *arguments):
-        raise Refusal("static provider redirects are not admitted")
-
 
 def values(headers, name):
     if hasattr(headers, "get_all"):
@@ -54,7 +50,7 @@ def inspection(value):
     conditions = active["assessment"]["conditions"]
     if current["active"] is not None or conditions["writer"] != "idle" or conditions["observed"] != current["observed"]:
         raise Refusal("cfworker inspection cannot claim historical material while a writer is uncertain")
-    return {"registration": registered, "current": current, "inspection": active, "policy": observation.prepared(value["policy"])}
+    return {"registration": registered, "current": current, "inspection": active, "policy": context.prepared(value["policy"], mapping.selected(registered))}
 
 
 def published(plan, reader, reference):
@@ -74,13 +70,13 @@ class Readback:
         routed = documents.object_value(routed, ("status", "catalogs", "deployment"))
         self._deployment = apply.deployment_confirm(held, observed, routed["deployment"])
         self._plan = held["apply"]
-        self._suffix = held["before"]["parent"]["suffix"]
+        self._parent = held["before"]["parent"]
         self._routing = documents.decode(documents.encode(routed))
         self._origin = routing.checked(self._routing, observed, self._deployment)
         self._client = urllib.request.build_opener(urllib.request.ProxyHandler({}), Redirect())
 
     def current(self):
-        self._origin = "https://" + mapping.selected(self._plan["registration"])["name"] + self._suffix
+        self._origin = context.current(self._parent, mapping.selected(self._plan["registration"])["name"])
         return self
 
     def _get(self, route, selected):
@@ -120,7 +116,7 @@ class Inspection(Readback):
         self._observed = discard.status(documents.decode(documents.encode(observed)), selected, self._plan["policy"])
         if (self._observed["preview"] is None) != (self._plan["current"]["observed"]["state"] == "absent"):
             raise Refusal("cfworker inspection control-plane presence differs from settled material")
-        self._origin = "https://" + selected["name"] + self._observed["parent"]["suffix"]
+        self._origin = context.current(self._observed["parent"], selected["name"])
         self._client = urllib.request.build_opener(urllib.request.ProxyHandler({}), Redirect())
 
     def read(self, document, bodies):
@@ -150,6 +146,7 @@ class Reader:
         if not isinstance(token, str) or not token or any(not 33 <= ord(char) <= 126 for char in token):
             raise Refusal("static provider needs a prepared read-only token")
         self._token = token
+        self._registration = registration.checked(registered)
         self._registered = mapping.selected(registered)
         self._client = urllib.request.build_opener(urllib.request.ProxyHandler({}), Redirect())
 
@@ -223,17 +220,25 @@ class Reader:
         return self.reply(f"/previews/{selected['id']}/deployments?page={number}&per_page={inventory.SIZE}", selected, namespace)
 
     def status(self, policy):
-        policy = observation.prepared(policy)
-        held = observation.parent(self.parent(), self._registered, policy)
+        policy = context.prepared(policy, self._registered)
+        held = self.qualified_parent(policy)
         catalog = inventory.read(self, held)
         selected = next((item for item in catalog if item["name"] == self._registered["name"]), None)
-        if selected is not None and observation.resource(self.preview(), self._registered, held) != selected:
+        if selected is not None and context.resource(self.preview(), self._registered, held) != selected:
             raise Refusal("cfworker selected Preview moved after inventory")
         if inventory.read(self, held) != catalog:
             raise Refusal("cfworker Preview inventory moved during status")
-        if observation.parent(self.parent(), self._registered, policy) != held:
+        if self.qualified_parent(policy) != held:
             raise Refusal("cfworker parent changed during status")
         return {"parent": held, "previews": catalog, "preview": selected}
+
+    def qualified_parent(self, policy):
+        policy = context.prepared(policy, self._registered)
+        if "domain" not in policy:
+            return observation.parent(self.parent(), self._registered, policy)
+        domain = domains.Reader(self._token, self._registration, policy["domain"]).read()
+        value = {"policy": {key: policy[key] for key in ("id", "subdomain")}, "parent": self.parent(), "domain": domain}
+        return context.observed(self._registration, policy, value)
 
     def history(self, policy):
         before = self.status(policy)
@@ -252,10 +257,10 @@ class Reader:
     def observe(self, policy, identity):
         if not isinstance(identity, str) or not observation.DEPLOYMENT.fullmatch(identity):
             raise Refusal("cfworker observation needs an exact deployment identity")
-        policy = observation.prepared(policy)
+        policy = context.prepared(policy, self._registered)
         before = self.history(policy)
         selected = before["preview"]
-        if observation.preview(self.preview(), self._registered, before["parent"]) != selected:
+        if context.preview(self.preview(), self._registered, before["parent"]) != selected:
             raise Refusal("cfworker exact deployed Preview differs from complete history")
         catalogs = routing.read(self, before)
         raw = self.reply(f"/previews/{selected['id']}/deployments/{identity}", selected).get("result")

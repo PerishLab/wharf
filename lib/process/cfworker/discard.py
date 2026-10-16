@@ -1,14 +1,14 @@
 from lib.content.lane import codec
 from lib.process.cfworker import inventory, mapping, observation
+from lib.process.domains import context
 from lib.refusal import Refusal
 from lib.store.lane import documents, publication, registration, state
 
 
 def status(value, selected, policy):
     value = documents.object_value(value, ("parent", "previews", "preview"))
-    policy = observation.prepared(policy)
-    parent = {"id": policy["id"], "name": selected["parent"], "account": selected["account"],
-              "suffix": "-" + selected["parent"] + "." + policy["subdomain"] + ".workers.dev"}
+    policy = context.prepared(policy, selected)
+    parent = context.projected(policy, selected)
     if value["parent"] != parent:
         raise Refusal("cfworker discard status differs from prepared parent identity")
     values = value["previews"]
@@ -48,7 +48,7 @@ def checked(value):
     registration.admitted(registered, active["request"], active["assessment"])
     if active["request"]["intent"]["action"] != "dispose":
         raise Refusal("cfworker discard accepts only the exact dispose intent")
-    policy = observation.prepared(value["policy"])
+    policy = context.prepared(value["policy"], selected)
     before = status(value["before"], selected, policy)
     if before["preview"] is not None and current["observed"]["state"] == "absent":
         raise Refusal("cfworker selected presence conflicts with reserved absent material")

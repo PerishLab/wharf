@@ -1,4 +1,5 @@
 from lib.process.cfworker import observation
+from lib.process.domains import context
 from lib.refusal import Refusal
 from lib.store.lane import documents
 
@@ -56,7 +57,7 @@ def project(value, parent):
     name = value.get("name") if isinstance(value, dict) else None
     if not isinstance(name, str) or not observation.LABEL.fullmatch(name) or not observation.LABEL.fullmatch(name + "-" + parent["name"]):
         raise Refusal("cfworker inventory has an unsupported Preview name")
-    return observation.resource(value, {"name": name}, parent)
+    return context.resource(value, {"name": name}, parent)
 
 
 def entries(api, selected, namespace=None):

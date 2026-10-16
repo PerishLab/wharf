@@ -1,8 +1,8 @@
 from lib.content import canonical
 from lib.content.lane import codec, shape
 from lib.content.static import evidence
-from lib.process.cfworker import discard, inventory, mapping, observation
-from lib.process.domains import routing
+from lib.process.cfworker import discard, inventory, mapping
+from lib.process.domains import context, routing
 from lib.refusal import Refusal
 from lib.store import handoff
 from lib.store.lane import documents, publication, registration, state
@@ -109,7 +109,7 @@ def deployment_checked(value):
 def deployment_readable(value):
     value = documents.object_value(documents.decode(documents.encode(value)), ("apply", "before", "policy"))
     plan = readable(value["apply"])
-    policy = observation.prepared(value["policy"])
+    policy = context.prepared(value["policy"], mapping.selected(plan["registration"]))
     before = deployment_status(value["before"], mapping.selected(plan["registration"]), policy)
     if len(before["deployments"]) >= 99:
         raise Refusal("cfworker deployment needs quota headroom; no automatic retirement")
