@@ -15,6 +15,7 @@ from lib.store import handoff
 from tests.lib.preview.test_admission import CONTEXT
 from tests.lib.process import test_cfworker_upload
 from tests.lib.process.test_cfworker import Response
+from tests.domains.test_routing import qualification
 from tests.workflow import fixtures, test_transfer
 from tests.workflow.provider import test_provider
 
@@ -33,6 +34,7 @@ class Deployment(unittest.TestCase):
         api = mock.Mock()
         api.status.side_effect = lambda policy: copy.deepcopy({key: current[key] for key in ("parent", "preview", "previews")})
         api.history.side_effect = lambda policy: copy.deepcopy(current)
+        api.observe.side_effect = lambda policy, identity: qualification(current, next(item for item in current["deployments"] if item["id"] == identity))
         source = test_provider.Provider.invoke(store, bucket, held, (env, api))
         held["provider"] = fixtures.encoded(source)
         env["WHARF_LANE_PROVIDER_TOKEN"] = "private-provider-writer"
@@ -45,6 +47,10 @@ class Deployment(unittest.TestCase):
         document, files = handoff.fetch(bucket, artifact["build"][apply.BUILD[0]])
         transport, reads = mock.Mock(), mock.Mock()
         deployed = {"id": "12345678-1234-1234-1234-123456789abc", "preview": "selected-id", "parent": "parent-id"}
+        if failure == "routing":
+            fixture["api"].observe.side_effect = Refusal("unqualified routing")
+        if failure == "routing-moved":
+            fixture["api"].observe.side_effect = lambda policy, identity: qualification(fixture["current"], deployed) if fixture["api"].observe.call_count == 1 else {}
         groups, done = [], []
 
         def observe(intent, value, environ):
@@ -80,7 +86,7 @@ class Deployment(unittest.TestCase):
 
         def content(request, timeout):
             suffix = fixture["current"]["parent"]["suffix"]
-            immutable = "https://" + deployed["id"] + suffix
+            immutable = "https://" + deployed["id"][:8] + suffix
             current = "https://preview" + suffix
             origin = immutable if request.full_url.startswith(immutable) else current
             name, body = payload.routes(files)[request.full_url.removeprefix(origin)]
@@ -146,12 +152,14 @@ class Deployment(unittest.TestCase):
             fixture["transport"].open.assert_not_called()
 
     def test_failed_immutable_or_current_content_or_authority_never_applies(self):
-        for failure in ("bytes", "current", "authority"):
+        for failure in ("bytes", "current", "authority", "routing", "routing-moved"):
             fixture = self.prepared()
             with self.subTest(failure=failure), self.assertRaises(Refusal):
                 self.invoke(fixture, failure)
             self.assertEqual(fixture["transport"].open.call_count, 5)
             self.assertEqual(fixture["store"].current["phase"], "reserved")
+            if failure == "routing":
+                fixture["reads"].open.assert_not_called()
 
     def test_foreign_attempt_job_selector_preflight_or_writer_never_writes(self):
         for failure in ("attempt", "job", "workload", "preflight", "writer"):
@@ -234,7 +242,7 @@ class Deployment(unittest.TestCase):
             reserved = reservation.prepare({"request": fixtures.encoded(intent), "artifact": fixtures.encoded(artifact)}, fixture["env"])
         fixture["store"] = store
         fixture["held"].update(request=fixtures.encoded(intent), prepared=fixtures.encoded(reserved))
-        previous = {"id": "12345678-1234-1234-1234-000000000000", "preview": "selected-id", "parent": "parent-id"}
+        previous = {"id": "abcdefab-1234-1234-1234-000000000000", "preview": "selected-id", "parent": "parent-id"}
         fixture["current"]["deployments"] = [previous]
         env = {name: value for name, value in fixture["env"].items() if name != "WHARF_LANE_PROVIDER_TOKEN"}
         preflight = test_provider.Provider.invoke(store, fixture["bucket"], fixture["held"], (env, fixture["api"]))
@@ -244,7 +252,7 @@ class Deployment(unittest.TestCase):
         self.assertEqual(len(fixture["current"]["deployments"]), 2)
         document, files = handoff.fetch(fixture["bucket"], fixture["held"]["workload"])
         bodies = {item["blob"]: files[name] for name, item in document["files"].items()}
-        client = reader.Readback(result["plan"], fixture["current"], fixture["current"]["deployments"][-1]).current().current()
+        client = reader.Readback(result["plan"], fixture["current"], qualification(fixture["current"], fixture["current"]["deployments"][-1])).current().current()
         with mock.patch.object(client, "_get"):
             proof = client.read(document, bodies.__getitem__)
         with self.assertRaises(Refusal):

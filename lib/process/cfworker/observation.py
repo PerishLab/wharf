@@ -81,10 +81,12 @@ def resource(value, selected, held):
     return {"id": identity(value.get("id")), "name": selected["name"], "parent": held["id"]}
 
 
-def address(held, requested):
+def address(held, requested, prefix):
     if not isinstance(requested, str) or not DEPLOYMENT.fullmatch(requested):
         raise Refusal("cfworker immutable address requires an exact deployment UUID")
-    host = requested + held["suffix"]
+    if not isinstance(prefix, str) or not re.fullmatch(r"[0-9a-f]{8}", prefix) or prefix != requested[:8]:
+        raise Refusal("cfworker immutable address needs its separately corroborated exact routing prefix")
+    host = prefix + held["suffix"]
     labels = host.split(".")
     if len(labels) != 4 or labels[-2:] != ["workers", "dev"] or len(host) > 253 or any(not LABEL.fullmatch(label) for label in labels):
         raise Refusal("cfworker immutable deployment address exceeds DNS limits or routing policy; no truncation")

@@ -14,6 +14,7 @@ from lib.refusal import Refusal
 from lib.store import handoff
 from lib.store.lane import state
 from tests.cfworker import test_deployment
+from tests.domains.test_routing import qualification
 from tests.lib.process.test_cfworker import Response
 
 
@@ -24,10 +25,10 @@ class Readback(unittest.TestCase):
         self.plan = self.fixture.plan
         self.deployed = self.fixture.projected()
         self.after = dict(self.fixture.before, deployments=[self.deployed])
-        self.origin = "https://" + self.deployed["id"] + self.fixture.parent["suffix"]
+        self.origin = "https://" + self.deployed["id"][:8] + self.fixture.parent["suffix"]
 
     def client(self):
-        api = reader.Readback(self.plan, self.after, self.deployed)
+        api = reader.Readback(self.plan, self.after, qualification(self.after, self.deployed))
         api._client = mock.Mock()
         api._client.open.side_effect = self.received
         return api
@@ -45,6 +46,18 @@ class Readback(unittest.TestCase):
 
     def invoke(self, api):
         return api.read(self.fixture.document, self.fixture.bodies.__getitem__)
+
+    def test_unqualified_routing_never_reaches_anonymous_content(self):
+        routed = qualification(self.after, self.deployed)
+        for value in (None, {}, dict(routed, catalogs=[]), dict(routed, status=self.fixture.before),
+                      dict(routed, deployment=dict(self.deployed, preview="foreign"))):
+            with mock.patch("urllib.request.build_opener") as opener:
+                self.assertRaises(Refusal, reader.Readback, self.plan, self.after, value)
+                opener.assert_not_called()
+        api = self.client()
+        result = self.invoke(api)
+        result["routing"]["catalogs"].clear()
+        self.assertTrue(self.invoke(api)["routing"]["catalogs"])
 
     def changed(self, files):
         fixture = self.fixture.fixture
@@ -120,29 +133,29 @@ class Readback(unittest.TestCase):
     def test_stale_unknown_unconfirmed_foreign_and_private_plans_refuse(self):
         for change in (dict(self.plan, token="private"), dict(self.plan, before={})):
             with self.assertRaises(Refusal):
-                reader.Readback(change, self.after, self.deployed)
+                reader.Readback(change, self.after, qualification(self.after, self.deployed))
         plan = copy.deepcopy(self.plan)
         plan["apply"]["current"]["phase"] = "unknown"
         with self.assertRaises(Refusal):
-            reader.Readback(plan, self.after, self.deployed)
+            reader.Readback(plan, self.after, qualification(self.after, self.deployed))
         for observed in (self.fixture.before, dict(self.after, deployments=[])):
             with self.assertRaises(Refusal):
-                reader.Readback(self.plan, observed, self.deployed)
+                reader.Readback(self.plan, observed, qualification(self.after, self.deployed))
         for deployed in (dict(self.deployed, id="latest"), dict(self.deployed, preview="foreign"), dict(self.deployed, url="https://foreign.invalid")):
             with self.assertRaises(Refusal):
-                reader.Readback(self.plan, self.after, deployed)
+                reader.Readback(self.plan, self.after, qualification(self.after, deployed))
 
     def test_prepared_address_dns_limit_refuses_without_truncation(self):
         plan = copy.deepcopy(self.plan)
-        plan["apply"]["registration"]["mapping"]["resource"] = "a" * 27
+        plan["apply"]["registration"]["mapping"]["resource"] = "a" * 55
         registered = plan["apply"]["registration"]
         active = {key: plan["apply"]["current"]["active"][key] for key in ("request", "assessment")}
         plan["apply"]["current"] = state.started(state.initial(registered), active, registered)
-        plan["before"]["parent"]["name"] = "a" * 27
-        plan["before"]["parent"]["suffix"] = "-" + "a" * 27 + "." + plan["policy"]["subdomain"] + ".workers.dev"
+        plan["before"]["parent"]["name"] = "a" * 55
+        plan["before"]["parent"]["suffix"] = "-" + "a" * 55 + "." + plan["policy"]["subdomain"] + ".workers.dev"
         after = dict(plan["before"], deployments=[self.deployed])
         with self.assertRaisesRegex(Refusal, "DNS"):
-            reader.Readback(plan, after, self.deployed)
+            reader.Readback(plan, after, qualification(after, self.deployed))
 
     def test_redirect_error_partial_and_wrong_origin_refuse(self):
         for key, value in (("status", 307), ("status", 404), ("status", 206), ("url", "https://foreign.invalid"), ("url", "https://preview-crest-development.test.workers.dev/")):
@@ -249,7 +262,7 @@ class Readback(unittest.TestCase):
 
     def test_transport_is_proxy_free_redirect_refusing_and_has_no_credentials(self):
         with mock.patch("urllib.request.build_opener") as build:
-            api = reader.Readback(self.plan, self.after, self.deployed)
+            api = reader.Readback(self.plan, self.after, qualification(self.after, self.deployed))
         self.assertEqual(build.call_args.args[0].proxies, {})
         self.assertIsInstance(build.call_args.args[1], reader.Redirect)
         self.assertFalse(hasattr(api, "_token"))

@@ -22,8 +22,21 @@ class Observation(unittest.TestCase):
     def client(self):
         api = reader.Reader("private-test-token", self.registered)
         api._client = mock.Mock()
-        replies = iter([self.parent, self.preview, self.deployment, self.parent])
-        api._client.open.side_effect = lambda request, timeout: Response(json.dumps({"success": True, "errors": [], "result": next(replies)}).encode(), request.full_url)
+        def received(request, timeout):
+            url = request.full_url
+            if "/deployments?page=" in url:
+                result = [dict(self.deployment, urls=["https://" + DEPLOYMENT[:8] + self.parent["subdomain"]["preview_url_suffix"]])]
+            elif "/deployments/" in url:
+                result = dict(self.deployment, urls=["https://" + DEPLOYMENT[:8] + self.parent["subdomain"]["preview_url_suffix"]])
+            elif "/previews?page=" in url:
+                result = [self.preview]
+            else:
+                result = self.preview if "/previews/" in url else self.parent
+            reply = {"success": True, "errors": [], "result": result}
+            if isinstance(result, list):
+                reply["result_info"] = {"page": 1, "count": len(result), "total_count": len(result), "per_page": 100}
+            return Response(json.dumps(reply).encode(), request.full_url)
+        api._client.open.side_effect = received
         return api
 
     def test_three_explicit_identities(self):
@@ -83,16 +96,16 @@ class Observation(unittest.TestCase):
             value["annotations"] = {"workers/commit_sha": "not-content-proof"}
         api = self.client()
         held = api.observe(self.policy, DEPLOYMENT)
-        self.assertEqual(set(held), {"parent", "preview", "deployment"})
+        self.assertEqual(set(held), {"status", "catalogs", "deployment"})
         self.assertNotIn("never-publish", json.dumps(held))
         self.assertNotIn("not-content-proof", json.dumps(held))
         self.assertNotIn("verified", json.dumps(held))
-        self.assertEqual(api._client.open.call_count, 4)
+        self.assertEqual(api._client.open.call_count, 28)
         self.parent["name"] = "changed"
-        self.assertEqual(held["parent"]["name"], "crest-development")
+        self.assertEqual(held["status"]["parent"]["name"], "crest-development")
 
     def test_failure_at_any_read_never_becomes_absence(self):
-        for step in range(4):
+        for step in range(28):
             api = self.client()
             original = api._client.open.side_effect
             calls = []

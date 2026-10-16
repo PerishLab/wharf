@@ -7,6 +7,7 @@ from lib.content import resources
 from lib.content.lane import codec
 from lib.content.static import assets, evidence
 from lib.process.cfworker import apply, discard, inventory, mapping, observation, payload
+from lib.process.domains import routing
 from lib.refusal import Refusal
 from lib.store.lane import documents, publication, registration, state
 
@@ -68,12 +69,14 @@ def published(plan, reader, reference):
 
 
 class Readback:
-    def __init__(self, plan, observed, deployed):
+    def __init__(self, plan, observed, routed):
         held = apply.deployment_readable(plan)
-        self._deployment = apply.deployment_confirm(held, observed, deployed)
+        routed = documents.object_value(routed, ("status", "catalogs", "deployment"))
+        self._deployment = apply.deployment_confirm(held, observed, routed["deployment"])
         self._plan = held["apply"]
         self._suffix = held["before"]["parent"]["suffix"]
-        self._origin = observation.address(held["before"]["parent"], self._deployment["id"])
+        self._routing = documents.decode(documents.encode(routed))
+        self._origin = routing.checked(self._routing, observed, self._deployment)
         self._client = urllib.request.build_opener(urllib.request.ProxyHandler({}), Redirect())
 
     def current(self):
@@ -106,7 +109,8 @@ class Readback:
         if apply.readable_content(self._plan, document, bodies)[1] != files:
             raise Refusal("cfworker handoff changed during deployed content readback")
         return {"request": codec.digest("request", plan["current"]["active"]["request"]), "artifact": plan["artifact"],
-                "deployment": dict(self._deployment), "address": self._origin, "files": len(routes)}
+                "deployment": dict(self._deployment), "routing": documents.decode(documents.encode(self._routing)),
+                "address": self._origin, "files": len(routes)}
 
 
 class Inspection(Readback):
@@ -155,17 +159,25 @@ class Reader:
             raise Refusal("static provider read is not a successful object observation")
         return reply["result"]
 
-    def reply(self, suffix, selected=None):
+    def reply(self, suffix, selected=None, namespace=None):
         name = self._registered["name"]
+        if namespace is not None and selected is None:
+            raise Refusal("cfworker namespace read needs an exact contextual Preview")
         if selected is not None:
             selected = documents.object_value(selected, ("id", "name", "parent"))
-            if selected["name"] != name or selected["id"] == name:
+            if namespace is not None:
+                routing.context(namespace, selected, self._registered)
+            elif selected["name"] != name:
+                raise Refusal("cfworker bound catalog differs from its selected Preview")
+            if selected["id"] == selected["name"]:
                 raise Refusal("cfworker bound catalog differs from its exact unambiguous selected Preview")
             observation.identity(selected["parent"])
             name = observation.identity(selected["id"])
         listing = tuple(f"/previews?page={number}&per_page={inventory.SIZE}" for number in range(1, inventory.PAGES + 1))
         history = tuple(f"/previews/{name}/deployments?page={number}&per_page={inventory.SIZE}" for number in range(1, inventory.PAGES + 1))
         allowed = history if selected is not None else ("", f"/previews/{name}", *listing, *history)
+        if namespace is not None and suffix not in history:
+            raise Refusal("cfworker sibling namespace read admits only fixed catalog pages")
         deployment = f"/previews/{name}/deployments/"
         if suffix not in allowed and (not isinstance(suffix, str) or not suffix.startswith(deployment) or not observation.DEPLOYMENT.fullmatch(suffix[len(deployment):])):
             raise Refusal("static provider read needs one exact fixed lane identity endpoint")
@@ -201,6 +213,15 @@ class Reader:
         selected = documents.object_value(selected, ("id", "name", "parent"))
         return self.reply(f"/previews/{selected['id']}/deployments?page={number}&per_page={inventory.SIZE}", selected)
 
+    def namespace_page(self, number, context):
+        if type(number) is not int or not 1 <= number <= inventory.PAGES:
+            raise Refusal("cfworker namespace catalog needs one bounded exact page number")
+        if not isinstance(context, tuple) or len(context) != 2:
+            raise Refusal("cfworker namespace catalog needs exact Preview and parent context")
+        selected, namespace = context
+        selected = documents.object_value(selected, ("id", "name", "parent"))
+        return self.reply(f"/previews/{selected['id']}/deployments?page={number}&per_page={inventory.SIZE}", selected, namespace)
+
     def status(self, policy):
         policy = observation.prepared(policy)
         held = observation.parent(self.parent(), self._registered, policy)
@@ -232,12 +253,22 @@ class Reader:
         if not isinstance(identity, str) or not observation.DEPLOYMENT.fullmatch(identity):
             raise Refusal("cfworker observation needs an exact deployment identity")
         policy = observation.prepared(policy)
-        held = observation.parent(self.parent(), self._registered, policy)
-        selected = observation.preview(self.preview(), self._registered, held)
-        deployed = observation.deployment(self.deployment(identity), selected, identity)
-        if observation.parent(self.parent(), self._registered, policy) != held:
-            raise Refusal("cfworker parent changed during observation")
-        return {"parent": held, "preview": selected, "deployment": deployed}
+        before = self.history(policy)
+        selected = before["preview"]
+        if observation.preview(self.preview(), self._registered, before["parent"]) != selected:
+            raise Refusal("cfworker exact deployed Preview differs from complete history")
+        catalogs = routing.read(self, before)
+        raw = self.reply(f"/previews/{selected['id']}/deployments/{identity}", selected).get("result")
+        deployed = observation.endpoint(raw, selected, identity)
+        route = routing.project(raw, selected, before["parent"])
+        catalog = next(item for item in catalogs if item["preview"] == selected)
+        if route not in catalog["deployments"]:
+            raise Refusal("cfworker exact deployment route differs from its complete retained catalog")
+        if routing.read(self, before) != catalogs or self.history(policy) != before:
+            raise Refusal("cfworker complete routing namespace moved during exact observation")
+        value = {"status": before, "catalogs": catalogs, "deployment": deployed}
+        routing.checked(value, before, deployed)
+        return value
 
     def preview(self):
         return self.get(f"/previews/{self._registered['name']}")

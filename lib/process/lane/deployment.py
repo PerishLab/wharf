@@ -111,8 +111,11 @@ def perform(held, environ=os.environ):
         authority(before, environ)
         return unknown(before, plan)
     observed = client.history(plan["policy"])
-    proof = reader.Readback(plan, observed, result["deployment"]).read(document, bodies)
-    reader.Readback(plan, observed, result["deployment"]).current().read(document, bodies)
+    routed = client.observe(plan["policy"], result["deployment"]["id"])
+    proof = reader.Readback(plan, observed, routed).read(document, bodies)
+    reader.Readback(plan, observed, routed).current().read(document, bodies)
+    if client.observe(plan["policy"], result["deployment"]["id"]) != routed:
+        raise Refusal("lane deployment complete routing namespace moved during content readback")
     after = client.history(plan["policy"])
     if after != observed:
         raise Refusal("lane deployment provider history moved during content readback")
