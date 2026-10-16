@@ -27,7 +27,7 @@ class Worker(unittest.TestCase):
     def runner(self, argv, cwd, env=None):
         self.calls.append(argv)
         self.envs.append(env)
-        return {"node": "v24.18.0\n", "pnpm": "11.13.0\n"}.get(argv[0], "")
+        return {"node": "v24.18.0\n", "pnpm": "11.28.5\n"}.get(argv[0], "")
 
     def test_lists_workers_from_native_manifests(self):
         self.assertEqual(cfworker.workers(self.repository.root), [{"name": "demo", "directory": "apps/web", "package": "@demo/web", "domains": ["demo.example"]}])

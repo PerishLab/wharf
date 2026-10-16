@@ -50,8 +50,8 @@ class Online(unittest.TestCase):
 
     def test_online_frozen_install_still_disables_scripts_and_hooks(self):
         tools = {name: {"path": "/tools/" + name, "sha256": "a" * 64, "version": "fixture"} for name in control.NAMES}
-        tools["node"]["version"], tools["pnpm"]["version"] = "v24.18.0", "11.13.0"
-        domain = {"node.version": "24.18.0", "pnpm.version": "11.13.0"}
+        tools["node"]["version"], tools["pnpm"]["version"] = "v24.18.0", "11.28.5"
+        domain = {"node.version": "24.18.0", "pnpm.version": "11.28.5"}
         replies = [mock.Mock(stdout=json.dumps(domain)), mock.Mock(stdout=None)]
         with mock.patch.object(control, "tools", return_value=tools), mock.patch.object(control.subprocess, "run", side_effect=replies) as run:
             result = control.execute("install", "crest-review")

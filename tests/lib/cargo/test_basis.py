@@ -143,7 +143,7 @@ class Key(unittest.TestCase):
         self.assertTrue(self.changed("crates/lib/src/lib.rs", "// lib", "pub fn f() {}"))
 
     def test_the_domain_toolchain_changes_the_key(self):
-        domain = {"node.version": "24.18.0", "pnpm.version": "11.13.0", "rust.version": "1.96.2"}
+        domain = {"node.version": "24.18.0", "pnpm.version": "11.28.5", "rust.version": "1.96.2"}
         with mock.patch.dict(os.environ, {toolchain.VARIABLE: json.dumps(domain)}):
             self.assertNotEqual(self.repository.key(), self.base)
 

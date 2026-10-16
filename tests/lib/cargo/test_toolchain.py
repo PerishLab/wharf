@@ -5,7 +5,7 @@ import unittest
 from lib.cargo import toolchain
 from lib.refusal import Refusal
 
-DOMAIN = {"node.version": "24.18.0", "pnpm.version": "11.13.0", "rust.version": "1.96.1"}
+DOMAIN = {"node.version": "24.18.0", "pnpm.version": "11.28.5", "rust.version": "1.96.1"}
 
 
 class Resolve(unittest.TestCase):
