@@ -60,5 +60,6 @@ jobs:
           secret-access-key: ${{ secrets.WHARF_LANE_READER_SECRET_ACCESS_KEY }}
           parent-id: ${{ vars.WHARF_LANE_PARENT_ID }}
           subdomain: ${{ vars.WHARF_LANE_SUBDOMAIN }}
+          domain-pins: ${{ vars.WHARF_LANE_DOMAIN_PINS }}
           reader-token: ${{ secrets.WHARF_LANE_PROVIDER_READER_TOKEN }}
           writer-token: ${{ secrets.WHARF_LANE_DISPOSAL_TOKEN }}

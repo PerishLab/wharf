@@ -40,6 +40,9 @@ inputs:
   reader-token:
     required: true
     description: Prepared provider reader custody
+  domain-pins:
+    required: true
+    description: Explicit trusted app/account/Worker/domain/zone/certificate pins
   writer-token:
     required: true
     description: Prepared provider disposal custody
@@ -84,6 +87,7 @@ runs:
         WHARF_LANE_READER_SECRET_ACCESS_KEY: ${{ inputs.secret-access-key }}
         WHARF_LANE_PARENT_ID: ${{ inputs.parent-id }}
         WHARF_LANE_SUBDOMAIN: ${{ inputs.subdomain }}
+        WHARF_LANE_DOMAIN_PINS: ${{ inputs.domain-pins }}
         WHARF_LANE_PROVIDER_READER_TOKEN: ${{ inputs.reader-token }}
         WHARF_LANE_PROVIDER_TOKEN: ${{ inputs.writer-token }}
       run: python3 -B -m scripts.preview lane-dispose

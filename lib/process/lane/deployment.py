@@ -47,7 +47,7 @@ def prepare(held, environ):
     if held["workload"] != document["key"]:
         raise Refusal("lane deployment changed its exact reserved workload selector")
     material = apply.prepare(value["registration"], value["current"], document, bodies)
-    policy = provider.policy(environ)
+    policy = provider.policy(environ, value["registration"])
     client = reader.Reader(r2.secret(environ, "WHARF_LANE_PROVIDER_READER_TOKEN"), value["registration"])
     status = client.status(policy)
     plan = create.prepare(material, status, policy) if status["preview"] is None else apply.deployment_prepare(material, client.history(policy), policy)

@@ -14,6 +14,7 @@ from tests.lib.preview.test_admission import CONTEXT
 from tests.lib.store.memory import Memory
 from tests.lib.process.test_cfworker import Response
 from tests.workflow import fixtures, test_transfer
+from tests.workflow.provider.fixtures import configure
 from tests.workflow.test_execution import prepared
 
 
@@ -37,6 +38,8 @@ class Provider(unittest.TestCase):
         env = dict(fixtures.platform(), WHARF_LANE_PARENT_ID=fixture.plan["policy"]["id"],
                    WHARF_LANE_SUBDOMAIN=fixture.plan["policy"]["subdomain"], WHARF_LANE_PROVIDER_READER_TOKEN="reader")
         held = {"request": held["request"], "prepared": fixtures.encoded(value), "workload": "none"}
+        fixture.plan["policy"] = configure(env, fixture.observed["parent"])
+        fixture.origin = "https://preview.lane.crest.perish.uk"
         return fixture, intent, store, bucket, env, held
 
     @staticmethod
@@ -71,6 +74,8 @@ class Provider(unittest.TestCase):
         self.assertEqual(len(clients[0]._client.open.call_args_list), len(fixture.fixture.fixture.fixture.files) - 1)
         self.assertEqual(store.current, before)
         self.assertEqual(api.status.call_count, 2)
+        self.assertTrue(all(call.args[0]["domain"] == fixture.plan["policy"]["domain"] for call in api.status.call_args_list))
+        self.assertTrue(all(call.args[0].full_url.startswith("https://preview.lane.crest.perish.uk/") for call in clients[0]._client.open.call_args_list))
 
     def test_absent_inspection_consumes_no_content_or_asset_http(self):
         fixture, intent, store, bucket, env, held = self.present()
@@ -158,6 +163,7 @@ class Provider(unittest.TestCase):
         intent, store, value = prepared("dispose")
         registered = copy.deepcopy(value["registration"])
         registered["mapping"]["resource"] = "crest-development"
+        registered["declaration"]["target"]["app"] = "crest"
         intent = fixtures.request("dispose", registered)
         store = fixtures.Store(registered, fixtures.settled(registered))
         observed = entry.admit(intent, store, CONTEXT, fixtures.provider())
@@ -186,7 +192,7 @@ class Provider(unittest.TestCase):
     def test_missing_parent_pins_or_writer_environment_refuse_before_provider(self):
         for env in ({}, {"WHARF_LANE_PARENT_ID": "foreign"}, {"WHARF_LANE_SUBDOMAIN": "unknown"}):
             with self.assertRaises(Refusal):
-                provider.policy(env)
+                provider.policy(env, {})
         with mock.patch.object(execution, "observe", side_effect=AssertionError("writer refused before reads")), self.assertRaises(Refusal):
             provider.observe({}, {"WHARF_LANE_PROVIDER_TOKEN": "writer"})
 
@@ -199,6 +205,7 @@ class Provider(unittest.TestCase):
         parent = {"id": "parent-id", "name": "crest-review", "account": "a" * 32,
                   "suffix": "-crest-review.development.workers.dev"}
         status = {"parent": parent, "previews": [], "preview": None}
+        configure(env, parent, "crest-review")
         api = mock.Mock()
         api.status.return_value = status
         created = self.invoke(store, bucket, held, (env, api))
