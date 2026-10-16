@@ -349,8 +349,8 @@ and [domain GET](https://developers.cloudflare.com/api/resources/workers/subreso
 contracts. Supplied pins, routing flags and certificate IDs prove neither actual
 DNS/TLS coverage, permission scope, physical exclusivity nor activation. The
 unqualified empty-reference policy remains strict. Explicit domain-aware native
-readers and plans below consume these pins; workflow selection remains #221
-under #210, and read-only readiness remains #211. No domain,
+readers, plans and fixed-main workflows below consume these pins;
+read-only readiness remains #211. No domain,
 DNS, certificate or credential writer is added. Daily deployment holds no domain
 onboarding authority. Existing state/public record contracts and unknown custody
 are unchanged, and #203/#204 plus operational .github#103 still own their evidence.
@@ -391,8 +391,8 @@ workers.dev; all original byte/media/security/indexing checks remain strict.
 The original unqualified native-only policy remains strict, not an automatic
 fallback for missing domain pins. This bounded source policy does not prove
 actual provider URL catalogs, DNS/TLS, permissions or live indexing behavior;
-those still require onboarding qualification. #221 supplies explicit trusted
-workflow selection and holds no domain provisioning writer.
+those still require onboarding qualification. Fixed-main workflows supply explicit
+trusted workflow selection and hold no domain provisioning writer.
 
 `lib/process/cfworker/observation.py` projects parent, Preview and exact deployment
 identity from bounded provider replies. The caller supplies trusted onboarding
@@ -706,7 +706,15 @@ separate provider, immutable public evidence and final settlement stages.
 No live or installed consumer is claimed by these source components.
 
 `lib/process/lane/provider.py` binds fresh original-run execution to complete
-cfworker observations under prepared parent/subdomain pins. Apply/dispose return
+cfworker observations under prepared parent/subdomain and mandatory explicit domain
+pins. Trusted Wharf variables supply `WHARF_LANE_PARENT_ID`,
+`WHARF_LANE_SUBDOMAIN` and `WHARF_LANE_DOMAIN_PINS`; the latter is bounded JSON
+with exactly repository, app, account, worker {id, name} and domain
+{id, hostname, zone_id, zone_name, certificate_id}. No product/request field
+selects this context. Each observe/apply/dispose invocation rebuilds and validates
+it against the freshly admitted registration before provider reads; absent,
+malformed, foreign or incomplete pins refuse without a native-only fallback.
+Daily jobs hold no domain provisioning token. Apply/dispose return
 content-bound preflight observations, not bearer permits. Inspect consumes only
 the saved verified workload for settled presence and checks every current-origin
 asset; selected absence consumes no content and proves no URL teardown. Complete

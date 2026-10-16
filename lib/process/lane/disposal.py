@@ -51,7 +51,7 @@ def perform(held, environ=os.environ):
     supplied = documents.object_value(evidence.decode(held["provider"]), ("execution", "plan", "operation"))
     if supplied["operation"] is not None or supplied["execution"] != canonical.digest(before):
         raise Refusal("lane disposal preflight belongs to another exact execution")
-    policy = provider.policy(environ)
+    policy = provider.policy(environ, value["registration"])
     client = reader.Reader(r2.secret(environ, "WHARF_LANE_PROVIDER_READER_TOKEN"), value["registration"])
     observed = client.status(policy)
     plan = discard.prepare(value["registration"], value["current"], observed, policy)

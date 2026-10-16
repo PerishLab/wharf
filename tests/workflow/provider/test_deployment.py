@@ -18,6 +18,7 @@ from tests.lib.process.test_cfworker import Response
 from tests.domains.test_routing import qualification
 from tests.workflow import fixtures, test_transfer
 from tests.workflow.provider import test_provider
+from tests.workflow.provider.fixtures import configure
 
 
 class Deployment(unittest.TestCase):
@@ -30,6 +31,7 @@ class Deployment(unittest.TestCase):
         parent = {"id": "parent-id", "name": "crest-review", "account": "a" * 32,
                   "suffix": "-crest-review.development.workers.dev"}
         preview = {"id": "selected-id", "name": "preview", "parent": "parent-id"}
+        configure(env, parent, "crest-review")
         current = {"parent": parent, "previews": [preview] if selected else [], "preview": preview if selected else None, "deployments": []}
         api = mock.Mock()
         api.status.side_effect = lambda policy: copy.deepcopy({key: current[key] for key in ("parent", "preview", "previews")})
@@ -85,9 +87,8 @@ class Deployment(unittest.TestCase):
             return response
 
         def content(request, timeout):
-            suffix = fixture["current"]["parent"]["suffix"]
-            immutable = "https://" + deployed["id"][:8] + suffix
-            current = "https://preview" + suffix
+            immutable = "https://" + deployed["id"][:8] + "-preview.lane.crest-review.perish.uk"
+            current = "https://preview.lane.crest-review.perish.uk"
             origin = immutable if request.full_url.startswith(immutable) else current
             name, body = payload.routes(files)[request.full_url.removeprefix(origin)]
             response = Response(b"changed" if failure == "bytes" or failure == "current" and origin == current else body, request.full_url)
@@ -95,6 +96,8 @@ class Deployment(unittest.TestCase):
             for key, value in {"Content-Security-Policy": assets.CSP, "X-Content-Type-Options": "nosniff", "Cache-Control": "no-store",
                                "X-Robots-Tag": "noindex, nofollow", "Content-Type": payload.MIME[PurePosixPath(name).suffix.lower()], "Content-Length": str(len(body))}.items():
                 response.headers[key] = value
+            if failure == "indexing":
+                response.headers.replace_header("X-Robots-Tag", "noindex")
             if failure == "authority":
                 store.target["enabled"] = False
             return response
@@ -133,8 +136,10 @@ class Deployment(unittest.TestCase):
             self.assertEqual(result["operation"]["outcome"]["writer"], "idle")
             self.assertEqual(fixture["store"].current, before)
             urls = [call.args[0].full_url for call in fixture["reads"].open.call_args_list]
-            self.assertTrue(any(url.startswith("https://preview-") for url in urls))
+            self.assertTrue(any(url.startswith("https://preview.lane.crest-review.perish.uk/") for url in urls))
             self.assertTrue(any(url.startswith("https://12345678-") for url in urls))
+            self.assertTrue(all(".lane.crest-review.perish.uk/" in url and ".workers.dev" not in url for url in urls))
+            self.assertIn("domain", result["plan"]["policy"])
             for private in (test_cfworker_upload.JWT, test_cfworker_upload.FINAL, "private-provider-writer"):
                 self.assertNotIn(private, fixtures.encoded(result))
             self.assertEqual(len(list(Path(fixture["env"]["RUNNER_TEMP"]).iterdir())), 1)
@@ -152,7 +157,7 @@ class Deployment(unittest.TestCase):
             fixture["transport"].open.assert_not_called()
 
     def test_failed_immutable_or_current_content_or_authority_never_applies(self):
-        for failure in ("bytes", "current", "authority", "routing", "routing-moved"):
+        for failure in ("bytes", "current", "authority", "routing", "routing-moved", "indexing"):
             fixture = self.prepared()
             with self.subTest(failure=failure), self.assertRaises(Refusal):
                 self.invoke(fixture, failure)

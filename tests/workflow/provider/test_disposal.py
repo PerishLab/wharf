@@ -70,6 +70,7 @@ class Disposal(unittest.TestCase):
         self.assertEqual(request.get_method(), "DELETE")
         self.assertTrue(request.full_url.endswith("/previews/selected-id"))
         self.assertEqual(api.status.call_count, 3)
+        self.assertTrue(all("domain" in call.args[0] for call in api.status.call_args_list))
         self.assertEqual(store.current, previous)
         self.assertEqual(len(list(Path(env["RUNNER_TEMP"]).iterdir())), 1)
 

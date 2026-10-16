@@ -3,14 +3,19 @@ import os
 from lib.content import canonical
 from lib.content.lane import codec
 from lib.content.static import evidence
-from lib.process.cfworker import apply, create, discard, observation, reader
+from lib.process.cfworker import apply, create, discard, mapping, reader
+from lib.process.domains import context
 from lib.process.lane import entry, execution, transfer
 from lib.refusal import Refusal
 from lib.store import handoff, r2
 
 
-def policy(environ):
-    return observation.prepared({"id": environ.get("WHARF_LANE_PARENT_ID"), "subdomain": environ.get("WHARF_LANE_SUBDOMAIN")})
+def policy(environ, registered):
+    body = environ.get("WHARF_LANE_DOMAIN_PINS")
+    if not isinstance(body, str) or not body or len(body) > 65536:
+        raise Refusal("lane provider requires bounded explicit trusted domain pins; no routing fallback")
+    return context.prepared({"id": environ.get("WHARF_LANE_PARENT_ID"), "subdomain": environ.get("WHARF_LANE_SUBDOMAIN"),
+                             "domain": evidence.decode(body)}, mapping.selected(registered))
 
 
 def content(artifact, environ):
@@ -44,7 +49,7 @@ def observe(held, environ=os.environ):
     action = value["request"]["intent"]["action"]
     if action != "deploy" and held["workload"] != "none":
         raise Refusal("lane provider inspect/dispose consume no new build selector")
-    prepared = policy(environ)
+    prepared = policy(environ, value["registration"])
     client = reader.Reader(r2.secret(environ, "WHARF_LANE_PROVIDER_READER_TOKEN"), value["registration"])
     status = client.status(prepared)
     operation = None
