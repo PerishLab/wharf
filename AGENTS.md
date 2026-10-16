@@ -354,6 +354,20 @@ DNS, certificate or credential writer is added. Daily deployment holds no domain
 onboarding authority. Existing state/public record contracts and unknown custody
 are unchanged, and #203/#204 plus operational .github#103 still own their evidence.
 
+`lib/process/domains/parent.py` joins supplied independent domain and native
+parent observations under the exact registered pins. The complete native
+reference catalog must contain exactly the pinned five-field domain reference
+with `certificate_id`; independent domain readback separately binds `cert_id`
+and explicit Preview-only flags. All other references remain empty. The exact
+immutable Worker policy, parent routing, undeployed state and empty base
+configuration pass the original parent validator only after that one reference
+has been checked. Inputs are unchanged and the bounded detached result contains
+only the parent and domain projections. Ordinary parent observation still refuses
+all nonempty references. This pure supplied-data qualification authenticates no
+endpoint, proves no DNS/TLS or isolation beyond reported references, activates
+no runtime path and grants no write authority. #210 retains complete runtime,
+content-routing and workflow propagation.
+
 `lib/process/cfworker/observation.py` projects parent, Preview and exact deployment
 identity from bounded provider replies. The caller supplies trusted onboarding
 pins for the immutable parent identity and account subdomain; readback never
