@@ -2,6 +2,7 @@ from lib.content import canonical
 from lib.content.lane import codec, shape
 from lib.content.static import evidence
 from lib.process.cfworker import discard, inventory, mapping, observation
+from lib.process.domains import routing
 from lib.refusal import Refusal
 from lib.store import handoff
 from lib.store.lane import documents, publication, registration, state
@@ -154,12 +155,12 @@ def candidate(plan, observed):
 
 def readback(plan, observed, value):
     plan = deployment_readable(plan)
-    value = documents.object_value(documents.decode(documents.encode(value)), ("request", "artifact", "deployment", "address", "files"))
+    value = documents.object_value(documents.decode(documents.encode(value)), ("request", "artifact", "deployment", "routing", "address", "files"))
     deployed = deployment_confirm(plan, observed, value["deployment"])
     active = plan["apply"]["current"]["active"]
     if value["request"] != codec.digest("request", active["request"]) or codec.read("artifact", value["artifact"]) != plan["apply"]["artifact"]:
         raise Refusal("cfworker content readback differs from the exact request or artifact")
-    if value["address"] != observation.address(plan["before"]["parent"], deployed["id"]) or type(value["files"]) is not int or not 2 <= value["files"] <= 1001:
+    if value["address"] != routing.checked(value["routing"], observed, deployed) or type(value["files"]) is not int or not 2 <= value["files"] <= 1001:
         raise Refusal("cfworker content readback differs from exact immutable routing or bounded files")
     return value
 

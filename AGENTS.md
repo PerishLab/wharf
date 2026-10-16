@@ -361,10 +361,13 @@ creates or repairs those pins. This narrow dedicated-parent policy requires
 disabled ordinary workers.dev routing, enabled Preview routing, no parent
 deployment, no Preview base configuration and empty reported resource references.
 It is an adaptor precondition, not proof of complete production isolation.
-`Reader.observe` binds the selected Preview name, slug and single native URL to
-the prepared parent, then binds the exact deployment to that Preview identity and
-rereads the parent policy. Failure refuses without proving absence. The returned
-projection excludes arbitrary bindings, annotations and deployment URLs. It
+`Reader.observe` consumes complete selected history, binds the deployed Preview
+name, slug and single native URL, and reads the exact full UUID under its immutable
+Preview ID. Contextual endpoint projection permits omitted embedded Preview
+identity but rejects explicit foreign/null fields; strict POST acknowledgement is
+unchanged. Independently repeated complete sibling deployment catalogs and
+selected history must agree. Failure refuses without proving absence. Its finite
+private projection excludes arbitrary bindings, annotations and deployment URLs. It
 proves neither vetted content, origin reachability, atomic observation nor writer
 authorization; parent reread does not eliminate concurrent provider changes.
 The admitted opaque parent/Preview identity syntax and UUID deployment selector
@@ -531,9 +534,9 @@ Preview endpoint, never another selected name or arbitrary URL.
 source-addressed sample from #203's repeated authenticated GET observations;
 raw payloads and historical POST bytes were not retained. Historical provider
 sample names are not logical flat Name aliases or a registration migration.
-Strict `observation.deployment` still governs POST acknowledgements and standalone
-exact-deployment observation. Prefix/address/content qualification remains #214:
-catalog acceptance does not establish immutable routing, content, indexing,
+Strict `observation.deployment` still governs POST acknowledgements; GET endpoint
+custody and routing are qualified separately under #214.
+Catalog acceptance alone does not establish immutable routing, content, indexing,
 writer quiescence, state settlement or unknown-write recovery authority.
 
 `apply.deployment_prepare` binds a finite write plan to the exact fresh apply
@@ -553,16 +556,33 @@ trusted workflow must establish exclusive serialized custody, authenticated fres
 admission, registration/reservation and actual content/material observations.
 No live call, activation, workflow, release or installed CLI is proved by mocks.
 
-`reader.Readback` holds no credentials and derives its fixed immutable workers.dev
-origin from the exact confirmed deployment UUID and prepared parent suffix, never
-provider-returned URLs, mutable lane addresses or latest selectors. DNS limits
-refuse without truncation. Fresh apply/handoff validation precedes anonymous GETs
+`lib/process/domains/routing.py` separates full deployment UUID identity from
+the supported eight-lowercase-hex routing prefix. Exact endpoint and complete
+catalog URLs must equal the independently constructed canonical native origin;
+no provider URL is followed or alternate prefix length tried. Every retained
+deployment of every Preview in the bounded parent namespace is read twice.
+Incomplete, changed, duplicate or foreign catalogs, ambiguous immutable ID/name
+selectors, repeated prefixes across sibling deployments and prefixes colliding
+with mutable Preview names refuse. The finite private qualification binds the
+entire exact selected history, complete sibling catalogs and exact deployment.
+Supplied projections authenticate nothing alone; repeated agreement is not an
+atomic snapshot, future/all-time uniqueness, content proof or write authority.
+Oversized private qualifications refuse under the existing 64 KiB document cap.
+Sibling catalog GETs additionally bind complete prepared parent membership;
+the original selected-only transport remains selected-only. These contextual
+projections authenticate no endpoint alone and grant no provider writer.
+
+`reader.Readback` holds no credentials and consumes this separate qualified
+routing projection with the exact confirmed full UUID and prepared parent suffix,
+never arbitrary provider-returned URLs, mutable lane addresses or latest selectors.
+The origin is reconstructed only after the complete qualified namespace validates;
+DNS limits refuse without fallback. Fresh apply/handoff validation precedes anonymous GETs
 of every vetted asset, including the identity file, through fixed canonical HTML
 routes. Ambiguous or unsupported canonical routing refuses before I/O. Exact
 bounded bytes, fixed media types and vetted security/indexing headers must agree;
 redirects, transformation, partial/error replies and transport/cleanup failures
 refuse without retries, fallback or mutations. Handoff bytes are revalidated after
-all reads. The finite result binds request, artifact, deployment and immutable
+all reads. The finite private result binds request, artifact, deployment, routing and immutable
 address; it proves neither current mutable-lane selection, atomic provider state,
 original-writer quiescence, authenticated admission nor public evidence publication.
 The 30-second transport limit is a network idle timeout, not a whole-read deadline.
@@ -667,7 +687,8 @@ and siblings are independently confirmed; prior deployment history is retained.
 Private completion JWT remains inside one controlled uploader/deployer process,
 never in plans, job outputs or public records. Ambiguous writes stop all further
 writes without retry, rollback or cleanup. The same local marker limitations apply.
-Every vetted asset must match at both exact immutable UUID and prepared current lane
+Exact contextual routing is qualified before and after content reads.
+Every vetted asset must match at both qualified immutable and prepared current lane
 origins, followed by unchanged history and fresh authority. `Readback.current` is
 idempotent; its result cannot replace immutable deployment proof in `apply.settle`.
 Idle is supplied only after this synchronous acknowledged writer's attempts return;

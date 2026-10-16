@@ -59,21 +59,27 @@ def project(value, parent):
     return observation.resource(value, {"name": name}, parent)
 
 
-def deployments(api, selected):
-    values, total, size, pages = page(api.deployment_page(1, selected), 1)
+def entries(api, selected, namespace=None):
+    fetch = api.deployment_page if namespace is None else lambda number, selected: api.namespace_page(number, (selected, namespace))
+    values, total, size, pages = page(fetch(1, selected), 1)
     if total > SIZE:
         raise Refusal("cfworker retained deployment catalog exceeds its native bound")
     catalog = []
     for number in range(1, pages + 1):
         if number > 1:
-            values, observed, width, count = page(api.deployment_page(number, selected), number)
+            values, observed, width, count = page(fetch(number, selected), number)
             if (observed, width, count) != (total, size, pages):
                 raise Refusal("cfworker deployment pagination moved during observation")
         for value in values:
-            identity = value.get("id") if isinstance(value, dict) else None
-            catalog.append(observation.endpoint(value, selected, identity))
+            catalog.append(value)
     if len(catalog) != total:
         raise Refusal("cfworker retained deployment catalog is incomplete")
+    return catalog
+
+
+def deployments(api, selected):
+    catalog = [observation.endpoint(value, selected, value.get("id") if isinstance(value, dict) else None)
+               for value in entries(api, selected)]
     return history(catalog, selected)
 
 
