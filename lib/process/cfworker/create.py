@@ -6,6 +6,7 @@ from lib.content import canonical, resources
 from lib.content.lane import codec
 from lib.content.static import evidence
 from lib.process.cfworker import apply, discard, mapping, observation, reader
+from lib.process.domains import context
 from lib.refusal import Refusal
 from lib.store.lane import documents
 
@@ -19,7 +20,7 @@ def prepare(plan, observed, policy):
 def checked(value):
     value = documents.object_value(documents.decode(documents.encode(value)), ("apply", "before", "policy"))
     plan = apply.checked(value["apply"])
-    policy = observation.prepared(value["policy"])
+    policy = context.prepared(value["policy"], mapping.selected(plan["registration"]))
     before = discard.status(value["before"], mapping.selected(plan["registration"]), policy)
     if before["preview"] is not None or plan["current"]["observed"] != {"state": "absent"}:
         raise Refusal("cfworker create needs exact reserved and observed selected absence")

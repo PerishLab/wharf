@@ -17,7 +17,10 @@ def hostname(value):
 
 
 def prepare(registered, pins):
-    selected = mapping.selected(registered)
+    return bound(mapping.selected(registered), pins)
+
+
+def bound(selected, pins):
     pins = documents.decode(documents.encode(pins))
     preview.shape(pins, KEYS, "custom domain pins")
     preview.shape(pins["worker"], {"id", "name"}, "custom domain Worker pins")
