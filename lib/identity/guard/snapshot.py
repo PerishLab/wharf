@@ -11,7 +11,7 @@ from pathlib import Path
 from lib.cargo import toolchain
 from lib.content import resources
 from lib.content.static import evidence
-from lib.identity.guard import mismatch
+from lib.identity.guard import mismatch, replay
 from lib.media import release
 from lib.refusal import Refusal
 
@@ -145,7 +145,7 @@ def stable(held, reader=release.fetch):
 
 def resolution(held):
     tools = held["tools"]
-    result = evidence.decode(execute(held, [tools["plumb"]["path"], "lift", str(held["root"]), "--json"]))
+    result = replay.resolved(held, execute, git) if replay.applies(held) else evidence.decode(execute(held, [tools["plumb"]["path"], "lift", str(held["root"]), "--json"]))
     if not isinstance(result, dict) or set(result) != {"context", "tree", "packages"} or result["context"] != "lift":
         raise Refusal("release snapshot needs actual released lift evidence")
     object_id(result["tree"])

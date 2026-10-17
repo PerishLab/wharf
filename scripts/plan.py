@@ -185,7 +185,8 @@ def record(held):
     bucket = r2.configured()
     identity = {field: held[field] for field in IDENTITY}
     recalled, offers = {}, {}
-    request = snapshot.Request(Path(held["source"]), identity, toolchain.versions(), destination=snapshot.destination(held["source"]), recall=lambda observed: plan.recall(bucket, observed, recalled), pull=lambda: pulled(identity, offers))
+    expected = plan.reserved(bucket, held, recalled)
+    request = snapshot.Request(Path(held["source"]), identity, toolchain.versions(), expected, destination=snapshot.destination(held["source"]), recall=lambda observed: plan.recall(bucket, observed, recalled), pull=lambda: pulled(identity, offers))
     with snapshot.prepared(request) as (root, verified, confirm):
         plan.matching(bucket, held, verified)
         scoped = dict(held, source=root, snapshot=verified)

@@ -68,6 +68,15 @@ def recall(bucket, observed, recalled):
     return held["snapshot"]["guard"]
 
 
+def reserved(bucket, context, recalled):
+    key = publication(context)
+    if not bucket.exists(key):
+        return None
+    held = json.loads(bucket.get(key))
+    guard = recall(bucket, held, recalled)
+    return None if guard is None else dict(held, guard=guard)
+
+
 def remember(bucket, context):
     body = canonical.encode({"snapshot": context["snapshot"], "run": context["run"], "attempt": context["attempt"]})
     try:
