@@ -72,6 +72,7 @@ def inject(source, release):
         carry(source / directory / "Cargo.toml", release)
     names = "|".join(re.escape(name) for name in workspace)
     replace(source / "Cargo.lock", rf'(name = "(?:{names})"\nversion = )"0\.0\.0"', rf'\g<1>"{version}"')
+    replace(source / "Cargo.lock", rf'"((?:{names}) )0\.0\.0([ "])', rf'"\g<1>{version}\g<2>')
     touched = [source / "Cargo.toml", source / "Cargo.lock"] + [source / directory / "Cargo.toml" for directory in workspace.values()]
     remaining = [str(path) for path in touched if LEFTOVER.search(path.read_text())]
     if remaining:

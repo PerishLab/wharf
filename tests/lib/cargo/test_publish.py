@@ -218,9 +218,21 @@ class Inject(unittest.TestCase):
         version.inject(repository.root, RELEASE)
         self.assertIn('version = "60.0.0"', (repository.root / "Cargo.lock").read_text())
 
+    def test_binds_a_member_reference_qualified_beside_its_registry_namesake(self):
+        repository = Repository()
+        repository.edit("Cargo.lock", 'dependencies = ["demo"]', 'dependencies = ["demo 0.0.0", "demo 0.9.0 (registry+https://github.com/rust-lang/crates.io-index)"]')
+        repository.edit("Cargo.lock", '[[package]]\nname = "itoa"', '[[package]]\nname = "demo"\nversion = "0.9.0"\nsource = "registry+https://github.com/rust-lang/crates.io-index"\nchecksum = "eeee"\n\n[[package]]\nname = "itoa"')
+        repository.commit()
+        version.inject(repository.root, RELEASE)
+        lock = (repository.root / "Cargo.lock").read_text()
+        self.assertIn('"demo 1.2.3-beta.1"', lock)
+        self.assertIn('"demo 0.9.0 (registry+', lock)
+        self.assertIn('version = "0.9.0"', lock)
+        self.assertNotIn("0.0.0", lock)
+
     def test_refuses_a_whole_unversioned_reference_left_behind(self):
         repository = Repository()
-        repository.edit("Cargo.lock", 'dependencies = ["demo"]', 'dependencies = ["demo 0.0.0"]')
+        repository.edit("Cargo.lock", 'dependencies = ["demo"]', 'dependencies = ["ghost 0.0.0"]')
         repository.commit()
         with self.assertRaisesRegex(Refusal, "still mention 0.0.0"):
             version.inject(repository.root, RELEASE)
