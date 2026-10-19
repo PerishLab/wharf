@@ -400,9 +400,14 @@ are unchanged, and #203/#204 plus operational .github#103 still own their eviden
 
 `lib/process/domains/parent.py` joins supplied independent domain and native
 parent observations under the exact registered pins. The complete native
-reference catalog must contain exactly the pinned five-field domain reference
-with `certificate_id`; independent domain readback separately binds `cert_id`
-and explicit Preview-only flags. All other references remain empty. The exact
+reference catalog must contain exactly the pinned four-field domain reference:
+`id`, `hostname`, `zone_id` and `zone_name`. The complete prepared domain pins
+still require `certificate_id`; independent domain readback separately binds
+`cert_id` and explicit Preview-only flags. No certificate field is synthesized
+into the parent observation. The sanitized actual independent GET sample under
+`domain_binding` in `resources/identity/deployment-observation.json` retains #239's
+source-addressed reproduction, not registration activation, certificate issuance
+or routing proof. All other references remain empty. The exact
 immutable Worker policy, parent routing and empty Preview base configuration pass
 the original parent validator only after that one reference and the complete exact
 base observation have been checked. An explicit timezone-bearing deployed timestamp
