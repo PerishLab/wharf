@@ -5,6 +5,8 @@ from lib.process.cfworker import mapping, observation
 from lib.process.domains import parent
 from lib.refusal import Refusal
 from tests.domains.test_domain import pins, reply
+from tests.domains import fixtures
+from tests.domains.test_base import pins as base_pins
 from tests.lib.store.test_lane import operation, registered
 
 
@@ -12,14 +14,14 @@ class DomainParent(unittest.TestCase):
     def setUp(self):
         self.registered = registered(operation("review"))
         self.pins = pins()
-        self.policy = {"id": self.pins["worker"]["id"], "subdomain": "perishlab"}
-        self.raw = {"id": self.policy["id"], "name": "crest-development", "deployed_on": None,
+        self.policy = {"id": self.pins["worker"]["id"], "subdomain": "perishlab", "base": base_pins()}
+        self.raw = {"id": self.policy["id"], "name": "crest-development", "deployed_on": "2026-10-19T00:00:00Z",
                     "previews_base_config": None,
                     "subdomain": {"enabled": False, "previews_enabled": True,
                                   "preview_url_suffix": "-crest-development.perishlab.workers.dev"},
                     "references": {key: [] for key in observation.REFERENCES}}
         self.raw["references"]["domains"] = [copy.deepcopy(self.pins["domain"])]
-        self.value = {"policy": self.policy, "parent": self.raw, "domain": reply()}
+        self.value = {"policy": self.policy, "parent": self.raw, "domain": reply(), "base": fixtures.baseline()}
 
     def qualify(self, value):
         return parent.qualify(self.registered, self.pins, value)
@@ -28,7 +30,7 @@ class DomainParent(unittest.TestCase):
         before = copy.deepcopy(self.value)
         held = self.qualify(self.value)
         self.assertEqual(held, {"parent": {"id": self.policy["id"], "name": "crest-development",
-                                          "account": "a" * 32, "suffix": "-crest-development.perishlab.workers.dev"},
+                                          "account": "a" * 32, "suffix": "-crest-development.perishlab.workers.dev", "base": base_pins()},
                                 "domain": reply()})
         self.assertEqual(before, self.value)
         held["domain"]["id"] = "changed"
@@ -43,7 +45,12 @@ class DomainParent(unittest.TestCase):
         self.assertRaises(Refusal, observation.parent, self.raw, selected, self.policy)
         raw = copy.deepcopy(self.raw)
         raw["references"]["domains"] = []
-        self.assertEqual(observation.parent(raw, selected, self.policy), self.qualify(self.value)["parent"])
+        native = {key: self.policy[key] for key in ("id", "subdomain")}
+        self.assertRaises(Refusal, observation.parent, raw, selected, native)
+        raw["deployed_on"] = None
+        expected = dict(self.qualify(self.value)["parent"])
+        del expected["base"]
+        self.assertEqual(observation.parent(raw, selected, native), expected)
         self.assertRaises(Refusal, self.qualify, dict(self.value, parent=raw))
 
     def test_reference_catalog_is_complete_and_has_exactly_one_pinned_domain(self):
@@ -99,13 +106,20 @@ class DomainParent(unittest.TestCase):
         for policy in ({"id": "other", "subdomain": "perishlab"}, dict(self.policy, extra=True),
                        dict(self.policy, subdomain="foreign"), None):
             self.assertRaises(Refusal, self.qualify, dict(self.value, policy=policy))
-        for change in ({"id": "other"}, {"name": "production"}, {"deployed_on": "2026-10-16"},
+        for change in ({"id": "other"}, {"name": "production"}, {"deployed_on": None},
                        {"previews_base_config": {"env": {"PRIVATE": "hidden"}}}, {"subdomain": None}):
             self.assertRaises(Refusal, self.qualify, dict(self.value, parent=dict(self.raw, **change)))
         for change in ({"enabled": True}, {"enabled": 0}, {"previews_enabled": False},
                        {"previews_enabled": 1}, {"preview_url_suffix": "-other.perishlab.workers.dev"}):
             raw = dict(self.raw, subdomain=dict(self.raw["subdomain"], **change))
             self.assertRaises(Refusal, self.qualify, dict(self.value, parent=raw))
+
+    def test_missing_malformed_or_naive_deployed_timestamp_refuses(self):
+        for value in (None, "", True, 1, "foreign", "2026-10-19", "2026-10-19T00:00:00", "x" * 65):
+            self.assertRaises(Refusal, self.qualify, dict(self.value, parent=dict(self.raw, deployed_on=value)))
+        raw = dict(self.raw)
+        del raw["deployed_on"]
+        self.assertRaises(Refusal, self.qualify, dict(self.value, parent=raw))
 
     def test_account_registration_worker_and_app_pins_still_bind(self):
         for key, value in (("account", "c" * 32), ("repository", "PerishLab/other"), ("app", "other"),

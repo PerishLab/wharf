@@ -9,5 +9,7 @@ def configure(environ, parent, app="crest"):
     policy["domain"]["app"] = app
     policy["domain"]["domain"]["hostname"] = "lane." + app + ".perish.uk"
     parent["domain"] = policy["domain"]
+    parent["base"] = policy["base"]
     environ["WHARF_LANE_DOMAIN_PINS"] = json.dumps(policy["domain"])
+    environ["WHARF_LANE_BASE_PINS"] = json.dumps(policy["base"])
     return policy

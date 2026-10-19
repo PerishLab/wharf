@@ -15,7 +15,8 @@ class Context(unittest.TestCase):
     def setUp(self):
         self.fixture, self.api = fixtures.provider()
         self.env = {"WHARF_LANE_PARENT_ID": self.fixture.policy["id"], "WHARF_LANE_SUBDOMAIN": self.fixture.policy["subdomain"],
-                    "WHARF_LANE_DOMAIN_PINS": json.dumps(self.fixture.policy["domain"])}
+                    "WHARF_LANE_DOMAIN_PINS": json.dumps(self.fixture.policy["domain"]),
+                    "WHARF_LANE_BASE_PINS": json.dumps(self.fixture.policy["base"])}
 
     def test_trusted_pins_select_independently_read_domain_context(self):
         policy = provider.policy(self.env, self.fixture.registered)
@@ -105,20 +106,47 @@ class Context(unittest.TestCase):
         api.status.assert_not_called()
         self.assertEqual(list(Path(env["RUNNER_TEMP"]).iterdir()), [])
 
+    def test_base_context_movement_refuses_before_apply_or_dispose_writes(self):
+        source = test_deployment.Deployment()
+        self.addCleanup(source.doCleanups)
+        fixture = source.prepared()
+        for value in ("", json.dumps(dict(self.fixture.policy["base"], deployment="ffffffff-ffff-ffff-ffff-ffffffffffff"))):
+            fixture["env"]["WHARF_LANE_BASE_PINS"] = value
+            self.assertRaises(Refusal, source.invoke, fixture)
+            fixture["transport"].open.assert_not_called()
+            fixture["reads"].open.assert_not_called()
+        self.assertEqual(list(Path(fixture["env"]["RUNNER_TEMP"]).iterdir()), [])
+        source = test_disposal.Disposal()
+        self.addCleanup(source.doCleanups)
+        store, env, held, api = source.prepared()
+        for value in ("", json.dumps(dict(self.fixture.policy["base"], version="ffffffff-ffff-ffff-ffff-ffffffffffff"))):
+            env["WHARF_LANE_BASE_PINS"] = value
+            transport = source.transport()
+            self.assertRaises(Refusal, source.invoke, store, env, held, (api, transport))
+            transport.open.assert_not_called()
+        self.assertEqual(api.status.call_count, 1)
+        self.assertEqual(list(Path(env["RUNNER_TEMP"]).iterdir()), [])
+
     def test_workflow_context_comes_only_from_trusted_vars_not_dispatch_or_guests(self):
         root = Path(provider.__file__).resolve().parents[3]
         for name in ("observe", "deploy", "dispose"):
             body = (root / f".github/workflows/{name}.yml").read_text()
             self.assertEqual(body.count("${{ vars.WHARF_LANE_DOMAIN_PINS }}"), 1)
+            self.assertEqual(body.count("${{ vars.WHARF_LANE_BASE_PINS }}"), 1)
             self.assertNotIn("inputs.domain-pins", body)
+            self.assertNotIn("inputs.base-pins", body)
             self.assertNotIn("secrets: inherit", body)
         for name in ("deployment", "disposal"):
             body = (root / f".github/actions/lane-{name}/action.yml").read_text()
             self.assertIn("WHARF_LANE_DOMAIN_PINS: ${{ inputs.domain-pins }}", body)
             self.assertIn("domain-pins:\n    required: true", body)
+            self.assertIn("WHARF_LANE_BASE_PINS: ${{ inputs.base-pins }}", body)
+            self.assertIn("base-pins:\n    required: true", body)
         for name in ("intake", "evidence"):
             self.assertNotIn("WHARF_LANE_DOMAIN_PINS", (root / f".github/workflows/{name}.yml").read_text())
+            self.assertNotIn("WHARF_LANE_BASE_PINS", (root / f".github/workflows/{name}.yml").read_text())
         self.assertNotIn("WHARF_LANE_DOMAIN_PINS", (root / ".github/actions/preview-source/action.yml").read_text())
+        self.assertNotIn("WHARF_LANE_BASE_PINS", (root / ".github/actions/preview-source/action.yml").read_text())
 
 
 if __name__ == "__main__":

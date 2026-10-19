@@ -60,3 +60,11 @@ def qualify(pins, value):
     deployment(pins, current[0])
     return pins
 
+
+def isolated(pins, value):
+    value = documents.object_value(documents.decode(documents.encode(value)),
+                                   ("version", "deployment", "current", "routes", "environment_routes", "schedules"))
+    if value["routes"] != [] or value["environment_routes"] != [] or value["schedules"] != {"schedules": []}:
+        raise Refusal("cfworker inert base requires empty independently read associated routes and schedules")
+    return qualify(pins, {key: value[key] for key in ("version", "deployment", "current")})
+
