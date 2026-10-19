@@ -1,13 +1,13 @@
 from lib.content.lane import identity as lane_identity
 from lib.process.cfworker import mapping, observation
-from lib.process.domains import identity, parent
+from lib.process.domains import base, identity, parent
 from lib.refusal import Refusal
 from lib.store.lane import documents
 
 
 def prepared(policy, selected):
     policy = documents.decode(documents.encode(policy))
-    if not isinstance(policy, dict) or set(policy) not in ({"id", "subdomain"}, {"id", "subdomain", "domain"}):
+    if not isinstance(policy, dict) or set(policy) not in ({"id", "subdomain"}, {"id", "subdomain", "domain", "base"}):
         raise Refusal("cfworker routing requires exact explicit parent and optional domain pins")
     held = observation.prepared({key: policy[key] for key in ("id", "subdomain")})
     if "domain" in policy:
@@ -15,6 +15,7 @@ def prepared(policy, selected):
         if pins["worker"]["id"] != held["id"]:
             raise Refusal("cfworker routing domain differs from its immutable parent")
         held["domain"] = pins
+        held["base"] = base.prepared(policy["base"])
     return held
 
 
@@ -24,6 +25,7 @@ def projected(policy, selected):
             "suffix": "-" + selected["parent"] + "." + policy["subdomain"] + ".workers.dev"}
     if "domain" in policy:
         held["domain"] = policy["domain"]
+        held["base"] = policy["base"]
     return held
 
 
@@ -41,7 +43,7 @@ def observed(registered, policy, value):
 def restore(value, selected):
     fields = {"id", "name", "account", "suffix"}
     if isinstance(value, dict) and "domain" in value:
-        fields.add("domain")
+        fields.update(("domain", "base"))
     value = documents.object_value(value, fields)
     suffix = value["suffix"]
     start = "-" + selected["parent"] + "."
@@ -50,6 +52,7 @@ def restore(value, selected):
     policy = {"id": value["id"], "subdomain": suffix[len(start):-len(".workers.dev")]}
     if "domain" in value:
         policy["domain"] = value["domain"]
+        policy["base"] = value["base"]
     policy = prepared(policy, selected)
     if projected(policy, selected) != value:
         raise Refusal("cfworker parent projection differs from exact prepared context")

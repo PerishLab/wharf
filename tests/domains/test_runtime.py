@@ -24,7 +24,7 @@ class Runtime(unittest.TestCase):
         self.assertEqual(routing.checked(held, held["status"], held["deployment"]), "https://12345678-preview.lane.crest.perish.uk")
         calls = [call.args[0] for call in self.api._client.open.call_args_list]
         domains = [request for request in calls if "/workers/domains/" in request.full_url]
-        self.assertEqual(len(calls), 36)
+        self.assertEqual(len(calls), 84)
         self.assertEqual(len(domains), 8)
         self.assertTrue(all(request.full_url == "https://api.cloudflare.com/client/v4/accounts/" + "a" * 32 + "/workers/domains/domain-identity" for request in domains))
         self.assertTrue(all(request.get_method() == "GET" and request.data is None for request in calls))
@@ -122,8 +122,8 @@ class Runtime(unittest.TestCase):
             self.assertRaises(Refusal, context.current, dict(held, domain=domain), "preview")
 
     def test_supplied_domain_observation_cannot_replace_prepared_subdomain_policy(self):
-        value = {"policy": {"id": self.fixture.policy["id"], "subdomain": "foreign"},
-                 "parent": copy.deepcopy(self.fixture.parent), "domain": fixtures.reply()}
+        value = {"policy": {"id": self.fixture.policy["id"], "subdomain": "foreign", "base": self.fixture.policy["base"]},
+                 "parent": copy.deepcopy(self.fixture.parent), "domain": fixtures.reply(), "base": fixtures.baseline()}
         value["parent"]["subdomain"]["preview_url_suffix"] = "-crest-development.foreign.workers.dev"
         self.assertRaises(Refusal, context.observed, self.fixture.registered, self.fixture.policy, value)
 

@@ -7,7 +7,7 @@ from lib.content import resources
 from lib.content.lane import codec
 from lib.content.static import assets, evidence
 from lib.process.cfworker import apply, discard, inventory, mapping, observation, payload
-from lib.process.domains import context, reader as domains, routing
+from lib.process.domains import baseline, context, reader as domains, routing
 from lib.process.domains.transport import Redirect
 from lib.refusal import Refusal
 from lib.store.lane import documents, publication, registration, state
@@ -237,7 +237,9 @@ class Reader:
         if "domain" not in policy:
             return observation.parent(self.parent(), self._registered, policy)
         domain = domains.Reader(self._token, self._registration, policy["domain"]).read()
-        value = {"policy": {key: policy[key] for key in ("id", "subdomain")}, "parent": self.parent(), "domain": domain}
+        base = baseline.Reader(self._token, self._registration, policy).read()
+        value = {"policy": {key: policy[key] for key in ("id", "subdomain", "base")},
+                 "parent": self.parent(), "domain": domain, "base": base}
         return context.observed(self._registration, policy, value)
 
     def history(self, policy):

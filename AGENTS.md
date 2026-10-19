@@ -330,11 +330,33 @@ and compatibility settings, with no bindings, assets or tail consumers. Separate
 exact deployment and current-catalog observations must select only that version
 at 100 percent; an historical matching deployment alone is insufficient. The
 bounded detached projection contains only the prepared pins. This pure validator
-authenticates no read, proves no production-route/schedule isolation or version
-URL exposure, grants no writer and changes no existing parent guard or workflow.
-Native reader/policy integration remains #230 and actual fixed-base onboarding
-remains PerishLab/.github#109; both retain independent source and operational
-acceptance before PerishLab/.github#103 public delivery can complete.
+authenticates no read and proves no physical production isolation or version URL
+exposure. `isolated` additionally requires supplied empty script-associated and
+production-environment-associated route lists and exact empty schedules. These
+are reported surfaces, not all-account route enumeration or a permission grant.
+Actual fixed-base onboarding remains PerishLab/.github#109 before
+PerishLab/.github#103 public delivery can complete.
+
+`lib/process/domains/baseline.py` reads only six fixed GET endpoints: the exact
+immutable Worker/full-version UUID with `include=modules`, exact script deployment,
+current deployment catalog, script-associated routes, production-environment
+routes and schedules. Modern module bytes and configuration must pass the fixed
+base validator; the first deployment must select the pinned version at 100 percent.
+Routes require empty lists without pagination metadata and schedules must be empty.
+The prepared reader uses no proxy, redirect, arbitrary URL, retry or writer and
+retains the existing reply budget and network idle timeout. Failed, transformed,
+malformed or unsupported observations refuse without fallback or self-repair.
+Provider-returned version URLs are never followed and are not routing-isolation
+evidence. Ordinary workers.dev being disabled does not disable version URLs;
+actual base URL exposure and fixed404/header behavior must be independently
+qualified by onboarding before trusted pin activation.
+
+The supported source protocol follows the official
+[modern version-with-modules](https://developers.cloudflare.com/api/resources/workers/subresources/beta/subresources/workers/subresources/versions/methods/get/)
+and [current deployment](https://developers.cloudflare.com/api/resources/workers/subresources/scripts/subresources/deployments/methods/list/)
+contracts. Associated route/schedule surfaces were separately observed read-only
+under #211. Source fixtures do not establish initialized version shape, actual
+permissions, physical isolation or any live routing fact.
 
 `lib/process/domains/identity.py` validates explicit app/account/Worker and
 domain/zone/certificate pins against one exact static registration. The dedicated
@@ -374,19 +396,22 @@ parent observations under the exact registered pins. The complete native
 reference catalog must contain exactly the pinned five-field domain reference
 with `certificate_id`; independent domain readback separately binds `cert_id`
 and explicit Preview-only flags. All other references remain empty. The exact
-immutable Worker policy, parent routing, undeployed state and empty base
-configuration pass the original parent validator only after that one reference
-has been checked. Inputs are unchanged and the bounded detached result contains
-only the parent and domain projections. Ordinary parent observation still refuses
-all nonempty references. This pure supplied-data qualification authenticates no
+immutable Worker policy, parent routing and empty Preview base configuration pass
+the original parent validator only after that one reference and the complete exact
+base observation have been checked. An explicit timezone-bearing deployed timestamp
+is required, but never stands in for independent exact deployment/current/code
+readback. Inputs are unchanged; the detached parent projection retains only the
+prepared base pins. Ordinary native-only parent observation still requires an
+undeployed parent and refuses all nonempty references. This supplied-data join authenticates no
 endpoint, proves no DNS/TLS or isolation beyond reported references, activates
 no runtime path by itself and grants no write authority. Domain-aware readers
 compose it below; #210 retains complete workflow integration acceptance.
 
-`lib/process/domains/context.py` validates explicit domain pins in private parent
-policy and retains them in detached parent/status/plan projections. Native
-`Reader.status` reads the fixed domain endpoint and independently bound parent
-before and after the complete Preview inventory. History and exact routing
+`lib/process/domains/context.py` requires both explicit domain and base pins in
+the domain-aware private policy and retains both in parent/status/plan projections.
+Omission cannot select a native-only fallback. Native `Reader.status` reads the
+fixed domain, complete base and independently bound parent before and after the
+complete Preview inventory. History and exact routing
 repeat those checks, refusing movement or failed reads without fallback.
 Create, deploy, inspect and dispose validators bind the same exact private
 context; omitting or substituting it refuses. No shared registration, current
@@ -722,9 +747,14 @@ No live or installed consumer is claimed by these source components.
 `lib/process/lane/provider.py` binds fresh original-run execution to complete
 cfworker observations under prepared parent/subdomain and mandatory explicit domain
 pins. Trusted Wharf variables supply `WHARF_LANE_PARENT_ID`,
-`WHARF_LANE_SUBDOMAIN` and `WHARF_LANE_DOMAIN_PINS`; the latter is bounded JSON
+`WHARF_LANE_SUBDOMAIN`, `WHARF_LANE_DOMAIN_PINS` and `WHARF_LANE_BASE_PINS`.
+Domain pins are bounded JSON
 with exactly repository, app, account, worker {id, name} and domain
-{id, hostname, zone_id, zone_name, certificate_id}. No product/request field
+{id, hostname, zone_id, zone_name, certificate_id}. Base pins are bounded JSON
+with exactly version and deployment full UUIDs and the canonical inert source
+digest. Fixed-main observe/deploy/dispose units receive them only from trusted
+Wharf variables; they are not dispatch inputs, guests or bucket/state/public fields.
+No product/request field
 selects this context. Each observe/apply/dispose invocation rebuilds and validates
 it against the freshly admitted registration before provider reads; absent,
 malformed, foreign or incomplete pins refuse without a native-only fallback.

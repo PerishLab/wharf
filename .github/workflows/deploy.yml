@@ -69,6 +69,7 @@ jobs:
           parent-id: ${{ vars.WHARF_LANE_PARENT_ID }}
           subdomain: ${{ vars.WHARF_LANE_SUBDOMAIN }}
           domain-pins: ${{ vars.WHARF_LANE_DOMAIN_PINS }}
+          base-pins: ${{ vars.WHARF_LANE_BASE_PINS }}
           reader-token: ${{ secrets.WHARF_LANE_PROVIDER_READER_TOKEN }}
           writer-token: ${{ secrets.WHARF_LANE_DEPLOYMENT_TOKEN }}
           workload-endpoint: ${{ vars.WHARF_R2_ENDPOINT }}

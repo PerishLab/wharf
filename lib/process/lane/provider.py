@@ -12,10 +12,11 @@ from lib.store import handoff, r2
 
 def policy(environ, registered):
     body = environ.get("WHARF_LANE_DOMAIN_PINS")
-    if not isinstance(body, str) or not body or len(body) > 65536:
-        raise Refusal("lane provider requires bounded explicit trusted domain pins; no routing fallback")
+    base = environ.get("WHARF_LANE_BASE_PINS")
+    if any(not isinstance(value, str) or not value or len(value) > 65536 for value in (body, base)):
+        raise Refusal("lane provider requires bounded explicit trusted domain and base pins; no routing fallback")
     return context.prepared({"id": environ.get("WHARF_LANE_PARENT_ID"), "subdomain": environ.get("WHARF_LANE_SUBDOMAIN"),
-                             "domain": evidence.decode(body)}, mapping.selected(registered))
+                             "domain": evidence.decode(body), "base": evidence.decode(base)}, mapping.selected(registered))
 
 
 def content(artifact, environ):

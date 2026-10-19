@@ -13,6 +13,24 @@ from tests.lib.process import test_cfworker_discard
 
 
 class Plans(unittest.TestCase):
+    def test_base_pins_are_mandatory_in_each_private_plan_and_observation(self):
+        for mode in ("policy", "status", "changed"):
+            plan = copy.deepcopy(self.plan)
+            if mode == "policy":
+                del plan["policy"]["base"]
+            elif mode == "status":
+                del plan["before"]["parent"]["base"]
+            else:
+                plan["before"]["parent"]["base"]["version"] = "ffffffff-ffff-ffff-ffff-ffffffffffff"
+            self.assertRaises(Refusal, apply.deployment_readable, plan)
+        self.assertEqual(self.plan["before"]["parent"]["base"], self.policy["base"])
+        before = {key: self.plan["before"][key] for key in ("parent", "previews", "preview")}
+        selected = before["preview"]
+        before.update(preview=None, previews=[item for item in before["previews"] if item != selected])
+        self.assertEqual(create.prepare(self.plan["apply"], before, self.policy)["policy"]["base"], self.policy["base"])
+        del before["parent"]["base"]
+        self.assertRaises(Refusal, create.prepare, self.plan["apply"], before, self.policy)
+
     def setUp(self):
         self.base = test_readback.Readback()
         self.base.setUp()
@@ -137,7 +155,11 @@ class Plans(unittest.TestCase):
         after = fixture.absent(plan)
         operation = discard.settle(plan, after, "idle")
         self.assertEqual(plan["policy"], policy)
+        self.assertEqual(plan["policy"]["base"], policy["base"])
         self.assertEqual(operation["outcome"]["material"], {"state": "absent"})
+        missing = copy.deepcopy(after)
+        del missing["parent"]["base"]
+        self.assertRaises(Refusal, discard.settle, plan, missing, "idle")
         del after["parent"]["domain"]
         self.assertRaises(Refusal, discard.settle, plan, after, "idle")
 
@@ -152,5 +174,8 @@ class Plans(unittest.TestCase):
         operation = fixture.invoke(api)
         self.assertEqual(operation["outcome"]["outcome"], "applied")
         self.assertTrue(all(call.args[0].full_url.startswith(fixture.origin + "/") for call in api._client.open.call_args_list))
+        missing = copy.deepcopy(fixture.observed)
+        del missing["parent"]["base"]
+        self.assertRaises(Refusal, reader.Inspection, fixture.plan, missing)
         del fixture.observed["parent"]["domain"]
         self.assertRaises(Refusal, reader.Inspection, fixture.plan, fixture.observed)
