@@ -30,6 +30,10 @@ def provider():
     def received(request, timeout):
         if "/workers/domains/" in request.full_url:
             value = {"success": True, "errors": [], "result": reply()}
+        elif "/versions?" in request.full_url:
+            item = dict(baseline()["version"], urls=["https://" + base_pins()["version"][:8] + held["suffix"],
+                                                   "https://" + base_pins()["version"][:8] + ".lane.crest.perish.uk"])
+            value = {"success": True, "errors": [], "result": [item], "result_info": {"page": 1, "per_page": 50, "count": 1, "total_count": 1}}
         elif "/versions/" in request.full_url:
             value = {"success": True, "errors": [], "result": baseline()["version"]}
         elif "/previews" not in request.full_url and any(request.full_url.endswith(path) for path in ("/routes", "/schedules", "/deployments", "/deployments/" + base_pins()["deployment"])):

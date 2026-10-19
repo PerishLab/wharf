@@ -1,7 +1,7 @@
 import re
 
 from lib.process.cfworker import discard, inventory, observation
-from lib.process.domains import context as prepared_context
+from lib.process.domains import context as prepared_context, versions
 from lib.refusal import Refusal
 from lib.store.lane import documents
 
@@ -36,8 +36,12 @@ def read(api, status):
     return catalogs
 
 
+def fields(parent):
+    return ("status", "catalogs", "deployment") + (("versions",) if "domain" in parent else ())
+
+
 def checked(value, observed, deployed):
-    value = documents.object_value(documents.decode(documents.encode(value)), ("status", "catalogs", "deployment"))
+    value = documents.object_value(documents.decode(documents.encode(value)), fields(observed["parent"]))
     if value["status"] != observed or value["deployment"] != deployed:
         raise Refusal("cfworker routing differs from exact independently observed history or deployment")
     previews = observed["previews"]
@@ -47,7 +51,11 @@ def checked(value, observed, deployed):
     names = {item["name"] for item in previews}
     if any(item["id"] in names for item in previews):
         raise Refusal("cfworker routing has an ambiguous Preview ID/name endpoint")
-    prefixes, identities, selected = set(), set(), None
+    versioned = versions.checked(value["versions"], observed["parent"]) if "domain" in observed["parent"] else []
+    prefixes, identities = {item["prefix"] for item in versioned}, {item["id"] for item in versioned}
+    if prefixes & names:
+        raise Refusal("cfworker Worker version prefix is ambiguous with mutable Preview names")
+    selected = None
     for preview, supplied in zip(previews, catalogs):
         supplied = documents.object_value(supplied, ("preview", "deployments"))
         if supplied["preview"] != preview or not isinstance(supplied["deployments"], list):

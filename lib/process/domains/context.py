@@ -76,7 +76,7 @@ def address(held, name, requested, prefix):
     if "domain" not in held:
         return native
     current(held, name)
-    return "https://" + identity.hostname(prefix + "-" + name + "." + held["domain"]["domain"]["hostname"])
+    return identity.deployment(held["domain"]["domain"]["hostname"], prefix)
 
 
 def urls(values, held, name, requested=None):

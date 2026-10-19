@@ -98,12 +98,12 @@ class DomainIdentity(unittest.TestCase):
         for name in ("a", "review", "preview"):
             held = identity.addresses(registered(operation(name)), self.pins, "7f201597")
             self.assertEqual(held, {"current": "https://" + name + ".lane.crest.perish.uk",
-                                    "deployment": "https://7f201597-" + name + ".lane.crest.perish.uk"})
+                                    "deployment": "https://7f201597.lane.crest.perish.uk"})
         held = registered(operation("a" * 48))
         held["mapping"]["resource"] = "crest"
         prepared = pins()
         prepared["worker"]["name"] = "crest"
-        self.assertEqual(identity.addresses(held, prepared, "7f201597")["deployment"], "https://7f201597-" + "a" * 48 + ".lane.crest.perish.uk")
+        self.assertEqual(identity.addresses(held, prepared, "7f201597")["deployment"], "https://7f201597.lane.crest.perish.uk")
         for prefix in (None, "", True, "latest", DEPLOYMENT, "7F201597", "7f201597?x=1", "https://other.uk"):
             self.assertRaises(Refusal, identity.addresses, self.registered, self.pins, prefix)
 

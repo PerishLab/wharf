@@ -74,6 +74,119 @@
       "enabled": false
     }
   },
+  "routing": {
+    "provenance": {
+      "issue": "PerishLab/wharf#238",
+      "source": "125ba5254ab59a8b8d925a30376fa6295ff81410",
+      "archive_sha256": "00511a67f167161adbf8ba210b5d441202d68d9c474ea54afe0043b16951161f",
+      "time": "2026-10-19T12:07:23.203771+00:00",
+      "scope": "sanitized actual GET observations; historical native names are not logical lane aliases; no new operation or registration"
+    },
+    "worker": {
+      "id": "f037b088dc6c4d04b714c7a9206842e3",
+      "name": "crest-development",
+      "suffix": "-crest-development.862457174.workers.dev"
+    },
+    "versions": [
+      {
+        "id": "fba8499b-23c5-4efc-b2c1-9eed66aebaad",
+        "urls": [
+          "https://fba8499b.lane.crest.perish.uk",
+          "https://fba8499b-crest-development.862457174.workers.dev"
+        ]
+      }
+    ],
+    "previews": [
+      {
+        "id": "de605d58cc9d43439ec0b926e117990d",
+        "name": "preview-design",
+        "slug": "preview-design",
+        "urls": [
+          "https://preview-design.lane.crest.perish.uk",
+          "https://preview-design-crest-development.862457174.workers.dev"
+        ]
+      },
+      {
+        "id": "4e760c50e4be49ddb811bb01d2b76fd5",
+        "name": "preview-review",
+        "slug": "preview-review",
+        "urls": [
+          "https://preview-review.lane.crest.perish.uk",
+          "https://preview-review-crest-development.862457174.workers.dev"
+        ]
+      },
+      {
+        "id": "43867c49f7884827b71be20a5cbea7f8",
+        "name": "preview",
+        "slug": "preview",
+        "urls": [
+          "https://preview.lane.crest.perish.uk",
+          "https://preview-crest-development.862457174.workers.dev"
+        ]
+      }
+    ],
+    "catalogs": [
+      {
+        "id": "de605d58cc9d43439ec0b926e117990d",
+        "name": "preview-design",
+        "deployments": [
+          {
+            "id": "7f201597-ae2e-4df9-8715-2936dad7c1b8",
+            "urls": [
+              "https://7f201597.lane.crest.perish.uk",
+              "https://7f201597-crest-development.862457174.workers.dev"
+            ]
+          }
+        ]
+      },
+      {
+        "id": "4e760c50e4be49ddb811bb01d2b76fd5",
+        "name": "preview-review",
+        "deployments": []
+      },
+      {
+        "id": "43867c49f7884827b71be20a5cbea7f8",
+        "name": "preview",
+        "deployments": []
+      }
+    ],
+    "deployment": {
+      "id": "7f201597-ae2e-4df9-8715-2936dad7c1b8",
+      "urls": [
+        "https://7f201597.lane.crest.perish.uk",
+        "https://7f201597-crest-development.862457174.workers.dev"
+      ]
+    },
+    "public": {
+      "artifact": "09c8223456c7d7719381be1ff6182bee1c1844b37a8729b3dec0c0cef84a2dd5",
+      "resources": [
+        {
+          "url": "https://7f201597.lane.crest.perish.uk/",
+          "sha256": "5ca8f98fa07805ca341b058a60eaf996915516b63f1a3ab5a4030844024ac27f",
+          "policy": "accepted",
+          "bytes_match": true
+        },
+        {
+          "url": "https://7f201597.lane.crest.perish.uk/style.css",
+          "sha256": "c2dd61bf6901be90c2c5ffeb0427c4117f46f5bd8148cc6a3a8e4a7cbee77230",
+          "policy": "accepted",
+          "bytes_match": true
+        },
+        {
+          "url": "https://7f201597.lane.crest.perish.uk/favicon.svg",
+          "sha256": "aef16fcc85f72c81f2187a93aef896d24a1937b274bc9db34450392c5a2e7ea3",
+          "policy": "accepted",
+          "bytes_match": true
+        },
+        {
+          "url": "https://7f201597.lane.crest.perish.uk/__wharf_preview.json",
+          "sha256": "07c3dd003457da5bd0343c4e1953d3c0b718bb16ee82562f6793c76a872cea83",
+          "policy": "accepted",
+          "bytes_match": true
+        }
+      ]
+    }
+  },
   "catalog": {
     "success": true,
     "errors": [],

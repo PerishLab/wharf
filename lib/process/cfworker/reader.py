@@ -7,7 +7,7 @@ from lib.content import resources
 from lib.content.lane import codec
 from lib.content.static import assets, evidence
 from lib.process.cfworker import apply, discard, inventory, mapping, observation, payload
-from lib.process.domains import baseline, context, reader as domains, routing
+from lib.process.domains import baseline, context, reader as domains, routing, versions
 from lib.process.domains.transport import Redirect
 from lib.refusal import Refusal
 from lib.store.lane import documents, publication, registration, state
@@ -67,7 +67,7 @@ def published(plan, reader, reference):
 class Readback:
     def __init__(self, plan, observed, routed):
         held = apply.deployment_readable(plan)
-        routed = documents.object_value(routed, ("status", "catalogs", "deployment"))
+        routed = documents.object_value(routed, routing.fields(held["before"]["parent"]))
         self._deployment = apply.deployment_confirm(held, observed, routed["deployment"])
         self._plan = held["apply"]
         self._parent = held["before"]["parent"]
@@ -264,6 +264,8 @@ class Reader:
         selected = before["preview"]
         if context.preview(self.preview(), self._registered, before["parent"]) != selected:
             raise Refusal("cfworker exact deployed Preview differs from complete history")
+        version_reader = versions.Reader(self._token, self._registration, policy) if "domain" in policy else None
+        versioned = version_reader.read() if version_reader is not None else None
         catalogs = routing.read(self, before)
         raw = self.reply(f"/previews/{selected['id']}/deployments/{identity}", selected).get("result")
         deployed = observation.endpoint(raw, selected, identity)
@@ -273,7 +275,11 @@ class Reader:
             raise Refusal("cfworker exact deployment route differs from its complete retained catalog")
         if routing.read(self, before) != catalogs or self.history(policy) != before:
             raise Refusal("cfworker complete routing namespace moved during exact observation")
+        if version_reader is not None and version_reader.read() != versioned:
+            raise Refusal("cfworker complete Worker version namespace moved during exact observation")
         value = {"status": before, "catalogs": catalogs, "deployment": deployed}
+        if version_reader is not None:
+            value["versions"] = versioned
         routing.checked(value, before, deployed)
         return value
 
