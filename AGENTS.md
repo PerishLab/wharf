@@ -322,6 +322,20 @@ Trusted onboarding owns the origin/writer mapping, DNS/public reachability,
 resource exclusivity and retention; this source kernel proves none of those
 live facts. Workflow composition and physical provider proof remain separate.
 
+`lib/process/domains/base.py` qualifies supplied exact inert-base observations.
+Trusted pins bind full version and deployment UUIDs and the source digest of the
+fixed public 404 module in `resources/identity/base.json`. A version-with-modules
+observation must match its exact module name, type, canonical bytes, main module
+and compatibility settings, with no bindings, assets or tail consumers. Separate
+exact deployment and current-catalog observations must select only that version
+at 100 percent; an historical matching deployment alone is insufficient. The
+bounded detached projection contains only the prepared pins. This pure validator
+authenticates no read, proves no production-route/schedule isolation or version
+URL exposure, grants no writer and changes no existing parent guard or workflow.
+Native reader/policy integration remains #230 and actual fixed-base onboarding
+remains PerishLab/.github#109; both retain independent source and operational
+acceptance before PerishLab/.github#103 public delivery can complete.
+
 `lib/process/domains/identity.py` validates explicit app/account/Worker and
 domain/zone/certificate pins against one exact static registration. The dedicated
 base is exactly `lane.<app>.perish.uk`; no inferred pins, alias or normalization is

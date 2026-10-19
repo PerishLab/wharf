@@ -1,0 +1,6 @@
+{
+  "main_module": "base.mjs",
+  "compatibility_date": "2026-10-19",
+  "compatibility_flags": [],
+  "source": "export default {\n  fetch() {\n    return new Response(null, {\n      status: 404,\n      headers: {\n        \"Cache-Control\": \"no-store\",\n        \"Content-Security-Policy\": \"default-src 'none'; frame-ancestors 'none'\",\n        \"X-Content-Type-Options\": \"nosniff\",\n        \"X-Robots-Tag\": \"noindex, nofollow\"\n      }\n    });\n  }\n};\n"
+}
