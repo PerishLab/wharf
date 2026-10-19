@@ -52,10 +52,15 @@ def observe(registered, pins, value):
     return dict(expected, enabled=False, previews_enabled=True)
 
 
+def deployment(base, prefix):
+    preview.matches(prefix, PREFIX, "explicit custom domain deployment prefix")
+    return "https://" + hostname(prefix + "." + hostname(base))
+
+
 def addresses(registered, pins, prefix):
     pins = prepare(registered, pins)
     preview.matches(prefix, PREFIX, "explicit custom domain deployment prefix")
     lane = codec.read("address", registered["declaration"]["target"])["lane"]
     base = pins["domain"]["hostname"]
     return {"current": "https://" + hostname(lane + "." + base),
-            "deployment": "https://" + hostname(prefix + "-" + lane + "." + base)}
+            "deployment": deployment(base, prefix)}

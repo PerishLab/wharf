@@ -21,10 +21,10 @@ class Runtime(unittest.TestCase):
     def test_exact_domain_gets_surround_complete_native_routing_observation(self):
         held = self.api.observe(self.fixture.policy, DEPLOYMENT)
         self.assertEqual(held["status"]["parent"]["domain"], self.fixture.policy["domain"])
-        self.assertEqual(routing.checked(held, held["status"], held["deployment"]), "https://12345678-preview.lane.crest.perish.uk")
+        self.assertEqual(routing.checked(held, held["status"], held["deployment"]), "https://12345678.lane.crest.perish.uk")
         calls = [call.args[0] for call in self.api._client.open.call_args_list]
         domains = [request for request in calls if "/workers/domains/" in request.full_url]
-        self.assertEqual(len(calls), 84)
+        self.assertEqual(len(calls), 86)
         self.assertEqual(len(domains), 8)
         self.assertTrue(all(request.full_url == "https://api.cloudflare.com/client/v4/accounts/" + "a" * 32 + "/workers/domains/domain-identity" for request in domains))
         self.assertTrue(all(request.get_method() == "GET" and request.data is None for request in calls))
@@ -131,6 +131,6 @@ class Runtime(unittest.TestCase):
         held = context.projected(self.fixture.policy, self.fixture.selected)
         self.assertEqual(context.current(held, "preview-design"), "https://preview-design.lane.crest.perish.uk")
         self.assertEqual(context.address(held, "preview-design", DEPLOYMENT, DEPLOYMENT[:8]),
-                         "https://12345678-preview-design.lane.crest.perish.uk")
+                         "https://12345678.lane.crest.perish.uk")
         for name in (None, "", "foreign/path", "a" * 64):
             self.assertRaises(Refusal, context.current, held, name)

@@ -375,7 +375,9 @@ projection. Worker pins are retained but a domain service name does not prove th
 immutable Worker identity; independent parent observation remains required.
 
 `addresses` formats separate current-lane and unique-deployment custom-domain
-origins under DNS limits. The supported deployment URL prefix is an explicit
+origins under DNS limits. Both it and contextual routing use `identity.deployment`
+for exactly `<prefix>.lane.<app>.perish.uk`, without a Preview name in the
+immutable hostname. The supported deployment URL prefix is an explicit
 eight-character lowercase hexadecimal selector, never an automatically shortened
 UUID, latest selector or provider-returned URL. This validates syntax only:
 the caller must independently qualify the prefix-to-deployment relationship
@@ -436,13 +438,20 @@ with no duplicate or additional origin. Undeployed Previews may omit URLs;
 deployed Preview and deployment observations must corroborate both configured
 origins. Full UUID identity and independently qualified eight-hex prefix remain
 distinct. Anonymous immutable content reads use only
-`<prefix>-<preview>.lane.<app>.perish.uk`, and current/inspect reads use only
+`<prefix>.lane.<app>.perish.uk`, and current/inspect reads use only
 `<preview>.lane.<app>.perish.uk`. Domain content failure never falls back to
 workers.dev; all original byte/media/security/indexing checks remain strict.
 The original unqualified native-only policy remains strict, not an automatic
 fallback for missing domain pins. This bounded source policy does not prove
 actual provider URL catalogs, DNS/TLS, permissions or live indexing behavior;
-those still require onboarding qualification. Fixed-main workflows supply explicit
+those still require onboarding qualification. The exact prefix-only shape is
+observed under #238; the reviewed public docs still show prefix plus Preview name,
+while the official SDK formats returned URL arrays. The sanitized `routing` sample
+in `resources/identity/deployment-observation.json` records that discrepancy and
+one historical deployment, not a universal future guarantee, logical lane alias,
+new registration, callable parent-version URL or applied operation. A different
+actual URL tuple refuses; no compatibility spelling is admitted.
+Fixed-main workflows supply explicit
 trusted workflow selection and hold no domain provisioning writer.
 
 `lib/process/cfworker/observation.py` projects parent, Preview and exact deployment
@@ -652,10 +661,19 @@ the supported eight-lowercase-hex routing prefix. Exact endpoint and complete
 catalog URLs must equal the independently constructed canonical native origin;
 no provider URL is followed or alternate prefix length tried. Every retained
 deployment of every Preview in the bounded parent namespace is read twice.
+Domain-aware qualification additionally reads the complete Worker full-version
+catalog twice through `lib/process/domains/versions.py`. Its fixed GET uses the
+prepared immutable Worker ID and `per_page=50`, admits at most 100 versions and
+requires complete consistent pagination; this is a supported bound, not a
+provider quota claim. Each exact UUID's two URL origins are corroborated without
+following them. The canonical pinned base must remain in that catalog.
 Incomplete, changed, duplicate or foreign catalogs, ambiguous immutable ID/name
 selectors, repeated prefixes across sibling deployments and prefixes colliding
-with mutable Preview names refuse. The finite private qualification binds the
-entire exact selected history, complete sibling catalogs and exact deployment.
+with mutable Preview names refuse. Domain-aware qualification also refuses
+UUID/prefix collisions within or across Worker versions and Preview deployments.
+Its private `versions` projection is mandatory alongside the exact selected history,
+complete sibling catalogs and exact deployment. Native-only qualification keeps
+its original undeployed policy and private shape, without a domain fallback.
 Supplied projections authenticate nothing alone; repeated agreement is not an
 atomic snapshot, future/all-time uniqueness, content proof or write authority.
 Oversized private qualifications refuse under the existing 64 KiB document cap.

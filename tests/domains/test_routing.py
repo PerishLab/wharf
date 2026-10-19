@@ -15,7 +15,11 @@ def qualification(observed, deployed):
     for preview in observed["previews"]:
         values = observed["deployments"] if preview == observed["preview"] else []
         catalogs.append({"preview": dict(preview), "deployments": [{"id": item["id"], "prefix": item["id"][:8]} for item in values]})
-    return copy.deepcopy({"status": observed, "deployment": deployed, "catalogs": catalogs})
+    value = {"status": observed, "deployment": deployed, "catalogs": catalogs}
+    if "domain" in observed["parent"]:
+        requested = observed["parent"]["base"]["version"]
+        value["versions"] = [{"id": requested, "prefix": requested[:8]}]
+    return copy.deepcopy(value)
 
 
 class Routing(unittest.TestCase):

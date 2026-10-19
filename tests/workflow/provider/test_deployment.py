@@ -87,7 +87,7 @@ class Deployment(unittest.TestCase):
             return response
 
         def content(request, timeout):
-            immutable = "https://" + deployed["id"][:8] + "-preview.lane.crest-review.perish.uk"
+            immutable = "https://" + deployed["id"][:8] + ".lane.crest-review.perish.uk"
             current = "https://preview.lane.crest-review.perish.uk"
             origin = immutable if request.full_url.startswith(immutable) else current
             name, body = payload.routes(files)[request.full_url.removeprefix(origin)]
@@ -137,7 +137,7 @@ class Deployment(unittest.TestCase):
             self.assertEqual(fixture["store"].current, before)
             urls = [call.args[0].full_url for call in fixture["reads"].open.call_args_list]
             self.assertTrue(any(url.startswith("https://preview.lane.crest-review.perish.uk/") for url in urls))
-            self.assertTrue(any(url.startswith("https://12345678-") for url in urls))
+            self.assertTrue(any(url.startswith("https://12345678.lane.crest-review.perish.uk/") for url in urls))
             self.assertTrue(all(".lane.crest-review.perish.uk/" in url and ".workers.dev" not in url for url in urls))
             self.assertIn("domain", result["plan"]["policy"])
             for private in (test_cfworker_upload.JWT, test_cfworker_upload.FINAL, "private-provider-writer"):

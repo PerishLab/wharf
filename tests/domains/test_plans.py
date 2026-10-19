@@ -41,7 +41,7 @@ class Plans(unittest.TestCase):
         self.plan = apply.deployment_prepare(self.base.plan["apply"], before, self.policy)
         self.after = dict(before, deployments=[self.base.deployed])
         self.base.plan, self.base.after = self.plan, self.after
-        self.base.origin = "https://12345678-preview.lane.crest.perish.uk"
+        self.base.origin = "https://12345678.lane.crest.perish.uk"
 
     def test_exact_immutable_domain_content_settles_without_changing_public_operation(self):
         api = self.base.client()
@@ -106,7 +106,7 @@ class Plans(unittest.TestCase):
         self.assertEqual(api._client.open.call_count, 1)
 
     def test_missing_domain_namespace_or_changed_prefix_refuses_before_content_io(self):
-        for mode in ("domain", "prefix", "catalog", "uuid"):
+        for mode in ("domain", "prefix", "catalog", "uuid", "versions", "collision"):
             routed = qualification(self.after, self.base.deployed)
             if mode == "domain":
                 del routed["status"]["parent"]["domain"]
@@ -114,6 +114,10 @@ class Plans(unittest.TestCase):
                 routed["catalogs"][0]["deployments"][0]["prefix"] = "ffffffff"
             elif mode == "uuid":
                 routed["catalogs"][0]["deployments"][0]["prefix"] = self.base.deployed["id"]
+            elif mode == "versions":
+                del routed["versions"]
+            elif mode == "collision":
+                routed["versions"].append(dict(routed["catalogs"][0]["deployments"][0]))
             else:
                 routed["catalogs"].pop()
             with mock.patch("urllib.request.build_opener") as opener:
