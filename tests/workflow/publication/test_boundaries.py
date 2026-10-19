@@ -103,7 +103,7 @@ class Boundaries(unittest.TestCase):
 
     def test_evidence_job_and_script_expose_only_reference_without_other_writers(self):
         root = Path(publication.__file__).resolve().parents[3]
-        body = (root / ".github/workflows/lane-evidence.yml").read_text()
+        body = (root / ".github/workflows/evidence.yml").read_text()
         self.assertIn("workflow_call:", body)
         self.assertIn("value: ${{ jobs.evidence.outputs.reference }}", body)
         self.assertIn("ref: ${{ github.sha }}", body)

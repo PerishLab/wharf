@@ -710,7 +710,7 @@ and full artifact identity, and rechecks execution authority after consumption.
 It runs no product checkout/build/script and accepts no writer or private fallback.
 These observations are not bearer permits, provider results or writer quiescence.
 
-`lane-intake.yml` exposes only a reusable workflow, with no dispatch/push/schedule
+`intake.yml` exposes only a reusable workflow, with no dispatch/push/schedule
 trigger. It remains admitted solely from the fixed-main `lane.yml` caller; it
 cannot independently dispatch. Its outputs bind admission,
 workload, reservation and verified consumption, not complete execution. The intake
@@ -756,7 +756,7 @@ idempotent; its result cannot replace immutable deployment proof in `apply.settl
 Idle is supplied only after this synchronous acknowledged writer's attempts return;
 it is not independent global quiescence or timeout-based recovery authority.
 
-`lane-observe.yml`, `lane-deploy.yml` and `lane-dispose.yml` expose only callable
+`observe.yml`, `deploy.yml` and `dispose.yml` expose only callable
 reusable units. They inherit the authenticated fixed-main caller context and accept
 only explicit prepared readers and the selected provider writer, never bucket
 writers or inherited secrets. Runtime revalidates A's exact authenticated boundary;
@@ -788,7 +788,7 @@ entire exact operation before a final authority check returns only its immutable
 shared reference. Applied/refused/unknown remain distinct; publication does not
 turn non-applied observations into completion or new provider-write authority.
 
-`lane-evidence.yml` is a non-dispatching reusable unit with separate evidence and
+`evidence.yml` is a non-dispatching reusable unit with separate evidence and
 state jobs. The evidence job holds its evidence-only writer and required
 state/control/product readers, never provider/workload/state writers, source
 acquisition, product execution or inherited secrets. Complete caller wiring
@@ -827,7 +827,7 @@ advances revision with an absent tombstone, never removes current or history.
 Registration/current remain separate objects, not an atomic authorization
 transaction. A later settled/unknown/replayed execution cannot continue writing.
 
-The state job in `lane-evidence.yml` holds only the state writer and required
+The state job in `evidence.yml` holds only the state writer and required
 readers, and admits no provider, evidence or workload writer. It supplies no
 recovery, takeover, second provider attempt or timeout-based repair. Source
 regressions prove neither the complete live caller nor installed consumption.
@@ -1048,6 +1048,11 @@ command group on exit. A current consumer creates nothing. No schedule or RC gat
 backs up this path.
 
 ## Names
+
+Workflow filenames are one lowercase ASCII word followed by `.yml`. The sole
+lane dispatch entry is `lane.yml`; its internal reusable units are `intake.yml`,
+`observe.yml`, `deploy.yml`, `dispose.yml` and `evidence.yml`. File paths do not
+change job display names, execution boundaries or the credential graph.
 
 Every name a person reads on GitHub — a run's title, a job's, a step's — takes
 one form, `[<verb>] <object> [<qualifier>…]`, so the bracketed column says what

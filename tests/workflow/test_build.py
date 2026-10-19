@@ -152,7 +152,7 @@ class RecordedBuild(unittest.TestCase):
 
     def test_workflow_build_has_one_bucket_writer_and_no_reader_of_lane_state(self):
         root = Path(build.__file__).resolve().parents[3]
-        workflow = (root / ".github/workflows/lane-intake.yml").read_text()
+        workflow = (root / ".github/workflows/intake.yml").read_text()
         product = workflow.split("\n  build:\n", 1)[1].split("\n  reserve:\n", 1)[0]
         self.assertIn("WHARF_R2_SECRET_ACCESS_KEY:", product)
         self.assertNotIn("WHARF_LANE_READER_", product)

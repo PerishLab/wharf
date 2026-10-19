@@ -43,14 +43,14 @@ def admitted(body, results):
 
 def original_jobs(action):
     caller = jobs('lane')
-    intake = jobs('lane-intake')
+    intake = jobs('intake')
     results = {'admission': {'result': 'success', 'outputs': {'operation': action}}}
     projected = []
     for name, body in intake.items():
         conclusion = 'success' if admitted(body, results) else 'skipped'
         results[name] = dict(results.get(name, {}), result=conclusion)
         projected.append((field(caller['intake'], 'name') + ' / ' + field(body, 'name'), conclusion))
-    for name, unit in (('observe', 'lane-observe'), ('apply', 'lane-deploy'), ('dispose', 'lane-dispose'), ('evidence', 'lane-evidence')):
+    for name, unit in (('observe', 'observe'), ('apply', 'deploy'), ('dispose', 'dispose'), ('evidence', 'evidence')):
         children = jobs(unit)
         selected = {'intake': {'result': 'success', 'outputs': {'operation': action}}, 'observe': {'result': 'success'},
                     'apply': {'result': 'success' if action == 'apply' else 'skipped'},
@@ -64,6 +64,20 @@ def original_jobs(action):
 
 
 class Graph(unittest.TestCase):
+    def test_singleword_workflow_paths_keep_exact_internal_caller_mapping(self):
+        root = Path(execution.__file__).resolve().parents[3]
+        directory = root / '.github/workflows'
+        self.assertTrue(all(re.fullmatch(r'[a-z]+\.yml', path.name) for path in directory.iterdir()))
+        self.assertEqual(list(directory.glob('lane-*.yml')), [])
+        caller = jobs('lane')
+        mapping = {'intake': 'intake', 'observe': 'observe', 'apply': 'deploy', 'dispose': 'dispose', 'evidence': 'evidence'}
+        for job, unit in mapping.items():
+            self.assertEqual(field(caller[job], 'uses'), './.github/workflows/' + unit + '.yml')
+            body = workflow(unit)
+            self.assertIn('workflow_call:', body)
+            for trigger in ('workflow_dispatch:', 'repository_dispatch:', 'push:', 'pull_request:', 'schedule:'):
+                self.assertNotIn(trigger, body)
+
     def test_fixed_main_dispatch_is_single_serialized_exact_request_entry(self):
         body = workflow('lane')
         self.assertIn('workflow_dispatch:', body)
@@ -117,7 +131,7 @@ class Graph(unittest.TestCase):
             self.assertEqual(admitted(caller['evidence'], results), ready and complete)
 
     def test_state_requires_successful_evidence_without_combining_job_credentials(self):
-        children = jobs('lane-evidence')
+        children = jobs('evidence')
         self.assertEqual(set(children), {'evidence', 'state'})
         self.assertEqual(field(children['state'], 'needs'), '[evidence]')
         for result in ('success', 'failure', 'cancelled', 'skipped', 'timed_out'):

@@ -108,7 +108,7 @@ class Context(unittest.TestCase):
     def test_workflow_context_comes_only_from_trusted_vars_not_dispatch_or_guests(self):
         root = Path(provider.__file__).resolve().parents[3]
         for name in ("observe", "deploy", "dispose"):
-            body = (root / f".github/workflows/lane-{name}.yml").read_text()
+            body = (root / f".github/workflows/{name}.yml").read_text()
             self.assertEqual(body.count("${{ vars.WHARF_LANE_DOMAIN_PINS }}"), 1)
             self.assertNotIn("inputs.domain-pins", body)
             self.assertNotIn("secrets: inherit", body)
@@ -117,7 +117,7 @@ class Context(unittest.TestCase):
             self.assertIn("WHARF_LANE_DOMAIN_PINS: ${{ inputs.domain-pins }}", body)
             self.assertIn("domain-pins:\n    required: true", body)
         for name in ("intake", "evidence"):
-            self.assertNotIn("WHARF_LANE_DOMAIN_PINS", (root / f".github/workflows/lane-{name}.yml").read_text())
+            self.assertNotIn("WHARF_LANE_DOMAIN_PINS", (root / f".github/workflows/{name}.yml").read_text())
         self.assertNotIn("WHARF_LANE_DOMAIN_PINS", (root / ".github/actions/preview-source/action.yml").read_text())
 
 

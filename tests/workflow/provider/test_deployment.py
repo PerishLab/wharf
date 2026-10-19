@@ -212,7 +212,7 @@ class Deployment(unittest.TestCase):
 
     def test_reusable_job_explicitly_receives_only_provider_writer_and_readers(self):
         root = Path(deployment.__file__).resolve().parents[3]
-        invoked = (root / ".github/workflows/lane-deploy.yml").read_text()
+        invoked = (root / ".github/workflows/deploy.yml").read_text()
         self.assertIn("workflow_call:", invoked)
         self.assertIn("value: ${{ jobs.apply.outputs.result }}", invoked)
         self.assertIn("WHARF_LANE_DEPLOYMENT_TOKEN:", invoked)
