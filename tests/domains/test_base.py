@@ -3,7 +3,9 @@ import copy
 import hashlib
 import json
 import unittest
+from itertools import product
 
+from lib.content import resources
 from lib.process.domains import base
 from lib.refusal import Refusal
 
@@ -73,7 +75,7 @@ class BaseIdentity(unittest.TestCase):
             self.assertRaises(Refusal, base.qualify, pins(), value)
 
     def test_version_identity_and_complete_module_bytes_are_exact(self):
-        for key in ("id", "main_module", "compatibility_date", "compatibility_flags", "modules", "bindings"):
+        for key in ("id", "main_module", "compatibility_date", "modules"):
             value = version()
             del value[key]
             self.assertRaises(Refusal, base.version, pins(), value)
@@ -96,6 +98,30 @@ class BaseIdentity(unittest.TestCase):
         value = version()
         value["modules"][0]["private"] = "hidden"
         self.assertRaises(Refusal, base.version, pins(), value)
+
+    def test_actual_full_version_omits_empty_optional_collections(self):
+        fixture = resources.read_json("identity/fixtures/base-observation.json")
+        value = fixture["result"]
+        prepared = dict(pins(), version=value["id"])
+        before = copy.deepcopy(value)
+        self.assertEqual(fixture["provenance"]["method"], "GET")
+        self.assertTrue(fixture["provenance"]["path"].endswith(value["id"] + "?include=modules"))
+        self.assertTrue(all(key not in value for key in ("bindings", "compatibility_flags", "tail_consumers", "assets")))
+        self.assertEqual(base.version(prepared, value), prepared)
+        self.assertEqual(value, before)
+
+    def test_optional_empty_omissions_qualify_without_mutating_observations(self):
+        keys = ("bindings", "compatibility_flags", "tail_consumers")
+        for omitted in product((False, True), repeat=3):
+            value = {key: item for key, item in version().items() if key not in {name for name, missing in zip(keys, omitted) if missing}}
+            before = copy.deepcopy(value)
+            self.assertEqual(base.version(pins(), value), pins())
+            self.assertEqual(value, before)
+
+    def test_optional_collections_never_coerce_explicit_values_to_empty(self):
+        for key in ("bindings", "compatibility_flags", "tail_consumers"):
+            for value in (None, False, True, 0, 1, "", "[]", {}, {"private": "hidden"}, [None], ["foreign"]):
+                self.assertRaises(Refusal, base.version, pins(), dict(version(), **{key: value}))
 
     def test_etag_is_not_source_authority(self):
         value = version()

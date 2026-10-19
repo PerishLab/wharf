@@ -28,9 +28,9 @@ def version(pins, value):
               "content_base64": base64.b64encode(held["source"].encode()).decode("ascii")}
     if not isinstance(value, dict) or value.get("id") != pins["version"] or value.get("modules") != [module]:
         raise Refusal("cfworker base version differs from exact pinned inert module bytes")
-    if any(value.get(key) != held[key] for key in ("main_module", "compatibility_date", "compatibility_flags")):
+    if any(value.get(key) != held[key] for key in ("main_module", "compatibility_date")) or value.get("compatibility_flags", []) != held["compatibility_flags"]:
         raise Refusal("cfworker base runtime configuration differs from fixed material")
-    if value.get("bindings") != [] or value.get("assets") is not None or value.get("tail_consumers", []) != []:
+    if value.get("bindings", []) != [] or value.get("assets") is not None or value.get("tail_consumers", []) != []:
         raise Refusal("cfworker base cannot hold bindings, assets or tail consumers")
     return pins
 

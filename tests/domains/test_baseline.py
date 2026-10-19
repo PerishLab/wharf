@@ -5,6 +5,7 @@ import unittest
 import urllib.error
 from unittest import mock
 
+from lib.content import resources
 from lib.process.cfworker import observation
 from lib.process.domains import base, baseline, context
 from lib.process.lane import provider
@@ -50,6 +51,30 @@ class Baseline(unittest.TestCase):
             del policy[omitted]
             self.assertRaises(Refusal, baseline.Reader, "token", self.fixture.registered, policy)
         self.api._client.open.assert_not_called()
+
+    def test_actual_optional_empty_version_shape_keeps_six_get_boundary(self):
+        sample = resources.read_json("identity/fixtures/base-observation.json")["result"]
+        before = copy.deepcopy(sample)
+        self.fixture.policy["base"]["version"] = sample["id"]
+        original = self.api._client.open.side_effect
+        def received(request, timeout):
+            response = original(request, timeout)
+            value = json.load(response)
+            if "/versions/" in request.full_url:
+                value["result"] = sample
+            elif "/deployments" in request.full_url:
+                values = value["result"].get("deployments", [value["result"]])
+                for item in values:
+                    item["versions"][0]["version_id"] = sample["id"]
+            return Response(json.dumps(value).encode(), request.full_url)
+        self.api._client.open.side_effect = received
+        result = self.reader().read()
+        self.assertEqual(base.isolated(self.fixture.policy["base"], result), self.fixture.policy["base"])
+        calls = [call.args[0] for call in self.api._client.open.call_args_list]
+        self.assertEqual(len(calls), 6)
+        self.assertTrue(all(item.get_method() == "GET" and item.data is None for item in calls))
+        self.assertTrue(calls[0].full_url.endswith(sample["id"] + "?include=modules"))
+        self.assertEqual(sample, before)
 
     def test_proxies_and_redirects_are_disabled(self):
         with mock.patch.object(baseline.urllib.request, "build_opener") as opener:

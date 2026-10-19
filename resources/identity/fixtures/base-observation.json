@@ -1,0 +1,39 @@
+{
+  "provenance": {
+    "issue": "PerishLab/.github#109",
+    "source_issue": "PerishLab/wharf#236",
+    "time": "2026-10-19T08:56:20.061990+00:00",
+    "control": "a0a95144be6c8216ed0cc619e3d9d0ed5518aac9",
+    "method": "GET",
+    "path": "/accounts/a6776d8a453d1b84d01576245a9c4f8d/workers/workers/f037b088dc6c4d04b714c7a9206842e3/versions/fba8499b-23c5-4efc-b2c1-9eed66aebaad?include=modules",
+    "http": 200,
+    "cf_ray": "a4ce91a8694678dd-LAX",
+    "response_sha256": "faec88b955f1e997b574393caf8bf520b486b731eed3b2c7066627047a363571",
+    "artifact": "inert-bootstrap-20261019",
+    "archive_sha256": "d4ec59af4e846f8409aff3f4a659f9215719d34a70e0f3d3c0f51edbf7806a05",
+    "scope": "sanitized actual full version-with-modules readback; no live base deployment existed, no domain pins or callable404 proof"
+  },
+  "result": {
+    "id": "fba8499b-23c5-4efc-b2c1-9eed66aebaad",
+    "number": 1,
+    "startup_time_ms": 1,
+    "compatibility_date": "2026-10-19",
+    "main_module": "base.mjs",
+    "annotations": {
+      "workers/triggered_by": "create_version_api"
+    },
+    "usage_model": "standard",
+    "urls": [
+      "https://fba8499b-crest-development.862457174.workers.dev"
+    ],
+    "source": "api",
+    "created_on": "2026-10-19T08:55:35.460643Z",
+    "modules": [
+      {
+        "name": "base.mjs",
+        "content_type": "application/javascript+module",
+        "content_base64": "ZXhwb3J0IGRlZmF1bHQgewogIGZldGNoKCkgewogICAgcmV0dXJuIG5ldyBSZXNwb25zZShudWxsLCB7CiAgICAgIHN0YXR1czogNDA0LAogICAgICBoZWFkZXJzOiB7CiAgICAgICAgIkNhY2hlLUNvbnRyb2wiOiAibm8tc3RvcmUiLAogICAgICAgICJDb250ZW50LVNlY3VyaXR5LVBvbGljeSI6ICJkZWZhdWx0LXNyYyAnbm9uZSc7IGZyYW1lLWFuY2VzdG9ycyAnbm9uZSciLAogICAgICAgICJYLUNvbnRlbnQtVHlwZS1PcHRpb25zIjogIm5vc25pZmYiLAogICAgICAgICJYLVJvYm90cy1UYWciOiAibm9pbmRleCwgbm9mb2xsb3ciCiAgICAgIH0KICAgIH0pOwogIH0KfTsK"
+      }
+    ]
+  }
+}

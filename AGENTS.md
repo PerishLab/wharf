@@ -326,8 +326,15 @@ live facts. Workflow composition and physical provider proof remain separate.
 Trusted pins bind full version and deployment UUIDs and the source digest of the
 fixed public 404 module in `resources/identity/base.json`. A version-with-modules
 observation must match its exact module name, type, canonical bytes, main module
-and compatibility settings, with no bindings, assets or tail consumers. Separate
-exact deployment and current-catalog observations must select only that version
+and compatibility settings, with no bindings, assets or tail consumers.
+Modern full-version responses may omit empty optional `compatibility_flags`,
+`bindings` and `tail_consumers`; only omission equals an empty list, never explicit
+null, a different type or a nonempty value. Mandatory module bytes, main module,
+compatibility date and identity remain explicit and exact. The sanitized actual
+undeployed-version readback in `resources/identity/fixtures/base-observation.json`
+records #236's operational reproduction; it contains no live deployment/domain
+pins and proves no callable URL or activation.
+Separate exact deployment and current-catalog observations must select only that version
 at 100 percent; an historical matching deployment alone is insufficient. The
 bounded detached projection contains only the prepared pins. This pure validator
 authenticates no read and proves no physical production isolation or version URL
