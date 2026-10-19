@@ -34,7 +34,8 @@ def qualify(registered, pins, value):
     references = raw.get("references")
     if not isinstance(references, dict) or set(references) != observation.REFERENCES:
         raise Refusal("cfworker domain parent requires its complete native reference categories")
-    if references["domains"] != [pins["domain"]] or any(references[key] != [] for key in observation.REFERENCES - {"domains"}):
+    reference = {key: pins["domain"][key] for key in ("id", "hostname", "zone_id", "zone_name")}
+    if references["domains"] != [reference] or any(references[key] != [] for key in observation.REFERENCES - {"domains"}):
         raise Refusal("cfworker domain parent references differ from its one exact qualified domain")
     held = observation.parent(dict(raw, deployed_on=None, references={key: [] for key in observation.REFERENCES}), selected, policy)
     held["base"] = qualified

@@ -1,4 +1,3 @@
-import copy
 import json
 
 from lib.process.cfworker import mapping
@@ -23,7 +22,7 @@ def provider():
     fixture = Observation()
     fixture.setUp()
     fixture.policy = policy(fixture.policy)
-    fixture.parent["references"]["domains"] = [copy.deepcopy(fixture.policy["domain"]["domain"])]
+    fixture.parent["references"]["domains"] = [{key: value for key, value in fixture.policy["domain"]["domain"].items() if key != "certificate_id"}]
     fixture.parent["deployed_on"] = "2026-10-19T00:00:00Z"
     api = fixture.client()
     native = api._client.open.side_effect

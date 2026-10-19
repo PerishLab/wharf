@@ -14,6 +14,66 @@
     "name": "preview-design",
     "parent": "f037b088dc6c4d04b714c7a9206842e3"
   },
+  "domain_binding": {
+    "provenance": {
+      "issue": "PerishLab/.github#110",
+      "source_issue": "PerishLab/wharf#239",
+      "control": "dfe92e8ccf9736d13259620ac066854e8a05311a",
+      "artifact": "domain-binding-20261019",
+      "archive_sha256": "44de7c9989ab4da72132d9318820ef9afef0e8012bf8f8d3ee0ce575563dee91",
+      "scope": "sanitized independent GET fields; no registration activation, certificate issuance, callable URL or routing proof",
+      "parent": {
+        "time": "2026-10-19T09:57:29.637270+00:00",
+        "path": "/accounts/a6776d8a453d1b84d01576245a9c4f8d/workers/workers/f037b088dc6c4d04b714c7a9206842e3",
+        "http": 200,
+        "cf_ray": "a4ceeb3f4cf112ad-LAX",
+        "response_sha256": "93dff50fb8953ce07ec7d7fe29a0da0c4054a283e75d6f117172b866bdaefa58"
+      },
+      "domain": {
+        "time": "2026-10-19T09:57:40.248966+00:00",
+        "path": "/accounts/a6776d8a453d1b84d01576245a9c4f8d/workers/domains/62da3c481ff43ee6b07149f00a1ab85e4d84518a",
+        "http": 200,
+        "cf_ray": "a4ceeb818de62f5f-LAX",
+        "response_sha256": "6bc4949bb674206bdf115581745827ccadce3fa9118aabc1030dc341d9ad7bbf"
+      }
+    },
+    "parent": {
+      "id": "f037b088dc6c4d04b714c7a9206842e3",
+      "name": "crest-development",
+      "deployed_on": "2026-10-19T09:43:04.08746Z",
+      "references": {
+        "workers": [],
+        "domains": [
+          {
+            "id": "62da3c481ff43ee6b07149f00a1ab85e4d84518a",
+            "hostname": "lane.crest.perish.uk",
+            "zone_id": "0ea87cc8ecb21247f295830f648c6b0e",
+            "zone_name": "perish.uk"
+          }
+        ],
+        "dispatch_namespace_outbounds": [],
+        "durable_objects": [],
+        "queues": []
+      },
+      "subdomain": {
+        "enabled": false,
+        "previews_enabled": true,
+        "url": "https://crest-development.862457174.workers.dev",
+        "preview_url_suffix": "-crest-development.862457174.workers.dev"
+      }
+    },
+    "domain": {
+      "id": "62da3c481ff43ee6b07149f00a1ab85e4d84518a",
+      "zone_id": "0ea87cc8ecb21247f295830f648c6b0e",
+      "zone_name": "perish.uk",
+      "hostname": "lane.crest.perish.uk",
+      "service": "crest-development",
+      "environment": "production",
+      "cert_id": "c758b52c-a56a-4bae-88a5-fed6ae10bd7d",
+      "previews_enabled": true,
+      "enabled": false
+    }
+  },
   "catalog": {
     "success": true,
     "errors": [],

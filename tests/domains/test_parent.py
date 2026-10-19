@@ -1,6 +1,7 @@
 import copy
 import unittest
 
+from lib.content import resources
 from lib.process.cfworker import mapping, observation
 from lib.process.domains import parent
 from lib.refusal import Refusal
@@ -20,11 +21,43 @@ class DomainParent(unittest.TestCase):
                     "subdomain": {"enabled": False, "previews_enabled": True,
                                   "preview_url_suffix": "-crest-development.perishlab.workers.dev"},
                     "references": {key: [] for key in observation.REFERENCES}}
-        self.raw["references"]["domains"] = [copy.deepcopy(self.pins["domain"])]
+        self.raw["references"]["domains"] = [{key: value for key, value in self.pins["domain"].items() if key != "certificate_id"}]
         self.value = {"policy": self.policy, "parent": self.raw, "domain": reply(), "base": fixtures.baseline()}
 
     def qualify(self, value):
         return parent.qualify(self.registered, self.pins, value)
+
+    def test_actual_independent_get_sample_joins_with_synthetic_registration_and_base(self):
+        sample = resources.read_json("identity/deployment-observation.json")["domain_binding"]
+        before = copy.deepcopy(sample)
+        raw, domain = sample["parent"], sample["domain"]
+        reference = raw["references"]["domains"][0]
+        self.assertEqual(set(reference), {"id", "hostname", "zone_id", "zone_name"})
+        prepared = copy.deepcopy(self.pins)
+        prepared["account"] = sample["provenance"]["domain"]["path"].split("/")[2]
+        prepared["worker"] = {key: raw[key] for key in ("id", "name")}
+        prepared["domain"] = dict(reference, certificate_id=domain["cert_id"])
+        synthetic = copy.deepcopy(self.registered)
+        synthetic["mapping"]["account"] = prepared["account"]
+        policy = dict(self.policy, id=raw["id"], subdomain="862457174")
+        value = dict(self.value, parent=raw, domain=domain, policy=policy)
+        held = parent.qualify(synthetic, prepared, value)
+        self.assertEqual(held["parent"]["id"], raw["id"])
+        self.assertEqual(held["domain"]["cert_id"], domain["cert_id"])
+        self.assertEqual(sample, before)
+        self.assertEqual(sample["provenance"]["source_issue"], "PerishLab/wharf#239")
+        for key, ending in (("parent", raw["id"]), ("domain", domain["id"])):
+            self.assertEqual(sample["provenance"][key]["http"], 200)
+            self.assertTrue(sample["provenance"][key]["path"].endswith(ending))
+
+    def test_full_certificate_pin_remains_mandatory_and_independent(self):
+        for certificate in (None, "foreign", "66666666-7777-8888-9999-aaaaaaaaaaaa"):
+            prepared = copy.deepcopy(self.pins)
+            prepared["domain"]["certificate_id"] = certificate
+            self.assertRaises(Refusal, parent.qualify, self.registered, prepared, self.value)
+        prepared = copy.deepcopy(self.pins)
+        del prepared["domain"]["certificate_id"]
+        self.assertRaises(Refusal, parent.qualify, self.registered, prepared, self.value)
 
     def test_exact_join_is_detached_and_preserves_original_observations(self):
         before = copy.deepcopy(self.value)
@@ -38,6 +71,7 @@ class DomainParent(unittest.TestCase):
         self.assertEqual(self.pins, pins())
         self.assertEqual(self.qualify(self.value)["domain"], reply())
         self.assertNotIn("cert_id", self.raw["references"]["domains"][0])
+        self.assertNotIn("certificate_id", self.raw["references"]["domains"][0])
         self.assertNotIn("certificate_id", self.qualify(self.value)["domain"])
 
     def test_ordinary_parent_observer_still_refuses_nonempty_references(self):
@@ -54,18 +88,18 @@ class DomainParent(unittest.TestCase):
         self.assertRaises(Refusal, self.qualify, dict(self.value, parent=raw))
 
     def test_reference_catalog_is_complete_and_has_exactly_one_pinned_domain(self):
-        domain = self.pins["domain"]
+        domain = self.raw["references"]["domains"][0]
         for references in (None, {}, [], dict(self.raw["references"], extra=[])):
             self.assertRaises(Refusal, self.qualify, dict(self.value, parent=dict(self.raw, references=references)))
-        for domains in (None, {}, domain, [], [domain, domain], [domain, {}], [reply()], [dict(domain, enabled=False)]):
+        for domains in (None, {}, domain, [], [domain, domain], [domain, {}], [reply()], [self.pins["domain"]], [dict(domain, enabled=False)]):
             raw = dict(self.raw, references=dict(self.raw["references"], domains=domains))
             with self.subTest(domains=domains), self.assertRaises(Refusal):
                 self.qualify(dict(self.value, parent=raw))
 
     def test_every_domain_reference_identity_field_binds_exactly(self):
-        for key in self.pins["domain"]:
+        for key in self.raw["references"]["domains"][0]:
             for mode in ("missing", "foreign", "null"):
-                domain = copy.deepcopy(self.pins["domain"])
+                domain = copy.deepcopy(self.raw["references"]["domains"][0])
                 if mode == "missing":
                     del domain[key]
                 else:
