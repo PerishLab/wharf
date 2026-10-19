@@ -18,7 +18,7 @@ jobs:
     permissions:
       contents: read
       actions: read
-    uses: ./.github/workflows/lane-intake.yml
+    uses: ./.github/workflows/intake.yml
     with:
       request: ${{ inputs.request }}
     secrets:
@@ -40,7 +40,7 @@ jobs:
     permissions:
       contents: read
       actions: read
-    uses: ./.github/workflows/lane-observe.yml
+    uses: ./.github/workflows/observe.yml
     with:
       request: ${{ inputs.request }}
       prepared: ${{ needs.intake.outputs.prepared }}
@@ -60,7 +60,7 @@ jobs:
     permissions:
       contents: read
       actions: read
-    uses: ./.github/workflows/lane-deploy.yml
+    uses: ./.github/workflows/deploy.yml
     with:
       request: ${{ inputs.request }}
       prepared: ${{ needs.intake.outputs.prepared }}
@@ -82,7 +82,7 @@ jobs:
     permissions:
       contents: read
       actions: read
-    uses: ./.github/workflows/lane-dispose.yml
+    uses: ./.github/workflows/dispose.yml
     with:
       request: ${{ inputs.request }}
       prepared: ${{ needs.intake.outputs.prepared }}
@@ -101,7 +101,7 @@ jobs:
     permissions:
       contents: read
       actions: read
-    uses: ./.github/workflows/lane-evidence.yml
+    uses: ./.github/workflows/evidence.yml
     with:
       request: ${{ inputs.request }}
       prepared: ${{ needs.intake.outputs.prepared }}

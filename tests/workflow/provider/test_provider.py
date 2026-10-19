@@ -179,7 +179,7 @@ class Provider(unittest.TestCase):
 
     def test_reusable_observer_contains_only_readers_and_no_partial_trigger(self):
         root = Path(provider.__file__).resolve().parents[3]
-        workflow = (root / ".github/workflows/lane-observe.yml").read_text()
+        workflow = (root / ".github/workflows/observe.yml").read_text()
         self.assertIn("workflow_call:", workflow)
         self.assertIn("lane-consume", workflow)
         self.assertIn("lane-observe", workflow)

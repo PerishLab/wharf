@@ -140,7 +140,7 @@ class Disposal(unittest.TestCase):
         with self.assertRaises(Refusal):
             disposal.perform({}, {"WHARF_R2_SECRET_ACCESS_KEY": "writer"})
         root = Path(disposal.__file__).resolve().parents[3]
-        workflow = (root / ".github/workflows/lane-dispose.yml").read_text()
+        workflow = (root / ".github/workflows/dispose.yml").read_text()
         self.assertIn("workflow_call:", workflow)
         self.assertIn("value: ${{ jobs.dispose.outputs.result }}", workflow)
         self.assertIn("WHARF_LANE_DISPOSAL_TOKEN:", workflow)

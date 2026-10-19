@@ -109,7 +109,7 @@ class Transport(unittest.TestCase):
 
     def test_state_job_exposes_only_state_writer_and_consumes_exact_evidence_result(self):
         root = Path(settlement.__file__).resolve().parents[3]
-        body = (root / ".github/workflows/lane-evidence.yml").read_text()
+        body = (root / ".github/workflows/evidence.yml").read_text()
         self.assertIn("workflow_call:", body)
         self.assertIn("value: ${{ jobs.state.outputs.settled }}", body)
         body = body.split("\n  state:\n", 1)[1]

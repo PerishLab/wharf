@@ -7,7 +7,7 @@ from lib.process.lane import entry
 class Intake(unittest.TestCase):
     def test_reusable_composition_exposes_no_partial_dispatch_entry(self):
         root = Path(entry.__file__).resolve().parents[3]
-        workflow = (root / ".github/workflows/lane-intake.yml").read_text()
+        workflow = (root / ".github/workflows/intake.yml").read_text()
         self.assertIn("\n  workflow_call:\n", workflow)
         for trigger in ("workflow_dispatch:", "repository_dispatch:", "push:", "schedule:", "pull_request:"):
             self.assertNotIn(trigger, workflow)
@@ -23,7 +23,7 @@ class Intake(unittest.TestCase):
 
     def test_outputs_name_only_producing_job_observations(self):
         root = Path(entry.__file__).resolve().parents[3]
-        workflow = (root / ".github/workflows/lane-intake.yml").read_text()
+        workflow = (root / ".github/workflows/intake.yml").read_text()
         interface = workflow.split("permissions: {}", 1)[0]
         for value in ("jobs.admission.outputs.operation", "jobs.admission.outputs.admitted", "jobs.build.outputs.workload",
                       "jobs.build.outputs.artifact", "jobs.reserve.outputs.prepared", "jobs.consume.outputs.consumed"):

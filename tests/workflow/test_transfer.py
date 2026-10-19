@@ -141,7 +141,7 @@ class Transfer(unittest.TestCase):
 
     def test_consumer_job_requires_all_producers_and_no_write_or_product_execution(self):
         root = Path(transfer.__file__).resolve().parents[3]
-        workflow = (root / ".github/workflows/lane-intake.yml").read_text()
+        workflow = (root / ".github/workflows/intake.yml").read_text()
         consumer = workflow.split("\n  consume:\n", 1)[1]
         self.assertIn("needs: [admission, build, reserve]", consumer)
         self.assertIn("needs.reserve.result == 'success'", consumer)
