@@ -241,6 +241,21 @@ consumes shared state below; no legacy Preview envelope is treated as an
 operation record. Generic adaptors and distribution actions remain
 separate from the static Preview declaration's narrower capability requirements.
 
+Explicit schema3 confirmation is a distinct shared entry carrying original,
+new public authorization and applied mutation observation. Schema2 bytes remain
+unchanged. References must share publication authority, differ from each other,
+and the new authorization cannot reuse original admission evidence. Supplied
+canonical readback wrappers bind reference/record bytes without authenticating
+publication or observer authority. `codec.confirm` additionally binds the entire
+original unknown request/assessment; ordinary settle/publication/state paths do
+not consume confirmation. The generic codec does not fetch or authenticate the
+new PUBLIC authority-specific receipt, prove physical writer idle or grant a
+writer. Trusted composition must independently qualify that receipt and fresh
+witness before evidence/state writes. Historical schema2 fixtures retain their
+original provenance; the separately recorded confirmation fixture observations
+come from accepted Plumb source5eb1dbdbfe00960eb607b752079225e773193779.
+No live, stable or installed confirmation is implied by this codec source.
+
 Operation requests bind their canonical byte digest to an assessment and require
 action-specific explicit state preconditions. Admission keeps unsupported,
 denied, conflict, unavailable and unverified judgments distinct. Declaration

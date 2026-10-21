@@ -31,5 +31,658 @@
     {"content":"{\"schema\":2,\"entry\":{\"kind\":\"operation\",\"value\":{\"request\":{\"context\":{\"requested\":{\"repository\":\"PerishLab/crest\",\"app\":\"crest\",\"lane\":\"review\"},\"request\":\"6666666666666666666666666666666666666666666666666666666666666666\",\"revision\":1,\"adaptor\":\"static\"},\"intent\":{\"action\":\"deploy\",\"artifact\":{\"digest\":\"5555555555555555555555555555555555555555555555555555555555555555\",\"source\":{\"repository\":\"PerishLab/crest\",\"commit\":\"1111111111111111111111111111111111111111\",\"tree\":\"2222222222222222222222222222222222222222\"},\"build\":{\"inputs\":\"3333333333333333333333333333333333333333333333333333333333333333\",\"world\":\"4444444444444444444444444444444444444444444444444444444444444444\"}}},\"expected\":{\"state\":\"absent\"}},\"assessment\":{\"request\":\"bc6a65bdfbaffce31b6f15ae13886b25707454200ab718c6e6984bb490ccd53f\",\"capabilities\":[\"inspect\",\"build\",\"publish\",\"install\",\"uninstall\",\"deploy\",\"dispose\"],\"conditions\":{\"authorization\":{\"state\":\"granted\",\"evidence\":{\"authority\":\"ensign\",\"digest\":\"7777777777777777777777777777777777777777777777777777777777777777\"}},\"writer\":\"idle\",\"observed\":{\"state\":\"absent\"}}},\"outcome\":{\"outcome\":\"applied\",\"material\":{\"state\":\"present\",\"artifact\":{\"digest\":\"5555555555555555555555555555555555555555555555555555555555555555\",\"source\":{\"repository\":\"PerishLab/crest\",\"commit\":\"1111111111111111111111111111111111111111\",\"tree\":\"2222222222222222222222222222222222222222\"},\"build\":{\"inputs\":\"3333333333333333333333333333333333333333333333333333333333333333\",\"world\":\"4444444444444444444444444444444444444444444444444444444444444444\"}}},\"writer\":\"idle\"}}}}","declaration":{"adaptor":"static","authorities":{"authorization":"ensign","publication":"wharf"},"capabilities":["inspect","build","publish","install","uninstall","deploy","dispose"],"target":{"app":"crest","lane":"review","repository":"PerishLab/crest"}},"error":"lane evidence retrieved content digest differs","id":"ref-digest","reference":{"authority":"wharf","digest":"0000000000000000000000000000000000000000000000000000000000000000"},"refused":true,"request":{"context":{"adaptor":"static","request":"6666666666666666666666666666666666666666666666666666666666666666","requested":{"app":"crest","lane":"review","repository":"PerishLab/crest"},"revision":1},"expected":{"state":"absent"},"intent":{"action":"deploy","artifact":{"build":{"inputs":"3333333333333333333333333333333333333333333333333333333333333333","world":"4444444444444444444444444444444444444444444444444444444444444444"},"digest":"5555555555555555555555555555555555555555555555555555555555555555","source":{"commit":"1111111111111111111111111111111111111111","repository":"PerishLab/crest","tree":"2222222222222222222222222222222222222222"}}}}},
     {"content":"{\"schema\":2,\"entry\":{\"kind\":\"operation\",\"value\":{\"request\":{\"context\":{\"requested\":{\"repository\":\"PerishLab/crest\",\"app\":\"crest\",\"lane\":\"review\"},\"request\":\"6666666666666666666666666666666666666666666666666666666666666666\",\"revision\":1,\"adaptor\":\"static\"},\"intent\":{\"action\":\"deploy\",\"artifact\":{\"digest\":\"5555555555555555555555555555555555555555555555555555555555555555\",\"source\":{\"repository\":\"PerishLab/crest\",\"commit\":\"1111111111111111111111111111111111111111\",\"tree\":\"2222222222222222222222222222222222222222\"},\"build\":{\"inputs\":\"3333333333333333333333333333333333333333333333333333333333333333\",\"world\":\"4444444444444444444444444444444444444444444444444444444444444444\"}}},\"expected\":{\"state\":\"absent\"}},\"assessment\":{\"request\":\"bc6a65bdfbaffce31b6f15ae13886b25707454200ab718c6e6984bb490ccd53f\",\"capabilities\":[\"inspect\",\"build\",\"publish\",\"install\",\"uninstall\",\"deploy\",\"dispose\"],\"conditions\":{\"authorization\":{\"state\":\"granted\",\"evidence\":{\"authority\":\"ensign\",\"digest\":\"7777777777777777777777777777777777777777777777777777777777777777\"}},\"writer\":\"idle\",\"observed\":{\"state\":\"absent\"}}},\"outcome\":{\"outcome\":\"applied\",\"material\":{\"state\":\"present\",\"artifact\":{\"digest\":\"5555555555555555555555555555555555555555555555555555555555555555\",\"source\":{\"repository\":\"PerishLab/crest\",\"commit\":\"1111111111111111111111111111111111111111\",\"tree\":\"2222222222222222222222222222222222222222\"},\"build\":{\"inputs\":\"3333333333333333333333333333333333333333333333333333333333333333\",\"world\":\"4444444444444444444444444444444444444444444444444444444444444444\"}}},\"writer\":\"idle\"}}}}","declaration":{"adaptor":"static","authorities":{"authorization":"ensign","publication":"wharf"},"capabilities":["inspect","build","publish","install","uninstall","deploy","dispose"],"target":{"app":"crest","lane":"review","repository":"PerishLab/crest"}},"error":"invalid type: boolean `true`, expected u64","id":"boolean","reference":{"authority":"wharf","digest":"76d746487583257ec5240df25170631223327c8b0bfd42b037d4181d0126ebfa"},"refused":true,"request":{"context":{"adaptor":"static","request":"6666666666666666666666666666666666666666666666666666666666666666","requested":{"app":"crest","lane":"review","repository":"PerishLab/crest"},"revision":true},"expected":{"state":"absent"},"intent":{"action":"deploy","artifact":{"build":{"inputs":"3333333333333333333333333333333333333333333333333333333333333333","world":"4444444444444444444444444444444444444444444444444444444444444444"},"digest":"5555555555555555555555555555555555555555555555555555555555555555","source":{"commit":"1111111111111111111111111111111111111111","repository":"PerishLab/crest","tree":"2222222222222222222222222222222222222222"}}}}},
     {"content":"{\"schema\":2,\"entry\":{\"kind\":\"operation\",\"value\":{\"request\":{\"context\":{\"requested\":{\"repository\":\"PerishLab/crest\",\"app\":\"crest\",\"lane\":\"review\"},\"request\":\"6666666666666666666666666666666666666666666666666666666666666666\",\"revision\":1,\"adaptor\":\"static\"},\"intent\":{\"action\":\"deploy\",\"artifact\":{\"digest\":\"5555555555555555555555555555555555555555555555555555555555555555\",\"source\":{\"repository\":\"PerishLab/crest\",\"commit\":\"1111111111111111111111111111111111111111\",\"tree\":\"2222222222222222222222222222222222222222\"},\"build\":{\"inputs\":\"3333333333333333333333333333333333333333333333333333333333333333\",\"world\":\"4444444444444444444444444444444444444444444444444444444444444444\"}}},\"expected\":{\"state\":\"absent\"}},\"assessment\":{\"request\":\"bc6a65bdfbaffce31b6f15ae13886b25707454200ab718c6e6984bb490ccd53f\",\"capabilities\":[\"inspect\",\"build\",\"publish\",\"install\",\"uninstall\",\"deploy\",\"dispose\"],\"conditions\":{\"authorization\":{\"state\":\"granted\",\"evidence\":{\"authority\":\"ensign\",\"digest\":\"7777777777777777777777777777777777777777777777777777777777777777\"}},\"writer\":\"idle\",\"observed\":{\"state\":\"absent\"}}},\"outcome\":{\"outcome\":\"applied\",\"material\":{\"state\":\"present\",\"artifact\":{\"digest\":\"5555555555555555555555555555555555555555555555555555555555555555\",\"source\":{\"repository\":\"PerishLab/crest\",\"commit\":\"1111111111111111111111111111111111111111\",\"tree\":\"2222222222222222222222222222222222222222\"},\"build\":{\"inputs\":\"3333333333333333333333333333333333333333333333333333333333333333\",\"world\":\"4444444444444444444444444444444444444444444444444444444444444444\"}}},\"writer\":\"idle\"}}}}","declaration":{"adaptor":"static","authorities":{"authorization":"ensign","publication":"wharf"},"capabilities":["inspect","build","publish","install","uninstall","deploy","dispose"],"credentials":"private","target":{"app":"crest","lane":"review","repository":"PerishLab/crest"}},"error":"unknown field `credentials`, expected one of `target`, `adaptor`, `capabilities`, `authorities`","id":"decl-secret","reference":{"authority":"wharf","digest":"76d746487583257ec5240df25170631223327c8b0bfd42b037d4181d0126ebfa"},"refused":true,"request":{"context":{"adaptor":"static","request":"6666666666666666666666666666666666666666666666666666666666666666","requested":{"app":"crest","lane":"review","repository":"PerishLab/crest"},"revision":1},"expected":{"state":"absent"},"intent":{"action":"deploy","artifact":{"build":{"inputs":"3333333333333333333333333333333333333333333333333333333333333333","world":"4444444444444444444444444444444444444444444444444444444444444444"},"digest":"5555555555555555555555555555555555555555555555555555555555555555","source":{"commit":"1111111111111111111111111111111111111111","repository":"PerishLab/crest","tree":"2222222222222222222222222222222222222222"}}}}}
-  ]
+  ],
+  "confirmation": {
+    "cases": [
+      {
+        "digest": "74a9ca8335473f0f664d0a59200613a5f7e29e17ba24b5310b42c6def4fd8034",
+        "encoded": "{\"schema\":2,\"entry\":{\"kind\":\"operation\",\"value\":{\"request\":{\"context\":{\"requested\":{\"repository\":\"PerishLab/crest\",\"app\":\"crest\",\"lane\":\"design\"},\"request\":\"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\",\"revision\":2,\"adaptor\":\"static\"},\"intent\":{\"action\":\"deploy\",\"artifact\":{\"digest\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"source\":{\"repository\":\"PerishLab/crest\",\"commit\":\"1111111111111111111111111111111111111111\",\"tree\":\"2222222222222222222222222222222222222222\"},\"build\":null}},\"expected\":{\"state\":\"absent\"}},\"assessment\":{\"request\":\"21191c207fdf0f86acdf34afeca04185e9327e8bac46acfb2516aa018915653c\",\"capabilities\":[\"deploy\"],\"conditions\":{\"authorization\":{\"state\":\"granted\",\"evidence\":{\"authority\":\"wharf\",\"digest\":\"cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc\"}},\"writer\":\"idle\",\"observed\":{\"state\":\"absent\"}}},\"outcome\":{\"outcome\":\"unknown\",\"reason\":\"unverified\"}}}}",
+        "id": "original",
+        "input": "{\"schema\":2,\"entry\":{\"kind\":\"operation\",\"value\":{\"request\":{\"context\":{\"requested\":{\"repository\":\"PerishLab/crest\",\"app\":\"crest\",\"lane\":\"design\"},\"request\":\"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\",\"revision\":2,\"adaptor\":\"static\"},\"intent\":{\"action\":\"deploy\",\"artifact\":{\"digest\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"source\":{\"repository\":\"PerishLab/crest\",\"commit\":\"1111111111111111111111111111111111111111\",\"tree\":\"2222222222222222222222222222222222222222\"},\"build\":null}},\"expected\":{\"state\":\"absent\"}},\"assessment\":{\"request\":\"21191c207fdf0f86acdf34afeca04185e9327e8bac46acfb2516aa018915653c\",\"capabilities\":[\"deploy\"],\"conditions\":{\"authorization\":{\"state\":\"granted\",\"evidence\":{\"authority\":\"wharf\",\"digest\":\"cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc\"}},\"writer\":\"idle\",\"observed\":{\"state\":\"absent\"}}},\"outcome\":{\"outcome\":\"unknown\",\"reason\":\"unverified\"}}}}",
+        "kind": "record",
+        "refused": false
+      },
+      {
+        "digest": "d3dbdf2186325bbf291765669fe645a45eb20f5e48eb0a1fdae93a0b4670f51c",
+        "encoded": "{\"schema\":3,\"entry\":{\"kind\":\"confirmation\",\"value\":{\"original\":{\"authority\":\"wharf\",\"digest\":\"74a9ca8335473f0f664d0a59200613a5f7e29e17ba24b5310b42c6def4fd8034\"},\"authorization\":{\"authority\":\"wharf\",\"digest\":\"dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd\"},\"operation\":{\"request\":{\"context\":{\"requested\":{\"repository\":\"PerishLab/crest\",\"app\":\"crest\",\"lane\":\"design\"},\"request\":\"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\",\"revision\":2,\"adaptor\":\"static\"},\"intent\":{\"action\":\"deploy\",\"artifact\":{\"digest\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"source\":{\"repository\":\"PerishLab/crest\",\"commit\":\"1111111111111111111111111111111111111111\",\"tree\":\"2222222222222222222222222222222222222222\"},\"build\":null}},\"expected\":{\"state\":\"absent\"}},\"assessment\":{\"request\":\"21191c207fdf0f86acdf34afeca04185e9327e8bac46acfb2516aa018915653c\",\"capabilities\":[\"deploy\"],\"conditions\":{\"authorization\":{\"state\":\"granted\",\"evidence\":{\"authority\":\"wharf\",\"digest\":\"cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc\"}},\"writer\":\"idle\",\"observed\":{\"state\":\"absent\"}}},\"outcome\":{\"outcome\":\"applied\",\"material\":{\"state\":\"present\",\"artifact\":{\"digest\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"source\":{\"repository\":\"PerishLab/crest\",\"commit\":\"1111111111111111111111111111111111111111\",\"tree\":\"2222222222222222222222222222222222222222\"},\"build\":null}},\"writer\":\"idle\"}}}}}",
+        "id": "confirmation",
+        "input": "{\"schema\":3,\"entry\":{\"kind\":\"confirmation\",\"value\":{\"original\":{\"authority\":\"wharf\",\"digest\":\"74a9ca8335473f0f664d0a59200613a5f7e29e17ba24b5310b42c6def4fd8034\"},\"authorization\":{\"authority\":\"wharf\",\"digest\":\"dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd\"},\"operation\":{\"request\":{\"context\":{\"requested\":{\"repository\":\"PerishLab/crest\",\"app\":\"crest\",\"lane\":\"design\"},\"request\":\"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\",\"revision\":2,\"adaptor\":\"static\"},\"intent\":{\"action\":\"deploy\",\"artifact\":{\"digest\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"source\":{\"repository\":\"PerishLab/crest\",\"commit\":\"1111111111111111111111111111111111111111\",\"tree\":\"2222222222222222222222222222222222222222\"},\"build\":null}},\"expected\":{\"state\":\"absent\"}},\"assessment\":{\"request\":\"21191c207fdf0f86acdf34afeca04185e9327e8bac46acfb2516aa018915653c\",\"capabilities\":[\"deploy\"],\"conditions\":{\"authorization\":{\"state\":\"granted\",\"evidence\":{\"authority\":\"wharf\",\"digest\":\"cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc\"}},\"writer\":\"idle\",\"observed\":{\"state\":\"absent\"}}},\"outcome\":{\"outcome\":\"applied\",\"material\":{\"state\":\"present\",\"artifact\":{\"digest\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"source\":{\"repository\":\"PerishLab/crest\",\"commit\":\"1111111111111111111111111111111111111111\",\"tree\":\"2222222222222222222222222222222222222222\"},\"build\":null}},\"writer\":\"idle\"}}}}}",
+        "kind": "record",
+        "refused": false
+      },
+      {
+        "digest": "de2cecedac3bb6c46be45e0178a4fe82be92c6d593674011ef8e91acaea35962",
+        "encoded": "{\"original\":{\"authority\":\"wharf\",\"digest\":\"74a9ca8335473f0f664d0a59200613a5f7e29e17ba24b5310b42c6def4fd8034\"},\"authorization\":{\"authority\":\"wharf\",\"digest\":\"dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd\"},\"operation\":{\"request\":{\"context\":{\"requested\":{\"repository\":\"PerishLab/crest\",\"app\":\"crest\",\"lane\":\"design\"},\"request\":\"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\",\"revision\":2,\"adaptor\":\"static\"},\"intent\":{\"action\":\"deploy\",\"artifact\":{\"digest\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"source\":{\"repository\":\"PerishLab/crest\",\"commit\":\"1111111111111111111111111111111111111111\",\"tree\":\"2222222222222222222222222222222222222222\"},\"build\":null}},\"expected\":{\"state\":\"absent\"}},\"assessment\":{\"request\":\"21191c207fdf0f86acdf34afeca04185e9327e8bac46acfb2516aa018915653c\",\"capabilities\":[\"deploy\"],\"conditions\":{\"authorization\":{\"state\":\"granted\",\"evidence\":{\"authority\":\"wharf\",\"digest\":\"cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc\"}},\"writer\":\"idle\",\"observed\":{\"state\":\"absent\"}}},\"outcome\":{\"outcome\":\"applied\",\"material\":{\"state\":\"present\",\"artifact\":{\"digest\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"source\":{\"repository\":\"PerishLab/crest\",\"commit\":\"1111111111111111111111111111111111111111\",\"tree\":\"2222222222222222222222222222222222222222\"},\"build\":null}},\"writer\":\"idle\"}}}",
+        "id": "standalone",
+        "input": "{\"authorization\":{\"authority\":\"wharf\",\"digest\":\"dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd\"},\"operation\":{\"assessment\":{\"capabilities\":[\"deploy\"],\"conditions\":{\"authorization\":{\"evidence\":{\"authority\":\"wharf\",\"digest\":\"cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc\"},\"state\":\"granted\"},\"observed\":{\"state\":\"absent\"},\"writer\":\"idle\"},\"request\":\"21191c207fdf0f86acdf34afeca04185e9327e8bac46acfb2516aa018915653c\"},\"outcome\":{\"material\":{\"artifact\":{\"build\":null,\"digest\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"source\":{\"commit\":\"1111111111111111111111111111111111111111\",\"repository\":\"PerishLab/crest\",\"tree\":\"2222222222222222222222222222222222222222\"}},\"state\":\"present\"},\"outcome\":\"applied\",\"writer\":\"idle\"},\"request\":{\"context\":{\"adaptor\":\"static\",\"request\":\"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\",\"requested\":{\"app\":\"crest\",\"lane\":\"design\",\"repository\":\"PerishLab/crest\"},\"revision\":2},\"expected\":{\"state\":\"absent\"},\"intent\":{\"action\":\"deploy\",\"artifact\":{\"build\":null,\"digest\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"source\":{\"commit\":\"1111111111111111111111111111111111111111\",\"repository\":\"PerishLab/crest\",\"tree\":\"2222222222222222222222222222222222222222\"}}}}},\"original\":{\"authority\":\"wharf\",\"digest\":\"74a9ca8335473f0f664d0a59200613a5f7e29e17ba24b5310b42c6def4fd8034\"}}",
+        "kind": "confirmation",
+        "refused": false
+      },
+      {
+        "id": "schema2",
+        "input": "{\"entry\":{\"kind\":\"confirmation\",\"value\":{\"authorization\":{\"authority\":\"wharf\",\"digest\":\"dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd\"},\"operation\":{\"assessment\":{\"capabilities\":[\"deploy\"],\"conditions\":{\"authorization\":{\"evidence\":{\"authority\":\"wharf\",\"digest\":\"cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc\"},\"state\":\"granted\"},\"observed\":{\"state\":\"absent\"},\"writer\":\"idle\"},\"request\":\"21191c207fdf0f86acdf34afeca04185e9327e8bac46acfb2516aa018915653c\"},\"outcome\":{\"material\":{\"artifact\":{\"build\":null,\"digest\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"source\":{\"commit\":\"1111111111111111111111111111111111111111\",\"repository\":\"PerishLab/crest\",\"tree\":\"2222222222222222222222222222222222222222\"}},\"state\":\"present\"},\"outcome\":\"applied\",\"writer\":\"idle\"},\"request\":{\"context\":{\"adaptor\":\"static\",\"request\":\"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\",\"requested\":{\"app\":\"crest\",\"lane\":\"design\",\"repository\":\"PerishLab/crest\"},\"revision\":2},\"expected\":{\"state\":\"absent\"},\"intent\":{\"action\":\"deploy\",\"artifact\":{\"build\":null,\"digest\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"source\":{\"commit\":\"1111111111111111111111111111111111111111\",\"repository\":\"PerishLab/crest\",\"tree\":\"2222222222222222222222222222222222222222\"}}}}},\"original\":{\"authority\":\"wharf\",\"digest\":\"74a9ca8335473f0f664d0a59200613a5f7e29e17ba24b5310b42c6def4fd8034\"}}},\"schema\":2}",
+        "kind": "record",
+        "refused": true
+      },
+      {
+        "id": "schema4",
+        "input": "{\"entry\":{\"kind\":\"confirmation\",\"value\":{\"authorization\":{\"authority\":\"wharf\",\"digest\":\"dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd\"},\"operation\":{\"assessment\":{\"capabilities\":[\"deploy\"],\"conditions\":{\"authorization\":{\"evidence\":{\"authority\":\"wharf\",\"digest\":\"cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc\"},\"state\":\"granted\"},\"observed\":{\"state\":\"absent\"},\"writer\":\"idle\"},\"request\":\"21191c207fdf0f86acdf34afeca04185e9327e8bac46acfb2516aa018915653c\"},\"outcome\":{\"material\":{\"artifact\":{\"build\":null,\"digest\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"source\":{\"commit\":\"1111111111111111111111111111111111111111\",\"repository\":\"PerishLab/crest\",\"tree\":\"2222222222222222222222222222222222222222\"}},\"state\":\"present\"},\"outcome\":\"applied\",\"writer\":\"idle\"},\"request\":{\"context\":{\"adaptor\":\"static\",\"request\":\"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\",\"requested\":{\"app\":\"crest\",\"lane\":\"design\",\"repository\":\"PerishLab/crest\"},\"revision\":2},\"expected\":{\"state\":\"absent\"},\"intent\":{\"action\":\"deploy\",\"artifact\":{\"build\":null,\"digest\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"source\":{\"commit\":\"1111111111111111111111111111111111111111\",\"repository\":\"PerishLab/crest\",\"tree\":\"2222222222222222222222222222222222222222\"}}}}},\"original\":{\"authority\":\"wharf\",\"digest\":\"74a9ca8335473f0f664d0a59200613a5f7e29e17ba24b5310b42c6def4fd8034\"}}},\"schema\":4}",
+        "kind": "record",
+        "refused": true
+      },
+      {
+        "id": "schema-bool",
+        "input": "{\"entry\":{\"kind\":\"confirmation\",\"value\":{\"authorization\":{\"authority\":\"wharf\",\"digest\":\"dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd\"},\"operation\":{\"assessment\":{\"capabilities\":[\"deploy\"],\"conditions\":{\"authorization\":{\"evidence\":{\"authority\":\"wharf\",\"digest\":\"cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc\"},\"state\":\"granted\"},\"observed\":{\"state\":\"absent\"},\"writer\":\"idle\"},\"request\":\"21191c207fdf0f86acdf34afeca04185e9327e8bac46acfb2516aa018915653c\"},\"outcome\":{\"material\":{\"artifact\":{\"build\":null,\"digest\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"source\":{\"commit\":\"1111111111111111111111111111111111111111\",\"repository\":\"PerishLab/crest\",\"tree\":\"2222222222222222222222222222222222222222\"}},\"state\":\"present\"},\"outcome\":\"applied\",\"writer\":\"idle\"},\"request\":{\"context\":{\"adaptor\":\"static\",\"request\":\"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\",\"requested\":{\"app\":\"crest\",\"lane\":\"design\",\"repository\":\"PerishLab/crest\"},\"revision\":2},\"expected\":{\"state\":\"absent\"},\"intent\":{\"action\":\"deploy\",\"artifact\":{\"build\":null,\"digest\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"source\":{\"commit\":\"1111111111111111111111111111111111111111\",\"repository\":\"PerishLab/crest\",\"tree\":\"2222222222222222222222222222222222222222\"}}}}},\"original\":{\"authority\":\"wharf\",\"digest\":\"74a9ca8335473f0f664d0a59200613a5f7e29e17ba24b5310b42c6def4fd8034\"}}},\"schema\":true}",
+        "kind": "record",
+        "refused": true
+      },
+      {
+        "id": "unknown-kind",
+        "input": "{\"entry\":{\"kind\":\"repair\",\"value\":{\"authorization\":{\"authority\":\"wharf\",\"digest\":\"dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd\"},\"operation\":{\"assessment\":{\"capabilities\":[\"deploy\"],\"conditions\":{\"authorization\":{\"evidence\":{\"authority\":\"wharf\",\"digest\":\"cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc\"},\"state\":\"granted\"},\"observed\":{\"state\":\"absent\"},\"writer\":\"idle\"},\"request\":\"21191c207fdf0f86acdf34afeca04185e9327e8bac46acfb2516aa018915653c\"},\"outcome\":{\"material\":{\"artifact\":{\"build\":null,\"digest\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"source\":{\"commit\":\"1111111111111111111111111111111111111111\",\"repository\":\"PerishLab/crest\",\"tree\":\"2222222222222222222222222222222222222222\"}},\"state\":\"present\"},\"outcome\":\"applied\",\"writer\":\"idle\"},\"request\":{\"context\":{\"adaptor\":\"static\",\"request\":\"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\",\"requested\":{\"app\":\"crest\",\"lane\":\"design\",\"repository\":\"PerishLab/crest\"},\"revision\":2},\"expected\":{\"state\":\"absent\"},\"intent\":{\"action\":\"deploy\",\"artifact\":{\"build\":null,\"digest\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"source\":{\"commit\":\"1111111111111111111111111111111111111111\",\"repository\":\"PerishLab/crest\",\"tree\":\"2222222222222222222222222222222222222222\"}}}}},\"original\":{\"authority\":\"wharf\",\"digest\":\"74a9ca8335473f0f664d0a59200613a5f7e29e17ba24b5310b42c6def4fd8034\"}}},\"schema\":3}",
+        "kind": "record",
+        "refused": true
+      },
+      {
+        "id": "same-original",
+        "input": "{\"entry\":{\"kind\":\"confirmation\",\"value\":{\"authorization\":{\"authority\":\"wharf\",\"digest\":\"74a9ca8335473f0f664d0a59200613a5f7e29e17ba24b5310b42c6def4fd8034\"},\"operation\":{\"assessment\":{\"capabilities\":[\"deploy\"],\"conditions\":{\"authorization\":{\"evidence\":{\"authority\":\"wharf\",\"digest\":\"cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc\"},\"state\":\"granted\"},\"observed\":{\"state\":\"absent\"},\"writer\":\"idle\"},\"request\":\"21191c207fdf0f86acdf34afeca04185e9327e8bac46acfb2516aa018915653c\"},\"outcome\":{\"material\":{\"artifact\":{\"build\":null,\"digest\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"source\":{\"commit\":\"1111111111111111111111111111111111111111\",\"repository\":\"PerishLab/crest\",\"tree\":\"2222222222222222222222222222222222222222\"}},\"state\":\"present\"},\"outcome\":\"applied\",\"writer\":\"idle\"},\"request\":{\"context\":{\"adaptor\":\"static\",\"request\":\"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\",\"requested\":{\"app\":\"crest\",\"lane\":\"design\",\"repository\":\"PerishLab/crest\"},\"revision\":2},\"expected\":{\"state\":\"absent\"},\"intent\":{\"action\":\"deploy\",\"artifact\":{\"build\":null,\"digest\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"source\":{\"commit\":\"1111111111111111111111111111111111111111\",\"repository\":\"PerishLab/crest\",\"tree\":\"2222222222222222222222222222222222222222\"}}}}},\"original\":{\"authority\":\"wharf\",\"digest\":\"74a9ca8335473f0f664d0a59200613a5f7e29e17ba24b5310b42c6def4fd8034\"}}},\"schema\":3}",
+        "kind": "record",
+        "refused": true
+      },
+      {
+        "id": "old-admission",
+        "input": "{\"entry\":{\"kind\":\"confirmation\",\"value\":{\"authorization\":{\"authority\":\"wharf\",\"digest\":\"cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc\"},\"operation\":{\"assessment\":{\"capabilities\":[\"deploy\"],\"conditions\":{\"authorization\":{\"evidence\":{\"authority\":\"wharf\",\"digest\":\"cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc\"},\"state\":\"granted\"},\"observed\":{\"state\":\"absent\"},\"writer\":\"idle\"},\"request\":\"21191c207fdf0f86acdf34afeca04185e9327e8bac46acfb2516aa018915653c\"},\"outcome\":{\"material\":{\"artifact\":{\"build\":null,\"digest\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"source\":{\"commit\":\"1111111111111111111111111111111111111111\",\"repository\":\"PerishLab/crest\",\"tree\":\"2222222222222222222222222222222222222222\"}},\"state\":\"present\"},\"outcome\":\"applied\",\"writer\":\"idle\"},\"request\":{\"context\":{\"adaptor\":\"static\",\"request\":\"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\",\"requested\":{\"app\":\"crest\",\"lane\":\"design\",\"repository\":\"PerishLab/crest\"},\"revision\":2},\"expected\":{\"state\":\"absent\"},\"intent\":{\"action\":\"deploy\",\"artifact\":{\"build\":null,\"digest\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"source\":{\"commit\":\"1111111111111111111111111111111111111111\",\"repository\":\"PerishLab/crest\",\"tree\":\"2222222222222222222222222222222222222222\"}}}}},\"original\":{\"authority\":\"wharf\",\"digest\":\"74a9ca8335473f0f664d0a59200613a5f7e29e17ba24b5310b42c6def4fd8034\"}}},\"schema\":3}",
+        "kind": "record",
+        "refused": true
+      },
+      {
+        "id": "foreign-authority",
+        "input": "{\"entry\":{\"kind\":\"confirmation\",\"value\":{\"authorization\":{\"authority\":\"other\",\"digest\":\"dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd\"},\"operation\":{\"assessment\":{\"capabilities\":[\"deploy\"],\"conditions\":{\"authorization\":{\"evidence\":{\"authority\":\"wharf\",\"digest\":\"cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc\"},\"state\":\"granted\"},\"observed\":{\"state\":\"absent\"},\"writer\":\"idle\"},\"request\":\"21191c207fdf0f86acdf34afeca04185e9327e8bac46acfb2516aa018915653c\"},\"outcome\":{\"material\":{\"artifact\":{\"build\":null,\"digest\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"source\":{\"commit\":\"1111111111111111111111111111111111111111\",\"repository\":\"PerishLab/crest\",\"tree\":\"2222222222222222222222222222222222222222\"}},\"state\":\"present\"},\"outcome\":\"applied\",\"writer\":\"idle\"},\"request\":{\"context\":{\"adaptor\":\"static\",\"request\":\"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\",\"requested\":{\"app\":\"crest\",\"lane\":\"design\",\"repository\":\"PerishLab/crest\"},\"revision\":2},\"expected\":{\"state\":\"absent\"},\"intent\":{\"action\":\"deploy\",\"artifact\":{\"build\":null,\"digest\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"source\":{\"commit\":\"1111111111111111111111111111111111111111\",\"repository\":\"PerishLab/crest\",\"tree\":\"2222222222222222222222222222222222222222\"}}}}},\"original\":{\"authority\":\"wharf\",\"digest\":\"74a9ca8335473f0f664d0a59200613a5f7e29e17ba24b5310b42c6def4fd8034\"}}},\"schema\":3}",
+        "kind": "record",
+        "refused": true
+      },
+      {
+        "id": "bad-digest",
+        "input": "{\"entry\":{\"kind\":\"confirmation\",\"value\":{\"authorization\":{\"authority\":\"wharf\",\"digest\":\"dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd\"},\"operation\":{\"assessment\":{\"capabilities\":[\"deploy\"],\"conditions\":{\"authorization\":{\"evidence\":{\"authority\":\"wharf\",\"digest\":\"cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc\"},\"state\":\"granted\"},\"observed\":{\"state\":\"absent\"},\"writer\":\"idle\"},\"request\":\"21191c207fdf0f86acdf34afeca04185e9327e8bac46acfb2516aa018915653c\"},\"outcome\":{\"material\":{\"artifact\":{\"build\":null,\"digest\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"source\":{\"commit\":\"1111111111111111111111111111111111111111\",\"repository\":\"PerishLab/crest\",\"tree\":\"2222222222222222222222222222222222222222\"}},\"state\":\"present\"},\"outcome\":\"applied\",\"writer\":\"idle\"},\"request\":{\"context\":{\"adaptor\":\"static\",\"request\":\"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\",\"requested\":{\"app\":\"crest\",\"lane\":\"design\",\"repository\":\"PerishLab/crest\"},\"revision\":2},\"expected\":{\"state\":\"absent\"},\"intent\":{\"action\":\"deploy\",\"artifact\":{\"build\":null,\"digest\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"source\":{\"commit\":\"1111111111111111111111111111111111111111\",\"repository\":\"PerishLab/crest\",\"tree\":\"2222222222222222222222222222222222222222\"}}}}},\"original\":{\"authority\":\"wharf\",\"digest\":\"bad\"}}},\"schema\":3}",
+        "kind": "record",
+        "refused": true
+      },
+      {
+        "id": "unknown",
+        "input": "{\"entry\":{\"kind\":\"confirmation\",\"value\":{\"authorization\":{\"authority\":\"wharf\",\"digest\":\"dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd\"},\"operation\":{\"assessment\":{\"capabilities\":[\"deploy\"],\"conditions\":{\"authorization\":{\"evidence\":{\"authority\":\"wharf\",\"digest\":\"cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc\"},\"state\":\"granted\"},\"observed\":{\"state\":\"absent\"},\"writer\":\"idle\"},\"request\":\"21191c207fdf0f86acdf34afeca04185e9327e8bac46acfb2516aa018915653c\"},\"outcome\":{\"outcome\":\"unknown\",\"reason\":\"unverified\"},\"request\":{\"context\":{\"adaptor\":\"static\",\"request\":\"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\",\"requested\":{\"app\":\"crest\",\"lane\":\"design\",\"repository\":\"PerishLab/crest\"},\"revision\":2},\"expected\":{\"state\":\"absent\"},\"intent\":{\"action\":\"deploy\",\"artifact\":{\"build\":null,\"digest\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"source\":{\"commit\":\"1111111111111111111111111111111111111111\",\"repository\":\"PerishLab/crest\",\"tree\":\"2222222222222222222222222222222222222222\"}}}}},\"original\":{\"authority\":\"wharf\",\"digest\":\"74a9ca8335473f0f664d0a59200613a5f7e29e17ba24b5310b42c6def4fd8034\"}}},\"schema\":3}",
+        "kind": "record",
+        "refused": true
+      },
+      {
+        "id": "refused",
+        "input": "{\"entry\":{\"kind\":\"confirmation\",\"value\":{\"authorization\":{\"authority\":\"wharf\",\"digest\":\"dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd\"},\"operation\":{\"assessment\":{\"capabilities\":[\"deploy\"],\"conditions\":{\"authorization\":{\"evidence\":{\"authority\":\"wharf\",\"digest\":\"cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc\"},\"state\":\"granted\"},\"observed\":{\"state\":\"absent\"},\"writer\":\"idle\"},\"request\":\"21191c207fdf0f86acdf34afeca04185e9327e8bac46acfb2516aa018915653c\"},\"outcome\":{\"outcome\":\"refused\",\"reason\":\"conflict\"},\"request\":{\"context\":{\"adaptor\":\"static\",\"request\":\"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\",\"requested\":{\"app\":\"crest\",\"lane\":\"design\",\"repository\":\"PerishLab/crest\"},\"revision\":2},\"expected\":{\"state\":\"absent\"},\"intent\":{\"action\":\"deploy\",\"artifact\":{\"build\":null,\"digest\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"source\":{\"commit\":\"1111111111111111111111111111111111111111\",\"repository\":\"PerishLab/crest\",\"tree\":\"2222222222222222222222222222222222222222\"}}}}},\"original\":{\"authority\":\"wharf\",\"digest\":\"74a9ca8335473f0f664d0a59200613a5f7e29e17ba24b5310b42c6def4fd8034\"}}},\"schema\":3}",
+        "kind": "record",
+        "refused": true
+      },
+      {
+        "id": "false-material",
+        "input": "{\"entry\":{\"kind\":\"confirmation\",\"value\":{\"authorization\":{\"authority\":\"wharf\",\"digest\":\"dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd\"},\"operation\":{\"assessment\":{\"capabilities\":[\"deploy\"],\"conditions\":{\"authorization\":{\"evidence\":{\"authority\":\"wharf\",\"digest\":\"cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc\"},\"state\":\"granted\"},\"observed\":{\"state\":\"absent\"},\"writer\":\"idle\"},\"request\":\"21191c207fdf0f86acdf34afeca04185e9327e8bac46acfb2516aa018915653c\"},\"outcome\":{\"material\":{\"state\":\"absent\"},\"outcome\":\"applied\",\"writer\":\"idle\"},\"request\":{\"context\":{\"adaptor\":\"static\",\"request\":\"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\",\"requested\":{\"app\":\"crest\",\"lane\":\"design\",\"repository\":\"PerishLab/crest\"},\"revision\":2},\"expected\":{\"state\":\"absent\"},\"intent\":{\"action\":\"deploy\",\"artifact\":{\"build\":null,\"digest\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"source\":{\"commit\":\"1111111111111111111111111111111111111111\",\"repository\":\"PerishLab/crest\",\"tree\":\"2222222222222222222222222222222222222222\"}}}}},\"original\":{\"authority\":\"wharf\",\"digest\":\"74a9ca8335473f0f664d0a59200613a5f7e29e17ba24b5310b42c6def4fd8034\"}}},\"schema\":3}",
+        "kind": "record",
+        "refused": true
+      },
+      {
+        "id": "active-writer",
+        "input": "{\"entry\":{\"kind\":\"confirmation\",\"value\":{\"authorization\":{\"authority\":\"wharf\",\"digest\":\"dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd\"},\"operation\":{\"assessment\":{\"capabilities\":[\"deploy\"],\"conditions\":{\"authorization\":{\"evidence\":{\"authority\":\"wharf\",\"digest\":\"cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc\"},\"state\":\"granted\"},\"observed\":{\"state\":\"absent\"},\"writer\":\"idle\"},\"request\":\"21191c207fdf0f86acdf34afeca04185e9327e8bac46acfb2516aa018915653c\"},\"outcome\":{\"material\":{\"artifact\":{\"build\":null,\"digest\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"source\":{\"commit\":\"1111111111111111111111111111111111111111\",\"repository\":\"PerishLab/crest\",\"tree\":\"2222222222222222222222222222222222222222\"}},\"state\":\"present\"},\"outcome\":\"applied\",\"writer\":\"active\"},\"request\":{\"context\":{\"adaptor\":\"static\",\"request\":\"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\",\"requested\":{\"app\":\"crest\",\"lane\":\"design\",\"repository\":\"PerishLab/crest\"},\"revision\":2},\"expected\":{\"state\":\"absent\"},\"intent\":{\"action\":\"deploy\",\"artifact\":{\"build\":null,\"digest\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"source\":{\"commit\":\"1111111111111111111111111111111111111111\",\"repository\":\"PerishLab/crest\",\"tree\":\"2222222222222222222222222222222222222222\"}}}}},\"original\":{\"authority\":\"wharf\",\"digest\":\"74a9ca8335473f0f664d0a59200613a5f7e29e17ba24b5310b42c6def4fd8034\"}}},\"schema\":3}",
+        "kind": "record",
+        "refused": true
+      },
+      {
+        "id": "extra",
+        "input": "{\"entry\":{\"kind\":\"confirmation\",\"value\":{\"authorization\":{\"authority\":\"wharf\",\"digest\":\"dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd\"},\"extra\":true,\"operation\":{\"assessment\":{\"capabilities\":[\"deploy\"],\"conditions\":{\"authorization\":{\"evidence\":{\"authority\":\"wharf\",\"digest\":\"cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc\"},\"state\":\"granted\"},\"observed\":{\"state\":\"absent\"},\"writer\":\"idle\"},\"request\":\"21191c207fdf0f86acdf34afeca04185e9327e8bac46acfb2516aa018915653c\"},\"outcome\":{\"material\":{\"artifact\":{\"build\":null,\"digest\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"source\":{\"commit\":\"1111111111111111111111111111111111111111\",\"repository\":\"PerishLab/crest\",\"tree\":\"2222222222222222222222222222222222222222\"}},\"state\":\"present\"},\"outcome\":\"applied\",\"writer\":\"idle\"},\"request\":{\"context\":{\"adaptor\":\"static\",\"request\":\"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\",\"requested\":{\"app\":\"crest\",\"lane\":\"design\",\"repository\":\"PerishLab/crest\"},\"revision\":2},\"expected\":{\"state\":\"absent\"},\"intent\":{\"action\":\"deploy\",\"artifact\":{\"build\":null,\"digest\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"source\":{\"commit\":\"1111111111111111111111111111111111111111\",\"repository\":\"PerishLab/crest\",\"tree\":\"2222222222222222222222222222222222222222\"}}}}},\"original\":{\"authority\":\"wharf\",\"digest\":\"74a9ca8335473f0f664d0a59200613a5f7e29e17ba24b5310b42c6def4fd8034\"}}},\"schema\":3}",
+        "kind": "record",
+        "refused": true
+      },
+      {
+        "id": "missing-original",
+        "input": "{\"entry\":{\"kind\":\"confirmation\",\"value\":{\"authorization\":{\"authority\":\"wharf\",\"digest\":\"dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd\"},\"operation\":{\"assessment\":{\"capabilities\":[\"deploy\"],\"conditions\":{\"authorization\":{\"evidence\":{\"authority\":\"wharf\",\"digest\":\"cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc\"},\"state\":\"granted\"},\"observed\":{\"state\":\"absent\"},\"writer\":\"idle\"},\"request\":\"21191c207fdf0f86acdf34afeca04185e9327e8bac46acfb2516aa018915653c\"},\"outcome\":{\"material\":{\"artifact\":{\"build\":null,\"digest\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"source\":{\"commit\":\"1111111111111111111111111111111111111111\",\"repository\":\"PerishLab/crest\",\"tree\":\"2222222222222222222222222222222222222222\"}},\"state\":\"present\"},\"outcome\":\"applied\",\"writer\":\"idle\"},\"request\":{\"context\":{\"adaptor\":\"static\",\"request\":\"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\",\"requested\":{\"app\":\"crest\",\"lane\":\"design\",\"repository\":\"PerishLab/crest\"},\"revision\":2},\"expected\":{\"state\":\"absent\"},\"intent\":{\"action\":\"deploy\",\"artifact\":{\"build\":null,\"digest\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"source\":{\"commit\":\"1111111111111111111111111111111111111111\",\"repository\":\"PerishLab/crest\",\"tree\":\"2222222222222222222222222222222222222222\"}}}}}}},\"schema\":3}",
+        "kind": "record",
+        "refused": true
+      },
+      {
+        "id": "missing-authorization",
+        "input": "{\"entry\":{\"kind\":\"confirmation\",\"value\":{\"operation\":{\"assessment\":{\"capabilities\":[\"deploy\"],\"conditions\":{\"authorization\":{\"evidence\":{\"authority\":\"wharf\",\"digest\":\"cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc\"},\"state\":\"granted\"},\"observed\":{\"state\":\"absent\"},\"writer\":\"idle\"},\"request\":\"21191c207fdf0f86acdf34afeca04185e9327e8bac46acfb2516aa018915653c\"},\"outcome\":{\"material\":{\"artifact\":{\"build\":null,\"digest\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"source\":{\"commit\":\"1111111111111111111111111111111111111111\",\"repository\":\"PerishLab/crest\",\"tree\":\"2222222222222222222222222222222222222222\"}},\"state\":\"present\"},\"outcome\":\"applied\",\"writer\":\"idle\"},\"request\":{\"context\":{\"adaptor\":\"static\",\"request\":\"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\",\"requested\":{\"app\":\"crest\",\"lane\":\"design\",\"repository\":\"PerishLab/crest\"},\"revision\":2},\"expected\":{\"state\":\"absent\"},\"intent\":{\"action\":\"deploy\",\"artifact\":{\"build\":null,\"digest\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"source\":{\"commit\":\"1111111111111111111111111111111111111111\",\"repository\":\"PerishLab/crest\",\"tree\":\"2222222222222222222222222222222222222222\"}}}}},\"original\":{\"authority\":\"wharf\",\"digest\":\"74a9ca8335473f0f664d0a59200613a5f7e29e17ba24b5310b42c6def4fd8034\"}}},\"schema\":3}",
+        "kind": "record",
+        "refused": true
+      },
+      {
+        "id": "missing-operation",
+        "input": "{\"entry\":{\"kind\":\"confirmation\",\"value\":{\"authorization\":{\"authority\":\"wharf\",\"digest\":\"dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd\"},\"original\":{\"authority\":\"wharf\",\"digest\":\"74a9ca8335473f0f664d0a59200613a5f7e29e17ba24b5310b42c6def4fd8034\"}}},\"schema\":3}",
+        "kind": "record",
+        "refused": true
+      },
+      {
+        "id": "schema3-operation",
+        "input": "{\"entry\":{\"kind\":\"operation\",\"value\":{\"assessment\":{\"capabilities\":[\"deploy\"],\"conditions\":{\"authorization\":{\"evidence\":{\"authority\":\"wharf\",\"digest\":\"cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc\"},\"state\":\"granted\"},\"observed\":{\"state\":\"absent\"},\"writer\":\"idle\"},\"request\":\"21191c207fdf0f86acdf34afeca04185e9327e8bac46acfb2516aa018915653c\"},\"outcome\":{\"outcome\":\"unknown\",\"reason\":\"unverified\"},\"request\":{\"context\":{\"adaptor\":\"static\",\"request\":\"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\",\"requested\":{\"app\":\"crest\",\"lane\":\"design\",\"repository\":\"PerishLab/crest\"},\"revision\":2},\"expected\":{\"state\":\"absent\"},\"intent\":{\"action\":\"deploy\",\"artifact\":{\"build\":null,\"digest\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"source\":{\"commit\":\"1111111111111111111111111111111111111111\",\"repository\":\"PerishLab/crest\",\"tree\":\"2222222222222222222222222222222222222222\"}}}}}},\"schema\":3}",
+        "kind": "record",
+        "refused": true
+      },
+      {
+        "id": "duplicate",
+        "input": "{\"schema\":3,\"schema\":3,\"entry\":{\"kind\":\"confirmation\",\"value\":{\"original\":{\"authority\":\"wharf\",\"digest\":\"74a9ca8335473f0f664d0a59200613a5f7e29e17ba24b5310b42c6def4fd8034\"},\"authorization\":{\"authority\":\"wharf\",\"digest\":\"dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd\"},\"operation\":{\"request\":{\"context\":{\"requested\":{\"repository\":\"PerishLab/crest\",\"app\":\"crest\",\"lane\":\"design\"},\"request\":\"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\",\"revision\":2,\"adaptor\":\"static\"},\"intent\":{\"action\":\"deploy\",\"artifact\":{\"digest\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"source\":{\"repository\":\"PerishLab/crest\",\"commit\":\"1111111111111111111111111111111111111111\",\"tree\":\"2222222222222222222222222222222222222222\"},\"build\":null}},\"expected\":{\"state\":\"absent\"}},\"assessment\":{\"request\":\"21191c207fdf0f86acdf34afeca04185e9327e8bac46acfb2516aa018915653c\",\"capabilities\":[\"deploy\"],\"conditions\":{\"authorization\":{\"state\":\"granted\",\"evidence\":{\"authority\":\"wharf\",\"digest\":\"cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc\"}},\"writer\":\"idle\",\"observed\":{\"state\":\"absent\"}}},\"outcome\":{\"outcome\":\"applied\",\"material\":{\"state\":\"present\",\"artifact\":{\"digest\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"source\":{\"repository\":\"PerishLab/crest\",\"commit\":\"1111111111111111111111111111111111111111\",\"tree\":\"2222222222222222222222222222222222222222\"},\"build\":null}},\"writer\":\"idle\"}}}}}",
+        "kind": "record",
+        "refused": true
+      }
+    ],
+    "links": [
+      {
+        "current": {
+          "content": "{\"schema\":3,\"entry\":{\"kind\":\"confirmation\",\"value\":{\"original\":{\"authority\":\"wharf\",\"digest\":\"74a9ca8335473f0f664d0a59200613a5f7e29e17ba24b5310b42c6def4fd8034\"},\"authorization\":{\"authority\":\"wharf\",\"digest\":\"dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd\"},\"operation\":{\"request\":{\"context\":{\"requested\":{\"repository\":\"PerishLab/crest\",\"app\":\"crest\",\"lane\":\"design\"},\"request\":\"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\",\"revision\":2,\"adaptor\":\"static\"},\"intent\":{\"action\":\"deploy\",\"artifact\":{\"digest\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"source\":{\"repository\":\"PerishLab/crest\",\"commit\":\"1111111111111111111111111111111111111111\",\"tree\":\"2222222222222222222222222222222222222222\"},\"build\":null}},\"expected\":{\"state\":\"absent\"}},\"assessment\":{\"request\":\"21191c207fdf0f86acdf34afeca04185e9327e8bac46acfb2516aa018915653c\",\"capabilities\":[\"deploy\"],\"conditions\":{\"authorization\":{\"state\":\"granted\",\"evidence\":{\"authority\":\"wharf\",\"digest\":\"cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc\"}},\"writer\":\"idle\",\"observed\":{\"state\":\"absent\"}}},\"outcome\":{\"outcome\":\"applied\",\"material\":{\"state\":\"present\",\"artifact\":{\"digest\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"source\":{\"repository\":\"PerishLab/crest\",\"commit\":\"1111111111111111111111111111111111111111\",\"tree\":\"2222222222222222222222222222222222222222\"},\"build\":null}},\"writer\":\"idle\"}}}}}",
+          "reference": {
+            "authority": "wharf",
+            "digest": "d3dbdf2186325bbf291765669fe645a45eb20f5e48eb0a1fdae93a0b4670f51c"
+          }
+        },
+        "encoded": "{\"original\":{\"authority\":\"wharf\",\"digest\":\"74a9ca8335473f0f664d0a59200613a5f7e29e17ba24b5310b42c6def4fd8034\"},\"authorization\":{\"authority\":\"wharf\",\"digest\":\"dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd\"},\"operation\":{\"request\":{\"context\":{\"requested\":{\"repository\":\"PerishLab/crest\",\"app\":\"crest\",\"lane\":\"design\"},\"request\":\"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\",\"revision\":2,\"adaptor\":\"static\"},\"intent\":{\"action\":\"deploy\",\"artifact\":{\"digest\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"source\":{\"repository\":\"PerishLab/crest\",\"commit\":\"1111111111111111111111111111111111111111\",\"tree\":\"2222222222222222222222222222222222222222\"},\"build\":null}},\"expected\":{\"state\":\"absent\"}},\"assessment\":{\"request\":\"21191c207fdf0f86acdf34afeca04185e9327e8bac46acfb2516aa018915653c\",\"capabilities\":[\"deploy\"],\"conditions\":{\"authorization\":{\"state\":\"granted\",\"evidence\":{\"authority\":\"wharf\",\"digest\":\"cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc\"}},\"writer\":\"idle\",\"observed\":{\"state\":\"absent\"}}},\"outcome\":{\"outcome\":\"applied\",\"material\":{\"state\":\"present\",\"artifact\":{\"digest\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"source\":{\"repository\":\"PerishLab/crest\",\"commit\":\"1111111111111111111111111111111111111111\",\"tree\":\"2222222222222222222222222222222222222222\"},\"build\":null}},\"writer\":\"idle\"}}}",
+        "id": "exact",
+        "original": {
+          "content": "{\"schema\":2,\"entry\":{\"kind\":\"operation\",\"value\":{\"request\":{\"context\":{\"requested\":{\"repository\":\"PerishLab/crest\",\"app\":\"crest\",\"lane\":\"design\"},\"request\":\"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\",\"revision\":2,\"adaptor\":\"static\"},\"intent\":{\"action\":\"deploy\",\"artifact\":{\"digest\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"source\":{\"repository\":\"PerishLab/crest\",\"commit\":\"1111111111111111111111111111111111111111\",\"tree\":\"2222222222222222222222222222222222222222\"},\"build\":null}},\"expected\":{\"state\":\"absent\"}},\"assessment\":{\"request\":\"21191c207fdf0f86acdf34afeca04185e9327e8bac46acfb2516aa018915653c\",\"capabilities\":[\"deploy\"],\"conditions\":{\"authorization\":{\"state\":\"granted\",\"evidence\":{\"authority\":\"wharf\",\"digest\":\"cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc\"}},\"writer\":\"idle\",\"observed\":{\"state\":\"absent\"}}},\"outcome\":{\"outcome\":\"unknown\",\"reason\":\"unverified\"}}}}",
+          "reference": {
+            "authority": "wharf",
+            "digest": "74a9ca8335473f0f664d0a59200613a5f7e29e17ba24b5310b42c6def4fd8034"
+          }
+        },
+        "refused": false,
+        "request": {
+          "context": {
+            "adaptor": "static",
+            "request": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+            "requested": {
+              "app": "crest",
+              "lane": "design",
+              "repository": "PerishLab/crest"
+            },
+            "revision": 2
+          },
+          "expected": {
+            "state": "absent"
+          },
+          "intent": {
+            "action": "deploy",
+            "artifact": {
+              "build": null,
+              "digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+              "source": {
+                "commit": "1111111111111111111111111111111111111111",
+                "repository": "PerishLab/crest",
+                "tree": "2222222222222222222222222222222222222222"
+              }
+            }
+          }
+        }
+      },
+      {
+        "current": {
+          "content": "{\"schema\":3,\"entry\":{\"kind\":\"confirmation\",\"value\":{\"original\":{\"authority\":\"wharf\",\"digest\":\"8afe15ea2e4f7a867facbcefbefb8ddd69e2417d41c801fabdd9656e85fc3df2\"},\"authorization\":{\"authority\":\"wharf\",\"digest\":\"dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd\"},\"operation\":{\"request\":{\"context\":{\"requested\":{\"repository\":\"PerishLab/crest\",\"app\":\"crest\",\"lane\":\"design\"},\"request\":\"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\",\"revision\":2,\"adaptor\":\"static\"},\"intent\":{\"action\":\"deploy\",\"artifact\":{\"digest\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"source\":{\"repository\":\"PerishLab/crest\",\"commit\":\"1111111111111111111111111111111111111111\",\"tree\":\"2222222222222222222222222222222222222222\"},\"build\":null}},\"expected\":{\"state\":\"absent\"}},\"assessment\":{\"request\":\"21191c207fdf0f86acdf34afeca04185e9327e8bac46acfb2516aa018915653c\",\"capabilities\":[\"deploy\"],\"conditions\":{\"authorization\":{\"state\":\"granted\",\"evidence\":{\"authority\":\"wharf\",\"digest\":\"cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc\"}},\"writer\":\"idle\",\"observed\":{\"state\":\"absent\"}}},\"outcome\":{\"outcome\":\"applied\",\"material\":{\"state\":\"present\",\"artifact\":{\"digest\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"source\":{\"repository\":\"PerishLab/crest\",\"commit\":\"1111111111111111111111111111111111111111\",\"tree\":\"2222222222222222222222222222222222222222\"},\"build\":null}},\"writer\":\"idle\"}}}}}",
+          "reference": {
+            "authority": "wharf",
+            "digest": "02991ba93c53b24d09fb54ea00cd0deb63b607fc1395b4e40cb9530e4978ae4f"
+          }
+        },
+        "id": "applied",
+        "original": {
+          "content": "{\"schema\":2,\"entry\":{\"kind\":\"operation\",\"value\":{\"request\":{\"context\":{\"requested\":{\"repository\":\"PerishLab/crest\",\"app\":\"crest\",\"lane\":\"design\"},\"request\":\"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\",\"revision\":2,\"adaptor\":\"static\"},\"intent\":{\"action\":\"deploy\",\"artifact\":{\"digest\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"source\":{\"repository\":\"PerishLab/crest\",\"commit\":\"1111111111111111111111111111111111111111\",\"tree\":\"2222222222222222222222222222222222222222\"},\"build\":null}},\"expected\":{\"state\":\"absent\"}},\"assessment\":{\"request\":\"21191c207fdf0f86acdf34afeca04185e9327e8bac46acfb2516aa018915653c\",\"capabilities\":[\"deploy\"],\"conditions\":{\"authorization\":{\"state\":\"granted\",\"evidence\":{\"authority\":\"wharf\",\"digest\":\"cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc\"}},\"writer\":\"idle\",\"observed\":{\"state\":\"absent\"}}},\"outcome\":{\"outcome\":\"applied\",\"material\":{\"state\":\"present\",\"artifact\":{\"digest\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"source\":{\"repository\":\"PerishLab/crest\",\"commit\":\"1111111111111111111111111111111111111111\",\"tree\":\"2222222222222222222222222222222222222222\"},\"build\":null}},\"writer\":\"idle\"}}}}",
+          "reference": {
+            "authority": "wharf",
+            "digest": "8afe15ea2e4f7a867facbcefbefb8ddd69e2417d41c801fabdd9656e85fc3df2"
+          }
+        },
+        "refused": true,
+        "request": {
+          "context": {
+            "adaptor": "static",
+            "request": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+            "requested": {
+              "app": "crest",
+              "lane": "design",
+              "repository": "PerishLab/crest"
+            },
+            "revision": 2
+          },
+          "expected": {
+            "state": "absent"
+          },
+          "intent": {
+            "action": "deploy",
+            "artifact": {
+              "build": null,
+              "digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+              "source": {
+                "commit": "1111111111111111111111111111111111111111",
+                "repository": "PerishLab/crest",
+                "tree": "2222222222222222222222222222222222222222"
+              }
+            }
+          }
+        }
+      },
+      {
+        "current": {
+          "content": "{\"schema\":3,\"entry\":{\"kind\":\"confirmation\",\"value\":{\"original\":{\"authority\":\"wharf\",\"digest\":\"a4e22e1aec4c844b1551290dc552d04d7f656b9c117bf2b1441d0cd61f733fdf\"},\"authorization\":{\"authority\":\"wharf\",\"digest\":\"dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd\"},\"operation\":{\"request\":{\"context\":{\"requested\":{\"repository\":\"PerishLab/crest\",\"app\":\"crest\",\"lane\":\"design\"},\"request\":\"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\",\"revision\":2,\"adaptor\":\"static\"},\"intent\":{\"action\":\"deploy\",\"artifact\":{\"digest\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"source\":{\"repository\":\"PerishLab/crest\",\"commit\":\"1111111111111111111111111111111111111111\",\"tree\":\"2222222222222222222222222222222222222222\"},\"build\":null}},\"expected\":{\"state\":\"absent\"}},\"assessment\":{\"request\":\"21191c207fdf0f86acdf34afeca04185e9327e8bac46acfb2516aa018915653c\",\"capabilities\":[\"deploy\"],\"conditions\":{\"authorization\":{\"state\":\"granted\",\"evidence\":{\"authority\":\"wharf\",\"digest\":\"cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc\"}},\"writer\":\"idle\",\"observed\":{\"state\":\"absent\"}}},\"outcome\":{\"outcome\":\"applied\",\"material\":{\"state\":\"present\",\"artifact\":{\"digest\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"source\":{\"repository\":\"PerishLab/crest\",\"commit\":\"1111111111111111111111111111111111111111\",\"tree\":\"2222222222222222222222222222222222222222\"},\"build\":null}},\"writer\":\"idle\"}}}}}",
+          "reference": {
+            "authority": "wharf",
+            "digest": "e22ed69dac8d0682b7d8ef8ee6b716721f1617ae1cf6deefd039ba7a64a339a4"
+          }
+        },
+        "id": "refused",
+        "original": {
+          "content": "{\"schema\":2,\"entry\":{\"kind\":\"operation\",\"value\":{\"request\":{\"context\":{\"requested\":{\"repository\":\"PerishLab/crest\",\"app\":\"crest\",\"lane\":\"design\"},\"request\":\"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\",\"revision\":2,\"adaptor\":\"static\"},\"intent\":{\"action\":\"deploy\",\"artifact\":{\"digest\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"source\":{\"repository\":\"PerishLab/crest\",\"commit\":\"1111111111111111111111111111111111111111\",\"tree\":\"2222222222222222222222222222222222222222\"},\"build\":null}},\"expected\":{\"state\":\"absent\"}},\"assessment\":{\"request\":\"21191c207fdf0f86acdf34afeca04185e9327e8bac46acfb2516aa018915653c\",\"capabilities\":[\"deploy\"],\"conditions\":{\"authorization\":{\"state\":\"granted\",\"evidence\":{\"authority\":\"wharf\",\"digest\":\"cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc\"}},\"writer\":\"idle\",\"observed\":{\"state\":\"absent\"}}},\"outcome\":{\"outcome\":\"refused\",\"reason\":\"conflict\"}}}}",
+          "reference": {
+            "authority": "wharf",
+            "digest": "a4e22e1aec4c844b1551290dc552d04d7f656b9c117bf2b1441d0cd61f733fdf"
+          }
+        },
+        "refused": true,
+        "request": {
+          "context": {
+            "adaptor": "static",
+            "request": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+            "requested": {
+              "app": "crest",
+              "lane": "design",
+              "repository": "PerishLab/crest"
+            },
+            "revision": 2
+          },
+          "expected": {
+            "state": "absent"
+          },
+          "intent": {
+            "action": "deploy",
+            "artifact": {
+              "build": null,
+              "digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+              "source": {
+                "commit": "1111111111111111111111111111111111111111",
+                "repository": "PerishLab/crest",
+                "tree": "2222222222222222222222222222222222222222"
+              }
+            }
+          }
+        }
+      },
+      {
+        "current": {
+          "content": "{\"schema\":3,\"entry\":{\"kind\":\"confirmation\",\"value\":{\"original\":{\"authority\":\"wharf\",\"digest\":\"1e5736baf02fb10e85ccb40a0cb68eb8e1651b3c153d2603d688a101a4a2b05f\"},\"authorization\":{\"authority\":\"wharf\",\"digest\":\"dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd\"},\"operation\":{\"request\":{\"context\":{\"requested\":{\"repository\":\"PerishLab/crest\",\"app\":\"crest\",\"lane\":\"design\"},\"request\":\"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\",\"revision\":2,\"adaptor\":\"static\"},\"intent\":{\"action\":\"deploy\",\"artifact\":{\"digest\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"source\":{\"repository\":\"PerishLab/crest\",\"commit\":\"1111111111111111111111111111111111111111\",\"tree\":\"2222222222222222222222222222222222222222\"},\"build\":null}},\"expected\":{\"state\":\"absent\"}},\"assessment\":{\"request\":\"21191c207fdf0f86acdf34afeca04185e9327e8bac46acfb2516aa018915653c\",\"capabilities\":[\"deploy\"],\"conditions\":{\"authorization\":{\"state\":\"granted\",\"evidence\":{\"authority\":\"wharf\",\"digest\":\"cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc\"}},\"writer\":\"idle\",\"observed\":{\"state\":\"absent\"}}},\"outcome\":{\"outcome\":\"applied\",\"material\":{\"state\":\"present\",\"artifact\":{\"digest\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"source\":{\"repository\":\"PerishLab/crest\",\"commit\":\"1111111111111111111111111111111111111111\",\"tree\":\"2222222222222222222222222222222222222222\"},\"build\":null}},\"writer\":\"idle\"}}}}}",
+          "reference": {
+            "authority": "wharf",
+            "digest": "cae849de440ca64542e46fa8462b8a1aff550807ae22b2b1bac4b81bc418a170"
+          }
+        },
+        "encoded": "{\"original\":{\"authority\":\"wharf\",\"digest\":\"1e5736baf02fb10e85ccb40a0cb68eb8e1651b3c153d2603d688a101a4a2b05f\"},\"authorization\":{\"authority\":\"wharf\",\"digest\":\"dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd\"},\"operation\":{\"request\":{\"context\":{\"requested\":{\"repository\":\"PerishLab/crest\",\"app\":\"crest\",\"lane\":\"design\"},\"request\":\"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\",\"revision\":2,\"adaptor\":\"static\"},\"intent\":{\"action\":\"deploy\",\"artifact\":{\"digest\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"source\":{\"repository\":\"PerishLab/crest\",\"commit\":\"1111111111111111111111111111111111111111\",\"tree\":\"2222222222222222222222222222222222222222\"},\"build\":null}},\"expected\":{\"state\":\"absent\"}},\"assessment\":{\"request\":\"21191c207fdf0f86acdf34afeca04185e9327e8bac46acfb2516aa018915653c\",\"capabilities\":[\"deploy\"],\"conditions\":{\"authorization\":{\"state\":\"granted\",\"evidence\":{\"authority\":\"wharf\",\"digest\":\"cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc\"}},\"writer\":\"idle\",\"observed\":{\"state\":\"absent\"}}},\"outcome\":{\"outcome\":\"applied\",\"material\":{\"state\":\"present\",\"artifact\":{\"digest\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"source\":{\"repository\":\"PerishLab/crest\",\"commit\":\"1111111111111111111111111111111111111111\",\"tree\":\"2222222222222222222222222222222222222222\"},\"build\":null}},\"writer\":\"idle\"}}}",
+        "id": "unavailable",
+        "original": {
+          "content": "{\"schema\":2,\"entry\":{\"kind\":\"operation\",\"value\":{\"request\":{\"context\":{\"requested\":{\"repository\":\"PerishLab/crest\",\"app\":\"crest\",\"lane\":\"design\"},\"request\":\"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\",\"revision\":2,\"adaptor\":\"static\"},\"intent\":{\"action\":\"deploy\",\"artifact\":{\"digest\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"source\":{\"repository\":\"PerishLab/crest\",\"commit\":\"1111111111111111111111111111111111111111\",\"tree\":\"2222222222222222222222222222222222222222\"},\"build\":null}},\"expected\":{\"state\":\"absent\"}},\"assessment\":{\"request\":\"21191c207fdf0f86acdf34afeca04185e9327e8bac46acfb2516aa018915653c\",\"capabilities\":[\"deploy\"],\"conditions\":{\"authorization\":{\"state\":\"granted\",\"evidence\":{\"authority\":\"wharf\",\"digest\":\"cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc\"}},\"writer\":\"idle\",\"observed\":{\"state\":\"absent\"}}},\"outcome\":{\"outcome\":\"unknown\",\"reason\":\"unavailable\"}}}}",
+          "reference": {
+            "authority": "wharf",
+            "digest": "1e5736baf02fb10e85ccb40a0cb68eb8e1651b3c153d2603d688a101a4a2b05f"
+          }
+        },
+        "refused": false,
+        "request": {
+          "context": {
+            "adaptor": "static",
+            "request": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+            "requested": {
+              "app": "crest",
+              "lane": "design",
+              "repository": "PerishLab/crest"
+            },
+            "revision": 2
+          },
+          "expected": {
+            "state": "absent"
+          },
+          "intent": {
+            "action": "deploy",
+            "artifact": {
+              "build": null,
+              "digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+              "source": {
+                "commit": "1111111111111111111111111111111111111111",
+                "repository": "PerishLab/crest",
+                "tree": "2222222222222222222222222222222222222222"
+              }
+            }
+          }
+        }
+      },
+      {
+        "current": {
+          "content": "{\"schema\":3,\"entry\":{\"kind\":\"confirmation\",\"value\":{\"original\":{\"authority\":\"wharf\",\"digest\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\"},\"authorization\":{\"authority\":\"wharf\",\"digest\":\"dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd\"},\"operation\":{\"request\":{\"context\":{\"requested\":{\"repository\":\"PerishLab/crest\",\"app\":\"crest\",\"lane\":\"design\"},\"request\":\"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\",\"revision\":2,\"adaptor\":\"static\"},\"intent\":{\"action\":\"deploy\",\"artifact\":{\"digest\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"source\":{\"repository\":\"PerishLab/crest\",\"commit\":\"1111111111111111111111111111111111111111\",\"tree\":\"2222222222222222222222222222222222222222\"},\"build\":null}},\"expected\":{\"state\":\"absent\"}},\"assessment\":{\"request\":\"21191c207fdf0f86acdf34afeca04185e9327e8bac46acfb2516aa018915653c\",\"capabilities\":[\"deploy\"],\"conditions\":{\"authorization\":{\"state\":\"granted\",\"evidence\":{\"authority\":\"wharf\",\"digest\":\"cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc\"}},\"writer\":\"idle\",\"observed\":{\"state\":\"absent\"}}},\"outcome\":{\"outcome\":\"applied\",\"material\":{\"state\":\"present\",\"artifact\":{\"digest\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"source\":{\"repository\":\"PerishLab/crest\",\"commit\":\"1111111111111111111111111111111111111111\",\"tree\":\"2222222222222222222222222222222222222222\"},\"build\":null}},\"writer\":\"idle\"}}}}}",
+          "reference": {
+            "authority": "wharf",
+            "digest": "ffc45e51b71e2bbf51506724434d7ff3a8235e26a6d2542b893a006a48611239"
+          }
+        },
+        "id": "wrong-reference",
+        "original": {
+          "content": "{\"schema\":2,\"entry\":{\"kind\":\"operation\",\"value\":{\"request\":{\"context\":{\"requested\":{\"repository\":\"PerishLab/crest\",\"app\":\"crest\",\"lane\":\"design\"},\"request\":\"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\",\"revision\":2,\"adaptor\":\"static\"},\"intent\":{\"action\":\"deploy\",\"artifact\":{\"digest\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"source\":{\"repository\":\"PerishLab/crest\",\"commit\":\"1111111111111111111111111111111111111111\",\"tree\":\"2222222222222222222222222222222222222222\"},\"build\":null}},\"expected\":{\"state\":\"absent\"}},\"assessment\":{\"request\":\"21191c207fdf0f86acdf34afeca04185e9327e8bac46acfb2516aa018915653c\",\"capabilities\":[\"deploy\"],\"conditions\":{\"authorization\":{\"state\":\"granted\",\"evidence\":{\"authority\":\"wharf\",\"digest\":\"cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc\"}},\"writer\":\"idle\",\"observed\":{\"state\":\"absent\"}}},\"outcome\":{\"outcome\":\"unknown\",\"reason\":\"unverified\"}}}}",
+          "reference": {
+            "authority": "wharf",
+            "digest": "74a9ca8335473f0f664d0a59200613a5f7e29e17ba24b5310b42c6def4fd8034"
+          }
+        },
+        "refused": true,
+        "request": {
+          "context": {
+            "adaptor": "static",
+            "request": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+            "requested": {
+              "app": "crest",
+              "lane": "design",
+              "repository": "PerishLab/crest"
+            },
+            "revision": 2
+          },
+          "expected": {
+            "state": "absent"
+          },
+          "intent": {
+            "action": "deploy",
+            "artifact": {
+              "build": null,
+              "digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+              "source": {
+                "commit": "1111111111111111111111111111111111111111",
+                "repository": "PerishLab/crest",
+                "tree": "2222222222222222222222222222222222222222"
+              }
+            }
+          }
+        }
+      },
+      {
+        "current": {
+          "content": "{\"schema\":3,\"entry\":{\"kind\":\"confirmation\",\"value\":{\"original\":{\"authority\":\"wharf\",\"digest\":\"74a9ca8335473f0f664d0a59200613a5f7e29e17ba24b5310b42c6def4fd8034\"},\"authorization\":{\"authority\":\"wharf\",\"digest\":\"dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd\"},\"operation\":{\"request\":{\"context\":{\"requested\":{\"repository\":\"PerishLab/crest\",\"app\":\"crest\",\"lane\":\"design\"},\"request\":\"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\",\"revision\":2,\"adaptor\":\"static\"},\"intent\":{\"action\":\"deploy\",\"artifact\":{\"digest\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"source\":{\"repository\":\"PerishLab/crest\",\"commit\":\"1111111111111111111111111111111111111111\",\"tree\":\"2222222222222222222222222222222222222222\"},\"build\":null}},\"expected\":{\"state\":\"absent\"}},\"assessment\":{\"request\":\"21191c207fdf0f86acdf34afeca04185e9327e8bac46acfb2516aa018915653c\",\"capabilities\":[\"deploy\"],\"conditions\":{\"authorization\":{\"state\":\"granted\",\"evidence\":{\"authority\":\"wharf\",\"digest\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\"}},\"writer\":\"idle\",\"observed\":{\"state\":\"absent\"}}},\"outcome\":{\"outcome\":\"applied\",\"material\":{\"state\":\"present\",\"artifact\":{\"digest\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"source\":{\"repository\":\"PerishLab/crest\",\"commit\":\"1111111111111111111111111111111111111111\",\"tree\":\"2222222222222222222222222222222222222222\"},\"build\":null}},\"writer\":\"idle\"}}}}}",
+          "reference": {
+            "authority": "wharf",
+            "digest": "6cd87b9044a103ce5961f1d423f5925dc0e3d6d9cee988835b434147bebfbafd"
+          }
+        },
+        "id": "changed-assessment",
+        "original": {
+          "content": "{\"schema\":2,\"entry\":{\"kind\":\"operation\",\"value\":{\"request\":{\"context\":{\"requested\":{\"repository\":\"PerishLab/crest\",\"app\":\"crest\",\"lane\":\"design\"},\"request\":\"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\",\"revision\":2,\"adaptor\":\"static\"},\"intent\":{\"action\":\"deploy\",\"artifact\":{\"digest\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"source\":{\"repository\":\"PerishLab/crest\",\"commit\":\"1111111111111111111111111111111111111111\",\"tree\":\"2222222222222222222222222222222222222222\"},\"build\":null}},\"expected\":{\"state\":\"absent\"}},\"assessment\":{\"request\":\"21191c207fdf0f86acdf34afeca04185e9327e8bac46acfb2516aa018915653c\",\"capabilities\":[\"deploy\"],\"conditions\":{\"authorization\":{\"state\":\"granted\",\"evidence\":{\"authority\":\"wharf\",\"digest\":\"cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc\"}},\"writer\":\"idle\",\"observed\":{\"state\":\"absent\"}}},\"outcome\":{\"outcome\":\"unknown\",\"reason\":\"unverified\"}}}}",
+          "reference": {
+            "authority": "wharf",
+            "digest": "74a9ca8335473f0f664d0a59200613a5f7e29e17ba24b5310b42c6def4fd8034"
+          }
+        },
+        "refused": true,
+        "request": {
+          "context": {
+            "adaptor": "static",
+            "request": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+            "requested": {
+              "app": "crest",
+              "lane": "design",
+              "repository": "PerishLab/crest"
+            },
+            "revision": 2
+          },
+          "expected": {
+            "state": "absent"
+          },
+          "intent": {
+            "action": "deploy",
+            "artifact": {
+              "build": null,
+              "digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+              "source": {
+                "commit": "1111111111111111111111111111111111111111",
+                "repository": "PerishLab/crest",
+                "tree": "2222222222222222222222222222222222222222"
+              }
+            }
+          }
+        }
+      },
+      {
+        "current": {
+          "content": "{\"schema\":3,\"entry\":{\"kind\":\"confirmation\",\"value\":{\"original\":{\"authority\":\"wharf\",\"digest\":\"74a9ca8335473f0f664d0a59200613a5f7e29e17ba24b5310b42c6def4fd8034\"},\"authorization\":{\"authority\":\"wharf\",\"digest\":\"dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd\"},\"operation\":{\"request\":{\"context\":{\"requested\":{\"repository\":\"PerishLab/crest\",\"app\":\"crest\",\"lane\":\"design\"},\"request\":\"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\",\"revision\":2,\"adaptor\":\"static\"},\"intent\":{\"action\":\"deploy\",\"artifact\":{\"digest\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"source\":{\"repository\":\"PerishLab/crest\",\"commit\":\"1111111111111111111111111111111111111111\",\"tree\":\"2222222222222222222222222222222222222222\"},\"build\":null}},\"expected\":{\"state\":\"absent\"}},\"assessment\":{\"request\":\"21191c207fdf0f86acdf34afeca04185e9327e8bac46acfb2516aa018915653c\",\"capabilities\":[\"deploy\"],\"conditions\":{\"authorization\":{\"state\":\"granted\",\"evidence\":{\"authority\":\"wharf\",\"digest\":\"cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc\"}},\"writer\":\"idle\",\"observed\":{\"state\":\"absent\"}}},\"outcome\":{\"outcome\":\"applied\",\"material\":{\"state\":\"present\",\"artifact\":{\"digest\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"source\":{\"repository\":\"PerishLab/crest\",\"commit\":\"1111111111111111111111111111111111111111\",\"tree\":\"2222222222222222222222222222222222222222\"},\"build\":null}},\"writer\":\"idle\"}}}}}",
+          "reference": {
+            "authority": "wharf",
+            "digest": "d3dbdf2186325bbf291765669fe645a45eb20f5e48eb0a1fdae93a0b4670f51c"
+          }
+        },
+        "id": "wrong-request",
+        "original": {
+          "content": "{\"schema\":2,\"entry\":{\"kind\":\"operation\",\"value\":{\"request\":{\"context\":{\"requested\":{\"repository\":\"PerishLab/crest\",\"app\":\"crest\",\"lane\":\"design\"},\"request\":\"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\",\"revision\":2,\"adaptor\":\"static\"},\"intent\":{\"action\":\"deploy\",\"artifact\":{\"digest\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"source\":{\"repository\":\"PerishLab/crest\",\"commit\":\"1111111111111111111111111111111111111111\",\"tree\":\"2222222222222222222222222222222222222222\"},\"build\":null}},\"expected\":{\"state\":\"absent\"}},\"assessment\":{\"request\":\"21191c207fdf0f86acdf34afeca04185e9327e8bac46acfb2516aa018915653c\",\"capabilities\":[\"deploy\"],\"conditions\":{\"authorization\":{\"state\":\"granted\",\"evidence\":{\"authority\":\"wharf\",\"digest\":\"cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc\"}},\"writer\":\"idle\",\"observed\":{\"state\":\"absent\"}}},\"outcome\":{\"outcome\":\"unknown\",\"reason\":\"unverified\"}}}}",
+          "reference": {
+            "authority": "wharf",
+            "digest": "74a9ca8335473f0f664d0a59200613a5f7e29e17ba24b5310b42c6def4fd8034"
+          }
+        },
+        "refused": true,
+        "request": {
+          "context": {
+            "adaptor": "static",
+            "request": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+            "requested": {
+              "app": "crest",
+              "lane": "design",
+              "repository": "PerishLab/crest"
+            },
+            "revision": 3
+          },
+          "expected": {
+            "state": "absent"
+          },
+          "intent": {
+            "action": "deploy",
+            "artifact": {
+              "build": null,
+              "digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+              "source": {
+                "commit": "1111111111111111111111111111111111111111",
+                "repository": "PerishLab/crest",
+                "tree": "2222222222222222222222222222222222222222"
+              }
+            }
+          }
+        }
+      },
+      {
+        "current": {
+          "content": "{\"schema\":3,\"entry\":{\"kind\":\"confirmation\",\"value\":{\"original\":{\"authority\":\"wharf\",\"digest\":\"74a9ca8335473f0f664d0a59200613a5f7e29e17ba24b5310b42c6def4fd8034\"},\"authorization\":{\"authority\":\"wharf\",\"digest\":\"dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd\"},\"operation\":{\"request\":{\"context\":{\"requested\":{\"repository\":\"PerishLab/crest\",\"app\":\"crest\",\"lane\":\"design\"},\"request\":\"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\",\"revision\":2,\"adaptor\":\"static\"},\"intent\":{\"action\":\"deploy\",\"artifact\":{\"digest\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"source\":{\"repository\":\"PerishLab/crest\",\"commit\":\"1111111111111111111111111111111111111111\",\"tree\":\"2222222222222222222222222222222222222222\"},\"build\":null}},\"expected\":{\"state\":\"absent\"}},\"assessment\":{\"request\":\"21191c207fdf0f86acdf34afeca04185e9327e8bac46acfb2516aa018915653c\",\"capabilities\":[\"deploy\"],\"conditions\":{\"authorization\":{\"state\":\"granted\",\"evidence\":{\"authority\":\"wharf\",\"digest\":\"cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc\"}},\"writer\":\"idle\",\"observed\":{\"state\":\"absent\"}}},\"outcome\":{\"outcome\":\"applied\",\"material\":{\"state\":\"present\",\"artifact\":{\"digest\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"source\":{\"repository\":\"PerishLab/crest\",\"commit\":\"1111111111111111111111111111111111111111\",\"tree\":\"2222222222222222222222222222222222222222\"},\"build\":null}},\"writer\":\"idle\"}}}}}",
+          "reference": {
+            "authority": "other",
+            "digest": "d3dbdf2186325bbf291765669fe645a45eb20f5e48eb0a1fdae93a0b4670f51c"
+          }
+        },
+        "id": "foreign-publication",
+        "original": {
+          "content": "{\"schema\":2,\"entry\":{\"kind\":\"operation\",\"value\":{\"request\":{\"context\":{\"requested\":{\"repository\":\"PerishLab/crest\",\"app\":\"crest\",\"lane\":\"design\"},\"request\":\"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\",\"revision\":2,\"adaptor\":\"static\"},\"intent\":{\"action\":\"deploy\",\"artifact\":{\"digest\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"source\":{\"repository\":\"PerishLab/crest\",\"commit\":\"1111111111111111111111111111111111111111\",\"tree\":\"2222222222222222222222222222222222222222\"},\"build\":null}},\"expected\":{\"state\":\"absent\"}},\"assessment\":{\"request\":\"21191c207fdf0f86acdf34afeca04185e9327e8bac46acfb2516aa018915653c\",\"capabilities\":[\"deploy\"],\"conditions\":{\"authorization\":{\"state\":\"granted\",\"evidence\":{\"authority\":\"wharf\",\"digest\":\"cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc\"}},\"writer\":\"idle\",\"observed\":{\"state\":\"absent\"}}},\"outcome\":{\"outcome\":\"unknown\",\"reason\":\"unverified\"}}}}",
+          "reference": {
+            "authority": "wharf",
+            "digest": "74a9ca8335473f0f664d0a59200613a5f7e29e17ba24b5310b42c6def4fd8034"
+          }
+        },
+        "refused": true,
+        "request": {
+          "context": {
+            "adaptor": "static",
+            "request": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+            "requested": {
+              "app": "crest",
+              "lane": "design",
+              "repository": "PerishLab/crest"
+            },
+            "revision": 2
+          },
+          "expected": {
+            "state": "absent"
+          },
+          "intent": {
+            "action": "deploy",
+            "artifact": {
+              "build": null,
+              "digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+              "source": {
+                "commit": "1111111111111111111111111111111111111111",
+                "repository": "PerishLab/crest",
+                "tree": "2222222222222222222222222222222222222222"
+              }
+            }
+          }
+        }
+      },
+      {
+        "current": {
+          "content": "{\"entry\":{\"kind\":\"confirmation\",\"value\":{\"authorization\":{\"authority\":\"wharf\",\"digest\":\"dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd\"},\"operation\":{\"assessment\":{\"capabilities\":[\"deploy\"],\"conditions\":{\"authorization\":{\"evidence\":{\"authority\":\"wharf\",\"digest\":\"cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc\"},\"state\":\"granted\"},\"observed\":{\"state\":\"absent\"},\"writer\":\"idle\"},\"request\":\"21191c207fdf0f86acdf34afeca04185e9327e8bac46acfb2516aa018915653c\"},\"outcome\":{\"material\":{\"artifact\":{\"build\":null,\"digest\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"source\":{\"commit\":\"1111111111111111111111111111111111111111\",\"repository\":\"PerishLab/crest\",\"tree\":\"2222222222222222222222222222222222222222\"}},\"state\":\"present\"},\"outcome\":\"applied\",\"writer\":\"idle\"},\"request\":{\"context\":{\"adaptor\":\"static\",\"request\":\"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\",\"requested\":{\"app\":\"crest\",\"lane\":\"design\",\"repository\":\"PerishLab/crest\"},\"revision\":2},\"expected\":{\"state\":\"absent\"},\"intent\":{\"action\":\"deploy\",\"artifact\":{\"build\":null,\"digest\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"source\":{\"commit\":\"1111111111111111111111111111111111111111\",\"repository\":\"PerishLab/crest\",\"tree\":\"2222222222222222222222222222222222222222\"}}}}},\"original\":{\"authority\":\"wharf\",\"digest\":\"74a9ca8335473f0f664d0a59200613a5f7e29e17ba24b5310b42c6def4fd8034\"}}},\"schema\":3}",
+          "reference": {
+            "authority": "wharf",
+            "digest": "e086caeed65dae22994b8492bfd67f1f07f1adbe424468a1774273300f956afa"
+          }
+        },
+        "id": "noncanonical-current",
+        "original": {
+          "content": "{\"schema\":2,\"entry\":{\"kind\":\"operation\",\"value\":{\"request\":{\"context\":{\"requested\":{\"repository\":\"PerishLab/crest\",\"app\":\"crest\",\"lane\":\"design\"},\"request\":\"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\",\"revision\":2,\"adaptor\":\"static\"},\"intent\":{\"action\":\"deploy\",\"artifact\":{\"digest\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"source\":{\"repository\":\"PerishLab/crest\",\"commit\":\"1111111111111111111111111111111111111111\",\"tree\":\"2222222222222222222222222222222222222222\"},\"build\":null}},\"expected\":{\"state\":\"absent\"}},\"assessment\":{\"request\":\"21191c207fdf0f86acdf34afeca04185e9327e8bac46acfb2516aa018915653c\",\"capabilities\":[\"deploy\"],\"conditions\":{\"authorization\":{\"state\":\"granted\",\"evidence\":{\"authority\":\"wharf\",\"digest\":\"cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc\"}},\"writer\":\"idle\",\"observed\":{\"state\":\"absent\"}}},\"outcome\":{\"outcome\":\"unknown\",\"reason\":\"unverified\"}}}}",
+          "reference": {
+            "authority": "wharf",
+            "digest": "74a9ca8335473f0f664d0a59200613a5f7e29e17ba24b5310b42c6def4fd8034"
+          }
+        },
+        "refused": true,
+        "request": {
+          "context": {
+            "adaptor": "static",
+            "request": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+            "requested": {
+              "app": "crest",
+              "lane": "design",
+              "repository": "PerishLab/crest"
+            },
+            "revision": 2
+          },
+          "expected": {
+            "state": "absent"
+          },
+          "intent": {
+            "action": "deploy",
+            "artifact": {
+              "build": null,
+              "digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+              "source": {
+                "commit": "1111111111111111111111111111111111111111",
+                "repository": "PerishLab/crest",
+                "tree": "2222222222222222222222222222222222222222"
+              }
+            }
+          }
+        }
+      },
+      {
+        "current": {
+          "content": "{\"schema\":3,\"entry\":{\"kind\":\"confirmation\",\"value\":{\"original\":{\"authority\":\"wharf\",\"digest\":\"74a9ca8335473f0f664d0a59200613a5f7e29e17ba24b5310b42c6def4fd8034\"},\"authorization\":{\"authority\":\"wharf\",\"digest\":\"dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd\"},\"operation\":{\"request\":{\"context\":{\"requested\":{\"repository\":\"PerishLab/crest\",\"app\":\"crest\",\"lane\":\"design\"},\"request\":\"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\",\"revision\":2,\"adaptor\":\"static\"},\"intent\":{\"action\":\"deploy\",\"artifact\":{\"digest\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"source\":{\"repository\":\"PerishLab/crest\",\"commit\":\"1111111111111111111111111111111111111111\",\"tree\":\"2222222222222222222222222222222222222222\"},\"build\":null}},\"expected\":{\"state\":\"absent\"}},\"assessment\":{\"request\":\"21191c207fdf0f86acdf34afeca04185e9327e8bac46acfb2516aa018915653c\",\"capabilities\":[\"deploy\"],\"conditions\":{\"authorization\":{\"state\":\"granted\",\"evidence\":{\"authority\":\"wharf\",\"digest\":\"cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc\"}},\"writer\":\"idle\",\"observed\":{\"state\":\"absent\"}}},\"outcome\":{\"outcome\":\"applied\",\"material\":{\"state\":\"present\",\"artifact\":{\"digest\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"source\":{\"repository\":\"PerishLab/crest\",\"commit\":\"1111111111111111111111111111111111111111\",\"tree\":\"2222222222222222222222222222222222222222\"},\"build\":null}},\"writer\":\"idle\"}}}}}",
+          "reference": {
+            "authority": "wharf",
+            "digest": "d3dbdf2186325bbf291765669fe645a45eb20f5e48eb0a1fdae93a0b4670f51c"
+          }
+        },
+        "id": "noncanonical-original",
+        "original": {
+          "content": "{\"entry\":{\"kind\":\"operation\",\"value\":{\"assessment\":{\"capabilities\":[\"deploy\"],\"conditions\":{\"authorization\":{\"evidence\":{\"authority\":\"wharf\",\"digest\":\"cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc\"},\"state\":\"granted\"},\"observed\":{\"state\":\"absent\"},\"writer\":\"idle\"},\"request\":\"21191c207fdf0f86acdf34afeca04185e9327e8bac46acfb2516aa018915653c\"},\"outcome\":{\"outcome\":\"unknown\",\"reason\":\"unverified\"},\"request\":{\"context\":{\"adaptor\":\"static\",\"request\":\"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\",\"requested\":{\"app\":\"crest\",\"lane\":\"design\",\"repository\":\"PerishLab/crest\"},\"revision\":2},\"expected\":{\"state\":\"absent\"},\"intent\":{\"action\":\"deploy\",\"artifact\":{\"build\":null,\"digest\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"source\":{\"commit\":\"1111111111111111111111111111111111111111\",\"repository\":\"PerishLab/crest\",\"tree\":\"2222222222222222222222222222222222222222\"}}}}}},\"schema\":2}",
+          "reference": {
+            "authority": "wharf",
+            "digest": "c1b0c4f1da5c00a8edbad2b5409304fd3e8f2bec71f5a895cf810055fdb93d25"
+          }
+        },
+        "refused": true,
+        "request": {
+          "context": {
+            "adaptor": "static",
+            "request": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+            "requested": {
+              "app": "crest",
+              "lane": "design",
+              "repository": "PerishLab/crest"
+            },
+            "revision": 2
+          },
+          "expected": {
+            "state": "absent"
+          },
+          "intent": {
+            "action": "deploy",
+            "artifact": {
+              "build": null,
+              "digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+              "source": {
+                "commit": "1111111111111111111111111111111111111111",
+                "repository": "PerishLab/crest",
+                "tree": "2222222222222222222222222222222222222222"
+              }
+            }
+          }
+        }
+      },
+      {
+        "current": {
+          "content": "{\"schema\":3,\"entry\":{\"kind\":\"confirmation\",\"value\":{\"original\":{\"authority\":\"wharf\",\"digest\":\"0d9c26db549a6557bfc19774c6d43e9f72fa83348ad7716448cd63f432d275c0\"},\"authorization\":{\"authority\":\"wharf\",\"digest\":\"dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd\"},\"operation\":{\"request\":{\"context\":{\"requested\":{\"repository\":\"PerishLab/crest\",\"app\":\"crest\",\"lane\":\"design\"},\"request\":\"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\",\"revision\":2,\"adaptor\":\"static\"},\"intent\":{\"action\":\"deploy\",\"artifact\":{\"digest\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"source\":{\"repository\":\"PerishLab/crest\",\"commit\":\"1111111111111111111111111111111111111111\",\"tree\":\"2222222222222222222222222222222222222222\"},\"build\":null}},\"expected\":{\"state\":\"absent\"}},\"assessment\":{\"request\":\"21191c207fdf0f86acdf34afeca04185e9327e8bac46acfb2516aa018915653c\",\"capabilities\":[\"deploy\"],\"conditions\":{\"authorization\":{\"state\":\"granted\",\"evidence\":{\"authority\":\"wharf\",\"digest\":\"cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc\"}},\"writer\":\"idle\",\"observed\":{\"state\":\"absent\"}}},\"outcome\":{\"outcome\":\"applied\",\"material\":{\"state\":\"present\",\"artifact\":{\"digest\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"source\":{\"repository\":\"PerishLab/crest\",\"commit\":\"1111111111111111111111111111111111111111\",\"tree\":\"2222222222222222222222222222222222222222\"},\"build\":null}},\"writer\":\"idle\"}}}}}",
+          "reference": {
+            "authority": "wharf",
+            "digest": "cb392637aefe91d666de409471d9ee83323885eb459a7bd14e8f5c9ea822d85e"
+          }
+        },
+        "id": "selection-original",
+        "original": {
+          "content": "{\"schema\":2,\"entry\":{\"kind\":\"selection\",\"value\":{\"policy\":\"exact\",\"context\":{\"requested\":{\"repository\":\"PerishLab/crest\",\"app\":\"crest\",\"lane\":\"design\"},\"request\":\"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\",\"revision\":2,\"adaptor\":\"static\"},\"observation\":{\"outcome\":\"unknown\",\"reason\":\"unverified\"}}}}",
+          "reference": {
+            "authority": "wharf",
+            "digest": "0d9c26db549a6557bfc19774c6d43e9f72fa83348ad7716448cd63f432d275c0"
+          }
+        },
+        "refused": true,
+        "request": {
+          "context": {
+            "adaptor": "static",
+            "request": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+            "requested": {
+              "app": "crest",
+              "lane": "design",
+              "repository": "PerishLab/crest"
+            },
+            "revision": 2
+          },
+          "expected": {
+            "state": "absent"
+          },
+          "intent": {
+            "action": "deploy",
+            "artifact": {
+              "build": null,
+              "digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+              "source": {
+                "commit": "1111111111111111111111111111111111111111",
+                "repository": "PerishLab/crest",
+                "tree": "2222222222222222222222222222222222222222"
+              }
+            }
+          }
+        }
+      }
+    ],
+    "provenance": {
+      "method": "actual public Rust types from immutable accepted source archive; no runtime authority claim",
+      "repository": "PerishLab/plumb",
+      "source": "5eb1dbdbfe00960eb607b752079225e773193779",
+      "tree": "8c8991981eaed748a5e56458aa06329400b58f60",
+      "observer": "standalone public Rust observer retained in source Artifact",
+      "observer_sha256": "e8f98d55062ba9b2d0a15d87089418e7c3f4392416a4b2c84929e06355578731",
+      "lock_sha256": "e7d04418dcf57377038acd4851c1848328117041749075fb7e4be1696a8b0526",
+      "source_archive_sha256": "2929d6706242e2497237d98ee90d976c6ddb3f8ed906f8418717687ffaf6670d",
+      "rustc": "rustc 1.96.1 (31fca3adb 2026-06-26)\nbinary: rustc\ncommit-hash: 31fca3adb283cc9dfd56b49cdee9a96eb9c96ffd\ncommit-date: 2026-06-26\nhost: x86_64-unknown-linux-gnu\nrelease: 1.96.1\nLLVM version: 22.1.2",
+      "packages": {
+        "plumb": "0.0.0",
+        "plumb-macro": "0.0.0",
+        "serde": "1.0.229",
+        "serde_json": "1.0.151",
+        "sha2": "0.10.9"
+      }
+    }
+  }
 }

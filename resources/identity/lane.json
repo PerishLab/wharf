@@ -152,6 +152,11 @@
       "request",
       "assessment",
       "outcome"
+    ],
+    "confirmation": [
+      "original",
+      "authorization",
+      "operation"
     ]
   },
   "actions": [
