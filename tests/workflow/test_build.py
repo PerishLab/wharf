@@ -9,6 +9,7 @@ from unittest import mock
 
 from lib.content import canonical
 from lib.content.static import evidence, source, workspace
+from lib.identity.guard import exercise
 from lib.media import node
 from lib.process.lane import build, entry
 from lib.refusal import Refusal
@@ -177,6 +178,62 @@ class RecordedBuild(unittest.TestCase):
         with mock.patch.object(handoff.implementation.resources, "read_bytes", side_effect=changed):
             with self.assertRaises(Refusal):
                 handoff.recipe(held)
+
+
+class NativeStaging(unittest.TestCase):
+    def test_platform_and_marker_refuse_before_tool_execution(self):
+        with mock.patch.object(exercise, "WINDOWS", False):
+            with self.assertRaisesRegex(Refusal, "needs Windows"):
+                exercise.case(".", "v1.0.0", "staging", DOMAIN)
+        with mock.patch.object(exercise, "WINDOWS", True):
+            with self.assertRaisesRegex(Refusal, "exact release marker"):
+                exercise.case(".", "main", "staging", DOMAIN)
+            with self.assertRaisesRegex(Refusal, "unsupported case"):
+                exercise.case(".", "v1.0.0", "arbitrary", DOMAIN)
+
+    def inspect(self, argv, root, env):
+        self.assertNotIn("WHARF_R2_SECRET_ACCESS_KEY", env)
+        if "ProgramFiles(x86)" in os.environ:
+            self.assertEqual(env["ProgramFiles(x86)"], os.environ["ProgramFiles(x86)"])
+        if "test" in argv:
+            self.assertIn("--locked", argv)
+            return self.output
+        return "rustc " + DOMAIN["rust.version"] if argv[-1] == "--version" else ""
+
+    def git(self, held, *args):
+        if args[:2] == ("remote", "get-url"):
+            return self.origin
+        if args[:2] == ("status", "--porcelain"):
+            return ""
+        return "a" * 40
+
+    def prepare(self):
+        self.origin = "https://github.com/PerishLab/plumb.git"
+        self.output = "test staging::retained ... ok\ntest staging::disagreement ... ok\ntest staging::verbatim ... ok\n"
+        tools = {name: {"path": name, "version": "rustc " + DOMAIN["rust.version"]} for name in ("git", "cargo", "rustc", "rustup")}
+        self.enterContext(mock.patch.dict(os.environ, {"ProgramFiles(x86)": "C:/Program Files (x86)", "WHARF_R2_SECRET_ACCESS_KEY": "writer-must-not-pass"}))
+        self.enterContext(mock.patch.object(exercise, "WINDOWS", True))
+        self.enterContext(mock.patch.object(exercise.evidence, "tools", return_value=tools))
+        self.enterContext(mock.patch.object(exercise.evidence, "inspect", side_effect=self.inspect))
+        self.enterContext(mock.patch.object(exercise.snapshot, "rust"))
+        self.enterContext(mock.patch.object(exercise.snapshot, "git", side_effect=self.git))
+        self.enterContext(mock.patch.object(exercise.snapshot, "unchanged"))
+
+    def test_zero_or_partial_cases_are_not_success(self):
+        self.prepare()
+        result = exercise.case(".", "v1.0.0", "staging", DOMAIN)
+        self.assertEqual(len(result["cases"]), 3)
+        self.assertEqual(result["commit"], "a" * 40)
+        for text in ("test result: ok. 0 passed", "test staging::retained ... ok"):
+            self.output = text
+            with self.assertRaisesRegex(Refusal, "every declared regression"):
+                exercise.case(".", "v1.0.0", "staging", DOMAIN)
+
+    def test_foreign_repository_refuses_before_cargo(self):
+        self.prepare()
+        self.origin = "https://github.com/foreign/plumb.git"
+        with self.assertRaisesRegex(Refusal, "foreign repository"):
+            exercise.case(".", "v1.0.0", "staging", DOMAIN)
 
 
 if __name__ == "__main__":

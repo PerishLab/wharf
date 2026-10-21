@@ -8,6 +8,8 @@ import tempfile
 from pathlib import Path
 
 from lib import parameters
+from lib.cargo import toolchain
+from lib.identity.guard import exercise
 from lib.content import executables, resources
 from lib.media import release
 from lib.process import run
@@ -175,7 +177,20 @@ def windows(held):
     return {"action": "manager.windows", "shell": held["shell"], "built": built, "installed": installed, "steps": steps}
 
 
-ACTIONS = {"windows": (windows, ["shell"])}
+def domain(held):
+    found = toolchain.resolve()
+    return parameters.answer({"domain": toolchain.encoded(found), "rust": found["rust.version"]})
+
+
+def staging(held):
+    return exercise.case(held["source"], held["marker"], "staging", json.loads(held["domain"]))
+
+
+def lease(held):
+    return exercise.case(held["source"], held["marker"], "lease", json.loads(held["domain"]))
+
+
+ACTIONS = {"windows": (windows, ["shell"]), "domain": (domain, []), "staging": (staging, ["source", "marker", "domain"]), "lease": (lease, ["source", "marker", "domain"])}
 
 
 def main(argv=None):
