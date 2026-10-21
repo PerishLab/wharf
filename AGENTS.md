@@ -897,6 +897,41 @@ These non-atomic reads do not prove credential custody, provider effects, physic
 quiescence, source-exact workflow semantics or future immutability. Independent
 confirmation and later live settlement remain separate work under #248.
 
+`lib/process/confirmation/admission.py` qualifies bounded read-only independent
+observer admission. Its request selects only target, original logical request and
+original public reference. Trusted preparation supplies separate strict pins for
+the original dispatch/context/actors, exact protected current byte digest/ETag,
+prepared public authority/origin and a distinct current observer context/actors.
+Neither caller nor product content supplies those pins or platform environment.
+The original actor identities remain historical; both actual new observer actors
+must match their own pins and retain independently read product push permission.
+Only a distinct active fixed-main observer at attempt1 qualifies. This source
+component is not a dispatch entry and establishes no live workflow custody.
+
+The initial historical contract is original control49b24d1de8502260a79713b108e3f45683c8d81f,
+treeec0466c07c87208f21674203c193413a825329ae. These are reviewed historical data,
+not executable tool selections. Independent control commit/tree readback binds
+that contract; unsupported original sources/actions refuse. The versioned nine-job
+graph in `confirmation/history.py` is independent of later current orchestration
+and `execution.producer_names`. Generic original provenance still proves only
+its supplied-bound terminal metadata, not eligibility under this source contract.
+
+The admission reader exposes signed bounded GET snapshots of exactly registration,
+current, original intent and original custody. It requires enabled exact
+registration/generation, actual active reserved/unknown current, unchanged original
+request/assessment/custody and canonical public unknown through the independently
+prepared public reader. Current pins hash exact stored bytes, while the admission's
+pins digest uses canonical sorted JSON. No phase or history is manufactured.
+All four protected versions and public evidence are reread around two independent
+workflow/source/original-provenance/permission observations; movement refuses.
+The environment-facing action refuses named writer credentials and constructs
+separate prepared state/control/product readers only. Tests qualify those source
+boundaries, not physical credential grants, atomic remote snapshots or a trusted
+host's preparation. Its bounded detached admission grants no writer idle, bearer
+permit, provider observation, source acquisition, new custody, public authorization
+receipt, evidence publication or current CAS. Full source-exact material/quiescence,
+replay-safe custody and evidence-before-CAS/live composition remain under #248/#250.
+
 `lib/process/lane/settlement.py` consumes only the original request/prepared value
 and C's public reference. It reauthenticates the original run/attempt, actors,
 registration, reserved current and custody, then independently GETs the exact
