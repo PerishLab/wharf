@@ -27,7 +27,8 @@ class Startup(unittest.TestCase):
         self.assertEqual(observed["current"]["phase"], "vacant")
         self.assertFalse(any(call[0] not in ("repository", "run", "permission", "commit") for call in api.calls))
 
-    def test_reservation_and_every_later_role_still_refuse_queued(self):
+    @mock.patch.object(admission.time, "sleep")
+    def test_reservation_and_every_later_role_still_refuse_queued(self, pause):
         for job in ("bind", "build", "verify", "apply", "dispose", "evidence", "state", "unknown", ""):
             api = fixtures.provider()
             api.observed["status"] = "queued"

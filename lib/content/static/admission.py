@@ -1,5 +1,6 @@
 import os
 import re
+import time
 
 from lib.content import canonical, resources
 from lib.content.lane import preview
@@ -102,17 +103,25 @@ def workflow(api, context, policy=None, starting=False):
     policy = policy or resources.read_json("build.json")["admission"]
     control = api.repository(policy["repository"])
     expected = repository(control, policy["repository"])
-    run = api.run(context["run"])
-    identity(run, "workflow run")
-    if control.get("default_branch") != policy["branch"] or run["id"] != context["run"] or type(run.get("run_attempt")) is not int or run["run_attempt"] != context["attempt"]:
-        raise Refusal("Preview workflow run/attempt or default branch differs from trusted context")
-    for key in ("repository", "head_repository"):
-        observed = run.get(key)
-        if identity(observed, key) != expected["id"] or observed.get("full_name") != expected["name"]:
-            raise Refusal("Preview workflow repository or fork identity differs")
-    queued = starting is True and policy["workflow"] == resources.read_json("build.json")["lane"]["workflow"] and run.get("status") == "queued"
-    if run.get("event") != "workflow_dispatch" or run.get("path") != policy["workflow"] or run.get("head_branch") != policy["branch"] or run.get("head_sha") != context["commit"] or not (run.get("status") == "in_progress" or queued):
-        raise Refusal("Preview requires its exact active main workflow, not release or caller-authored identity")
+    lane = policy["workflow"] == resources.read_json("build.json")["lane"]["workflow"]
+    for attempt in range(19):
+        run = api.run(context["run"])
+        identity(run, "workflow run")
+        if control.get("default_branch") != policy["branch"] or run["id"] != context["run"] or type(run.get("run_attempt")) is not int or run["run_attempt"] != context["attempt"]:
+            raise Refusal("Preview workflow run/attempt or default branch differs from trusted context")
+        for key in ("repository", "head_repository"):
+            observed = run.get(key)
+            if identity(observed, key) != expected["id"] or observed.get("full_name") != expected["name"]:
+                raise Refusal("Preview workflow repository or fork identity differs")
+        queued = lane and run.get("status") == "queued"
+        if run.get("event") != "workflow_dispatch" or run.get("path") != policy["workflow"] or run.get("head_branch") != policy["branch"] or run.get("head_sha") != context["commit"]:
+            raise Refusal("Preview requires its exact active main workflow, not release or caller-authored identity")
+        if queued and starting is not True and attempt < 18:
+            time.sleep(10)
+            continue
+        if run.get("status") != "in_progress" and not (queued and starting is True):
+            raise Refusal("Preview requires its exact active main workflow, not release or caller-authored identity")
+        break
     return run, {"repository": expected, "run": context["run"], "attempt": context["attempt"], "commit": context["commit"], "path": policy["workflow"]}
 
 
