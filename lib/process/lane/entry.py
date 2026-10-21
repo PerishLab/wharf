@@ -16,6 +16,10 @@ from lib.store.sigv4 import Credentials, Request, sign
 FIELDS = {"schema", "target", "operation", "request", "revision", "expected", "source", "registration", "caller", "workflow"}
 
 
+class Starting(Routing):
+    pass
+
+
 def requested(body):
     if not isinstance(body, str):
         raise Refusal("lane dispatch requires a bounded JSON string")
@@ -77,7 +81,7 @@ def admit(intent, bucket, context, api):
 
 def authority(intent, context, api):
     intent = requested(documents.encode(intent).decode())
-    run, control = admission.workflow(api, context, policy())
+    run, control = admission.workflow(api, context, policy(), isinstance(api, Starting))
     repository = intent["target"]["repository"]
     actors = admission.actors(api, run, repository)
     expected = f"{control['repository']['name']}/{control['path']}@{control['commit']}"
@@ -144,7 +148,8 @@ def observe(intent, environ=os.environ):
     reader = Reader(intent, environ)
     control = GitHub(r2.secret(environ, "WHARF_PREVIEW_CONTROL_TOKEN"))
     product = GitHub(r2.secret(environ, "WHARF_PREVIEW_PRODUCT_TOKEN"))
-    return admit(intent, reader, context, Routing(intent["target"]["repository"], control, product))
+    routing = Starting if environ.get("GITHUB_JOB") == "admission" else Routing
+    return admit(intent, reader, context, routing(intent["target"]["repository"], control, product))
 
 
 def source(intent, observation):

@@ -1390,3 +1390,12 @@ A stale state/registration, conflict or changed observation stops without retry.
 The exact completed state may be read back without writing. Subsequent ordinary
 updates retain recovery provenance and follow normal exact admission/evidence.
 Recovery performs no provider mutation, arbitrary clear or credential widening.
+
+The fixed read-only lane `admission` job may observe GitHub run metadata still
+queued while its trusted workflow step is executing. Only its internal Starting
+reader accepts queued in addition to in_progress; exact run/attempt/main source,
+workflow/repository/fork identities and both actual push actors remain required.
+Caller dispatch data cannot select this marker. Bind/reservation, execution and
+provider/evidence/state mutations compose the ordinary strict reader and still
+require in_progress. Legacy Preview entry remains strict. A queued observation
+is neither a reservation, mutation permission nor completion evidence.
