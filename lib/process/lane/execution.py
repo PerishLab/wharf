@@ -121,6 +121,8 @@ def native_jobs(intent, context, api):
         if name == "[record] evidence lane / [record] state lane":
             if job.get("status") != "in_progress" or job.get("conclusion") is not None:
                 raise Refusal("lane state job must be the current native writer")
+        elif name == "[verify] request lane / [verify] request lane" and job.get("status") in ("queued", "in_progress") and job.get("conclusion") is None:
+            continue
         elif name not in expected or job.get("status") != "completed" or job.get("conclusion") != expected[name]:
             raise Refusal("lane native producer is absent, unsuccessful or not quiescent")
     if names != set(expected) | {"[record] evidence lane / [record] state lane"}:

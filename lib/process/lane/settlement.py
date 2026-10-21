@@ -86,7 +86,7 @@ class Writer:
     def swap(self, key, body, etag):
         prepared = self.before["execution"]["prepared"]
         proposed = state.finished(prepared["current"], self.verified["operation"], prepared["registration"])
-        if key != self.prefix + "/current.json" or body != documents.encode(proposed) or not etag or etag != self.etag:
+        if key != self.prefix + "/current.json" or documents.decode(body) != proposed or not etag or etag != self.etag:
             raise Refusal("lane state CAS differs from its exact verified conditional transition")
         self.authorize()
         self.bucket.swap(key, body, etag)

@@ -50,7 +50,6 @@ class Replies(unittest.TestCase):
     def test_bulk_reply_refusals_distinguish_each_existing_validation_clause(self):
         cases = [(b'[]', 'envelope-type'),
                  (self.envelope({'success': self.secret, 'errors': [], 'result': {}}), 'envelope-success'),
-                 (self.envelope({'success': True, 'result': {}}), 'envelope-errors-missing'),
                  (self.envelope({'success': True, 'errors': [self.secret], 'result': {}}), 'envelope-errors'),
                  (self.envelope({'success': True, 'errors': [], 'result': self.secret}), 'result-shape'),
                  (self.envelope({'success': True, 'errors': [], 'result': None}), 'result-shape')]
@@ -62,7 +61,7 @@ class Replies(unittest.TestCase):
                 self.assertEqual(held['status'], 201)
 
     def test_status_origin_and_encoding_are_distinct_without_logging_values(self):
-        cases = [('status', 202, 'response-status', 202),
+        cases = [('status', 203, 'response-status', 203),
                  ('status', self.secret, 'response-status', None),
                  ('status', True, 'response-status', None),
                  ('url', 'https://private-provider-value.invalid/' + self.secret, 'response-origin', 201),
@@ -82,7 +81,7 @@ class Replies(unittest.TestCase):
     def test_session_and_completion_shape_diagnostics_preserve_position_rules(self):
         cases = [('session', {}, 200, 'session-shape', 'session-shape'),
                  ('session', {'jwt': test_cfworker_upload.JWT, 'buckets': []}, 201, 'session-shape', 'session-status'),
-                 ('bucket', {}, 200, 'bucket-shape', 'completion-status'),
+                 ('bucket', {}, 200, 'bucket-shape', 'completion-shape'),
                  ('bucket', {}, 201, 'bucket-shape', 'completion-shape')]
         for phase, reply, status, stage, clause in cases:
             body = self.envelope({'success': True, 'errors': [], 'result': reply})

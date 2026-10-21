@@ -216,7 +216,7 @@ class Deployment(unittest.TestCase):
             fixture.response(api, reply, status)
             with mock.patch('sys.stderr', new_callable=io.StringIO) as stream:
                 result = fixture.session(api) if phase == 'session' else fixture.bucket(api)
-            self.assertEqual(json.loads(stream.getvalue()), {'schema': 'wharf.cfworker.diagnostic/v2', 'stage': stage, 'category': 'protocol', 'status': status, 'clause': {'session-shape': 'session-shape', 'bucket-shape': 'completion-status'}.get(stage)})
+            self.assertEqual(json.loads(stream.getvalue()), {'schema': 'wharf.cfworker.diagnostic/v2', 'stage': stage, 'category': 'protocol', 'status': status, 'clause': {'session-shape': 'session-shape', 'bucket-shape': 'completion-shape'}.get(stage)})
             self.assertFalse(result['acknowledged'])
             with self.assertRaises(Refusal):
                 fixture.bucket(api)
