@@ -15,22 +15,35 @@ from lib.refusal import Refusal
 MIME = payload.MIME
 
 
-def diagnostic(stage, error):
+class Protocol(Refusal):
+    clauses = ('response-status', 'response-origin', 'response-encoding', 'response-body',
+               'envelope-type', 'envelope-success', 'envelope-errors-missing', 'envelope-errors',
+               'result-shape', 'session-status', 'session-shape', 'completion-status',
+               'completion-shape', 'intermediate-status', 'intermediate-shape')
+
+    def __init__(self, clause):
+        if not isinstance(clause, str) or clause not in self.clauses:
+            raise Refusal('cfworker diagnostic clause is unsupported')
+        super().__init__('cfworker response validation refused')
+        self.clause = clause
+
+
+def diagnostic(stage, error, status=None):
     stages = ('session-response', 'session-shape', 'session-jwt', 'session-buckets', 'bucket-response', 'bucket-shape', 'bucket-jwt', 'deployment-response')
     if stage not in stages:
         raise Refusal('cfworker diagnostic stage is unsupported')
-    status = None
     if isinstance(error, urllib.error.HTTPError):
         category = 'http'
-        if type(error.code) is int and 100 <= error.code <= 599:
-            status = error.code
+        status = error.code
     elif isinstance(error, TimeoutError):
         category = 'timeout'
     elif isinstance(error, Refusal):
         category = 'protocol'
     else:
         category = 'transport'
-    print(json.dumps({'schema': 'wharf.cfworker.diagnostic/v1', 'stage': stage, 'category': category, 'status': status}), file=sys.stderr, flush=True)
+    status = status if type(status) is int and 100 <= status <= 599 else None
+    clause = error.clause if isinstance(error, Protocol) and isinstance(error.clause, str) and error.clause in Protocol.clauses else None
+    print(json.dumps({'schema': 'wharf.cfworker.diagnostic/v2', 'stage': stage, 'category': category, 'status': status, 'clause': clause}), file=sys.stderr, flush=True)
 
 
 def jwt(value):
@@ -88,6 +101,7 @@ class Uploader:
         self._request = codec.digest("request", self._plan["current"]["active"]["request"])
         self._token, self._upload, self._completion = token, None, None
         self._attempted, self._blocked = False, False
+        self._status = None
         self._buckets, self._done = (), set()
         self._lock = threading.Lock()
         self._client = urllib.request.build_opener(urllib.request.ProxyHandler({}), reader.Redirect())
@@ -100,17 +114,32 @@ class Uploader:
         headers, body = material
         headers = dict(headers, Authorization="Bearer " + credential, Accept="application/json", **{"Accept-Encoding": "identity", "User-Agent": "wharf-lane"})
         request = urllib.request.Request(url, body, headers, method="POST")
+        self._status = None
         with self._client.open(request, timeout=30) as response:
-            if response.status not in (200, 201) or response.geturl() != url or response.headers.get("Content-Encoding") not in (None, "identity"):
-                raise Refusal("cfworker upload reply is not its exact untransformed endpoint")
+            self._status = response.status
+            if response.status not in (200, 201):
+                raise Protocol('response-status')
+            if response.geturl() != url:
+                raise Protocol('response-origin')
+            if response.headers.get("Content-Encoding") not in (None, "identity"):
+                raise Protocol('response-encoding')
             status, body = response.status, response.read(evidence.LIMIT + 1)
-        reply = evidence.decode(body)
-        if not isinstance(reply, dict) or reply.get("success") is not True or "errors" not in reply or reply["errors"] not in (None, []):
-            raise Refusal("cfworker upload reply is not a successful bounded object")
+        try:
+            reply = evidence.decode(body)
+        except Refusal:
+            raise Protocol('response-body') from None
+        if not isinstance(reply, dict):
+            raise Protocol('envelope-type')
+        if reply.get("success") is not True:
+            raise Protocol('envelope-success')
+        if "errors" not in reply:
+            raise Protocol('envelope-errors-missing')
+        if reply["errors"] not in (None, []):
+            raise Protocol('envelope-errors')
         value = reply.get("result")
         intermediate = suffix == "/workers/assets/upload?base64=true" and status == 200
         if not isinstance(value, dict) and not (intermediate and value is None):
-            raise Refusal("cfworker upload reply has an unsupported endpoint result")
+            raise Protocol('result-shape')
         return status, value
 
     def result(self, acknowledged):
@@ -129,15 +158,17 @@ class Uploader:
             try:
                 status, reply = self._post(suffix, material, self._token)
                 stage = 'session-shape'
-                if status != 200 or set(reply) != {"jwt", "buckets"}:
-                    raise Refusal("cfworker asset session reply has unsupported fields or status")
+                if status != 200:
+                    raise Protocol('session-status')
+                if set(reply) != {"jwt", "buckets"}:
+                    raise Protocol('session-shape')
                 stage = 'session-jwt'
                 private = jwt(reply["jwt"])
                 stage = 'session-buckets'
                 groups = buckets(reply["buckets"], manifest)
             except (OSError, urllib.error.URLError, TimeoutError, Refusal) as error:
                 self._blocked = True
-                diagnostic(stage, error)
+                diagnostic(stage, error, self._status)
                 return self.result(False)
             self._buckets, self._upload = groups, private
             if not groups:
@@ -156,14 +187,18 @@ class Uploader:
                 status, reply = self._post("/workers/assets/upload?base64=true", material, self._upload)
                 stage = 'bucket-shape'
                 final = len(self._done) == len(self._buckets)
-                if (final and (status != 201 or set(reply) != {"jwt"})) or (not final and (status != 200 or reply not in (None, {}))):
-                    raise Refusal("cfworker upload acknowledgement differs from its exact completion position")
+                if status != (201 if final else 200):
+                    raise Protocol('completion-status' if final else 'intermediate-status')
+                if final and set(reply) != {"jwt"}:
+                    raise Protocol('completion-shape')
+                if not final and reply not in (None, {}):
+                    raise Protocol('intermediate-shape')
                 if final:
                     stage = 'bucket-jwt'
                     self._completion = jwt(reply["jwt"])
             except (OSError, urllib.error.URLError, TimeoutError, Refusal) as error:
                 self._blocked = True
-                diagnostic(stage, error)
+                diagnostic(stage, error, self._status)
                 return self.result(False)
             return self.result(True)
 

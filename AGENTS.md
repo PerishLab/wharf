@@ -582,9 +582,14 @@ completion nor permission to continue after an unknown or failed acknowledgement
 Only the documented bulk protocol is supported; single-asset mode refuses.
 Unknown session, bucket and deployment acknowledgements emit one finite JSON
 diagnostic on stderr, separate from result and public operation contracts.
-Allowlisted phase/category and a bounded integer HTTP status identify the stopped
-attempt without provider text, private JWTs, credentials or bodies. Protocol
-validation remains distinct from transport/timeout/HTTP failure. These observations
+The `wharf.cfworker.diagnostic/v2` stderr document carries allowlisted phase,
+category and clause plus a bounded integer HTTP status, retained after a successful
+response when later validation or cleanup fails. Fixed clause names distinguish
+status, origin, encoding, bounded JSON, envelope and endpoint/position shape
+refusals. Unclassified failures carry a null clause; malformed status values are
+null. Provider text, private JWTs, credentials, bodies and arbitrary field/header
+values never enter diagnostics. Protocol validation remains distinct from
+transport/timeout/HTTP failure. These observations
 grant no retry, continuation, repair or inference that a write was not accepted.
 Upload completion is not Preview deployment, content/readback/public proof, live
 acceptance, capacity safety or permission to activate a registration. These remain
