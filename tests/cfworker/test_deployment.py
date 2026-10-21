@@ -196,7 +196,7 @@ class Deployment(unittest.TestCase):
             api._client.open.side_effect = error
             with mock.patch('sys.stderr', new_callable=io.StringIO) as stream:
                 result = self.invoke(api)
-            self.assertEqual(json.loads(stream.getvalue()), {'schema': 'wharf.cfworker.diagnostic/v1', 'stage': 'deployment-response', 'category': category, 'status': 403 if category == 'http' else None})
+            self.assertEqual(json.loads(stream.getvalue()), {'schema': 'wharf.cfworker.diagnostic/v2', 'stage': 'deployment-response', 'category': category, 'status': 403 if category == 'http' else None, 'clause': None})
             self.assertEqual(set(result), {'request', 'acknowledged', 'deployment'})
             self.assertFalse(result['acknowledged'])
             self.assertIsNone(result['deployment'])
@@ -216,7 +216,7 @@ class Deployment(unittest.TestCase):
             fixture.response(api, reply, status)
             with mock.patch('sys.stderr', new_callable=io.StringIO) as stream:
                 result = fixture.session(api) if phase == 'session' else fixture.bucket(api)
-            self.assertEqual(json.loads(stream.getvalue()), {'schema': 'wharf.cfworker.diagnostic/v1', 'stage': stage, 'category': 'protocol', 'status': None})
+            self.assertEqual(json.loads(stream.getvalue()), {'schema': 'wharf.cfworker.diagnostic/v2', 'stage': stage, 'category': 'protocol', 'status': status, 'clause': {'session-shape': 'session-shape', 'bucket-shape': 'completion-status'}.get(stage)})
             self.assertFalse(result['acknowledged'])
             with self.assertRaises(Refusal):
                 fixture.bucket(api)

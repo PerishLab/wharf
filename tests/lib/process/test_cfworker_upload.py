@@ -147,7 +147,7 @@ class Upload(unittest.TestCase):
                 with mock.patch('sys.stderr', new_callable=io.StringIO) as stream:
                     result = self.session(api) if phase == 'session' else self.bucket(api)
                 held = json.loads(stream.getvalue())
-                self.assertEqual(held, {'schema': 'wharf.cfworker.diagnostic/v1', 'stage': phase + '-response', 'category': category, 'status': 403 if category == 'http' and error.code == 403 else None})
+                self.assertEqual(held, {'schema': 'wharf.cfworker.diagnostic/v2', 'stage': phase + '-response', 'category': category, 'status': 403 if category == 'http' and error.code == 403 else None, 'clause': None})
                 self.assertFalse(result['acknowledged'])
                 self.assertEqual(set(result), {'request', 'acknowledged', 'buckets', 'complete'})
                 with self.assertRaises(Refusal):
