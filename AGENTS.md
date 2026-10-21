@@ -1399,3 +1399,8 @@ Caller dispatch data cannot select this marker. Bind/reservation, execution and
 provider/evidence/state mutations compose the ordinary strict reader and still
 require in_progress. Legacy Preview entry remains strict. A queued observation
 is neither a reservation, mutation permission nor completion evidence.
+
+Strict lane run admission waits through at most 18 ten-second read-only pauses
+when exact run metadata is queued. Every observation keeps exact identity/source
+checks, and only fresh in_progress authorizes binding or later roles. Exhaustion,
+terminal/unknown states and read errors refuse. Legacy Preview does not wait.
