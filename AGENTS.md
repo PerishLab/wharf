@@ -1365,3 +1365,28 @@ Depot is the only source, and its `previousGeneration` chain is the history.
 - `depot.yml` is Depot's only writer; nothing lodges from a workstation. Ship
   never calls it: the two paths hold different credentials and answer to
   different lifetimes.
+
+## Explicit operator recovery
+
+A deployment acknowledgement is bound to its exact prepared Preview endpoint.
+Missing redundant Preview echoes or an absent errors array on explicit success
+are accepted; explicit identity conflicts and nonempty/malformed errors refuse.
+Acknowledgement still needs full independent content/routing readback to settle.
+
+`lib/store/lane/state.py` exposes `recover` only for a trusted operator, outside
+ordinary dispatch. The operator explicitly reviews current bytes/ETag, the
+original public unknown, terminal original execution and current exact material,
+and records actual identity, reason and evidence digest. Its bucket must expose
+`authorize(receipt)` to revalidate that actual authority, stopped original client
+and material before each write. Supplied receipt fields are manual attestations,
+not authenticated proofs or public completion records. No product/source input
+or ordinary workflow receives this API or an automatic recovery credential.
+
+Recovery preserves an immutable private journal and marks current as v2 with
+its full recovery provenance; the original public unknown, intent and custody
+remain immutable. An applied material observation inside recovered current is
+explicit operator adoption, never an acknowledgement by the original producer.
+A stale state/registration, conflict or changed observation stops without retry.
+The exact completed state may be read back without writing. Subsequent ordinary
+updates retain recovery provenance and follow normal exact admission/evidence.
+Recovery performs no provider mutation, arbitrary clear or credential widening.

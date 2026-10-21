@@ -95,15 +95,13 @@ class Deployer:
             raise upload.Protocol('envelope-type')
         if reply.get("success") is not True:
             raise upload.Protocol('envelope-success')
-        if "errors" not in reply:
-            raise upload.Protocol('envelope-errors-missing')
-        if reply["errors"] not in (None, []):
+        if reply.get("errors") not in (None, []):
             raise upload.Protocol('envelope-errors')
         value = reply.get("result")
         if not isinstance(value, dict):
             raise upload.Protocol('result-shape')
         try:
-            deployed = observation.deployment(value, preview, value.get("id"))
+            deployed = observation.endpoint(value, preview, value.get("id"))
         except Refusal:
             raise upload.Protocol('deployment-identity') from None
         if deployed in self._plan["before"]["deployments"]:
