@@ -1,12 +1,12 @@
 from lib.content.lane import codec, preview
 from lib.content.static import admission
 from lib.content.static.github import LOGIN
-from lib.process.lane import entry, execution, reservation
+from lib.process.confirmation import history
+from lib.process.lane import entry, reservation
 from lib.refusal import Refusal
 from lib.store.lane import documents
 
 CONCLUSIONS = {"success", "failure", "cancelled", "timed_out", "skipped", "neutral", "action_required", "stale", "startup_failure"}
-STATE = "[record] evidence lane / [record] state lane"
 
 
 def positive(value):
@@ -79,7 +79,7 @@ def jobs(intent, custody, api):
     held = value["jobs"]
     if value["total_count"] != len(held) or not 1 <= len(held) <= 30:
         raise Refusal("lane original job inventory is incomplete or exceeds its single-page budget")
-    expected = set(execution.producer_names(intent["operation"])) | {STATE}
+    expected = set(history.NAMES)
     observed, identifiers = {}, set()
     inactive = "[deploy] cfworker disposal" if intent["operation"] == "apply" else "[deploy] cfworker lane"
     for job in held:
