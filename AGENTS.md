@@ -1114,7 +1114,17 @@ snapshot's Guard and is filed create-only like one the plan produced. The plan
 names the run, artifact and head it came from, or why none was taken, under
 `pulled` in its context. An unreadable listing, no matching artifact or a
 rejected verdict runs Guard as before.
-Builds recreate that exact combination and refuse movement. Linux snapshot
+Builds recreate that exact combination and refuse movement. Planned Cargo/npm
+combinations may replay Cargo edges while retaining the exact planned npm
+manifest/lock bytes. npm latest metadata is read with the prepared pnpm outside
+product source, with scripts/hooks disabled and fixed registry routing. Changed
+foreign latest, unsupported metadata and a different complete tree refuse.
+This is exact reconstruction, not a second npm convergence policy.
+`manager.yml` is a read-only native Windows source-verification entry for exact
+Plumb markers. It runs the Plumb-owned retained-source and copied-lease tests
+selected in `resources/manager/staging.json`; missing cases refuse. Controls stay
+latest stable, source remains unchanged, and no publication credential or generic
+repository/command selector enters this entry. Source tests own their semantics. Linux snapshot
 preparation installs the system OpenSSH server for declared SSH test prerequisites;
 the isolated POSIX snapshot includes trusted system sbin directories after tool
 path reconstruction. Preview guest tool discovery remains unchanged. A refused

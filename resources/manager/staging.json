@@ -1,0 +1,16 @@
+{
+  "repository": "PerishLab/plumb",
+  "features": "testing,delivery,radius",
+  "cases": {
+    "staging": {
+      "target": ["--test", "proof"],
+      "filter": "staging::",
+      "expected": ["staging::retained", "staging::disagreement", "staging::verbatim"]
+    },
+    "lease": {
+      "target": ["--lib"],
+      "filter": "integration::claim::tests::release",
+      "expected": ["integration::claim::tests::release"]
+    }
+  }
+}

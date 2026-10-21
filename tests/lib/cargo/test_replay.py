@@ -87,3 +87,65 @@ class Reserved(unittest.TestCase):
 
     def test_a_fresh_marker_resolves_latest(self):
         self.assertIsNone(plan.reserved(self.bucket, self.context, {}))
+
+
+class Mixed(unittest.TestCase):
+    def setUp(self):
+        fixture = Replay()
+        fixture.setUp()
+        self.root = fixture.root
+        self.expected = fixture.expected
+        fixture.repository.write("plumb.toml", '[release.npm]\npackages = ["@perishlab/owned"]\n')
+        fixture.repository.commit()
+        self.expected["packages"].append({"ecosystem": "npm", "name": "@perishlab/demo", "version": "0.9.0"})
+        self.expected["tree"] = git(self.root, "rev-parse", "HEAD^{tree}").strip()
+        self.calls = []
+
+    def held(self, expected):
+        held = Replay.held(self, expected)
+        held["tools"]["pnpm"] = {"path": "/prepared/pnpm"}
+        held["env"] = {"USERPROFILE": str(self.root.parent)}
+        return held
+
+    def execute(self, held, argv):
+        self.calls.append((held["root"], argv))
+        return json.dumps("0.9.0")
+
+    def resolve(self):
+        run = lambda held, *args: git(self.root, *args).strip()
+        with unittest.mock.patch.object(replay.registry, "fetch", index(demo=["0.9.0"])):
+            return replay.resolved(self.held(self.expected), self.execute, run)
+
+    def test_mixed_replay_uses_prepared_metadata_reader_outside_source(self):
+        self.assertTrue(replay.applies(self.held(self.expected)))
+        self.assertEqual(self.resolve()["tree"], self.expected["tree"])
+        self.assertEqual(len(self.calls), 1)
+        cwd, argv = self.calls[0]
+        self.assertEqual(cwd, self.root.parent)
+        self.assertEqual(argv[0], "/prepared/pnpm")
+        self.assertIn("--config.ignore-pnpmfile=true", argv)
+        self.assertIn("--config.ignore-scripts=true", argv)
+        self.assertEqual(argv[-4:], ["view", "@perishlab/demo@latest", "version", "--json"])
+
+    def test_mixed_replay_refuses_a_different_planned_tree(self):
+        self.expected["tree"] = "0" * 40
+        with self.assertRaisesRegex(Refusal, "exact planned npm"):
+            self.resolve()
+
+    def test_mixed_replay_refuses_foreign_latest_drift(self):
+        self.expected["packages"][-1]["version"] = "0.8.0"
+        with self.assertRaisesRegex(Refusal, "moved; prepare a fresh plan"):
+            self.resolve()
+
+    def test_mixed_replay_refuses_unknown_registry_before_execution(self):
+        self.expected["packages"][-1]["name"] = "@foreign/demo"
+        with self.assertRaisesRegex(Refusal, "unsupported npm registry"):
+            self.resolve()
+        self.assertEqual(self.calls, [])
+
+    def test_mixed_replay_refuses_nonstable_metadata(self):
+        run = lambda held, *args: git(self.root, *args).strip()
+        for result in ("null", '"1.0.0-rc.1"', '["0.9.0"]'):
+            with self.subTest(result=result), unittest.mock.patch.object(replay.registry, "fetch", index(demo=["0.9.0"])):
+                with self.assertRaisesRegex(Refusal, "current stable npm metadata"):
+                    replay.resolved(self.held(self.expected), lambda held, argv: result, run)
