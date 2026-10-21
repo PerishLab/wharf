@@ -1116,8 +1116,9 @@ names the run, artifact and head it came from, or why none was taken, under
 rejected verdict runs Guard as before.
 Builds recreate that exact combination and refuse movement. Planned Cargo/npm
 combinations may replay Cargo edges while retaining the exact planned npm
-manifest/lock bytes. npm latest metadata is read with the prepared pnpm outside
-product source, with scripts/hooks disabled and fixed registry routing. Changed
+manifest/lock bytes. npm latest metadata is read by a bounded native HTTP
+client using only the prepared package reader, with fixed registry routing and
+no redirects or product execution. Changed
 foreign latest, unsupported metadata and a different complete tree refuse.
 This is exact reconstruction, not a second npm convergence policy.
 `manager.yml` is a read-only native Windows source-verification entry for exact

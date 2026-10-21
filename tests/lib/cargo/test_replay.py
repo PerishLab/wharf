@@ -1,4 +1,9 @@
 import json
+import os
+import http.client
+import http.server
+import threading
+import urllib.request
 import unittest
 import unittest.mock
 from types import SimpleNamespace
@@ -100,6 +105,7 @@ class Mixed(unittest.TestCase):
         self.expected["packages"].append({"ecosystem": "npm", "name": "@perishlab/demo", "version": "0.9.0"})
         self.expected["tree"] = git(self.root, "rev-parse", "HEAD^{tree}").strip()
         self.calls = []
+        self.latest = "0.9.0"
 
     def held(self, expected):
         held = Replay.held(self, expected)
@@ -108,24 +114,27 @@ class Mixed(unittest.TestCase):
         return held
 
     def execute(self, held, argv):
-        self.calls.append((held["root"], argv))
-        return json.dumps("0.9.0")
+        raise AssertionError("unchanged npm replay never invokes product processes")
+
+    def reader(self, name, location):
+        self.calls.append((name, location))
+        return {"name": name, "dist-tags": {"latest": self.latest}, "versions": {self.latest: {"name": name, "version": self.latest}}}
 
     def resolve(self):
         run = lambda held, *args: git(self.root, *args).strip()
         with unittest.mock.patch.object(replay.registry, "fetch", index(demo=["0.9.0"])):
-            return replay.resolved(self.held(self.expected), self.execute, run)
+            with unittest.mock.patch.object(replay, "metadata", side_effect=self.reader):
+                return replay.resolved(self.held(self.expected), self.execute, run)
 
-    def test_mixed_replay_uses_prepared_metadata_reader_outside_source(self):
+    def test_mixed_replay_reads_only_the_declared_registry_without_product_processes(self):
         self.assertTrue(replay.applies(self.held(self.expected)))
         self.assertEqual(self.resolve()["tree"], self.expected["tree"])
-        self.assertEqual(len(self.calls), 1)
-        cwd, argv = self.calls[0]
-        self.assertEqual(cwd, self.root.parent)
-        self.assertEqual(argv[0], "/prepared/pnpm")
-        self.assertIn("--config.ignore-pnpmfile=true", argv)
-        self.assertIn("--config.ignore-scripts=true", argv)
-        self.assertEqual(argv[-4:], ["view", "@perishlab/demo@latest", "version", "--json"])
+        self.assertEqual(self.calls, [("@perishlab/demo", "https://npm.pkg.github.com/")])
+
+    def test_own_npm_publication_by_this_marker_still_replays(self):
+        self.expected["packages"][-1]["name"] = "@perishlab/owned"
+        self.latest = "1.0.0"
+        self.assertEqual(self.resolve()["tree"], self.expected["tree"])
 
     def test_mixed_replay_refuses_a_different_planned_tree(self):
         self.expected["tree"] = "0" * 40
@@ -145,7 +154,75 @@ class Mixed(unittest.TestCase):
 
     def test_mixed_replay_refuses_nonstable_metadata(self):
         run = lambda held, *args: git(self.root, *args).strip()
-        for result in ("null", '"1.0.0-rc.1"', '["0.9.0"]'):
+        for result in (None, "1.0.0-rc.1", ["0.9.0"], {"dist-tags": None}, {"dist-tags": {"latest": "0.9.0"}, "versions": None}):
             with self.subTest(result=result), unittest.mock.patch.object(replay.registry, "fetch", index(demo=["0.9.0"])):
-                with self.assertRaisesRegex(Refusal, "current stable npm metadata"):
-                    replay.resolved(self.held(self.expected), lambda held, argv: result, run)
+                with unittest.mock.patch.object(replay, "metadata", return_value=result):
+                    with self.assertRaisesRegex(Refusal, "current stable npm metadata"):
+                        replay.resolved(self.held(self.expected), self.execute, run)
+
+
+class Registry(unittest.TestCase):
+    def setUp(self):
+        self.requests = []
+        self.status = 200
+        self.body = b'{"name":"@perishlab/demo","dist-tags":{"latest":"0.9.0"},"versions":{"0.9.0":{"name":"@perishlab/demo","version":"0.9.0"}}}'
+        owner = self
+
+        class Handler(http.server.BaseHTTPRequestHandler):
+            def do_GET(self):
+                owner.requests.append((self.path, self.headers.get("Authorization")))
+                self.send_response(owner.status)
+                if owner.status == 302:
+                    self.send_header("Location", "https://outside.invalid/leak")
+                self.end_headers()
+                self.wfile.write(owner.body)
+
+            def log_message(self, *args):
+                pass
+
+        self.server = http.server.ThreadingHTTPServer(("127.0.0.1", 0), Handler)
+        thread = threading.Thread(target=self.server.serve_forever, daemon=True)
+        thread.start()
+        self.addCleanup(self.server.server_close)
+        self.addCleanup(thread.join)
+        self.addCleanup(self.server.shutdown)
+        self.enterContext(unittest.mock.patch.dict(os.environ, {"WHARF_PACKAGES_TOKEN": "prepared-reader", "NODE_AUTH_TOKEN": "writer-must-not-pass"}))
+        port = self.server.server_port
+
+        class Local(urllib.request.HTTPSHandler):
+            def https_open(self, request):
+                return self.do_open(lambda host, **args: http.client.HTTPConnection("127.0.0.1", port, timeout=args["timeout"]), request)
+
+        self.enterContext(unittest.mock.patch.object(urllib.request, "HTTPSHandler", Local))
+
+    def read(self):
+        return replay.metadata("@perishlab/demo", "https://npm.pkg.github.com/")
+
+    def test_real_http_uses_only_the_prepared_reader_and_canonical_package(self):
+        self.assertEqual(self.read()["dist-tags"]["latest"], "0.9.0")
+        self.assertEqual(self.requests, [("/@perishlab%2Fdemo", "Bearer prepared-reader")])
+
+    def test_redirect_is_refused_without_forwarding_credentials(self):
+        self.status = 302
+        with self.assertRaisesRegex(Refusal, "HTTP 302"):
+            self.read()
+        self.assertEqual(len(self.requests), 1)
+
+    def test_missing_reader_and_foreign_registry_refuse_before_network(self):
+        with self.assertRaisesRegex(Refusal, "unsupported registry"):
+            replay.metadata("@perishlab/demo", "https://outside.invalid/")
+        with unittest.mock.patch.dict(os.environ, {"WHARF_PACKAGES_TOKEN": ""}):
+            with self.assertRaisesRegex(Refusal, "prepared package reader"):
+                self.read()
+        self.assertEqual(self.requests, [])
+
+    def test_error_and_oversize_body_do_not_become_metadata_or_diagnostics(self):
+        self.status = 401
+        self.body = b"must-not-be-in-diagnostics"
+        with self.assertRaisesRegex(Refusal, "HTTP 401") as found:
+            self.read()
+        self.assertNotIn(self.body.decode(), str(found.exception))
+        self.status = 200
+        self.body = b"x" * (replay.evidence.LIMIT + 1)
+        with self.assertRaisesRegex(Refusal, "budget"):
+            self.read()
