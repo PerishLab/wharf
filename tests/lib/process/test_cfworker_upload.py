@@ -174,7 +174,7 @@ class Upload(unittest.TestCase):
         self.assertEqual(api._client.open.call_count, 2)
 
     def test_early_missing_malformed_or_wrong_status_completion_blocks(self):
-        for result, status in (({}, 200), ({"jwt": FINAL}, 200), ({"jwt": "bad"}, 201), ({"jwt": FINAL, "extra": 1}, 201)):
+        for result, status in (({}, 200), ({"jwt": FINAL}, 203), ({"jwt": "bad"}, 201), ({"jwt": FINAL, "extra": 1}, 201)):
             api = self.client()
             self.session(api)
             self.response(api, result, status)

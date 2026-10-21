@@ -216,7 +216,7 @@ class Bulk(unittest.TestCase):
         api._client.open.side_effect = received
 
     def test_optional_intermediate_reply_can_continue_once_to_exact_completion(self):
-        for envelope in ({'success': True, 'errors': []}, {'success': True, 'errors': [], 'result': None}, {'success': True, 'errors': [], 'result': {}}):
+        for envelope in ({'success': True, 'result': None}, {'success': True, 'errors': []}, {'success': True, 'errors': [], 'result': None}, {'success': True, 'errors': [], 'result': {}}):
             api = self.client()
             self.response(api, envelope)
             with mock.patch('sys.stderr', new_callable=io.StringIO) as stream:
@@ -263,7 +263,7 @@ class Bulk(unittest.TestCase):
         self.assertEqual(api._client.open.call_count, 2)
 
     def test_final_reply_still_requires_exact_status_shape_and_jwt(self):
-        cases = [(None, 200), (None, 201), ({}, 200), ({}, 201), ({'jwt': 'bad'}, 201), ({'jwt': test_cfworker_upload.FINAL}, 200), ({'jwt': test_cfworker_upload.FINAL, 'private': 'private-provider-value'}, 201)]
+        cases = [(None, 200), (None, 201), ({}, 200), ({}, 201), ({'jwt': 'bad'}, 201), ({'jwt': test_cfworker_upload.FINAL}, 203), ({'jwt': test_cfworker_upload.FINAL, 'private': 'private-provider-value'}, 201)]
         for value, status in cases:
             api = self.client([self.fixture.hashes])
             self.response(api, {'success': True, 'errors': [], 'result': value}, status)
@@ -273,7 +273,7 @@ class Bulk(unittest.TestCase):
         self.blocked(api)
 
     def test_non_final_reply_cannot_accept_early_completion_or_malformed_envelope(self):
-        cases = [({'success': True, 'errors': [], 'result': {'jwt': test_cfworker_upload.FINAL}}, 201), ({'success': False, 'errors': [], 'result': None}, 200), ({'success': True, 'result': None}, 200), ({'success': True, 'errors': ['private-provider-value'], 'result': None}, 200)]
+        cases = [({'success': True, 'errors': [], 'result': {'jwt': test_cfworker_upload.FINAL}}, 201), ({'success': False, 'errors': [], 'result': None}, 200),  ({'success': True, 'errors': ['private-provider-value'], 'result': None}, 200)]
         cases.extend(({'success': True, 'errors': [], 'result': value}, 200) for value in (False, [], 'private-provider-value', {'private': 'private-provider-value'}))
         for envelope, status in cases:
             api = self.client()

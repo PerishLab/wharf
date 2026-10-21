@@ -1404,3 +1404,14 @@ Strict lane run admission waits through at most 18 ten-second read-only pauses
 when exact run metadata is queued. Every observation keeps exact identity/source
 checks, and only fresh in_progress authorizes binding or later roles. Exhaustion,
 terminal/unknown states and read errors refuse. Legacy Preview does not wait.
+
+Bulk asset upload reads successful 200/201/202 envelopes and requires the exact
+private completion JWT before deployment; accepted status alone never completes
+an upload. Native lane quiescence keeps every exact job identity and requires
+all mutation producers settled. The read-only admission job may retain stale
+queued/in_progress metadata without a conclusion after its downstream graph
+completed; it carries no lane mutation authority. Other unfinished jobs refuse.
+
+The state CAS guard compares the entire decoded proposed document so JSON key
+ordering in workflow transport does not alter recovery provenance. Duplicate
+fields, changed content, foreign keys and stale ETags still refuse before write.

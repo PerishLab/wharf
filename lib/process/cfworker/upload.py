@@ -118,7 +118,7 @@ class Uploader:
         self._status = None
         with self._client.open(request, timeout=30) as response:
             self._status = response.status
-            if response.status not in (200, 201):
+            if response.status not in (200, 201, 202):
                 raise Protocol('response-status')
             if response.geturl() != url:
                 raise Protocol('response-origin')
@@ -133,12 +133,10 @@ class Uploader:
             raise Protocol('envelope-type')
         if reply.get("success") is not True:
             raise Protocol('envelope-success')
-        if "errors" not in reply:
-            raise Protocol('envelope-errors-missing')
-        if reply["errors"] not in (None, []):
+        if reply.get("errors") not in (None, []):
             raise Protocol('envelope-errors')
         value = reply.get("result")
-        intermediate = suffix == "/workers/assets/upload?base64=true" and status == 200
+        intermediate = suffix == "/workers/assets/upload?base64=true" and status in (200, 202)
         if not isinstance(value, dict) and not (intermediate and value is None):
             raise Protocol('result-shape')
         return status, value
@@ -188,9 +186,9 @@ class Uploader:
                 status, reply = self._post("/workers/assets/upload?base64=true", material, self._upload)
                 stage = 'bucket-shape'
                 final = len(self._done) == len(self._buckets)
-                if status != (201 if final else 200):
-                    raise Protocol('completion-status' if final else 'intermediate-status')
-                if final and set(reply) != {"jwt"}:
+                if not final and status not in (200, 202):
+                    raise Protocol('intermediate-status')
+                if final and (not isinstance(reply, dict) or set(reply) != {"jwt"}):
                     raise Protocol('completion-shape')
                 if not final and reply not in (None, {}):
                     raise Protocol('intermediate-shape')
