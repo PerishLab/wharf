@@ -866,6 +866,22 @@ retention or live topology. Trusted onboarding and the complete workflow own tho
 facts. The separate state job performs verified-public-evidence-before-current-CAS settlement.
 No live or installed capability is claimed by these source tests.
 
+`lib/process/confirmation/original.py` qualifies retained original mutation
+provenance through fixed read-only GitHub endpoints. Supplied exact dispatch,
+request, custody and both historical actor identities must come from independently
+qualified retained observations; this component authenticates neither their origin
+nor current confirmation authority. It binds terminal fixed-main original run,
+latest attempt, control repository/head and the complete bounded native job set,
+then rereads the original run. Missing attempts, unknown conclusions, aliases of
+active branches, duplicate or incomplete jobs, actor substitution and moved run
+facts refuse. Terminal failure/cancellation remains a terminal fact, never success
+or physical writer quiescence. Detached provenance contains no writer idle,
+applied operation, publication reference or settlement permit. It grants no
+provider/storage writer and changes no ordinary original-run execution boundary.
+These non-atomic reads do not prove credential custody, provider effects, physical
+quiescence, source-exact workflow semantics or future immutability. Independent
+confirmation and later live settlement remain separate work under #248.
+
 `lib/process/lane/settlement.py` consumes only the original request/prepared value
 and C's public reference. It reauthenticates the original run/attempt, actors,
 registration, reserved current and custody, then independently GETs the exact
