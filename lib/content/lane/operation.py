@@ -53,11 +53,28 @@ def operation(value):
     return {"request": requested, "assessment": assessed, "outcome": actual}
 
 
+
+def confirmation(value):
+    value = shape.object_value(value, "confirmation")
+    original = selection.reference(value["original"])
+    authorization = selection.reference(value["authorization"])
+    observed = operation(value["operation"])
+    if original == authorization or original["authority"] != authorization["authority"]:
+        raise Refusal("lane confirmation needs distinct original and new public authorization references under one publication authority")
+    admission = observed["assessment"]["conditions"]["authorization"]
+    if admission["state"] == "granted" and admission["evidence"] == authorization:
+        raise Refusal("lane confirmation cannot reuse its original admission reference as new authorization")
+    if observed["request"]["intent"]["action"] in ("inspect", "build") or observed["outcome"]["outcome"] != "applied":
+        raise Refusal("lane confirmation needs an exact applied mutation observation")
+    return {"original": original, "authorization": authorization, "operation": observed}
+
+
 def record(value):
     value = shape.object_value(value, "record")
-    if type(value["schema"]) is not int or value["schema"] != 2:
-        raise Refusal("unsupported lane evidence schema")
     entry = shape.object_value(value["entry"], "entry")
-    kind = shape.one_of(entry["kind"], ("selection", "operation"), "record kind")
-    value = selection.selection(entry["value"]) if kind == "selection" else operation(entry["value"])
-    return {"schema": 2, "entry": {"kind": kind, "value": value}}
+    kind = shape.one_of(entry["kind"], ("selection", "operation", "confirmation"), "record kind")
+    schema = 3 if kind == "confirmation" else 2
+    if type(value["schema"]) is not int or value["schema"] != schema:
+        raise Refusal("unsupported lane evidence schema")
+    reader = {"selection": selection.selection, "operation": operation, "confirmation": confirmation}[kind]
+    return {"schema": schema, "entry": {"kind": kind, "value": reader(entry["value"])}}

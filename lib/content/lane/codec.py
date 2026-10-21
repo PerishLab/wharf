@@ -13,7 +13,7 @@ READERS = {
     "state": assessment.state, "authorization": assessment.authorization, "writer": assessment.writer,
     "conditions": assessment.conditions, "assessment": assessment.assessment,
     "intent": intent.intent, "request": intent.request, "material": operation.material,
-    "outcome": operation.outcome, "operation": operation.operation,
+    "outcome": operation.outcome, "operation": operation.operation, "confirmation": operation.confirmation,
 }
 
 
@@ -74,3 +74,40 @@ def settle(requested, expected, observed, content):
     if entry["kind"] != "operation" or entry["value"]["request"] != requested or entry["value"]["outcome"]["outcome"] != "applied":
         raise Refusal("lane completion needs an applied observation of the exact request")
     return entry["value"]
+
+
+def evidence(expected, observed, content):
+    if not isinstance(content, bytes) or len(content) > 65536:
+        raise Refusal("lane supplied canonical readback exceeds its byte budget")
+    return {"reference": selection.reference(expected), "record": verify(expected, observed, content)}
+
+
+def received(value):
+    if not isinstance(value, dict) or set(value) != {"reference", "record"}:
+        raise Refusal("lane supplied canonical readback needs its exact reference and record")
+    reference = selection.reference(value["reference"])
+    record = operation.record(value["record"])
+    if digest("record", record) != reference["digest"]:
+        raise Refusal("lane supplied canonical readback differs from its exact reference")
+    return reference, record
+
+
+def confirm(requested, observed, original):
+    requested = intent.request(requested)
+    reference, record = received(observed)
+    prior, previous = received(original)
+    entry = record["entry"]
+    if entry["kind"] != "confirmation":
+        raise Refusal("lane confirmation needs explicit confirmation evidence")
+    value = entry["value"]
+    if value["original"] != prior or reference["authority"] != prior["authority"]:
+        raise Refusal("lane confirmation differs from the original publication reference")
+    if previous["entry"]["kind"] != "operation":
+        raise Refusal("lane confirmation needs an original unknown operation")
+    before = previous["entry"]["value"]
+    if before["outcome"]["outcome"] != "unknown":
+        raise Refusal("lane confirmation needs an original unknown operation")
+    current = value["operation"]
+    if current["request"] != requested or before["request"] != requested or before["assessment"] != current["assessment"]:
+        raise Refusal("lane confirmation differs from the exact original unknown operation")
+    return value

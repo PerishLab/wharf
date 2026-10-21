@@ -7,6 +7,8 @@ def binding(declared, record):
     declared = codec.read("declaration", declared)
     record = codec.read("record", record)
     entry = record["entry"]
+    if entry["kind"] == "confirmation":
+        raise Refusal("lane public confirmation needs its separate authorization consumer")
     value = entry["value"]
     context = value["request"]["context"] if entry["kind"] == "operation" else value["context"]
     if context["requested"] != declared["target"] or context["adaptor"] != declared["adaptor"]:
