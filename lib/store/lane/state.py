@@ -1,6 +1,9 @@
+import hashlib
+
+from lib.content import canonical
 from lib.content.lane import codec, shape
 from lib.refusal import Refusal
-from lib.store.lane import documents, registration
+from lib.store.lane import documents, recovery, registration
 
 FIELDS = ("schema", "target", "registration", "revision", "phase", "active", "last", "observed")
 
@@ -34,9 +37,11 @@ def observation(operation):
 
 
 def checked(value, registered):
-    value = documents.object_value(value, FIELDS)
+    version = value.get("schema") if isinstance(value, dict) else None
+    fields = FIELDS + (("recovery",) if version == "wharf.lane.current/v2" else ())
+    value = documents.object_value(value, fields)
     initial_value = initial(registered)
-    if any(value[key] != initial_value[key] for key in ("schema", "target", "registration")):
+    if version not in ("wharf.lane.current/v1", "wharf.lane.current/v2") or any(value[key] != initial_value[key] for key in ("target", "registration")):
         raise Refusal("lane state schema, target or registration disagrees")
     value["target"] = codec.read("address", value["target"])
     value["revision"] = shape.revision(value["revision"])
@@ -59,7 +64,22 @@ def checked(value, registered):
         history(value, registered)
     elif value["revision"] != 1 or value["observed"] != {"state": "absent"} or value["phase"] not in ("vacant", "reserved"):
         raise Refusal("lane history cannot be erased into an initial state")
+    if version == "wharf.lane.current/v2":
+        adopted(value, registered)
     return value
+
+
+def adopted(value, registered):
+    receipt = recovery.checked(value["recovery"])
+    before = checked(receipt["before"], registered)
+    if receipt["unknown"]["reference"]["authority"] != registered["declaration"]["authorities"]["publication"]:
+        raise Refusal("lane operator recovery changed its publication authority")
+    matches(receipt["operation"], before, registered)
+    revision = before["revision"] + 1
+    if value["revision"] < revision:
+        raise Refusal("lane operator recovery cannot reset its revision")
+    if value["revision"] == revision and (value["last"] != receipt["operation"] or value["observed"] != observation(receipt["operation"])):
+        raise Refusal("lane operator recovery differs from adopted material")
 
 
 def history(value, registered):
@@ -141,3 +161,47 @@ def record(bucket, operation):
         registration.confirm(bucket, registered)
         bucket.swap(prefix + "/current.json", documents.encode(proposed), etag)
     return proposed
+
+
+
+def recovered(registered, receipt):
+    if not registered["enabled"]:
+        raise Refusal("lane operator recovery requires enabled registration")
+    receipt = recovery.checked(receipt)
+    before = checked(receipt["before"], registered)
+    proposed = finished(before, receipt["operation"], registered)
+    return checked(dict(proposed, schema="wharf.lane.current/v2", recovery=receipt), registered)
+
+
+def recover(bucket, registered, receipt):
+    registered = registration.checked(registered)
+    receipt = recovery.checked(receipt)
+    proposed = recovered(registered, receipt)
+    prefix = documents.location(proposed["target"])
+    journal = prefix + "/recovery/" + canonical.digest(receipt) + ".json"
+    body, etag = documents.snapshot(bucket, prefix + "/current.json")
+    if body is None:
+        raise Refusal("lane operator recovery cannot invent missing current state")
+    current = checked(documents.decode(body), registered)
+    if current == proposed:
+        if bucket.get(journal) != documents.encode(receipt):
+            raise Refusal("lane operator recovery completion lacks its exact journal")
+        registration.confirm(bucket, registered)
+        return proposed
+    expected = receipt["precondition"]
+    if current != receipt["before"] or hashlib.sha256(body).hexdigest() != expected["digest"] or etag != expected["etag"]:
+        raise Refusal("lane operator recovery original state or version moved")
+    registration.confirm(bucket, registered)
+    bucket.authorize(receipt)
+    documents.immutable(bucket, journal, documents.encode(receipt))
+    registration.confirm(bucket, registered)
+    bucket.authorize(receipt)
+    body, version = documents.snapshot(bucket, prefix + "/current.json")
+    if body is None or documents.decode(body) != current or version != etag:
+        raise Refusal("lane operator recovery state moved before conditional write")
+    bucket.swap(prefix + "/current.json", documents.encode(proposed), etag)
+    actual, _ = read(bucket, registered)
+    if actual != proposed or bucket.get(journal) != documents.encode(receipt):
+        raise Refusal("lane operator recovery readback is unverified; no replay")
+    registration.confirm(bucket, registered)
+    return actual

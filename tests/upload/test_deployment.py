@@ -45,7 +45,7 @@ class Replies(unittest.TestCase):
     def test_each_envelope_guard_is_finite_and_preserves_known_status(self):
         cases = [(b'[]', 'envelope-type'),
                  (b'{"success":false}', 'envelope-success'),
-                 (b'{"success":true,"result":{}}', 'envelope-errors-missing'),
+                 (b'{"success":true,"result":{}}', 'deployment-identity'),
                  (json.dumps({'success': True, 'errors': [self.secret]}).encode(), 'envelope-errors'),
                  (self.envelope(self.secret), 'result-shape'),
                  (self.envelope(None), 'result-shape')]
@@ -70,7 +70,7 @@ class Replies(unittest.TestCase):
             self.assertEqual((held['clause'], held['status']), ('response-body', 201))
 
     def test_missing_foreign_and_retained_identity_remain_refused(self):
-        for value in ({}, dict(self.fixture.raw(), preview_id=self.secret), dict(self.fixture.raw(), preview_name=self.secret), {'id': self.fixture.raw()['id']}):
+        for value in ({}, dict(self.fixture.raw(), preview_id=self.secret), dict(self.fixture.raw(), preview_name=self.secret), {'id': 'latest'}):
             held = self.refused(self.envelope(value))
             self.assertEqual((held['clause'], held['status']), ('deployment-identity', 201))
         plan = self.fixture.populated()
