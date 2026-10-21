@@ -93,7 +93,7 @@ def actors(api, run, name):
     return result
 
 
-def workflow(api, context, policy=None):
+def workflow(api, context, policy=None, starting=False):
     preview.shape(context, {"run", "attempt", "commit"}, "trusted run context")
     for key in ("run", "attempt"):
         if type(context[key]) is not int or context[key] < 1:
@@ -110,7 +110,8 @@ def workflow(api, context, policy=None):
         observed = run.get(key)
         if identity(observed, key) != expected["id"] or observed.get("full_name") != expected["name"]:
             raise Refusal("Preview workflow repository or fork identity differs")
-    if run.get("event") != "workflow_dispatch" or run.get("path") != policy["workflow"] or run.get("head_branch") != policy["branch"] or run.get("head_sha") != context["commit"] or run.get("status") != "in_progress":
+    queued = starting is True and policy["workflow"] == resources.read_json("build.json")["lane"]["workflow"] and run.get("status") == "queued"
+    if run.get("event") != "workflow_dispatch" or run.get("path") != policy["workflow"] or run.get("head_branch") != policy["branch"] or run.get("head_sha") != context["commit"] or not (run.get("status") == "in_progress" or queued):
         raise Refusal("Preview requires its exact active main workflow, not release or caller-authored identity")
     return run, {"repository": expected, "run": context["run"], "attempt": context["attempt"], "commit": context["commit"], "path": policy["workflow"]}
 
