@@ -586,7 +586,10 @@ The `wharf.cfworker.diagnostic/v2` stderr document carries allowlisted phase,
 category and clause plus a bounded integer HTTP status, retained after a successful
 response when later validation or cleanup fails. Fixed clause names distinguish
 status, origin, encoding, bounded JSON, envelope and endpoint/position shape
-refusals. Unclassified failures carry a null clause; malformed status values are
+refusals. Deployment responses also distinguish selected Preview identity from
+retained deployment replay, preserving the exact original predicates. Both upload
+and deployment readers retain a known status after read or cleanup failure.
+Unclassified failures carry a null clause; malformed status values are
 null. Provider text, private JWTs, credentials, bodies and arbitrary field/header
 values never enter diagnostics. Protocol validation remains distinct from
 transport/timeout/HTTP failure. These observations

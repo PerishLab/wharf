@@ -65,6 +65,7 @@ class Deployer:
         self._request = codec.digest("request", self._plan["apply"]["current"]["active"]["request"])
         self._token, self._completion = token, upload.jwt(completion)
         self._spent = False
+        self._status = None
         self._lock = threading.Lock()
         self._client = urllib.request.build_opener(urllib.request.ProxyHandler({}), reader.Redirect())
 
@@ -76,17 +77,37 @@ class Deployer:
         headers, body = material
         headers = dict(headers, Authorization="Bearer " + self._token, Accept="application/json", **{"Accept-Encoding": "identity", "User-Agent": "wharf-lane"})
         request = urllib.request.Request(url, body, headers, method="POST")
+        self._status = None
         with self._client.open(request, timeout=30) as response:
-            if response.status not in (200, 201) or response.geturl() != url or response.headers.get("Content-Encoding") not in (None, "identity"):
-                raise Refusal("cfworker deployment reply is not its exact untransformed endpoint")
+            self._status = response.status
+            if response.status not in (200, 201):
+                raise upload.Protocol('response-status')
+            if response.geturl() != url:
+                raise upload.Protocol('response-origin')
+            if response.headers.get("Content-Encoding") not in (None, "identity"):
+                raise upload.Protocol('response-encoding')
             body = response.read(evidence.LIMIT + 1)
-        reply = evidence.decode(body)
-        if not isinstance(reply, dict) or reply.get("success") is not True or "errors" not in reply or reply["errors"] not in (None, []) or not isinstance(reply.get("result"), dict):
-            raise Refusal("cfworker deployment reply is not a successful bounded object")
-        value = reply["result"]
-        deployed = observation.deployment(value, preview, value.get("id"))
+        try:
+            reply = evidence.decode(body)
+        except Refusal:
+            raise upload.Protocol('response-body') from None
+        if not isinstance(reply, dict):
+            raise upload.Protocol('envelope-type')
+        if reply.get("success") is not True:
+            raise upload.Protocol('envelope-success')
+        if "errors" not in reply:
+            raise upload.Protocol('envelope-errors-missing')
+        if reply["errors"] not in (None, []):
+            raise upload.Protocol('envelope-errors')
+        value = reply.get("result")
+        if not isinstance(value, dict):
+            raise upload.Protocol('result-shape')
+        try:
+            deployed = observation.deployment(value, preview, value.get("id"))
+        except Refusal:
+            raise upload.Protocol('deployment-identity') from None
         if deployed in self._plan["before"]["deployments"]:
-            raise Refusal("cfworker deployment acknowledgement repeats a retained identity")
+            raise upload.Protocol('deployment-retained')
         return deployed
 
     def deploy(self, observed, document, bodies):
@@ -101,6 +122,6 @@ class Deployer:
             try:
                 deployed = self._post(material)
             except (OSError, urllib.error.URLError, TimeoutError, Refusal) as error:
-                upload.diagnostic('deployment-response', error)
+                upload.diagnostic('deployment-response', error, self._status)
                 return {"request": self._request, "acknowledged": False, "deployment": None}
             return {"request": self._request, "acknowledged": True, "deployment": deployed}

@@ -19,7 +19,8 @@ class Protocol(Refusal):
     clauses = ('response-status', 'response-origin', 'response-encoding', 'response-body',
                'envelope-type', 'envelope-success', 'envelope-errors-missing', 'envelope-errors',
                'result-shape', 'session-status', 'session-shape', 'completion-status',
-               'completion-shape', 'intermediate-status', 'intermediate-shape')
+               'completion-shape', 'intermediate-status', 'intermediate-shape',
+               'deployment-identity', 'deployment-retained')
 
     def __init__(self, clause):
         if not isinstance(clause, str) or clause not in self.clauses:
