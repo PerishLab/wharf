@@ -1,6 +1,7 @@
 import http.client
 import os
 
+from lib.content import canonical
 from lib.content.lane import codec
 from lib.content.static import evidence
 from lib.content.static.github import GitHub, Routing
@@ -112,7 +113,7 @@ def readback(before, proposed, writer):
     registered, _ = registration.read(writer.bucket, before["intent"]["target"])
     actual, _ = state.read(writer.bucket, registered)
     prepared = before["execution"]["prepared"]
-    if registered != prepared["registration"] or actual != proposed or writer.bucket.get(execution.location(before["intent"])) != documents.encode(prepared["custody"]):
+    if registered != prepared["registration"] or actual != proposed or canonical.encode(documents.decode(writer.bucket.get(execution.location(before["intent"])))) != canonical.encode(prepared["custody"]):
         raise Refusal("lane state settlement has no exact independent current/custody readback")
     registration.confirm(writer.bucket, registered)
     return actual
