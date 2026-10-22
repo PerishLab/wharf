@@ -76,6 +76,61 @@ class Replay(unittest.TestCase):
         self.assertFalse(replay.applies(self.held({"packages": [{"ecosystem": "npm", "name": "x", "version": "1"}]})))
 
 
+
+class Sibling(unittest.TestCase):
+    def setUp(self):
+        fixture = Replay()
+        fixture.setUp()
+        self.root = fixture.root
+        self.held = fixture.held
+        lock = self.root / "Cargo.lock"
+        lock.write_text(lock.read_text() + "".join(f'\n[[package]]\nname = "{name}"\nversion = "0.103.6"\nsource = "{replay.SOURCE}"\n' for name in ("plumb", "plumb-macro")))
+        fixture.repository.commit()
+        self.expected = {"packages": fixture.expected["packages"] + [{"ecosystem": "cargo", "name": name, "version": "0.103.7"} for name in ("plumb", "plumb-macro")]}
+        self.together = {"plumb": ["plumb", "plumb-macro"]}
+        self.calls = []
+
+    def cargo(self, held, argv):
+        self.calls.append(argv)
+        name, old = argv[3].removeprefix(replay.SOURCE + "#").split("@")
+        lock = self.root / "Cargo.lock"
+        text = lock.read_text()
+        if f'name = "{name}"\nversion = "{old}"' not in text:
+            raise Refusal(f"package ID specification `{argv[3]}` did not match any packages")
+        for moved in self.together.get(name, [name]):
+            text = text.replace(f'name = "{moved}"\nversion = "{old}"', f'name = "{moved}"\nversion = "{argv[5]}"')
+        lock.write_text(text)
+
+    def resolve(self, execute):
+        run = lambda held, *args: git(self.root, *args).strip()
+        with unittest.mock.patch.object(replay.registry, "fetch", index(demo=["0.9.0"], plumb=["0.103.7"], **{"plumb-macro": ["0.103.7"]})):
+            return replay.resolved(self.held(self.expected), execute, run)
+
+    def update(self, name):
+        return ["cargo", "update", "--package", f"{replay.SOURCE}#{name}@0.103.6", "--precise", "0.103.7"]
+
+    def test_a_precise_update_that_also_moves_a_later_package_replays(self):
+        result = self.resolve(self.cargo)
+        self.assertEqual(self.calls, [self.update("plumb")])
+        self.assertEqual(replay.moves(self.root, self.expected), [])
+        self.assertEqual(result["packages"], self.expected["packages"])
+
+    def test_independent_moves_each_update_their_own_package(self):
+        self.together = {}
+        self.resolve(self.cargo)
+        self.assertEqual(self.calls, [self.update("plumb"), self.update("plumb-macro")])
+
+    def test_a_cargo_failure_is_not_suppressed(self):
+        def refuse(held, argv):
+            raise Refusal("failed to select a version")
+        with self.assertRaisesRegex(Refusal, "failed to select a version"):
+            self.resolve(refuse)
+
+    def test_an_update_that_leaves_its_package_unmoved_refuses(self):
+        with self.assertRaisesRegex(Refusal, "left .*#plumb@0.103.6 unmoved"):
+            self.resolve(lambda held, argv: self.calls.append(argv))
+
+
 class Reserved(unittest.TestCase):
     def setUp(self):
         from tests.lib.store.memory import Memory
