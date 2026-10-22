@@ -53,7 +53,18 @@ def current(root, expected, own, reader=None):
 
 def moves(root, expected):
     wanted = {package["name"]: package["version"] for package in expected["packages"] if package["ecosystem"] == "cargo"}
-    return [(f"{SOURCE}#{name}@{version}", wanted[name]) for name, version in locked(root) if name in wanted and version != wanted[name]]
+    return [(name, version) for name, version in locked(root) if name in wanted and version != wanted[name]]
+
+
+def dropped(root):
+    path = Path(root) / "Cargo.lock"
+    sections = []
+    for line in path.read_text().splitlines(keepends=True):
+        if line.startswith("[") or not sections:
+            sections.append([])
+        sections[-1].append(line)
+    kept = [section for section in sections if section[0].strip() != "[[package]]" or tomllib.loads("".join(section[1:])).get("source") != SOURCE]
+    path.write_text("".join("".join(section) for section in kept))
 
 
 def resolved(held, execute, git):
@@ -61,13 +72,12 @@ def resolved(held, execute, git):
     root = held["root"]
     current(root, request.expected, marker.version(request.identity["marker"]))
     node(held, git)
-    attempted = set()
-    while pending := moves(root, request.expected):
-        spec, version = pending[0]
-        if spec in attempted:
-            raise Refusal(f"cargo update left {spec} unmoved; prepare a fresh plan")
-        attempted.add(spec)
-        execute(held, [held["tools"]["cargo"]["path"], "update", "--package", spec, "--precise", version])
+    if moves(root, request.expected):
+        dropped(root)
+        execute(held, [held["tools"]["cargo"]["path"], "metadata", "--format-version", "1"])
+        if pending := moves(root, request.expected):
+            name, version = pending[0]
+            raise Refusal(f"cargo resolved {name} {version} outside the plan; prepare a fresh plan")
     git(held, "add", "--update")
     tree = git(held, "write-tree")
     if any(item["ecosystem"] == "npm" for item in request.expected["packages"]) and tree != request.expected.get("tree"):

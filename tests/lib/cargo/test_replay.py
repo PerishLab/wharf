@@ -1,8 +1,10 @@
 import json
 import os
+import re
 import http.client
 import http.server
 import threading
+import tomllib
 import urllib.request
 import unittest
 import unittest.mock
@@ -68,13 +70,24 @@ class Replay(unittest.TestCase):
 
     def test_replay_moves_a_package_the_plan_resolved_elsewhere(self):
         expected = {"packages": [{"ecosystem": "cargo", "name": "demo", "version": "0.9.1"}]}
-        self.assertEqual(replay.moves(self.root, expected), [("sparse+https://cargo.perish.uk/#demo@0.9.0", "0.9.1")])
+        self.assertEqual(replay.moves(self.root, expected), [("demo", "0.9.0")])
 
     def test_applies_only_to_planned_cargo_snapshots(self):
         self.assertTrue(replay.applies(self.held(self.expected)))
         self.assertFalse(replay.applies(self.held(None)))
         self.assertFalse(replay.applies(self.held({"packages": [{"ecosystem": "npm", "name": "x", "version": "1"}]})))
 
+
+
+THIRD = """
+[[package]]
+name = "tempfile"
+version = "3.27.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+dependencies = [
+ "getrandom 0.4.3",
+]
+"""
 
 
 class Sibling(unittest.TestCase):
@@ -84,41 +97,43 @@ class Sibling(unittest.TestCase):
         self.root = fixture.root
         self.held = fixture.held
         lock = self.root / "Cargo.lock"
-        lock.write_text(lock.read_text() + "".join(f'\n[[package]]\nname = "{name}"\nversion = "0.103.6"\nsource = "{replay.SOURCE}"\n' for name in ("plumb", "plumb-macro")))
+        lock.write_text(lock.read_text() + THIRD + self.entries("0.103.6"))
         fixture.repository.commit()
         self.expected = {"packages": fixture.expected["packages"] + [{"ecosystem": "cargo", "name": name, "version": "0.103.7"} for name in ("plumb", "plumb-macro")]}
-        self.together = {"plumb": ["plumb", "plumb-macro"]}
+        self.published = "0.103.7"
         self.calls = []
+
+    def entries(self, version):
+        return "".join(f'\n[[package]]\nname = "{name}"\nversion = "{version}"\nsource = "{replay.SOURCE}"\n' for name in ("plumb", "plumb-macro"))
 
     def cargo(self, held, argv):
         self.calls.append(argv)
-        name, old = argv[3].removeprefix(replay.SOURCE + "#").split("@")
         lock = self.root / "Cargo.lock"
-        text = lock.read_text()
-        if f'name = "{name}"\nversion = "{old}"' not in text:
-            raise Refusal(f"package ID specification `{argv[3]}` did not match any packages")
-        for moved in self.together.get(name, [name]):
-            text = text.replace(f'name = "{moved}"\nversion = "{old}"', f'name = "{moved}"\nversion = "{argv[5]}"')
-        lock.write_text(text)
+        text = re.sub(r'\n\[\[package\]\]\nname = "[^"]+"\nversion = "[^"]+"\nsource = "' + re.escape(replay.SOURCE) + r'"\n(checksum = "[^"]+"\n)?', "", lock.read_text())
+        if argv[1] == "update":
+            text = text.replace("getrandom 0.4.3", "getrandom 0.3.4")
+        lock.write_text(text + OWN + self.entries(self.published))
 
     def resolve(self, execute):
         run = lambda held, *args: git(self.root, *args).strip()
         with unittest.mock.patch.object(replay.registry, "fetch", index(demo=["0.9.0"], plumb=["0.103.7"], **{"plumb-macro": ["0.103.7"]})):
             return replay.resolved(self.held(self.expected), execute, run)
 
-    def update(self, name):
-        return ["cargo", "update", "--package", f"{replay.SOURCE}#{name}@0.103.6", "--precise", "0.103.7"]
-
-    def test_a_precise_update_that_also_moves_a_later_package_replays(self):
+    def test_one_move_that_also_moves_a_later_package_replays_without_touching_third_party_edges(self):
         result = self.resolve(self.cargo)
-        self.assertEqual(self.calls, [self.update("plumb")])
+        self.assertEqual(self.calls, [["cargo", "metadata", "--format-version", "1"]])
         self.assertEqual(replay.moves(self.root, self.expected), [])
+        self.assertIn(THIRD, (self.root / "Cargo.lock").read_text())
         self.assertEqual(result["packages"], self.expected["packages"])
 
-    def test_independent_moves_each_update_their_own_package(self):
-        self.together = {}
-        self.resolve(self.cargo)
-        self.assertEqual(self.calls, [self.update("plumb"), self.update("plumb-macro")])
+    def test_resolution_drops_only_first_party_entries(self):
+        read = lambda: tomllib.loads((self.root / "Cargo.lock").read_text())
+        before = read()
+        replay.dropped(self.root)
+        after = read()
+        self.assertEqual(after["package"], [item for item in before["package"] if item.get("source") != replay.SOURCE])
+        self.assertEqual(after["version"], before["version"])
+        self.assertIn(THIRD, (self.root / "Cargo.lock").read_text())
 
     def test_a_cargo_failure_is_not_suppressed(self):
         def refuse(held, argv):
@@ -126,9 +141,10 @@ class Sibling(unittest.TestCase):
         with self.assertRaisesRegex(Refusal, "failed to select a version"):
             self.resolve(refuse)
 
-    def test_an_update_that_leaves_its_package_unmoved_refuses(self):
-        with self.assertRaisesRegex(Refusal, "left .*#plumb@0.103.6 unmoved"):
-            self.resolve(lambda held, argv: self.calls.append(argv))
+    def test_a_resolution_outside_the_plan_refuses(self):
+        self.published = "0.103.8"
+        with self.assertRaisesRegex(Refusal, "cargo resolved plumb 0.103.8 outside the plan; prepare a fresh plan"):
+            self.resolve(self.cargo)
 
 
 class Reserved(unittest.TestCase):
