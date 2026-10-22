@@ -61,7 +61,12 @@ def resolved(held, execute, git):
     root = held["root"]
     current(root, request.expected, marker.version(request.identity["marker"]))
     node(held, git)
-    for spec, version in moves(root, request.expected):
+    attempted = set()
+    while pending := moves(root, request.expected):
+        spec, version = pending[0]
+        if spec in attempted:
+            raise Refusal(f"cargo update left {spec} unmoved; prepare a fresh plan")
+        attempted.add(spec)
         execute(held, [held["tools"]["cargo"]["path"], "update", "--package", spec, "--precise", version])
     git(held, "add", "--update")
     tree = git(held, "write-tree")
