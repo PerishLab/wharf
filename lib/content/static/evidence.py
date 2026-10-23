@@ -64,13 +64,22 @@ def unchanged(world):
             raise Refusal(f"static build tool {name} changed during execution")
 
 
-def inspect(argv, cwd, env):
+def completed(argv, cwd, env, stdout):
     try:
-        result = subprocess.run(argv, cwd=cwd, env=env, stdout=subprocess.PIPE, stderr=sys.stderr, text=True, timeout=1800)
+        result = subprocess.run(argv, cwd=cwd, env=env, stdout=stdout, stderr=sys.stderr, text=True, timeout=1800)
     except (OSError, subprocess.TimeoutExpired) as error:
         raise Refusal("static tool invocation failed or exceeded 1800 seconds") from error
     if result.returncode != 0:
         raise Refusal(f"static tool {Path(argv[0]).name} refused with exit status {result.returncode}")
+    return result
+
+
+def settle(argv, cwd, env):
+    completed(argv, cwd, env, subprocess.DEVNULL)
+
+
+def inspect(argv, cwd, env):
+    result = completed(argv, cwd, env, subprocess.PIPE)
     if len(result.stdout) > LIMIT:
         raise Refusal("static tool exceeded its output budget")
     return result.stdout
