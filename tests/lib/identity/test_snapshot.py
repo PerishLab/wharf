@@ -1,6 +1,7 @@
 import json
 import os
 import shutil
+import sys
 import tempfile
 import unittest
 from contextlib import contextmanager
@@ -287,3 +288,11 @@ class Tools(unittest.TestCase):
         with mock.patch.object(evidence.subprocess, "run", return_value=done):
             with self.assertRaisesRegex(Refusal, "exceeded its output budget"):
                 evidence.inspect(["/trusted/plumb"], "/source", {})
+
+    def test_replay_resolution_runs_cargo_without_capturing_metadata_beyond_the_budget(self):
+        loud = [sys.executable, "-c", f"print('x' * {evidence.LIMIT + 1})"]
+        held = {"root": tempfile.gettempdir(), "env": dict(os.environ), "tools": {}, "inspect": evidence.inspect}
+        with mock.patch.object(snapshot.replay, "applies", return_value=True), mock.patch.object(snapshot.replay, "resolved", lambda held, execute, git: execute(held, loud)):
+            self.assertRaisesRegex(Refusal, "needs actual released lift evidence", snapshot.resolution, held)
+        self.assertRaisesRegex(Refusal, "exceeded its output budget", evidence.inspect, loud, held["root"], held["env"])
+        self.assertRaisesRegex(Refusal, "refused with exit status 3", evidence.settle, [sys.executable, "-c", "raise SystemExit(3)"], held["root"], held["env"])

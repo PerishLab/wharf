@@ -145,7 +145,7 @@ def stable(held, reader=release.fetch):
 
 def resolution(held):
     tools = held["tools"]
-    result = replay.resolved(held, execute, git) if replay.applies(held) else evidence.decode(execute(held, [tools["plumb"]["path"], "lift", str(held["root"]), "--json"]))
+    result = replay.resolved(held, lambda held, argv: evidence.settle(argv, held["root"], held["env"]), git) if replay.applies(held) else evidence.decode(execute(held, [tools["plumb"]["path"], "lift", str(held["root"]), "--json"]))
     if not isinstance(result, dict) or set(result) != {"context", "tree", "packages"} or result["context"] != "lift":
         raise Refusal("release snapshot needs actual released lift evidence")
     object_id(result["tree"])
