@@ -260,6 +260,19 @@ class Readback(unittest.TestCase):
         api._client.open.side_effect = compatible
         self.assertEqual(self.invoke(api)["address"], self.origin)
 
+    def test_the_workers_dev_preview_indexing_header_never_passes_as_the_vetted_policy(self):
+        for value in ("noindex", "nofollow", "noindex, noindex"):
+            api = self.client()
+            def observed(request, timeout, value=value):
+                response = self.received(request, timeout)
+                del response.headers["X-Robots-Tag"]
+                response.headers["X-Robots-Tag"] = value
+                return response
+            api._client.open.side_effect = observed
+            with self.subTest(value=value), self.assertRaisesRegex(Refusal, "vetted indexing policy"):
+                self.invoke(api)
+            self.assertEqual(api._client.open.call_count, 1)
+
     def test_transport_is_proxy_free_redirect_refusing_and_has_no_credentials(self):
         with mock.patch("urllib.request.build_opener") as build:
             api = reader.Readback(self.plan, self.after, qualification(self.after, self.deployed))
