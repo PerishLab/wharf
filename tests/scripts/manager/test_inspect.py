@@ -40,7 +40,7 @@ class Inspection(Harness):
             path.chmod(0o755)
         selected = release.Release(self.release.repository, version, commit, self.release.wharf)
         managers = self.scratch / (version + "-managers")
-        release.render(selected, managers, {self.target: self.names})
+        release.render(selected, managers, {self.target: self.names}, self.scratch)
         release.publish(selected, release.Contents({self.target: bound}, managers, {self.target: self.names}, {}), self.bucket, lambda url: self.bucket.get(url.removeprefix(f"{self.authority}/")))
         return selected, managers
 

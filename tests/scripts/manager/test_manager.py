@@ -81,7 +81,7 @@ class Harness(unittest.TestCase):
             path.chmod(0o755)
         self.release = release.Release(manager.REPOSITORY, self.marker, manager.UNPINNED, manager.UNPINNED)
         self.managers = self.scratch / "managers"
-        release.render(self.release, self.managers, {self.target: self.names})
+        release.render(self.release, self.managers, {self.target: self.names}, self.scratch)
         self.bucket = Directory(self.scratch / "authority")
         self.authority = release.place(self.release)[2]
         release.publish(self.release, release.Contents({self.target: self.bound}, self.managers, {self.target: self.names}, {}), self.bucket, lambda url: self.bucket.get(url.removeprefix(f"{self.authority}/")))
