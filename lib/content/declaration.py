@@ -10,6 +10,15 @@ def release(source):
     return tomllib.loads(path.read_text()).get("release", {}) if path.is_file() else {}
 
 
+def windows(source):
+    table = release(source).get("windows")
+    if table is None:
+        return "user"
+    if not isinstance(table, dict) or set(table) != {"scope"} or table["scope"] not in ("user", "machine"):
+        raise Refusal('release.windows requires exactly scope = "user" or "machine"')
+    return table["scope"]
+
+
 def lane_path(source, value):
     if not isinstance(value, str) or not value or "\\" in value or (len(value) > 1 and value[1] == ":"):
         raise Refusal("preview app path must be a relative POSIX directory")

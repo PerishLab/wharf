@@ -199,7 +199,7 @@ class Render(unittest.TestCase):
         held = release.Release(repository, marker, "a" * 40, "b" * 40)
         out = self.root / marker
         installed = targets if isinstance(targets, dict) else {target: [repository.split("/")[1]] for target in targets}
-        return release.render(held, out, installed), out
+        return release.render(held, out, installed, self.root), out
 
     def test_a_prerelease_carries_the_pinned_scripts_alone(self):
         result, out = self.render("PerishLab/concord", "v0.12.9-rc.2")

@@ -135,13 +135,16 @@ def filled(values, windows, output):
     return output
 
 
-def render(release, output, installed):
+def render(release, output, installed, source):
     output = Path(output)
     if output.exists():
         raise Refusal(f"output {output} already exists")
     name = release.repository.split("/", 1)[1]
     output.mkdir(parents=True)
+    scope = declaration.windows(source)
     windows = windowed(name, installed)
+    if windows is not None:
+        windows.update(windows_scope=scope, windows_name=name[:1].upper() + name[1:])
     filled(named(name, release.marker, channel(release.marker), installed), windows, output)
     if channel(release.marker) == "stable":
         rooted = output / CANONICAL

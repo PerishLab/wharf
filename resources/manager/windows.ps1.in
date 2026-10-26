@@ -22,18 +22,22 @@ if ($command -in @('-h', '-help', '--help', 'help')) {{
 }}
 
 $canonicalPublicUrl = '{public_url}'
-$defaultInstallBase = if ($env:LOCALAPPDATA) {{
-    $env:LOCALAPPDATA
+$scope = '{windows_scope}'
+$folder = if ($scope -eq 'machine') {{ 'ProgramFiles' }} else {{ 'LocalApplicationData' }}
+$defaultInstallBase = [Environment]::GetFolderPath($folder)
+$defaultBinBase = [Environment]::GetFolderPath('UserProfile')
+if (-not $defaultInstallBase -or ($scope -eq 'user' -and -not $defaultBinBase)) {{
+    throw 'Windows did not resolve the installation known folders'
 }}
-elseif ($HOME) {{
-    Join-Path $HOME '.local/share'
+if ($scope -eq 'machine') {{
+    $base = Join-Path $defaultInstallBase '{windows_name}'
+    $defaultInstallRoot = Join-Path $base 'versions'
+    $defaultBinDir = Join-Path $base 'bin'
 }}
 else {{
-    '.'
+    $defaultInstallRoot = Join-Path $defaultInstallBase '{product}'
+    $defaultBinDir = Join-Path $defaultBinBase '.local/bin'
 }}
-$defaultBinBase = if ($env:USERPROFILE) {{ $env:USERPROFILE }} elseif ($HOME) {{ $HOME }} else {{ '.' }}
-$defaultInstallRoot = Join-Path $defaultInstallBase '{product}'
-$defaultBinDir = Join-Path $defaultBinBase '.local/bin'
 $installRootExplicit = $null -ne [Environment]::GetEnvironmentVariable('{environment}_INSTALL_ROOT')
 $binDirExplicit = $null -ne [Environment]::GetEnvironmentVariable('{environment}_LOCAL_BIN_DIR')
 $channel = if ($env:{environment}_CHANNEL) {{ $env:{environment}_CHANNEL }} else {{ '{default_channel}' }}
@@ -79,6 +83,9 @@ Environment:
   {environment}_INSTALL_ROOT
   {environment}_LOCAL_BIN_DIR
 '@ | Write-Output
+    Write-Output "Scope: $scope"
+    Write-Output "Default install root: $defaultInstallRoot"
+    Write-Output "Default bin directory: $defaultBinDir"
 }}
 
 for ($index = 0; $index -lt $rest.Length; $index++) {{

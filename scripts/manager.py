@@ -41,11 +41,11 @@ def compiled(scratch, name, marker):
     output.chmod(0o755)
 
 
-def declared(scratch):
+def declared(scratch, scope="user"):
     (scratch / "fixture.rs").write_bytes(resources.read_bytes("manager/fixture.rs"))
     source = scratch / "source"
     source.mkdir()
-    (source / "plumb.toml").write_bytes(resources.read_bytes("manager/fixture.toml"))
+    (source / "plumb.toml").write_text(resources.read_bytes("manager/fixture.toml").decode() + f'\n[release.windows]\nscope = "{scope}"\n')
     listed = executables.declared(source, release.targets(source))
     return executables.built(listed, WINDOWS), executables.installed(listed, WINDOWS)
 
@@ -58,7 +58,7 @@ def published(scratch, marker, listed):
         compiled(scratch, name, marker)
     held = release.Release(REPOSITORY, marker, UNPINNED, UNPINNED)
     managers = scratch / "managers" / marker
-    release.render(held, str(managers), {WINDOWS: installed})
+    release.render(held, str(managers), {WINDOWS: installed}, scratch / "source")
     bucket = Directory(scratch / "authority")
     authority = release.place(held)[2]
     release.publish(held, release.Contents({WINDOWS: bound}, managers, {WINDOWS: installed}, {}), bucket, lambda url: bucket.get(url.removeprefix(f"{authority}/")))
@@ -150,31 +150,50 @@ def refused(shell, script, argv):
 
 
 def stepped(shell, managers, installed, url):
-    seat = Path(tempfile.mkdtemp())
-    held = []
-    for command, manager, marker, state in STEPS:
-        pinned = ["--version", marker] if marker else []
-        invoked(shell, managers[manager], [command, "--public-url", url, *pinned, "--install-root", str(seat / "root"), "--bin-dir", str(seat / "bin")])
-        found, wanted = observed(seat), expected(state, installed)
-        if found != wanted:
-            raise Refusal(f"after {command} through the {manager} manager: found {json.dumps(found)}, expected {json.dumps(wanted)}")
-        held.append({"command": command, "manager": manager, "files": found["files"]})
-        if len(held) == 1:
-            repaired(shell, managers[manager], seat, url)
-    return held
+    with tempfile.TemporaryDirectory(prefix="wharf-manager-seat-") as directory:
+        seat = Path(directory)
+        held = []
+        for command, manager, marker, state in STEPS:
+            pinned = ["--version", marker] if marker else []
+            invoked(shell, managers[manager], [command, "--public-url", url, *pinned, "--install-root", str(seat / "root"), "--bin-dir", str(seat / "bin")])
+            found, wanted = observed(seat), expected(state, installed)
+            if found != wanted:
+                raise Refusal(f"after {command} through the {manager} manager: found {json.dumps(found)}, expected {json.dumps(wanted)}")
+            held.append({"command": command, "manager": manager, "files": found["files"]})
+            if len(held) == 1:
+                repaired(shell, managers[manager], seat, url)
+        return held
+
+
+def defaults(shell, script, scope):
+    query = "@{machine=[Environment]::GetFolderPath('ProgramFiles');local=[Environment]::GetFolderPath('LocalApplicationData');user=[Environment]::GetFolderPath('UserProfile')} | ConvertTo-Json -Compress"
+    done = subprocess.run([shell, "-NoProfile", "-NonInteractive", "-Command", query], capture_output=True, text=True, check=True)
+    folders = json.loads(done.stdout)
+    base = Path(folders["machine"]) / "Demo"
+    root = base / "versions" if scope == "machine" else Path(folders["local"]) / "demo"
+    binary = base / "bin" if scope == "machine" else Path(folders["user"]) / ".local" / "bin"
+    output = invoked(shell, script, ["--help"])
+    for line in (f"Scope: {scope}", f"Default install root: {root}", f"Default bin directory: {binary}"):
+        if line not in output:
+            raise Refusal(f"manager help does not report {line}")
 
 
 def windows(held):
     if shutil.which(held["shell"]) is None:
         raise Refusal(f"{held['shell']} is not on this machine")
-    scratch = Path(tempfile.mkdtemp())
-    built, installed = declared(scratch)
-    managers = {marker: published(scratch, marker, (built, installed)) for marker in MARKERS}
-    managers[release.CANONICAL] = managers[MARKERS[-1]].parent / release.CANONICAL / "manage.ps1"
-    authority = release.place(release.Release(REPOSITORY, "", "", ""))[2]
-    with mirror.served(scratch / "authority", authority) as url:
-        steps = stepped(held["shell"], managers, installed, url)
-    return {"action": "manager.windows", "shell": held["shell"], "built": built, "installed": installed, "steps": steps}
+    cases = []
+    for scope in ("user", "machine"):
+        with tempfile.TemporaryDirectory(prefix="wharf-manager-") as directory:
+            scratch = Path(directory)
+            built, installed = declared(scratch, scope)
+            managers = {marker: published(scratch, marker, (built, installed)) for marker in MARKERS}
+            managers[release.CANONICAL] = managers[MARKERS[-1]].parent / release.CANONICAL / "manage.ps1"
+            defaults(held["shell"], managers[release.CANONICAL], scope)
+            authority = release.place(release.Release(REPOSITORY, "", "", ""))[2]
+            with mirror.served(scratch / "authority", authority) as url:
+                steps = stepped(held["shell"], managers, installed, url)
+            cases.append({"scope": scope, "built": built, "installed": installed, "steps": steps})
+    return {"action": "manager.windows", "shell": held["shell"], "cases": cases}
 
 
 def domain(held):

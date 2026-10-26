@@ -60,6 +60,6 @@ class Point(unittest.TestCase):
         (source / "plumb.toml").write_text('[release]\nbinaries = ["santi", "santi-api"]\ntargets = ["x86_64-unknown-linux-gnu", "aarch64-apple-darwin"]\n[release.binary.santi-api]\ninstall = false\n')
         bucket = mock.Mock()
         bucket.get.return_value = json.dumps({"artifacts": {"linux-x64": {}, "linux-x64-deb": {}}}).encode()
-        with mock.patch.object(channel.r2, "writer", return_value=bucket), mock.patch.object(channel.release, "render", side_effect=lambda release, output, installed: rendered.update(installed)), mock.patch.object(channel.release, "point", return_value={}):
+        with mock.patch.object(channel.r2, "writer", return_value=bucket), mock.patch.object(channel.release, "render", side_effect=lambda release, output, installed, source: rendered.update(installed)), mock.patch.object(channel.release, "point", return_value={}):
             channel.point(dict(HELD, repository="PerishLab/santi", source=str(source)))
         self.assertEqual(rendered, {"x86_64-unknown-linux-gnu": ["santi"]})

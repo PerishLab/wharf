@@ -137,7 +137,7 @@ class Sealed(unittest.TestCase):
 class Managed(unittest.TestCase):
     def render(self, repository, installed, marker="v0.2.0"):
         out = Path(tempfile.mkdtemp()) / "managers"
-        release.render(release.Release(repository, marker, "a" * 40, "b" * 40), out, installed)
+        release.render(release.Release(repository, marker, "a" * 40, "b" * 40), out, installed, out.parent)
         return out
 
     def test_the_unix_manager_installs_each_platform_s_own_executables(self):
@@ -168,3 +168,28 @@ class Managed(unittest.TestCase):
         self.assertIn(f"$archive = 'plumb-{WINDOWS}.zip'", windows)
         self.assertIn("$seal.artifacts.'windows-x64'.sha256", windows)
         self.assertNotIn("{", "".join(line for line in unix.splitlines() if "BINARIES" in line))
+
+
+class Windows(unittest.TestCase):
+    def test_the_exact_source_declaration_selects_both_pinned_and_canonical_scopes(self):
+        for scope in ("user", "machine"):
+            with tempfile.TemporaryDirectory() as directory:
+                source = Path(directory)
+                (source / "plumb.toml").write_text(f'[release.windows]\nscope = "{scope}"\n')
+                output = source / "managers"
+                release.render(release.Release("PerishLab/dynet", "v0.4.0", "a" * 40, "b" * 40), output, {WINDOWS: ["dynet"]}, source)
+                for script in (output / "manage.ps1", output / "canonical/manage.ps1"):
+                    body = script.read_text()
+                    self.assertIn(f"$scope = '{scope}'", body)
+                    self.assertIn("GetFolderPath($folder)", body)
+                    self.assertIn("$base = Join-Path $defaultInstallBase 'Dynet'", body)
+                    self.assertNotIn("$env:LOCALAPPDATA", body)
+                    self.assertNotIn("C:\\Program Files", body)
+
+    def test_unknown_or_malformed_scopes_refuse_rendering(self):
+        for table in ('scope = "global"', 'scope = "machine"\nroot = "X:/data"', '', 'scope = false'):
+            with tempfile.TemporaryDirectory() as directory:
+                source = Path(directory)
+                (source / "plumb.toml").write_text('[release.windows]\n' + table)
+                with self.assertRaisesRegex(Refusal, "release.windows"):
+                    release.render(release.Release("PerishLab/dynet", "v0.4.0", "a" * 40, "b" * 40), source / "managers", {WINDOWS: ["dynet"]}, source)

@@ -28,7 +28,7 @@ def point(held):
     bucket = r2.writer(release.place(pointed)[1], "RELEASES")
     seal = json.loads(bucket.get(release.sealed(pointed)))
     listed = executables.declared(held["source"], release.targets(held["source"]))
-    release.render(pointed, str(managers), {target: executables.installed(listed, target) for target in release.sealed_targets(seal)})
+    release.render(pointed, str(managers), {target: executables.installed(listed, target) for target in release.sealed_targets(seal)}, held["source"])
     return release.point(pointed, managers, bucket)
 
 
