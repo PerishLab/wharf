@@ -4,6 +4,7 @@ import sys
 from lib import parameters
 from lib.media import release
 from lib.refusal import Refusal
+from lib.process.trial import admission, consumer, judgment
 from lib.store import distribution, r2
 
 CONTEXT = ("repository", "marker", "commit", "tree", "wharf", "run", "attempt")
@@ -16,7 +17,12 @@ def record(held):
     return distribution.record(r2.writer(bucket, "RELEASES"), context, json.loads(held["needs"]), lambda key: release.fetch(f"{authority}/{key}"))
 
 
-ACTIONS = {"record": (record, [*CONTEXT, "needs"])}
+ACTIONS = {
+    "record": (record, [*CONTEXT, "needs"]),
+    "trial-admit": (admission.admit, ["source", "run"]),
+    "trial-run": (consumer.execute, ["source", "trialcase"]),
+    "trial-judge": (judgment.judge, ["source"]),
+}
 
 
 def main(argv=None):
