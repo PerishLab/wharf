@@ -1370,6 +1370,13 @@ Depot is the only source, and its `previousGeneration` chain is the history.
   time instead of trusting either. A scene carries a nonempty tree of regular
   files with anchored paths and boolean executable modes; lodging never executes
   it or judges its test semantics, which belong to Seatrial.
+- Scenes additionally publish their exact version standing pointer at
+  `channels/<channel>/scenes/latest.json`, after generation publication. This
+  discovery entry never rolls back a higher marker and is conditionally written;
+  a failed second write fails lodging, and repeating the same consignment
+  reconciles it even if its generation was already published. It does not select
+  an executor version. Consumers validate the immutable generation and its
+  version standing before executing one resolved snapshot.
 - A lodged generation's base is its own standing generation, else the highest
   lower version on its `x.y.z` line, else the highest lower stable; with none,
   it starts the product's lineage.

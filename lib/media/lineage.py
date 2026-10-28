@@ -2,7 +2,7 @@ import json
 import re
 
 from lib.media import depot
-from lib.refusal import Refusal
+from lib.refusal import Conflict, Refusal
 
 VERSION = re.compile(r"v(\d+)\.(\d+)\.(\d+)(?:-(alpha|beta|rc)\.([1-9]\d*))?")
 KINDS = {"alpha": 0, "beta": 1, "rc": 2}
@@ -76,3 +76,59 @@ def parent(bucket, target):
     if not below:
         return None
     return standing(bucket, (*max(below, key=lambda held: order(held[1])), kind))
+
+
+def discovery(bucket, release, digest):
+    channel = depot.channel_of(release.marker)
+    target = (channel, release.marker, "scene")
+    candidate, _ = pointer(bucket, target)
+    candidate = checked(bucket, release, candidate, channel)
+    if candidate["version"] != release.marker or candidate["generation"] != digest:
+        raise Refusal("scene standing changed before channel publication")
+    key = f"channels/{channel}/scenes/latest.json"
+    etag = bucket.head(key)
+    try:
+        current = json.loads(bucket.get(key)) if etag else None
+    except (ValueError, UnicodeError):
+        raise Refusal("scene channel pointer is not readable JSON")
+    if current is not None:
+        current = checked(bucket, release, current, channel)
+        if order(current["version"]) > order(candidate["version"]):
+            return {"state": "newer", "generation": current["generation"]}
+        if current == candidate:
+            return {"state": "already-published", "generation": digest}
+    try:
+        bucket.swap(key, depot.pretty(candidate), etag)
+    except Conflict:
+        raise Refusal("scene channel moved during publication; read back and consign again")
+    return {"state": "published", "generation": digest}
+
+
+def checked(bucket, release, held, channel):
+    fields = ("product", "channel", "version", "kind", "generation", "createdAt")
+    if not isinstance(held, dict) or any(field not in held for field in fields):
+        raise Refusal("scene pointer is incomplete")
+    if any(not isinstance(held[field], str) for field in fields):
+        raise Refusal("scene pointer identity fields must be strings")
+    if type(held.get("format")) is not int or held["format"] != depot.FORMAT:
+        raise Refusal("scene pointer format is unsupported")
+    stamp = held["createdAt"]
+    if not isinstance(stamp, str) or not re.fullmatch(r"[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z", stamp):
+        raise Refusal("scene pointer timestamp is invalid")
+    prior = held.get("previousGeneration")
+    if prior is not None and (not isinstance(prior, str) or not depot.DIGEST.fullmatch(prior)):
+        raise Refusal("scene pointer previous generation is invalid")
+    product = release.repository.split("/", 1)[1].lower()
+    if (held["product"], held["channel"], held["kind"]) != (product, channel, "scene"):
+        raise Refusal("scene pointer names another projection")
+    if not isinstance(held["generation"], str) or not depot.DIGEST.fullmatch(held["generation"]):
+        raise Refusal("scene pointer names an invalid generation")
+    if depot.channel_of(held["version"]) != channel:
+        raise Refusal("scene pointer version belongs to another channel")
+    record = generation(bucket, (channel, held["version"], "scene"), held["generation"])
+    if record is None:
+        raise Refusal("scene pointer has no immutable manifest")
+    expected = depot.pointer(record["document"], depot.source(release), held.get("previousGeneration"), held["createdAt"])
+    if held != expected:
+        raise Refusal("scene pointer does not bind its immutable manifest")
+    return held
