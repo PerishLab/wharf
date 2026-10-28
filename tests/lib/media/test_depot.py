@@ -52,3 +52,10 @@ class Format(unittest.TestCase):
         self.assertEqual((depot.channel_of("v0.38.0"), depot.channel_of("v0.38.0-rc.1")), ("stable", "rc"))
         with self.assertRaises(Refusal):
             depot.channel_of("0.38.0")
+
+    def test_scene_generation_is_a_separate_marker_projection(self):
+        document = depot.manifest(depot.identity(release(), "beta", "scene"), OBJECTS)
+        held = depot.pointer(document, BASE, None, "2026-10-28T00:00:00Z")
+        self.assertIn("/channels/beta/scenes/versions/v0.38.0-beta.8/generations/", held["manifest"]["url"])
+        self.assertEqual(held["marker"], document["marker"])
+        self.assertIsNone(depot.lineage(held, dict(document, kind="skill")))

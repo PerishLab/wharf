@@ -1352,7 +1352,7 @@ blobs — so nothing answers requests and nothing but a bucket can fail.
 
 ## Depot
 
-Depot generations are marker-bound blobs of one kind (`skill`, `changelog`);
+Depot generations are marker-bound blobs of one kind (`skill`, `changelog`, `scene`);
 wharf reads their meaning only to vet what it lodges. The standing generation on
 Depot is the only source, and its `previousGeneration` chain is the history.
 
@@ -1367,7 +1367,9 @@ Depot is the only source, and its `previousGeneration` chain is the history.
   cap, since skills are written for their release and no product tree carries
   one — and only then writes the generation. The yard is an untrusted inbox, and expiry
   is a floor rather than a promise, so lodge checks presence and digest every
-  time instead of trusting either.
+  time instead of trusting either. A scene carries a nonempty tree of regular
+  files with anchored paths and boolean executable modes; lodging never executes
+  it or judges its test semantics, which belong to Seatrial.
 - A lodged generation's base is its own standing generation, else the highest
   lower version on its `x.y.z` line, else the highest lower stable; with none,
   it starts the product's lineage.

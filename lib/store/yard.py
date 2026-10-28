@@ -57,6 +57,8 @@ def unpack(document, target):
         raise Refusal("the consignment names one path twice")
     for entry in objects:
         depot.check(entry.get("path", ""))
+        if type(entry.get("executable")) is not bool:
+            raise Refusal("yard object executable mode is not a boolean")
         path = target / entry["path"]
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_bytes(body(entry))
