@@ -32,3 +32,17 @@ def skill(directory):
     if size > CAP:
         raise Refusal(f"the consigned {BRIEF} carries {size} bytes where plumb's rule://seat/wayfinder caps {CAP}")
     return f"skill carries a {BRIEF} of {size} bytes"
+
+
+def scene(directory):
+    if directory.is_symlink() or not directory.is_dir():
+        raise Refusal("the consigned scene is not a plain directory")
+    files = 0
+    for path in directory.rglob("*"):
+        if path.is_symlink() or not (path.is_file() or path.is_dir()):
+            raise Refusal("the consigned scene carries a special object")
+        if path.is_file():
+            files += 1
+    if not files:
+        raise Refusal("the consigned scene holds no files")
+    return f"scene carries {files} regular files; execution semantics belong to Seatrial"

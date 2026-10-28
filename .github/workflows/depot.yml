@@ -19,6 +19,7 @@ on:
         options:
           - changelog
           - skill
+          - scene
       digest:
         description: sha256 of the consignment in the yard
         required: true

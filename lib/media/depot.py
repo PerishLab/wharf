@@ -9,7 +9,7 @@ from lib.content import canonical, marker, resources
 from lib.refusal import Conflict, Refusal
 
 FORMAT = 3
-KINDS = {"changelog": "changelogs", "skill": "skills"}
+KINDS = {"changelog": "changelogs", "skill": "skills", "scene": "scenes"}
 STABLE_ONLY = {"changelog"}
 LAYOUT = resources.read_json("depot.json")
 DIGEST = re.compile(r"[0-9a-f]{64}")
@@ -69,7 +69,7 @@ def identity(release, channel, kind):
 
 def check(path):
     parts = path.split("/")
-    if not path or path.startswith("/") or any(part in ("", ".", "..") for part in parts):
+    if not path or path.startswith("/") or "\\" in path or any(part in ("", ".", "..") for part in parts):
         raise Refusal(f"object path {path!r} is not anchored")
 
 

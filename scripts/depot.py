@@ -35,9 +35,13 @@ def now():
 
 
 def vetted(held, release_held, directory):
-    if held["kind"] == "changelog":
+    kind = held["kind"]
+    if kind == "changelog":
         return consigned.changelog(held["source"], held["marker"], directory)
-    return consigned.skill(Path(directory))
+    validators = {"skill": consigned.skill, "scene": consigned.scene}
+    if kind not in validators:
+        raise Refusal(f"unknown depot kind {kind!r}")
+    return validators[kind](Path(directory))
 
 
 def lodge(held):

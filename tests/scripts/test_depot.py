@@ -50,3 +50,25 @@ class Lodge(unittest.TestCase):
         with self.assertRaisesRegex(Refusal, "entries beside SKILL.md"):
             self.lodged("v1.0.0", "skill", objects)
         self.assertEqual(self.buckets.get("perish-demo-depot", Memory()).writes, [])
+
+    def test_a_scene_preserves_materials_without_running_them(self):
+        objects = [entry("writer.toml", b"command = []\n"), entry("run.sh", b"exit 91\n", True)]
+        first = self.lodged("v1.0.0", "scene", objects)
+        store = self.buckets["perish-demo-depot"]
+        standing = lineage.standing(store, ("stable", "v1.0.0", "scene"))
+        self.assertEqual(standing["generation"], first["generation"])
+        again = self.lodged("v1.0.0", "scene", objects)
+        self.assertEqual(again["state"], "already-published")
+        following = self.lodged("v1.0.0", "scene", [entry("writer.toml", b"changed")])
+        self.assertEqual(following["base"], first["generation"])
+        self.assertEqual(lineage.standing(store, ("stable", "v1.0.0", "scene"))["generation"], following["generation"])
+
+    def test_a_scene_refuses_bad_paths_modes_and_digests_before_depot_writes(self):
+        damaged = entry("writer.toml", b"bytes")
+        damaged["sha256"] = "0" * 64
+        mode = entry("writer.toml", b"bytes")
+        mode["executable"] = "false"
+        for objects in ([entry("../escape", b"bytes")], [entry("a\\b", b"bytes")], [damaged], [mode]):
+            with self.subTest(objects=objects), self.assertRaises(Refusal):
+                self.lodged("v1.0.0", "scene", objects)
+            self.assertEqual(self.buckets.get("perish-demo-depot", Memory()).writes, [])

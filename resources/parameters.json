@@ -29,7 +29,7 @@
   },
   "shapes": {
     "repository": "PerishLab/[A-Za-z0-9._-]+",
-    "kind": "skill|changelog",
+    "kind": "skill|changelog|scene",
     "shell": "pwsh|powershell"
   },
   "defaults": {}
