@@ -53,6 +53,7 @@ jobs:
       planned: ${{ steps.plan.outputs.planned }}
       presence: ${{ steps.plan.outputs.presence }}
       snapshot: ${{ steps.plan.outputs.snapshot }}
+      trial: ${{ steps.plan.outputs.trial }}
       commit: ${{ steps.source.outputs.commit }}
       tree: ${{ steps.source.outputs.tree }}
     steps:
@@ -799,6 +800,7 @@ jobs:
 
       - name: "[record] distribution"
         env:
+          WHARF_TRIAL: ${{ needs.plan.outputs.trial }}
           WHARF_NEEDS: ${{ toJSON(needs) }}
           WHARF_REPOSITORY: ${{ inputs.repository }}
           WHARF_MARKER: ${{ inputs.marker }}

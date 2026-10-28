@@ -47,6 +47,8 @@ def observed(context, needs):
         plan.combination(dict(verified, guard={}))
         resolution[name] = verified
     held = {"schema": 1, **{field: context[field] for field in IDENTITY}, "media": media, "state": state, "attempt": attempt, "completed": attempt if state == "complete" else None}
+    if "trial" in context:
+        held["trial"] = context["trial"]
     return dict(held, resolution=resolution) if resolution else held
 
 
@@ -59,6 +61,8 @@ def merged(standing, fresh):
         return fresh
     if (standing["commit"], standing["tree"]) != (fresh["commit"], fresh["tree"]):
         raise Refusal(f"{location(fresh['marker'])} records {standing['commit']}, this run distributes {fresh['commit']}; a marker never moves")
+    if standing.get("trial") != fresh.get("trial"):
+        raise Refusal("one immutable marker carries different Seatrial declarations")
     media = {name: standing["media"].get(name) if final(standing["media"].get(name)) else held for name, held in fresh["media"].items()}
     completed = standing["completed"] or fresh["completed"]
     resolution = dict(fresh.get("resolution", {}))
@@ -70,6 +74,8 @@ def merged(standing, fresh):
     if resolution and any(record != next(iter(resolution.values())) for record in resolution.values()):
         raise Refusal("one immutable marker carries different published combinations")
     held = dict(fresh, media=media, state="complete" if completed else "incomplete", completed=completed)
+    if "trial" in fresh:
+        held["trial"] = fresh["trial"]
     return dict(held, resolution=resolution) if resolution else held
 
 

@@ -4,7 +4,8 @@ import subprocess
 from pathlib import Path
 
 from lib.media.release import fetch
-from lib.process.trial.admission import AUTHORITY, checked, document
+from lib.process.trial.admission import checked, document
+from lib.process.trial.declaration import validate, NAME
 
 RUNNER = "https://releases.seatrial.perish.uk"
 PROBE = "docker.io/curlimages/curl:8.10.1@sha256:d9b4541e214bcd85196d6e92e2753ac6d0ea699f0af5741f8c6cccbfcf00ef4b"
@@ -39,7 +40,7 @@ def execute(held):
     root = Path(held["source"]).resolve()
     admitted = json.loads((root / "evidence" / "admission.json").read_text())
     checked(admitted.get("eligible") is True, "observation is not admitted")
-    current = document(f"{AUTHORITY}/v1/channels/{admitted['channel']}.json")
+    current = document(f"{admitted['authority']}/v1/channels/{admitted['channel']}.json")
     if current.get("releaseVersion") != admitted["marker"]:
         result = {"state": "superseded", "ok": False, "requested": admitted["marker"], "current": current.get("releaseVersion")}
         (root / "evidence" / "execution.json").write_text(json.dumps(result, indent=2) + "\n")
@@ -50,14 +51,19 @@ def execute(held):
     home.mkdir()
     env = {"PATH": "/usr/bin:/bin", "HOME": str(home), "LANG": "C.UTF-8"}
     binary = install(root, env)
+    specification = validate(admitted["trial"]["specification"])
     mode = held["trialcase"]
-    checked(mode in ("writer", "fault"), "unsupported observation case")
-    scene_channel = "stable" if mode == "writer" else "rc"
-    config = f'[images]\nprobe = "{PROBE}"\n[plumb]\nchannel = "{admitted["channel"]}"\nauthority = "{AUTHORITY}"\nimage = "ghcr.io/perishlab/images:stable"\n[scenes]\nauthority = "https://depot.seatrial.perish.uk"\nproduct = "seatrial"\nchannel = "{scene_channel}"\n'
+    checked(mode == "declared" or NAME.fullmatch(mode), "invalid diagnostic case")
+    cases = specification["cases"] if mode == "declared" else [mode]
+    configuration = {"images": {"probe": PROBE}, admitted["product"]: {"channel": admitted["channel"], "authority": admitted["authority"], "image": specification["image"]}, "scenes": specification["scenes"]}
+    config = "".join("[" + name + "]\n" + "".join(key + " = " + json.dumps(value) + "\n" for key, value in table.items()) for name, table in configuration.items())
     (work / "seatrial.toml").write_text(config)
     report = root / "evidence" / "report.json"
     with (root / "evidence" / "run.log").open("xb") as output:
-        completed = subprocess.run([str(binary), "run", "--case", mode, "--report", str(report)], cwd=work, env=env, stdout=output, stderr=subprocess.STDOUT, timeout=600)
-    result = {"state": "executed", "exit": completed.returncode, "case": mode, "scene_channel": scene_channel, "product_pointer": current}
+        command = [str(binary), "run", "--report", str(report)]
+        for case in cases:
+            command.extend(["--case", case])
+        completed = subprocess.run(command, cwd=work, env=env, stdout=output, stderr=subprocess.STDOUT, timeout=600)
+    result = {"state": "executed", "exit": completed.returncode, "cases": cases, "scope": "declared" if mode == "declared" else "diagnostic", "scenes": specification["scenes"], "product_pointer": current}
     (root / "evidence" / "execution.json").write_text(json.dumps(result, indent=2) + "\n")
     return result

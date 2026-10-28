@@ -26,13 +26,17 @@
     "unit": "string",
     "wharf": "string",
     "domain": "string",
-    "trialcase": "string"
+    "trialcase": "string",
+    "trial": "string"
   },
   "shapes": {
     "repository": "PerishLab/[A-Za-z0-9._-]+",
     "kind": "skill|changelog|scene",
     "shell": "pwsh|powershell",
-    "trialcase": "writer|fault"
+    "trialcase": "[a-z0-9_-]+"
   },
-  "defaults": {}
+  "defaults": {
+    "trial": "null",
+    "trialcase": "declared"
+  }
 }
