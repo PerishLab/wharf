@@ -4,9 +4,10 @@ import sys
 from lib import parameters
 from lib.media import release
 from lib.refusal import Refusal
-from lib.process.trial import admission, consumer, judgment
+from lib.process.trial import admission, consumer, judgment, declaration
 from lib.store import distribution, r2
 
+IDENTITY = ("repository", "marker", "commit", "tree")
 CONTEXT = ("repository", "marker", "commit", "tree", "wharf", "run", "attempt")
 
 
@@ -14,11 +15,13 @@ def record(held):
     placed = release.Release(held["repository"], held["marker"], held["commit"], held["wharf"])
     _, bucket, authority = release.place(placed)
     context = {field: held[field] for field in CONTEXT}
+    trial = json.loads(held.get("trial", "null"))
+    context["trial"] = None if trial is None else declaration.bound(trial, {field: context[field] for field in IDENTITY})
     return distribution.record(r2.writer(bucket, "RELEASES"), context, json.loads(held["needs"]), lambda key: release.fetch(f"{authority}/{key}"))
 
 
 ACTIONS = {
-    "record": (record, [*CONTEXT, "needs"]),
+    "record": (record, [*CONTEXT, "needs", "trial"]),
     "trial-admit": (admission.admit, ["source", "run"]),
     "trial-run": (consumer.execute, ["source", "trialcase"]),
     "trial-judge": (judgment.judge, ["source"]),

@@ -9,14 +9,13 @@ on:
   workflow_dispatch:
     inputs:
       run:
-        description: Exact completed Plumb non-stable ship run to replay
+        description: Exact completed non-stable ship run to replay
         type: string
         required: false
       trialcase:
-        description: Published observation case
-        type: choice
-        options: [writer, fault]
-        default: writer
+        description: Declared suite or one explicit diagnostic case
+        type: string
+        default: declared
       marker:
         description: Exact Plumb marker for native staging regressions
         type: string
@@ -189,7 +188,7 @@ jobs:
         if: steps.admit.outputs.eligible == 'true'
         env:
           WHARF_SOURCE: ${{ runner.temp }}/seatrial-observation
-          WHARF_TRIALCASE: ${{ inputs.trialcase || 'writer' }}
+          WHARF_TRIALCASE: ${{ inputs.trialcase || 'declared' }}
         run: python3 -B -m scripts.distribution trial-run
 
       - name: "[trial] judge observation"

@@ -12,6 +12,7 @@ from lib.identity.guard import coverage, pull, snapshot
 from lib.process import git
 from lib.refusal import Refusal
 from lib.store import plan, r2, workload
+from lib.process.trial import declaration as trial
 
 BUILD = resources.read_json("build.json")
 UNITS = resources.read_json("units.json")
@@ -203,6 +204,7 @@ def record(held):
     request = snapshot.Request(Path(held["source"]), identity, toolchain.versions(), expected, destination=snapshot.destination(held["source"]), recall=lambda observed: plan.recall(bucket, observed, recalled), pull=lambda: pulled(identity, offers))
     with snapshot.prepared(request) as (root, verified, confirm):
         plan.matching(bucket, held, verified)
+        suite = trial.capture(root, identity)
         scoped = dict(held, source=root, snapshot=verified)
         entries = {}
         observed = reported(held["steps"])
@@ -218,7 +220,10 @@ def record(held):
         engines = node.expected(root) if node.carried(root) else {}
         taken = attributed(offers, verified["guard"])
         context = dict({field: held[field] for field in CONTEXT}, snapshot=verified, **({"recalled": recalled} if recalled else {}), **({"pulled": taken} if taken is not None else {}))
+        if suite is not None:
+            context["trial"] = suite
         confirm()
+        parameters.answer({"trial": json.dumps(suite, sort_keys=True, separators=(",", ":"))})
         recorded = plan.record(bucket, context, entries, engines)
         remembered = False if recalled else plan.remember(bucket, context)
         return dict(recorded, recalled=recalled or None, pulled=taken, remembered=remembered, decided=emit(entries, held["attempt"], verified), entry={name: entries[name]["decision"] for name in sorted(entries)})
