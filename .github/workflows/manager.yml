@@ -1,5 +1,5 @@
 name: manager
-run-name: "[test] manager windows"
+run-name: "[test] suite native"
 
 on:
   workflow_dispatch:
@@ -20,11 +20,48 @@ on:
       - lib/store/directory.py
       - lib/store/mirror.py
       - scripts/manager.py
+      - resources/manager/suite.json
+      - lib/cargo/suite.py
+      - lib/process/job.py
+      - lib/process/windows.py
+      - tests/lib/cargo/test_suite.py
 
 permissions:
   contents: read
 
 jobs:
+  suite:
+    if: ${{ !inputs.marker }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: windows-2025
+            platform: windows
+          - runner: macos-15
+            platform: macos
+    name: "[test] suite cargo ${{ matrix.platform }}"
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 5
+    defaults:
+      run:
+        shell: bash
+        working-directory: wharf
+    steps:
+      - name: "[prepare] autocrlf"
+        if: runner.os == 'Windows'
+        working-directory: .
+        run: git config --global core.autocrlf false
+
+      - name: "[checkout] wharf"
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          path: wharf
+          persist-credentials: false
+
+      - name: "[test] suite cargo ${{ matrix.platform }}"
+        run: python3 -B -m scripts.manager suite
+
   windows:
     if: ${{ !inputs.marker }}
     strategy:

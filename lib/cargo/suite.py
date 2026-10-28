@@ -24,6 +24,7 @@ RESULT = re.compile(r"^test result: (ok|FAILED)\. (\d+) passed; (\d+) failed; (\
 class Suite:
     source: Path
     output: Path
+    target: str
 
 
 def expire(process, expired):
@@ -33,6 +34,9 @@ def expire(process, expired):
 
 
 def attempt(argv, cwd, env, timeout=TIMEOUT):
+    if os.name == "nt":
+        from lib.process.windows import attempt as native
+        return native(argv, cwd, env, timeout)
     sys.stderr.flush()
     lines, expired = [], threading.Event()
     with subprocess.Popen(argv, cwd=cwd, env=env, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, start_new_session=True) as process:
@@ -63,6 +67,7 @@ def isolated(channel, home, target):
     env = {name: value for name, value in os.environ.items() if not name.startswith(("CARGO_", "RUSTUP_"))}
     env.update(
         HOME=str(home),
+        USERPROFILE=str(home),
         CARGO_HOME=os.environ.get("CARGO_HOME", str(base / ".cargo")),
         RUSTUP_HOME=os.environ.get("RUSTUP_HOME", str(base / ".rustup")),
         RUSTUP_TOOLCHAIN=channel,
@@ -91,14 +96,17 @@ def tally(log):
 def execute(request, tools, channel):
     with tempfile.TemporaryDirectory() as home, tempfile.TemporaryDirectory() as target:
         env = isolated(channel, home, target)
+        rustc = tools.run(["rustc", "-vV"], request.source, env).strip()
+        hosts = [line.removeprefix("host: ") for line in rustc.splitlines() if line.startswith("host: ")]
+        if hosts != [request.target]:
+            raise Refusal(f"the suite needs native host {request.target}, rustc reports {hosts}")
         argv = ["cargo", "test", "--workspace", "--locked", "--no-fail-fast"]
         code, log = tools.attempt(argv, request.source, env)
-        rustc = tools.run(["rustc", "--version"], request.source, env).strip()
     return code, log, rustc
 
 
 def suite(request, tools=Tools()):
-    request = Suite(Path(request.source).resolve(), Path(request.output))
+    request = Suite(Path(request.source).resolve(), Path(request.output), request.target)
     if request.output.exists():
         raise Refusal(f"output {request.output} already exists")
     declared = tools.toolchain()
@@ -113,6 +121,7 @@ def suite(request, tools=Tools()):
     receipt = {
         "action": "ship.cargo.suite",
         "toolchain": channel,
+        "target": request.target,
         "rustc": rustc,
         "targets": targets,
         "totals": totals,

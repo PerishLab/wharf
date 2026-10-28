@@ -71,12 +71,12 @@ def carried(source):
     return manifest.tracked(source, "Cargo.toml")
 
 
-def suite(source, runner):
+def suite(source, runner, target):
     source = Path(source)
     root = manifest.read(source, "Cargo.toml")
     manifest.unversioned(source, root, manifest.members(source, root))
     return {
-        "entry": {"kind": "cargo-suite", "scope": "workspace", "runner": runner},
+        "entry": {"kind": "cargo-suite", "scope": "workspace", "runner": runner, "target": target},
         "toolchain": toolchain.current(),
         "tree": git(source, "rev-parse", "HEAD^{tree}"),
         "widened": SUITE_WIDENED,

@@ -181,7 +181,7 @@ class Binding(unittest.TestCase):
 class Recording(unittest.TestCase):
     def setUp(self):
         self.bucket = Memory()
-        self.held = dict(CONTEXT, planned="1", source="../product")
+        self.held = dict(CONTEXT, planned="1", source="../product", target="x86_64-unknown-linux-gnu")
 
     def keyed(self, held, modules):
         return ship.workload.key(held, ship.implementation.resourced(*modules))

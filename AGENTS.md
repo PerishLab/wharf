@@ -12,7 +12,7 @@ organization-wide policy; this file owns Wharf's repository-specific exceptions.
 
 | Path | Holds |
 | --- | --- |
-| `.github/workflows/` | orchestration, one workflow per distribution path, and `manager.yml`, which rehearses the Windows manager |
+| `.github/workflows/` | orchestration, one workflow per distribution path, and `manager.yml`, which rehearses native managers and Cargo suite process boundaries |
 | `.github/actions/` | composite actions, one directory each; `prepare` readies a machine for a layer unit |
 | `lib/` | every piece of shared logic, one module per function |
 | `scripts/` | thin entry points run as `python -m scripts.<name>` from the repository root |
@@ -141,7 +141,27 @@ virtual workspace without `default-members`: Guard then ran `cargo test --locked
 over every member, the tests the suite would repeat. Guard evidence names actions,
 not their commands, so that command is pinned by a test on each side
 (`resources/identity/coverage.json` here, PerishLab/plumb#229 there), and the two
-change together. The product's
+change together.
+
+For a release without binaries, explicit `[release].targets` selects the Cargo
+library's native suite platforms. An omitted list keeps the existing Linux
+selection; binary products keep their existing suite selection. Only the Linux
+suite may reuse matching full Linux Guard coverage. Every other selected platform
+runs its own suite. Its workload binds the target and runner, and the receipt
+records `rustc -vV` only after its native host matches that target. Cross compilation
+is not native behavior evidence. Library test targets create no binary, bind,
+smoke, manager or channel entry.
+
+On Windows a trusted spawned supervisor joins an owned Job Object before starting
+Cargo. Its descendants inherit that job without breakaway permission. Completion,
+failure and timeout terminate retained descendants, independently observe an empty
+job and reap the supervisor; unknown teardown refuses a result. POSIX retains the
+session/process-group termination path. `manager.yml` runs the fixed Cargo suite
+and process-boundary regressions selected by `resources/manager/suite.json` on native
+Windows and macOS runners without publication credentials. These process tests
+do not replace the selected product's actual Cargo tests.
+
+The product's
 `plumb.toml` is likewise the one declaration of what else publishes: npm publishes
 exactly the packages `[release.npm]` lists, cargo exactly the crates
 `[release.cargo]` lists, chart exactly the chart `[release.chart]` names and
