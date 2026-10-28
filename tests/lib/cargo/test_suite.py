@@ -134,6 +134,36 @@ class Attempt(unittest.TestCase):
         self.assertEqual(sink.getvalue(), "begun\n")
 
 
+@unittest.skipUnless(os.name == "posix", "requires native POSIX process groups")
+class Posix(unittest.TestCase):
+    def setUp(self):
+        self.directory = tempfile.TemporaryDirectory(prefix="wharf-posix-suite-")
+        self.addCleanup(self.directory.cleanup)
+        self.root = Path(self.directory.name)
+
+    def reclaimed(self, waiting):
+        import fcntl
+
+        lease = self.root / "lease"
+        lease.touch()
+        child = f"import fcntl,time\nwith open({str(lease)!r},'a') as held:\n    fcntl.flock(held,fcntl.LOCK_EX)\n    print('grandchild',flush=True)\n    time.sleep(15)"
+        body = f"import subprocess,sys,time\nsubprocess.Popen([sys.executable,'-I','-c',{child!r}],stdout=sys.stdout,stderr=sys.stderr)\n"
+        if waiting:
+            body += "time.sleep(15)\n"
+        sink = io.StringIO()
+        with contextlib.redirect_stderr(sink), self.assertRaisesRegex(Refusal, "exceeded 2s"):
+            suite.attempt([sys.executable, "-I", "-c", body], self.root, None, timeout=2)
+        self.assertEqual(sink.getvalue(), "grandchild\n")
+        with lease.open("a") as acquired:
+            fcntl.flock(acquired, fcntl.LOCK_EX | fcntl.LOCK_NB)
+
+    def test_timeout_releases_the_grandchilds_held_file(self):
+        self.reclaimed(True)
+
+    def test_parent_exit_does_not_leave_the_grandchild_holding_its_file(self):
+        self.reclaimed(False)
+
+
 @unittest.skipUnless(os.name == "nt", "requires native Windows job objects")
 class Native(unittest.TestCase):
     def setUp(self):
