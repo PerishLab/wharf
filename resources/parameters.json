@@ -25,12 +25,14 @@
     "tree": "string",
     "unit": "string",
     "wharf": "string",
-    "domain": "string"
+    "domain": "string",
+    "trialcase": "string"
   },
   "shapes": {
     "repository": "PerishLab/[A-Za-z0-9._-]+",
     "kind": "skill|changelog|scene",
-    "shell": "pwsh|powershell"
+    "shell": "pwsh|powershell",
+    "trialcase": "writer|fault"
   },
   "defaults": {}
 }
