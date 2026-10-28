@@ -53,6 +53,8 @@ def lodge(held):
         store = bucket(release_held)
         base = lineage.parent(store, target(release_held, held["kind"]))
         result = edit.stage(store, edit.Change(release_held, held["kind"], edit.directory(directory), base, now()))
+        if held["kind"] == "scene":
+            result["discovery"] = lineage.discovery(store, release_held, result["generation"])
     return dict(result, base=base["generation"] if base else None, vetted=verdict, consigned=held["digest"])
 
 
