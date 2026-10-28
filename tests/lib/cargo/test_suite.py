@@ -1,13 +1,17 @@
 import contextlib
+import ctypes
 import io
 import json
+import os
 import sys
 import tempfile
 import unittest
 from pathlib import Path
+from unittest import mock
 
 from lib.cargo import suite, toolchain
 from lib.refusal import Refusal
+from lib.process import job, windows
 
 PASSING = """
    Compiling demo v0.0.0
@@ -40,11 +44,11 @@ class Sink(io.StringIO):
 
 
 class Runner:
-    def __init__(self, code=0, log=PASSING):
-        self.code, self.log, self.env = code, log, None
+    def __init__(self, code=0, log=PASSING, host="x86_64-unknown-linux-gnu"):
+        self.code, self.log, self.env, self.host = code, log, None, host
 
     def run(self, argv, cwd, env=None):
-        return "rustc 1.96.1 (fixture)\n" if argv[0] == "rustc" else ""
+        return f"rustc 1.96.1 (fixture)\nhost: {self.host}\n" if argv[0] == "rustc" else ""
 
     def attempt(self, argv, cwd, env):
         self.env = env
@@ -57,7 +61,7 @@ class Runner:
 class Suite(unittest.TestCase):
     def setUp(self):
         root = Path(tempfile.mkdtemp())
-        self.request = suite.Suite(root, root / "out")
+        self.request = suite.Suite(root, root / "out", "x86_64-unknown-linux-gnu")
         quiet = contextlib.redirect_stderr(io.StringIO())
         quiet.__enter__()
         self.addCleanup(quiet.__exit__, None, None, None)
@@ -66,6 +70,7 @@ class Suite(unittest.TestCase):
         runner = Runner()
         receipt = suite.suite(self.request, runner.tools())
         self.assertEqual(receipt["totals"], {"passed": 5, "failed": 0, "ignored": 1})
+        self.assertEqual(receipt["target"], "x86_64-unknown-linux-gnu")
         self.assertEqual([item["target"] for item in receipt["targets"]], ["demo src/lib.rs", "cli tests/cli.rs", "demo doctests"])
         self.assertEqual(json.loads((self.request.output / "receipt.json").read_text()), receipt)
         self.assertNotIn("finished", (self.request.output / "receipt.json").read_text())
@@ -74,6 +79,7 @@ class Suite(unittest.TestCase):
         runner = Runner()
         suite.suite(self.request, runner.tools())
         self.assertNotEqual(runner.env["HOME"], str(Path.home()))
+        self.assertEqual(runner.env["USERPROFILE"], runner.env["HOME"])
         self.assertEqual(runner.env["RUSTUP_TOOLCHAIN"], "1.96.1")
         self.assertIn("CARGO_HOME", runner.env)
 
@@ -90,6 +96,13 @@ class Suite(unittest.TestCase):
             toolchain.install(declared, ["aarch64-apple-darwin"]),
             ["rustup", "toolchain", "install", "1.96.1", "--profile", "minimal", "--component", "clippy", "--component", "rustfmt", "--target", "aarch64-apple-darwin", "--target", "x86_64-unknown-linux-gnu"],
         )
+
+    def test_refuses_a_foreign_host_before_running_or_recording_tests(self):
+        runner = Runner(host="aarch64-apple-darwin")
+        with self.assertRaisesRegex(Refusal, "needs native host"):
+            suite.suite(self.request, runner.tools())
+        self.assertIsNone(runner.env)
+        self.assertFalse(self.request.output.exists())
 
 
 class Attempt(unittest.TestCase):
@@ -115,6 +128,71 @@ class Attempt(unittest.TestCase):
 
     def test_refuses_a_suite_that_exceeds_its_timeout(self):
         sink = io.StringIO()
-        with contextlib.redirect_stderr(sink), self.assertRaisesRegex(Refusal, "exceeded 1s"):
-            suite.attempt(self.child("import time\nprint('begun',flush=True)\ntime.sleep(30)"), self.root, None, timeout=1)
+        timeout = 5 if os.name == "nt" else 1
+        with contextlib.redirect_stderr(sink), self.assertRaisesRegex(Refusal, f"exceeded {timeout}s"):
+            suite.attempt(self.child("import time\nprint('begun',flush=True)\ntime.sleep(30)"), self.root, None, timeout=timeout)
         self.assertEqual(sink.getvalue(), "begun\n")
+
+
+@unittest.skipUnless(os.name == "nt", "requires native Windows job objects")
+class Native(unittest.TestCase):
+    def setUp(self):
+        self.directory = tempfile.TemporaryDirectory(prefix="wharf-native-suite-")
+        self.addCleanup(self.directory.cleanup)
+        self.root = Path(self.directory.name)
+
+    def test_native_layout_and_an_empty_owned_job(self):
+        self.assertEqual(ctypes.sizeof(job.Basic), 64)
+        self.assertEqual(ctypes.sizeof(job.Limits), 144)
+        self.assertEqual(ctypes.sizeof(job.Accounting), 48)
+        with job.Job() as owned:
+            self.assertEqual(owned.active(), 0)
+        self.assertIsNone(owned.handle)
+
+    def observed(self, body, timeout):
+        counts = []
+
+        class Observed(job.Job):
+            def active(self):
+                count = super().active()
+                counts.append(count)
+                return count
+
+        sink = io.StringIO()
+        with mock.patch.object(windows, "Job", Observed), contextlib.redirect_stderr(sink):
+            try:
+                result = windows.attempt([sys.executable, "-I", "-c", body], self.root, None, timeout)
+            except Refusal:
+                self.assertTrue(counts)
+                self.assertEqual(counts[-1], 0)
+                self.assertIn("grandchild", sink.getvalue())
+                raise
+        self.assertEqual(counts[-1], 0)
+        return result, counts
+
+    def descendant(self):
+        marker = self.root / "started"
+        child = f"import pathlib,time\npathlib.Path({str(marker)!r}).write_text('ready')\nprint('grandchild',flush=True)\ntime.sleep(60)"
+        return marker, child
+
+    def test_timeout_terminates_the_supervisor_command_and_grandchild(self):
+        marker, child = self.descendant()
+        body = f"import subprocess,sys,time\nsubprocess.Popen([sys.executable,'-I','-c',{child!r}],stdout=sys.stdout,stderr=sys.stderr)\ntime.sleep(60)"
+        with self.assertRaisesRegex(Refusal, "exceeded 5s"):
+            self.observed(body, 5)
+        self.assertTrue(marker.exists())
+
+    def test_a_parent_exiting_does_not_escape_the_timeout_through_its_pipe(self):
+        marker, child = self.descendant()
+        body = f"import subprocess,sys\nsubprocess.Popen([sys.executable,'-I','-c',{child!r}],stdout=sys.stdout,stderr=sys.stderr)"
+        with self.assertRaisesRegex(Refusal, "exceeded 5s"):
+            self.observed(body, 5)
+        self.assertTrue(marker.exists())
+
+    def test_normal_completion_also_reaps_a_detached_output_descendant(self):
+        marker, child = self.descendant()
+        body = f"import pathlib,subprocess,sys,time\nsubprocess.Popen([sys.executable,'-I','-c',{child!r}],stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL)\nfor _ in range(200):\n    if pathlib.Path({str(marker)!r}).exists(): break\n    time.sleep(0.01)\nelse: raise SystemExit(7)\nprint('parent',flush=True)"
+        result, counts = self.observed(body, 10)
+        self.assertEqual(result, (0, "parent\n"))
+        self.assertTrue(marker.exists())
+        self.assertGreater(max(counts), 0)

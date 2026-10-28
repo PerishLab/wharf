@@ -4,7 +4,7 @@ from pathlib import Path
 
 from lib import parameters
 from lib.cargo import basis, manifest, toolchain
-from lib.content import executables, implementation, marker, resources
+from lib.content import declaration, executables, implementation, marker, resources
 from lib.debian import package
 from lib.debian.version import debian
 from lib.media import cfworker, node, npm, release
@@ -84,12 +84,26 @@ def placements(held, bucket, entries):
 
 def suites(held, bucket, entries):
     source = held["source"]
-    if basis.carried(source) and not (coverage.tested(held.get("snapshot")) and manifest.virtual(source)):
-        entries["suite-linux"] = decided(bucket, basis.suite(source, RUNNER), (["lib.cargo.basis", "lib.cargo.suite"], ["build.json"]), entries)
+    if basis.carried(source):
+        covered = coverage.tested(held.get("snapshot")) and manifest.virtual(source)
+        for target in tested(source):
+            if target["name"] == BUILD["primary"] and covered:
+                continue
+            held_basis = basis.suite(source, target["runner"], target["target"])
+            entries[f"suite-{target['name']}"] = decided(bucket, held_basis, (["lib.cargo.basis", "lib.cargo.suite"], ["build.json"]), entries)
     if node.carried(source):
         entries["suite-node"] = decided(bucket, node.basis(source, RUNNER), (["lib.media.node"], []), entries)
     if cfworker.workers(source):
         entries["cfworker"] = decided(bucket, cfworker.basis(source, RUNNER), (["lib.media.cfworker"], []), entries)
+
+
+def tested(source):
+    if release.carried(source) or "targets" not in declaration.release(source):
+        return [PRIMARY]
+    selected = release.targets(source)
+    if not selected:
+        raise Refusal("a library's explicit release.targets must select at least one native test platform")
+    return [target for target in BUILD["targets"] if target["target"] in selected]
 
 
 def media(observed, entries):

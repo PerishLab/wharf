@@ -5,6 +5,7 @@ import shutil
 import subprocess
 import sys
 import tempfile
+import unittest
 from pathlib import Path
 
 from lib import parameters
@@ -209,7 +210,16 @@ def lease(held):
     return exercise.case(held["source"], held["marker"], "lease", json.loads(held["domain"]))
 
 
-ACTIONS = {"windows": (windows, ["shell"]), "domain": (domain, []), "staging": (staging, ["source", "marker", "domain"]), "lease": (lease, ["source", "marker", "domain"])}
+def suite(held):
+    selected = resources.read_json("manager/suite.json")
+    cases = unittest.defaultTestLoader.loadTestsFromNames(selected)
+    result = unittest.TextTestRunner(verbosity=2).run(cases)
+    if not result.testsRun or not result.wasSuccessful():
+        raise Refusal("the native Cargo suite rehearsal failed")
+    return {"action": "manager.suite", "platform": sys.platform, "tests": result.testsRun, "skipped": len(result.skipped)}
+
+
+ACTIONS = {"windows": (windows, ["shell"]), "domain": (domain, []), "staging": (staging, ["source", "marker", "domain"]), "lease": (lease, ["source", "marker", "domain"]), "suite": (suite, [])}
 
 
 def main(argv=None):

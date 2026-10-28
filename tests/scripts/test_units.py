@@ -43,6 +43,31 @@ class Seeded(unittest.TestCase):
 
 
 class Units(Seeded):
+    def test_a_library_suite_consumes_its_exact_native_platform_entry(self):
+        held = dict(self.held, target="aarch64-apple-darwin")
+        held_basis = {"entry": {"kind": "cargo-suite", "target": held["target"], "runner": "macos-15"}}
+        modules = (["lib.cargo.basis", "lib.cargo.suite"], ["build.json"])
+        key = self.key(held_basis, modules)
+        self.planned({"suite-macos": {"key": key, "decision": "run"}})
+        seen = {}
+
+        def tested(request):
+            seen.update(target=request.target, source=str(request.source))
+            request.output.mkdir(parents=True)
+            (request.output / "receipt.json").write_text("{}")
+
+        with self.configured(), mock.patch.object(ship.basis, "suite", return_value=held_basis) as basis, mock.patch.object(ship.suite, "suite", side_effect=tested):
+            self.assertEqual(ship.run_suite(held)["key"], key)
+        self.assertEqual(basis.call_args.args, (held["source"], "macos-15", "aarch64-apple-darwin"))
+        self.assertEqual(seen, {"target": "aarch64-apple-darwin", "source": str(self.source)})
+
+    def test_a_missing_platform_entry_refuses_before_starting_tests(self):
+        self.planned({"suite-macos": {"key": "a" * 64, "decision": "run"}})
+        with self.configured(), mock.patch.object(ship.suite, "suite") as tested:
+            with self.assertRaises(ship.Refusal):
+                ship.run_suite(self.held)
+        tested.assert_not_called()
+
     def test_smoke_runs_every_bound_executable_against_the_marker(self):
         bound = self.recorded("b" * 64, {f"santi-{LINUX}": b"a", f"santi-api-{LINUX}": b"b", "receipt.json": b"{}"})
         key = self.key({"entry": {"kind": "binary-smoke", "binary": bound}}, (["lib.identity.smoke"], []))

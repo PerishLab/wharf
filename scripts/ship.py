@@ -110,11 +110,12 @@ def run_binary(held):
 
 
 def run_suite(held):
-    bucket, _, entry = opened(held, "suite-linux")
-    held_basis = basis.suite(held["source"], RUNNER)
+    target = targeted(held["target"])
+    bucket, _, entry = opened(held, f"suite-{target['name']}")
+    held_basis = basis.suite(held["source"], target["runner"], target["target"])
     resolved(entry, held_basis, (["lib.cargo.basis", "lib.cargo.suite"], ["build.json"]))
     output = place()
-    suite.suite(suite.Suite(Path(held["source"]), output))
+    suite.suite(suite.Suite(Path(held["source"]), output, target["target"]))
     return execution.publish(held, bucket, entry["key"], workload.Produced(output, held_basis, carried(held)))
 
 
@@ -266,7 +267,7 @@ def step(held):
 
 ACTIONS = {
     "binary": (run_binary, ["source", "target", *PLANNED]),
-    "suite": (run_suite, ["source", *PLANNED]),
+    "suite": (run_suite, ["source", "target", *PLANNED]),
     "bind": (run_bind, [*PLANNED]),
     "smoke": (run_smoke, ["target", *PLANNED]),
     "validate": (validate, ["source", *PLANNED]),

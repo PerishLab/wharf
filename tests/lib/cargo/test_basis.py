@@ -200,7 +200,7 @@ class SuiteBasis(unittest.TestCase):
         self.repository = Repository()
 
     def held(self):
-        return basis.suite(self.repository.root, "ubuntu-24.04")
+        return basis.suite(self.repository.root, "ubuntu-24.04", "x86_64-unknown-linux-gnu")
 
     def test_follows_the_whole_tree(self):
         before = self.held()
@@ -214,6 +214,16 @@ class SuiteBasis(unittest.TestCase):
         self.repository.commit()
         with self.assertRaises(Refusal):
             self.held()
+
+    def test_platform_runner_and_toolchain_are_independent_workload_inputs(self):
+        source = self.repository.root
+        linux = basis.suite(source, "ubuntu-24.04", "x86_64-unknown-linux-gnu")
+        windows = basis.suite(source, "windows-2025", "x86_64-pc-windows-msvc")
+        moved = basis.suite(source, "another-runner", "x86_64-unknown-linux-gnu")
+        self.assertNotEqual(linux, windows)
+        self.assertNotEqual(linux, moved)
+        self.assertEqual(linux["entry"]["target"], "x86_64-unknown-linux-gnu")
+        self.assertIn("toolchain", linux)
 
 
 class Dependencies(unittest.TestCase):

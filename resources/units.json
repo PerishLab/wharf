@@ -18,10 +18,11 @@
         "pnpm"
       ]
     },
-    "suite-linux": {
+    "suite": {
       "action": "suite",
       "verb": "test",
-      "object": "suite linux",
+      "object": "suite",
+      "per": "target",
       "prepare": [
         "snapshot",
         "rust",
