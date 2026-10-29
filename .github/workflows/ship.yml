@@ -1,5 +1,5 @@
 name: ship
-run-name: "[ship] ${{ inputs.repository }} ${{ inputs.marker }}"
+run-name: "${{ inputs.run != '' && '[windtun]' || '[ship]' }} ${{ inputs.repository }} ${{ inputs.marker }}"
 
 on:
   workflow_dispatch:
@@ -12,6 +12,15 @@ on:
         description: Release marker tag in the product repository
         required: true
         type: string
+      run:
+        description: Replay this completed publication run without distributing
+        required: false
+        type: string
+      case:
+        description: Declared suite or one explicit diagnostic case
+        required: false
+        type: string
+        default: declared
 
 permissions:
   contents: read
@@ -30,6 +39,7 @@ defaults:
 
 jobs:
   plan:
+    if: inputs.run == ''
     name: "[plan] entries"
     runs-on: ubuntu-24.04
     permissions:
@@ -54,6 +64,8 @@ jobs:
       presence: ${{ steps.plan.outputs.presence }}
       snapshot: ${{ steps.plan.outputs.snapshot }}
       trial: ${{ steps.plan.outputs.trial }}
+      publisher: ${{ steps.plan.outputs.publisher }}
+      windtun: ${{ steps.plan.outputs.windtun }}
       commit: ${{ steps.source.outputs.commit }}
       tree: ${{ steps.source.outputs.tree }}
     steps:
@@ -791,6 +803,8 @@ jobs:
     needs: [plan, layer-1, layer-2, layer-3, layer-4, npm, oci, chart, release, channel, cfworker, cargo]
     if: always() && needs.plan.result == 'success'
     runs-on: ubuntu-24.04
+    outputs:
+      state: ${{ steps.distribution.outputs.state }}
     steps:
       - name: "[checkout] wharf"
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
@@ -799,6 +813,7 @@ jobs:
           persist-credentials: false
 
       - name: "[record] distribution"
+        id: distribution
         env:
           WHARF_TRIAL: ${{ needs.plan.outputs.trial }}
           WHARF_NEEDS: ${{ toJSON(needs) }}
@@ -812,3 +827,55 @@ jobs:
           WHARF_RELEASES_ACCESS_KEY_ID: ${{ secrets.WHARF_RELEASES_ACCESS_KEY_ID }}
           WHARF_RELEASES_SECRET_ACCESS_KEY: ${{ secrets.WHARF_RELEASES_SECRET_ACCESS_KEY }}
         run: python3 -B -m scripts.distribution record
+
+  windtun:
+    name: "[windtun] published artifacts"
+    needs: [plan, distribution]
+    permissions:
+      contents: read
+      actions: read
+    if: always() && (inputs.run != '' || (needs.distribution.outputs.state == 'complete' && needs.plan.outputs.windtun == 'true'))
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: wharf
+    steps:
+      - name: "[checkout] trusted wharf"
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: ${{ github.sha }}
+          path: wharf
+          persist-credentials: false
+
+      - name: "[windtun] admit publisher"
+        id: admit
+        env:
+          WHARF_SOURCE: ${{ runner.temp }}/seatrial-observation
+          GH_TOKEN: ${{ github.token }}
+          WHARF_PUBLISHER: ${{ needs.plan.outputs.publisher || 'null' }}
+          WHARF_SELECTION: '{"repository":${{ toJSON(inputs.repository) }},"marker":${{ toJSON(inputs.marker) }}}'
+          WHARF_RUN: ${{ inputs.run || github.run_id }}
+        run: python3 -B -m scripts.distribution trial-admit
+
+      - name: "[windtun] published artifacts"
+        if: steps.admit.outputs.eligible == 'true'
+        env:
+          WHARF_SOURCE: ${{ runner.temp }}/seatrial-observation
+          WHARF_TRIALCASE: ${{ inputs.case || 'declared' }}
+        run: python3 -B -m scripts.distribution trial-run
+
+      - name: "[windtun] judge observation"
+        if: always() && steps.admit.outputs.eligible == 'true'
+        env:
+          WHARF_SOURCE: ${{ runner.temp }}/seatrial-observation
+        run: python3 -B -m scripts.distribution trial-judge
+
+      - name: "[windtun] preserve evidence"
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
+        with:
+          name: seatrial-observation-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/seatrial-observation/evidence
+          if-no-files-found: error
+          retention-days: 14

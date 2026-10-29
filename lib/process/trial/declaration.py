@@ -1,5 +1,7 @@
 import hashlib
+import json
 import re
+import subprocess
 import tomllib
 from pathlib import Path
 
@@ -49,18 +51,29 @@ def capture(source, identity):
         return None
     checked(path.is_file() and not path.is_symlink(), "Seatrial declaration needs a regular plumb.toml")
     raw = path.read_bytes()
-    document = tomllib.loads(raw.decode())
-    guard = document.get("guard", {})
-    checked(isinstance(guard, dict), "guard must be a table")
-    checked(set(guard) <= {"seatrial"}, "guard declares only the Seatrial suite")
-    if "seatrial" not in guard:
+    specification = inspected(source, raw)
+    if specification is None:
         return None
-    specification = validate(guard["seatrial"])
-    checked(document.get("identity", {}).get("ns") == identity["repository"].split("/", 1)[1], "Seatrial declaration product differs from source")
+    document = tomllib.loads(raw.decode())
+    namespace = document.get("identity", {})
+    checked(isinstance(namespace, dict) and namespace.get("ns") == identity["repository"].split("/", 1)[1], "Seatrial declaration product differs from source")
     released = document.get("release", {})
+    checked(isinstance(released, dict), "release must be a table")
     public = released.get("authority")
     authority(public)
     return {"schema": SCHEMA, "source": {name: identity[name] for name in ("repository", "marker", "commit", "tree")}, "manifest": hashlib.sha256(raw).hexdigest(), "authority": public, "specification": specification}
+
+
+def inspected(source, raw):
+    try:
+        output = subprocess.check_output(["plumb", "windtun", "inspect", str(source), "--json"], text=True, timeout=30)
+        held = json.loads(output)
+    except (OSError, subprocess.SubprocessError, ValueError) as error:
+        raise Refusal("cannot read the canonical Plumb Windtun declaration") from error
+    shape(held, ("schema", "manifest", "windtun"), "Plumb Windtun inspection")
+    checked(held["schema"] == "plumb.windtun.declaration/v1", "unknown Plumb Windtun inspection schema")
+    checked(held["manifest"] == hashlib.sha256(raw).hexdigest(), "Plumb Windtun inspection belongs to another manifest")
+    return None if held["windtun"] is None else validate(held["windtun"])
 
 
 def bound(value, source):

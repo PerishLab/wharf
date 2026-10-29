@@ -14,6 +14,7 @@ from lib.refusal import Refusal
 from scripts import plan
 from tests.lib.store.memory import Memory
 from tests.scripts import test_placements
+from .world import workflow
 
 STEPS = """
 {
@@ -163,9 +164,12 @@ def recorded_with(held, source, bucket):
         observed = {"schema": "wharf.release.snapshot/v1", "source": identity, "head": "d" * 40, "tree": "e" * 40, "packages": [], "controls": {}, "domain": {}}
         guard = request.recall(observed) or {"proved": held["marker"]}
         yield Path(source), dict(observed, guard=guard), lambda: None
-    with mock.patch.object(plan.snapshot, "prepared", prepared), mock.patch.object(plan.toolchain, "versions", return_value={}), mock.patch.object(plan.r2, "configured", return_value=bucket), mock.patch.object(plan.basis, "carried", return_value=False), mock.patch.object(plan, "suites"), mock.patch.object(plan, "binaries") as binaries, mock.patch.object(plan.node, "carried", return_value=False), mock.patch.object(parameters, "answer"):
+    with mock.patch.object(plan.snapshot, "prepared", prepared), mock.patch.object(plan.toolchain, "versions", return_value={}), mock.patch.object(plan.r2, "configured", return_value=bucket), mock.patch.object(plan.basis, "carried", return_value=False), mock.patch.object(plan.trial, "capture", return_value=None), mock.patch.object(plan, "suites"), mock.patch.object(plan, "binaries") as binaries, mock.patch.object(plan.node, "carried", return_value=False), mock.patch.object(parameters, "answer") as answered:
         recorded = plan.record(held)
     binaries.assert_not_called()
+    context = next(call.args[0] for call in answered.call_args_list if "publisher" in call.args[0])
+    assert json.loads(context["publisher"]) == identity
+    assert context["windtun"] == "false"
     return recorded
 
 
@@ -287,14 +291,3 @@ class Derived(unittest.TestCase):
         for name, entry in {**self.entries(), **test_placements.Placed().entries(test_placements.Placed.SANTI)}.items():
             for consumed in entry.get("consumes", []):
                 self.assertIn(job(consumed), needs[job(name)], f"{job(name)} consumes {job(consumed)}")
-
-
-def workflow():
-    needs, current = {}, None
-    for line in (Path(git(".", "rev-parse", "--show-toplevel")) / ".github/workflows/ship.yml").read_text().splitlines():
-        if re.fullmatch(r"  [a-z0-9-]+:", line):
-            current = line.strip().rstrip(":")
-            needs[current] = []
-        elif current and line.startswith("    needs:"):
-            needs[current] = re.findall(r"[a-z0-9-]+", line.split(":", 1)[1])
-    return needs

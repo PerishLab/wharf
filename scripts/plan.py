@@ -223,7 +223,7 @@ def record(held):
         if suite is not None:
             context["trial"] = suite
         confirm()
-        parameters.answer({"trial": json.dumps(suite, sort_keys=True, separators=(",", ":"))})
+        parameters.answer({"trial": json.dumps(suite, sort_keys=True, separators=(",", ":")), "publisher": json.dumps(identity, sort_keys=True, separators=(",", ":")), "windtun": str(suite is not None and marker.channel(identity["marker"]) in ("alpha", "beta", "rc")).lower()})
         recorded = plan.record(bucket, context, entries, engines)
         remembered = False if recalled else plan.remember(bucket, context)
         return dict(recorded, recalled=recalled or None, pulled=taken, remembered=remembered, decided=emit(entries, held["attempt"], verified), entry={name: entries[name]["decision"] for name in sorted(entries)})

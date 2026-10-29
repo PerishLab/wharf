@@ -17,12 +17,14 @@ def record(held):
     context = {field: held[field] for field in CONTEXT}
     trial = json.loads(held.get("trial", "null"))
     context["trial"] = None if trial is None else declaration.bound(trial, {field: context[field] for field in IDENTITY})
-    return distribution.record(r2.writer(bucket, "RELEASES"), context, json.loads(held["needs"]), lambda key: release.fetch(f"{authority}/{key}"))
+    result = distribution.record(r2.writer(bucket, "RELEASES"), context, json.loads(held["needs"]), lambda key: release.fetch(f"{authority}/{key}"))
+    parameters.answer({"state": result["state"]})
+    return result
 
 
 ACTIONS = {
     "record": (record, [*CONTEXT, "needs", "trial"]),
-    "trial-admit": (admission.admit, ["source", "run"]),
+    "trial-admit": (admission.admit, ["source", "run", "publisher", "selection"]),
     "trial-run": (consumer.execute, ["source", "trialcase"]),
     "trial-judge": (judgment.judge, ["source"]),
 }
