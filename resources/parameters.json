@@ -29,6 +29,7 @@
     "trialcase": "string",
     "trial": "string",
     "publisher": "string",
+    "observer": "string",
     "selection": "string"
   },
   "shapes": {

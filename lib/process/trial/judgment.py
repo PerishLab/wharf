@@ -4,6 +4,7 @@ import math
 from pathlib import Path
 
 from lib.media.release import fetch
+from lib.process.trial import preparation
 from lib.process.trial.admission import checked
 
 STAGES = ("configuration", "scene", "selection", "lane", "artifacts", "preparation", "execution", "cleanup")
@@ -68,6 +69,8 @@ def judge(held):
         if report.get("state") in ("failed", "cancelled"):
             result["state"] = report["state"]
         complete(report, execution, runner)
+        prepared = json.loads((evidence / "prepared.json").read_bytes())
+        preparation.completed(prepared, report, execution, runner)
         if execution.get("scope") != "declared":
             result["state"] = "diagnostic"
             return result
