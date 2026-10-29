@@ -30,8 +30,9 @@ class Record(unittest.TestCase):
                 seen["read"] = reader("v1/releases/stable/v0.42.0/distribution.json")
             return {"state": "complete"}
 
-        with mock.patch.object(distribution.r2, "writer", side_effect=lambda name, role: (name, role)), mock.patch.object(distribution.distribution, "record", side_effect=record):
+        with mock.patch.object(distribution.r2, "writer", side_effect=lambda name, role: (name, role)), mock.patch.object(distribution.distribution, "record", side_effect=record), mock.patch.object(distribution.parameters, "answer") as answer:
             self.assertEqual(distribution.record(HELD), {"state": "complete"})
+        answer.assert_called_once_with({"state": "complete"})
         self.assertEqual(seen["bucket"], ("perish-plumb-releases", "RELEASES"))
         self.assertEqual(seen["read"], "https://releases.plumb.perish.uk/v1/releases/stable/v0.42.0/distribution.json")
         self.assertEqual((seen["context"]["commit"], seen["needs"]), ("a" * 40, {"plan": {"result": "success"}}))
@@ -154,15 +155,21 @@ class Declaration(unittest.TestCase):
         source = {"repository": "PerishLab/keel", "marker": "v1.2.3-rc.1", "commit": "a" * 40, "tree": "b" * 40}
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory) / "plumb.toml"
-            path.write_text('[identity]\nns="keel"\n[release]\nauthority="https://releases.keel.perish.uk"\n')
-            self.assertIsNone(declaration.capture(directory, source))
-            with path.open("a") as output:
-                output.write('[guard.seatrial]\ncases=["health-lite","again-lite"]\nimage="ghcr.io/perishlab/keel"\n[guard.seatrial.scenes]\nauthority="https://depot.seatrial.perish.uk"\nproduct="seatrial"\nchannel="beta"\n')
-            held = declaration.capture(directory, source)
-            self.assertEqual(held["manifest"], hashlib.sha256(path.read_bytes()).hexdigest())
-            self.assertEqual(held["source"], source)
-            with self.assertRaises(Refusal):
-                declaration.capture(directory, dict(source, repository="PerishLab/plumb"))
+            base = '[identity]\nns="keel"\n[release]\nauthority="https://releases.keel.perish.uk"\n'
+            path.write_text(base)
+            reply = {"schema": "plumb.windtun.declaration/v1", "manifest": hashlib.sha256(path.read_bytes()).hexdigest(), "windtun": None}
+            with mock.patch.object(declaration.subprocess, "check_output", return_value=json.dumps(reply)):
+                self.assertIsNone(declaration.capture(directory, source))
+            for section in ("windtun", "guard.seatrial"):
+                path.write_text(base + f'[{section}]\ncases=["health-lite","again-lite"]\nimage="ghcr.io/perishlab/keel"\n[{section}.scenes]\nauthority="https://depot.seatrial.perish.uk"\nproduct="seatrial"\nchannel="beta"\n')
+                reply = dict(reply, manifest=hashlib.sha256(path.read_bytes()).hexdigest(), windtun=self.specification())
+                with mock.patch.object(declaration.subprocess, "check_output", return_value=json.dumps(reply)) as inspected:
+                    held = declaration.capture(directory, source)
+                    self.assertEqual(inspected.call_args.args[0], ["plumb", "windtun", "inspect", directory, "--json"])
+                    self.assertEqual(held["manifest"], hashlib.sha256(path.read_bytes()).hexdigest())
+                    self.assertEqual(held["source"], source)
+                    with self.assertRaises(Refusal):
+                        declaration.capture(directory, dict(source, repository="PerishLab/plumb"))
 
     def test_declared_cases_and_clean_environment_reach_generic_runner(self):
         from types import SimpleNamespace
@@ -198,3 +205,49 @@ class Declaration(unittest.TestCase):
         held = dict(selected, state="complete", commit="b" * 40, tree="c" * 40, completed={"run": "7", "attempt": "1", "wharf": "a" * 40}, media={"binaries": "none"})
         self.assertEqual(admission.publication(run, selected, held)["state"], "unrecorded")
         self.assertEqual(admission.publication(run, selected, dict(held, trial=None))["state"], "undeclared")
+
+
+    def test_canonical_reader_schema_digest_and_errors_refuse(self):
+        raw = b"[windtun]"
+        reply = {"schema": "plumb.windtun.declaration/v1", "manifest": hashlib.sha256(raw).hexdigest(), "windtun": self.specification()}
+        for change in ({"schema": "unknown"}, {"manifest": "f" * 64}, {"extra": True}, {"windtun": dict(self.specification(), cases=[])}):
+            with self.subTest(change=change), mock.patch.object(declaration.subprocess, "check_output", return_value=json.dumps(dict(reply, **change))), self.assertRaises(Refusal):
+                declaration.inspected("/source", raw)
+        with mock.patch.object(declaration.subprocess, "check_output", side_effect=OSError("unavailable")), self.assertRaises(Refusal):
+            declaration.inspected("/source", raw)
+
+    def test_ready_context_does_not_wait_for_whole_workflow_or_parse_title(self):
+        run = dict(publisher(), status="in_progress", display_title="not an identity protocol")
+        identity = {"repository": "PerishLab/keel", "marker": "v1.2.3-rc.1", "commit": "b" * 40, "tree": "c" * 40}
+        selected = admission.candidate(run, "7", identity)
+        self.assertEqual(selected, identity)
+        trial = {"schema": declaration.SCHEMA, "source": identity, "manifest": "d" * 64, "authority": "https://releases.keel.perish.uk", "specification": self.specification()}
+        record = dict(identity, state="complete", completed={"run": "7", "attempt": "1", "wharf": "a" * 40}, media={"binaries": "published"}, trial=trial)
+        self.assertTrue(admission.publication(run, selected, record)["eligible"])
+        for change in ({"state": "incomplete"}, {"commit": "f" * 40}, {"completed": dict(record["completed"], attempt="2")}):
+            with self.subTest(change=change), self.assertRaises(Refusal):
+                admission.publication(run, selected, dict(record, **change))
+
+    def test_replay_reads_exact_completed_publication_attempt(self):
+        run = dict(publisher(), run_attempt=3)
+        record = {"completed": {"run": "7", "attempt": "1", "wharf": "a" * 40}}
+        with mock.patch.object(admission.subprocess, "check_output", return_value=json.dumps(publisher())) as provider:
+            self.assertEqual(admission.completed(run, "7", record)["run_attempt"], 1)
+            self.assertTrue(provider.call_args.args[0][-1].endswith("/runs/7/attempts/1"))
+        with mock.patch.object(admission.subprocess, "check_output") as provider:
+            self.assertEqual(admission.completed(publisher(), "7", record), publisher())
+            provider.assert_not_called()
+        with self.assertRaises(Refusal):
+            admission.completed(run, "7", {"completed": {"run": "7", "attempt": "../2"}})
+
+    def test_replay_cannot_test_another_product_than_requested(self):
+        selected = {"repository": "PerishLab/keel", "marker": "v1.2.3-rc.1"}
+        admission.selection(selected, json.dumps(selected))
+        admission.selection(selected, "null")
+        for expected in (dict(selected, repository="PerishLab/plumb"), dict(selected, marker="v1.2.4-rc.1"), {"repository": selected["repository"]}, dict(selected, extra=True)):
+            with self.subTest(expected=expected), self.assertRaises(Refusal):
+                admission.selection(selected, json.dumps(expected))
+        with self.assertRaises(Refusal):
+            admission.selection(None, json.dumps(selected))
+        with self.assertRaises(Refusal):
+            admission.selection(selected, "{")

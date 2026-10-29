@@ -2,20 +2,8 @@ name: manager
 run-name: "[test] suite native"
 
 on:
-  workflow_run:
-    workflows: [ship]
-    types: [completed]
-    branches: [main]
   workflow_dispatch:
     inputs:
-      run:
-        description: Exact completed non-stable ship run to replay
-        type: string
-        required: false
-      trialcase:
-        description: Declared suite or one explicit diagnostic case
-        type: string
-        default: declared
       marker:
         description: Exact Plumb marker for native staging regressions
         type: string
@@ -44,7 +32,7 @@ permissions:
 
 jobs:
   suite:
-    if: ${{ github.event_name != 'workflow_run' && !inputs.marker && !inputs.run }}
+    if: ${{ !inputs.marker }}
     strategy:
       fail-fast: false
       matrix:
@@ -76,7 +64,7 @@ jobs:
         run: python3 -B -m scripts.manager suite
 
   windows:
-    if: ${{ github.event_name != 'workflow_run' && !inputs.marker && !inputs.run }}
+    if: ${{ !inputs.marker }}
     strategy:
       fail-fast: false
       matrix:
@@ -105,7 +93,7 @@ jobs:
         run: python3 -B -m scripts.manager windows
 
   staging:
-    if: ${{ github.event_name == 'workflow_dispatch' && inputs.marker && !inputs.run }}
+    if: ${{ github.event_name == 'workflow_dispatch' && inputs.marker }}
     name: "[test] suite windows"
     runs-on: windows-2025
     timeout-minutes: 25
@@ -160,48 +148,3 @@ jobs:
           WHARF_MARKER: ${{ inputs.marker }}
           WHARF_DOMAIN: ${{ steps.domain.outputs.domain }}
         run: python3 -B -m scripts.manager lease
-
-  observe:
-    if: github.event_name == 'workflow_run' || (github.event_name == 'workflow_dispatch' && inputs.run != '')
-    runs-on: ubuntu-24.04
-    timeout-minutes: 15
-    defaults:
-      run:
-        working-directory: wharf
-    steps:
-      - name: "[checkout] trusted wharf"
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
-        with:
-          ref: main
-          path: wharf
-          persist-credentials: false
-
-      - name: "[trial] admit publisher"
-        id: admit
-        env:
-          WHARF_SOURCE: ${{ runner.temp }}/seatrial-observation
-          GH_TOKEN: ${{ github.token }}
-          WHARF_RUN: ${{ inputs.run || github.event.workflow_run.id }}
-        run: python3 -B -m scripts.distribution trial-admit
-
-      - name: "[trial] published artifacts"
-        if: steps.admit.outputs.eligible == 'true'
-        env:
-          WHARF_SOURCE: ${{ runner.temp }}/seatrial-observation
-          WHARF_TRIALCASE: ${{ inputs.trialcase || 'declared' }}
-        run: python3 -B -m scripts.distribution trial-run
-
-      - name: "[trial] judge observation"
-        if: always() && steps.admit.outputs.eligible == 'true'
-        env:
-          WHARF_SOURCE: ${{ runner.temp }}/seatrial-observation
-        run: python3 -B -m scripts.distribution trial-judge
-
-      - name: "[trial] preserve evidence"
-        if: always()
-        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
-        with:
-          name: seatrial-observation-${{ github.run_attempt }}
-          path: ${{ runner.temp }}/seatrial-observation/evidence
-          if-no-files-found: error
-          retention-days: 14

@@ -27,7 +27,9 @@
     "wharf": "string",
     "domain": "string",
     "trialcase": "string",
-    "trial": "string"
+    "trial": "string",
+    "publisher": "string",
+    "selection": "string"
   },
   "shapes": {
     "repository": "PerishLab/[A-Za-z0-9._-]+",
@@ -37,6 +39,8 @@
   },
   "defaults": {
     "trial": "null",
-    "trialcase": "declared"
+    "trialcase": "declared",
+    "publisher": "null",
+    "selection": "null"
   }
 }
