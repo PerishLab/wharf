@@ -878,7 +878,7 @@ jobs:
     permissions:
       contents: read
       actions: read
-    if: needs.windtun-prepare.outputs.ready == 'true'
+    if: ${{ !cancelled() && needs.windtun-prepare.result == 'success' && needs.windtun-prepare.outputs.ready == 'true' }}
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     outputs:
