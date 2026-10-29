@@ -828,18 +828,19 @@ jobs:
           WHARF_RELEASES_SECRET_ACCESS_KEY: ${{ secrets.WHARF_RELEASES_SECRET_ACCESS_KEY }}
         run: python3 -B -m scripts.distribution record
 
-  windtun:
-    name: "[windtun] published artifacts"
+  windtun-prepare:
+    name: "[windtun] prepare attempt"
     needs: [plan, distribution]
     permissions:
       contents: read
       actions: read
     if: always() && (inputs.run != '' || (needs.distribution.outputs.state == 'complete' && needs.plan.outputs.windtun == 'true'))
     runs-on: ubuntu-24.04
-    timeout-minutes: 15
-    defaults:
-      run:
-        working-directory: wharf
+    timeout-minutes: 5
+    outputs:
+      ready: ${{ steps.prepared.outputs.ready }}
+    env:
+      WHARF_OBSERVER: '{"run":"${{ github.run_id }}","attempt":"${{ github.run_attempt }}","wharf":"${{ github.sha }}"}'
     steps:
       - name: "[checkout] trusted wharf"
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
@@ -858,18 +859,73 @@ jobs:
           WHARF_RUN: ${{ inputs.run || github.run_id }}
         run: python3 -B -m scripts.distribution trial-admit
 
-      - name: "[windtun] published artifacts"
+      - name: "[windtun] prepare attempt"
+        id: prepared
         if: steps.admit.outputs.eligible == 'true'
+        env:
+          WHARF_SOURCE: ${{ runner.temp }}/seatrial-observation
+          GH_TOKEN: ${{ github.token }}
+          WHARF_TRIALCASE: ${{ inputs.case || 'declared' }}
+          WHARF_R2_ACCESS_KEY_ID: ${{ secrets.WHARF_R2_ACCESS_KEY_ID }}
+          WHARF_R2_SECRET_ACCESS_KEY: ${{ secrets.WHARF_R2_SECRET_ACCESS_KEY }}
+          WHARF_RELEASES_ACCESS_KEY_ID: ${{ secrets.WHARF_RELEASES_ACCESS_KEY_ID }}
+          WHARF_RELEASES_SECRET_ACCESS_KEY: ${{ secrets.WHARF_RELEASES_SECRET_ACCESS_KEY }}
+        run: python3 -B -m scripts.distribution windtun-prepare
+
+  windtun:
+    name: "[windtun] published artifacts"
+    needs: [windtun-prepare]
+    permissions:
+      contents: read
+      actions: read
+    if: needs.windtun-prepare.outputs.ready == 'true'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    outputs:
+      digest: ${{ steps.recorded.outputs.digest }}
+    env:
+      WHARF_REPOSITORY: ${{ inputs.repository }}
+      WHARF_MARKER: ${{ inputs.marker }}
+      WHARF_OBSERVER: '{"run":"${{ github.run_id }}","attempt":"${{ github.run_attempt }}","wharf":"${{ github.sha }}"}'
+    steps:
+      - name: "[checkout] trusted wharf"
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: ${{ github.sha }}
+          path: wharf
+          persist-credentials: false
+
+      - name: "[windtun] load attempt"
+        id: loaded
+        env:
+          WHARF_SOURCE: ${{ runner.temp }}/seatrial-observation
+          GH_TOKEN: ${{ github.token }}
+          WHARF_R2_ACCESS_KEY_ID: ${{ secrets.WHARF_R2_ACCESS_KEY_ID }}
+          WHARF_R2_SECRET_ACCESS_KEY: ${{ secrets.WHARF_R2_SECRET_ACCESS_KEY }}
+        run: python3 -B -m scripts.distribution windtun-load
+
+      - name: "[windtun] published artifacts"
+        if: steps.loaded.outputs.ready == 'true'
         env:
           WHARF_SOURCE: ${{ runner.temp }}/seatrial-observation
           WHARF_TRIALCASE: ${{ inputs.case || 'declared' }}
         run: python3 -B -m scripts.distribution trial-run
 
       - name: "[windtun] judge observation"
-        if: always() && steps.admit.outputs.eligible == 'true'
+        if: always() && steps.loaded.outputs.ready == 'true'
         env:
           WHARF_SOURCE: ${{ runner.temp }}/seatrial-observation
         run: python3 -B -m scripts.distribution trial-judge
+
+      - name: "[windtun] record attempt"
+        id: recorded
+        if: always() && steps.loaded.outputs.ready == 'true'
+        env:
+          WHARF_SOURCE: ${{ runner.temp }}/seatrial-observation
+          GH_TOKEN: ${{ github.token }}
+          WHARF_R2_ACCESS_KEY_ID: ${{ secrets.WHARF_R2_ACCESS_KEY_ID }}
+          WHARF_R2_SECRET_ACCESS_KEY: ${{ secrets.WHARF_R2_SECRET_ACCESS_KEY }}
+        run: python3 -B -m scripts.distribution windtun-store
 
       - name: "[windtun] preserve evidence"
         if: always()
@@ -879,3 +935,33 @@ jobs:
           path: ${{ runner.temp }}/seatrial-observation/evidence
           if-no-files-found: error
           retention-days: 14
+
+  windtun-issue:
+    name: "[windtun] issue qualification"
+    needs: [windtun-prepare, windtun]
+    permissions:
+      contents: read
+      actions: read
+    if: always() && needs.windtun-prepare.outputs.ready == 'true'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - name: "[checkout] trusted wharf"
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: ${{ github.sha }}
+          path: wharf
+          persist-credentials: false
+
+      - name: "[windtun] issue qualification"
+        env:
+          GH_TOKEN: ${{ github.token }}
+          WHARF_REPOSITORY: ${{ inputs.repository }}
+          WHARF_MARKER: ${{ inputs.marker }}
+          WHARF_OBSERVER: '{"run":"${{ github.run_id }}","attempt":"${{ github.run_attempt }}","wharf":"${{ github.sha }}"}'
+          WHARF_DIGEST: ${{ needs.windtun.outputs.digest || 'null' }}
+          WHARF_R2_ACCESS_KEY_ID: ${{ secrets.WHARF_R2_ACCESS_KEY_ID }}
+          WHARF_R2_SECRET_ACCESS_KEY: ${{ secrets.WHARF_R2_SECRET_ACCESS_KEY }}
+          WHARF_RELEASES_ACCESS_KEY_ID: ${{ secrets.WHARF_RELEASES_ACCESS_KEY_ID }}
+          WHARF_RELEASES_SECRET_ACCESS_KEY: ${{ secrets.WHARF_RELEASES_SECRET_ACCESS_KEY }}
+        run: python3 -B -m scripts.distribution windtun-issue

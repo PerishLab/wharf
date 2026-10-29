@@ -4,11 +4,12 @@ import subprocess
 from pathlib import Path
 
 from lib.media.release import fetch
+from lib.process.trial import preparation
 from lib.process.trial.admission import checked, document
 from lib.process.trial.declaration import validate, NAME
 
 RUNNER = "https://releases.seatrial.perish.uk"
-PROBE = "docker.io/curlimages/curl:8.10.1@sha256:d9b4541e214bcd85196d6e92e2753ac6d0ea699f0af5741f8c6cccbfcf00ef4b"
+PROBE = preparation.PROBE
 
 
 def verified(entry):
@@ -45,6 +46,9 @@ def execute(held):
         result = {"state": "superseded", "ok": False, "requested": admitted["marker"], "current": current.get("releaseVersion")}
         (root / "evidence" / "execution.json").write_text(json.dumps(result, indent=2) + "\n")
         return result
+    prepared = preparation.validate_prepared(json.loads((root / "evidence" / "prepared.json").read_bytes()))
+    checked(prepared["admission"] == admitted and current == prepared["product"]["pointer"], "execution differs from frozen admission")
+    preparation.unchanged(prepared)
     work = root / "work"
     work.mkdir()
     home = root / "home"
@@ -55,6 +59,9 @@ def execute(held):
     mode = held["trialcase"]
     checked(mode == "declared" or NAME.fullmatch(mode), "invalid diagnostic case")
     cases = specification["cases"] if mode == "declared" else [mode]
+    checked(cases == prepared["requirements"]["selected"] and ("declared" if mode == "declared" else "diagnostic") == prepared["requirements"]["scope"], "execution selection differs from prepared requirements")
+    installed = json.loads((root / "evidence" / "runner.json").read_bytes())
+    checked(all(installed.get(name) == value for name, value in prepared["runner"].items()), "installed runner moved after preparation")
     configuration = {"images": {"probe": PROBE}, admitted["product"]: {"channel": admitted["channel"], "authority": admitted["authority"], "image": specification["image"]}, "scenes": specification["scenes"]}
     config = "".join("[" + name + "]\n" + "".join(key + " = " + json.dumps(value) + "\n" for key, value in table.items()) for name, table in configuration.items())
     (work / "seatrial.toml").write_text(config)

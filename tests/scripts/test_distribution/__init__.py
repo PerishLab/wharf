@@ -178,7 +178,10 @@ class Declaration(unittest.TestCase):
             (root / "evidence").mkdir()
             admitted = {"eligible": True, "marker": "v1.2.3-rc.1", "channel": "rc", "product": "keel", "authority": "https://releases.keel.perish.uk", "trial": {"specification": self.specification()}}
             (root / "evidence/admission.json").write_text(json.dumps(admitted))
-            with mock.patch.object(consumer, "document", return_value={"releaseVersion": admitted["marker"]}), mock.patch.object(consumer, "install", return_value=root / "seatrial"), mock.patch.object(consumer.subprocess, "run", return_value=SimpleNamespace(returncode=0)) as invoked:
+            frozen = {"admission": admitted, "product": {"pointer": {"releaseVersion": admitted["marker"]}}, "requirements": {"selected": ["health-lite", "again-lite"], "scope": "declared"}, "runner": {}}
+            (root / "evidence/prepared.json").write_text(json.dumps(frozen))
+            (root / "evidence/runner.json").write_text("{}")
+            with mock.patch.object(consumer.preparation, "validate_prepared", side_effect=lambda value: value), mock.patch.object(consumer.preparation, "unchanged"), mock.patch.object(consumer, "document", return_value={"releaseVersion": admitted["marker"]}), mock.patch.object(consumer, "install", return_value=root / "seatrial"), mock.patch.object(consumer.subprocess, "run", return_value=SimpleNamespace(returncode=0)) as invoked:
                 result = consumer.execute({"source": str(root), "trialcase": "declared"})
             self.assertEqual(invoked.call_args.args[0][-4:], ["--case", "health-lite", "--case", "again-lite"])
             self.assertEqual(set(invoked.call_args.kwargs["env"]), {"PATH", "HOME", "LANG"})

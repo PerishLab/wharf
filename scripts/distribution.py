@@ -5,6 +5,7 @@ from lib import parameters
 from lib.media import release
 from lib.refusal import Refusal
 from lib.process.trial import admission, consumer, judgment, declaration
+from lib.process.trial import credential, transport
 from lib.store import distribution, r2
 
 IDENTITY = ("repository", "marker", "commit", "tree")
@@ -27,6 +28,10 @@ ACTIONS = {
     "trial-admit": (admission.admit, ["source", "run", "publisher", "selection"]),
     "trial-run": (consumer.execute, ["source", "trialcase"]),
     "trial-judge": (judgment.judge, ["source"]),
+    "windtun-prepare": (transport.prepare, ["source", "observer", "trialcase"]),
+    "windtun-load": (transport.load, ["source", "observer", "repository", "marker"]),
+    "windtun-store": (transport.store, ["source", "observer", "repository", "marker"]),
+    "windtun-issue": (credential.issue, ["observer", "repository", "marker", "digest"]),
 }
 
 
@@ -42,6 +47,8 @@ def main(argv=None):
         print(f"distribution: refused: {refusal}", file=sys.stderr)
         return 2
     print(json.dumps(result, indent=2, sort_keys=True))
+    if action == "trial-run" and result.get("exit", 0) != 0:
+        return 1
     return 0
 
 

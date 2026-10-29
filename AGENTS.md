@@ -1264,7 +1264,10 @@ that keeps them.
   them; no product carries them in its source.
 - The canonical managers at the authority's root are written only when a stable
   channel pointer names the marker that rendered them.
-- Each job holds the credentials of one bucket, and nothing in a run holds two.
+- Publication authority never reaches a Windtun executor. Its trusted preparation
+  and qualification jobs pair existing workload access with the product release
+  writer only in their fixed actions; they execute no product or scene code.
+  Other bucket credentials retain their declared publication boundaries.
 - A job reads the product through `.github/actions/product`. The Wharf GitHub
   App (`WHARF_APP_CLIENT_ID`, `WHARF_APP_PRIVATE_KEY`) is installed on every
   repository of the organization, so onboarding a product needs no App step;
@@ -1284,6 +1287,41 @@ that keeps them.
   package. It reaches `pnpm install` through a user npmrc that names it and is
   gone before the product's tests run. It reads packages and writes nothing, so
   it is not a bucket credential either.
+
+## Windtun evidence
+
+Windtun prepares, executes and qualifies in three independent native jobs after
+non-stable distribution is complete. Preparation fixes the published declaration,
+required cases, Linux platform, public product seal, runner stable, scene generation,
+runtime image digest and probe control before executing anything. Channel movement
+refuses qualification; it does not pin an old runner or scene. The executor runs
+only released artifacts and the official runner, with no release writer or inherited
+provider environment. Qualification runs no business code and independently verifies
+the native main ship run, exact attempt, fixed job and step outcomes, collector
+output digest, complete reports, required coverage and cleanup.
+
+Both preparation and execution use existing `workload/1/<key>/` records. Their
+basis includes the exact observer attempt, prepared world and implementation;
+publication is create-only and record-last. Existing records never skip a test.
+Restoration validates basis, record context, permitted paths, bounded file identities
+and original bytes before interpreting a report. Malformed, failed or incomplete
+reports remain evidence and cannot become passes.
+
+The product release authority publishes
+`v1/releases/<channel>/<marker>/windtun/attempts/<run>-<attempt>/intent.json`,
+`result.json` and, only for a complete declared success, `pass.json`. Intent precedes
+execution and references the immutable preparation workload. Declared attempts move
+`windtun/latest.json` conditionally when they begin, ordered by the native preparation
+job's actual start and then run/attempt. A later pending, failed or cancelled attempt
+cannot fall back to historical green, including a retry of an older run. Diagnostics
+retain independent evidence without replacing declared-suite discovery. Missing final
+results remain unknown. Results and passes never overwrite another attempt's bytes.
+
+Public credentials cover only their recorded cases, platform and actual artifact,
+scene, image and runner identities. Consumers recheck current requirements, policy,
+implementation and input worlds plus current discovery; no time-based expiry or
+cross-platform or cross-medium equivalence is invented. Historical observations are
+not backfilled as credentials. This path does not yet enforce stable promotion.
 
 ## Release identity
 
