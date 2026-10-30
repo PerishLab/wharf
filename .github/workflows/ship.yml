@@ -1,5 +1,5 @@
 name: ship
-run-name: "${{ inputs.run != '' && '[windtun]' || '[ship]' }} ${{ inputs.repository }} ${{ inputs.marker }}"
+run-name: "${{ inputs.run != '' && (inputs.reference != '' && '[compare]' || '[windtun]') || '[ship]' }} ${{ inputs.repository }} ${{ inputs.marker }}"
 
 on:
   workflow_dispatch:
@@ -888,7 +888,7 @@ jobs:
     permissions:
       contents: read
       actions: read
-    if: always() && (inputs.run != '' || (needs.distribution.outputs.state == 'complete' && needs.plan.outputs.windtun == 'true'))
+    if: always() && (inputs.run == '' || inputs.reference == '') && (inputs.run != '' || (needs.distribution.outputs.state == 'complete' && needs.plan.outputs.windtun == 'true'))
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     outputs:
