@@ -9,6 +9,7 @@ from lib.debian import package
 from lib.debian.version import debian
 from lib.media import cfworker, node, npm, release
 from lib.identity.guard import coverage, pull, snapshot
+from lib.identity.bind import inventory
 from lib.process import git
 from lib.refusal import Refusal
 from lib.store import plan, r2, workload
@@ -222,6 +223,9 @@ def record(held):
         context = dict({field: held[field] for field in CONTEXT}, snapshot=verified, **({"recalled": recalled} if recalled else {}), **({"pulled": taken} if taken is not None else {}))
         if suite is not None:
             context["trial"] = suite
+        if release.carried(root):
+            context["binary_declaration"] = inventory.capture(root)
+        parameters.answer({"binaryproof": str(bool(context.get("binary_declaration", {}).get("installed"))).lower()})
         confirm()
         parameters.answer({"trial": json.dumps(suite, sort_keys=True, separators=(",", ":")), "publisher": json.dumps(identity, sort_keys=True, separators=(",", ":")), "windtun": str(suite is not None and marker.channel(identity["marker"]) in ("alpha", "beta", "rc")).lower()})
         recorded = plan.record(bucket, context, entries, engines)

@@ -1356,6 +1356,39 @@ must reproduce byte for byte and every reader must test against.
   reports itself as unreliable and is not used: what proves a signature is smoke,
   which runs the bound binary on the platform it was built for.
 
+## Linux build association
+
+Linux build association is independent of Windtun qualification. The plan freezes
+`binary_declaration` with the complete manifest digest and built/installed lists.
+The fixed main `build-proof` job runs after complete distribution, or on an exact
+publication replay, and executes no product code. Its trusted action alone pairs
+existing workload access with the product release writer. Historical plans are
+accepted only when their recorded declaration digest can be matched to the exact
+source manifest and their producer plans and workload chains remain available.
+Unknown historical implementation, missing material or declaration drift refuses.
+
+Association supports Ubuntu 24.04 builds of `x86_64-unknown-linux-gnu` ELF and the
+existing deterministic Linux installation tar.gz representation only. It recomputes
+build and binding keys from their actual basis and implementation, verifies every
+record/receipt/file, restores each original unbound binary and reproduces its exact
+binding transformation. Installed archive members, order, metadata and bytes must
+match the frozen declaration and verified bound outputs. Non-installed binaries
+are recorded separately; they do not become installation-archive coverage.
+
+The immutable public proof is content-addressed under `v1/objects/sha256/` and
+references complete verification material in the existing workload store.
+`v1/releases/<channel>/<marker>/build/linux-x64.json` conditionally discovers it.
+Repeated verification does not skip byte checks. Discovery may advance a verifier
+implementation over identical content facts, preserves prior proof objects, and
+refuses changed build/publication facts or regression behind a later native start.
+Seals and distribution records are not changed by proof backfill.
+
+An explicit ship `reference` compares a non-stable marker with the requested stable
+marker through public proofs, seals and actual archives only. Source identity,
+declaration, effective build and recorded content must match, and restored unbound
+bytes are compared in full. Comparison is a content fact, never a QA pass or a
+promotion permit. Windows, Mach-O, OCI and other media remain unsupported here.
+
 ## Managers
 
 A release carries the scripts that install it, and this repository renders them:
