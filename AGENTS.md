@@ -1397,6 +1397,9 @@ marker through public proofs, seals and actual archives only. Source identity,
 declaration, effective build and recorded content must match, and restored unbound
 bytes are compared in full. Comparison is a content fact, never a QA pass or a
 promotion permit. Windows, Mach-O, OCI and other media remain unsupported here.
+An exact publication replay with `reference` is a comparison request and starts no
+Windtun attempt. Ordinary non-stable distribution still starts its declared suite
+by default, including when the dispatch also requests a content comparison.
 
 ## Managers
 
