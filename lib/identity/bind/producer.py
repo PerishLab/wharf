@@ -3,9 +3,9 @@ import tempfile
 from pathlib import Path
 
 from lib import parameters
-from lib.content import canonical, implementation
-from lib.identity.bind import artifacts, control, inventory, storage
-from lib.identity.bind.spec import BIND, CARGO, POLICY, TARGET, code, entry, issuer, require, sha
+from lib.content import canonical
+from lib.identity.bind import artifacts, control, inventory, storage, verification
+from lib.identity.bind.spec import POLICY, TARGET, code, entry, issuer, require, sha
 from lib.media import release
 from lib.refusal import Conflict, Refusal
 from lib.store import plan, r2, workload
@@ -22,22 +22,14 @@ def planned(bucket, public):
 
 def verified(bucket, public, document):
     declaration = inventory.resolve(public, document)
-    entries = document["entries"]
-    require(all(name in entries and isinstance(entries[name].get("key"), str) for name in ("binary-linux", "bind-linux")), "publication plan has no complete Linux binary chain")
-    built = storage.read(bucket, entries["binary-linux"]["key"], implementation.resourced(*CARGO))
-    bound = storage.read(bucket, entries["bind-linux"]["key"], implementation.resourced(*BIND))
-    require(built["basis"].get("toolchain", {}).get("channel") == document["context"]["snapshot"]["domain"].get("rust.version"), "build toolchain differs from the complete publication resolution")
-    for loaded, name in ((built, "binary-linux"), (bound, "bind-linux")):
-        require(loaded["record"].get("context", {}).get("repository") == public["source"]["repository"], "binary producer belongs to another product")
-        storage.producer(bucket, loaded, name)
-    binaries = artifacts.binaries(public, declaration, built, bound)
+    facts = verification.chain(bucket, public["source"], document, declaration)
     reference = public["seal"].get("artifacts", {}).get("linux-x64")
     _, authority, _ = control.location(public["source"]["repository"], public["source"]["marker"])
     require(isinstance(reference, dict) and str(reference.get("url", "")).startswith(authority + "/v1/objects/sha256/"), "public Linux archive reference differs")
     raw = release.fetch(reference["url"])
     require(entry(raw) == {name: reference.get(name) for name in ("size", "sha256")}, "public Linux archive bytes differ from the seal")
-    files = artifacts.packaged(raw, declaration["installed"], bound)
-    return {"declaration": declaration, "build": built, "binding": bound, "binaries": binaries, "archive": reference, "files": files}
+    files = artifacts.packaged(raw, declaration["installed"], facts["binding"])
+    return dict(facts, archive=reference, files=files)
 
 
 def material(bucket, public, facts):

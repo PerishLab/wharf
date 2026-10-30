@@ -44,15 +44,23 @@ def read(repository, version):
     return proof, restored
 
 
-def compare(repository, candidate, stable):
-    require(marker.channel(candidate) in ("alpha", "beta", "rc") and marker.channel(stable) == "stable", "Linux association compares non-stable content to stable content only")
-    left, before = read(repository, candidate)
-    right, after = read(repository, stable)
+def associated(left, right, before, after):
     require(all(left["source"][name] == right["source"][name] for name in ("repository", "commit", "tree")), "Linux association source changed")
     require(left["declaration"] == right["declaration"], "Linux association declaration or complete inventory changed")
     require(left["resolution"] == right["resolution"], "Linux association effective publication resolution changed")
     require(all(left["build"][name] == right["build"][name] for name in ("key", "basis", "implementation", "record")), "Linux association effective build basis or recorded content changed")
     require(before == after and set(before) == set(left["declaration"]["installed"]), "Linux association actual unbound bytes differ")
+    fields = ("origin", "region", "size", "unbound", "outside")
+    require(set(left["binaries"]) == set(right["binaries"]) == set(left["declaration"]["built"]), "Linux association complete build coverage changed")
+    require(all(isinstance(held["binaries"][name], dict) for held in (left, right) for name in left["binaries"]), "Linux association build facts are invalid")
+    require(all({field: left["binaries"][name].get(field) for field in fields} == {field: right["binaries"][name].get(field) for field in fields} for name in left["binaries"]), "Linux association non-installed build content changed")
+
+
+def compare(repository, candidate, stable):
+    require(marker.channel(candidate) in ("alpha", "beta", "rc") and marker.channel(stable) == "stable", "Linux association compares non-stable content to stable content only")
+    left, before = read(repository, candidate)
+    right, after = read(repository, stable)
+    associated(left, right, before, after)
     return {"schema": "wharf.binary.comparison/v1", "associated": True, "target": TARGET, "repository": repository, "candidate": candidate, "stable": stable, "source": {name: right["source"][name] for name in ("commit", "tree")}, "build": right["build"], "installed": right["declaration"]["installed"], "archives": [left["archive"], right["archive"]], "proofs": [canonical.digest(left), canonical.digest(right)], "promotion": False}
 
 

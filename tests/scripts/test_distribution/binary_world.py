@@ -18,11 +18,12 @@ AUTHORITY = "https://releases.demo.perish.uk"
 
 
 class World:
-    def __init__(self, version="v1.2.3-rc.1", shared=None):
+    def __init__(self, version="v1.2.3-rc.1", shared=None, commit=None):
         self.blob = shared.blob if shared else Bucket()
         self.public = shared.public if shared else Bucket()
         self.documents = shared.documents if shared else {}
-        self.source = {"repository": "PerishLab/demo", "marker": version, "commit": "b" * 40, "tree": "c" * 40}
+        self.source = {"repository": "PerishLab/demo", "marker": version, "commit": commit or (shared.source["commit"] if shared else "b" * 40), "tree": "c" * 40}
+        self.role = control.ROLE
         self.publisher = {"run": "7" if "rc" in version else "8", "attempt": "1", "wharf": "a" * 40}
         self.observer = {"run": "20" if "rc" in version else "21", "attempt": "1", "wharf": "a" * 40}
         self.started = "2026-10-30T10:00:00Z"
@@ -36,7 +37,7 @@ class World:
             built[name + "-" + TARGET] = bytes(body) + name.encode()
         receipt = {"action": "ship.binary", "product": "demo", "target": TARGET, "binaries": self.declaration["built"], "packages": ["demo"], "toolchain": "1.96.1", "rustc": "rustc 1.96.1", "files": {name: entry(body) for name, body in built.items()}}
         built["receipt.json"] = canonical.encode(receipt)
-        self.build_context = {"repository": "PerishLab/demo", "marker": "v1.2.3-rc.1", "run": "7", "attempt": "1", "wharf": "a" * 40}
+        self.build_context = dict(shared.build_context) if shared else {"repository": "PerishLab/demo", "marker": version, "run": "7", "attempt": "1", "wharf": "a" * 40}
         self.store((self.build_key, self.basis, self.build_context), built)
         binding_basis = {"entry": {"kind": "binary-identity", "binary": self.build_key}, "identity": self.source}
         self.bind_key = workload.key(binding_basis, implementation.resourced(*BIND))
@@ -87,10 +88,10 @@ class World:
             return repository
         run = path.split("/")[2]
         if "/jobs?" in path:
-            return {"total_count": 1, "jobs": [{"id": 30, "name": control.JOB, "run_id": int(run), "run_attempt": 1, "head_sha": "a" * 40, "head_branch": "main", "status": "in_progress", "conclusion": None, "started_at": self.started}]}
+            return {"total_count": 1, "jobs": [{"id": 30, "name": control.ROLES[self.role], "run_id": int(run), "run_attempt": 1, "head_sha": "a" * 40, "head_branch": "main", "status": "in_progress", "conclusion": None, "started_at": self.started}]}
         return {"id": int(run), "run_attempt": 1, "head_sha": "a" * 40, "repository": repository, "head_repository": repository, "path": ".github/workflows/ship.yml", "event": "workflow_dispatch", "head_branch": "main", "status": "in_progress" if run == self.observer["run"] else "completed", "conclusion": None if run == self.observer["run"] else "success"}
 
     @contextlib.contextmanager
     def wired(self):
-        with mock.patch.object(release, "fetch", side_effect=self.fetch), mock.patch.object(control, "api", side_effect=self.api), mock.patch.object(producer.r2, "configured", return_value=self.blob), mock.patch.object(producer.r2, "writer", return_value=self.public), mock.patch.object(producer.parameters, "answer"), mock.patch.dict(os.environ, {"GITHUB_JOB": control.ROLE}):
+        with mock.patch.object(release, "fetch", side_effect=self.fetch), mock.patch.object(control, "api", side_effect=self.api), mock.patch.object(producer.r2, "configured", return_value=self.blob), mock.patch.object(producer.r2, "writer", return_value=self.public), mock.patch.object(producer.parameters, "answer"), mock.patch.dict(os.environ, {"GITHUB_JOB": self.role}):
             yield

@@ -1,5 +1,5 @@
 name: ship
-run-name: "${{ inputs.run != '' && (inputs.reference != '' && '[compare]' || '[windtun]') || '[ship]' }} ${{ inputs.repository }} ${{ inputs.marker }}"
+run-name: "${{ inputs.candidate && '[candidate]' || (inputs.run != '' && (inputs.reference != '' && '[compare]' || '[windtun]') || '[ship]') }} ${{ inputs.repository }} ${{ inputs.marker }}"
 
 on:
   workflow_dispatch:
@@ -13,7 +13,7 @@ on:
         required: true
         type: string
       run:
-        description: Replay this completed publication run without distributing
+        description: Replay a publication or select the run holding a candidate plan
         required: false
         type: string
       case:
@@ -25,6 +25,16 @@ on:
         description: Non-stable marker to compare with this stable Linux installation archive
         required: false
         type: string
+      candidate:
+        description: Inspect an exact recorded stable plan without publishing or reading its release records
+        required: false
+        type: boolean
+        default: false
+      attempt:
+        description: Exact plan attempt for candidate inspection
+        required: false
+        type: string
+        default: "1"
 
 permissions:
   contents: read
@@ -43,7 +53,7 @@ defaults:
 
 jobs:
   plan:
-    if: inputs.run == ''
+    if: inputs.run == '' && !inputs.candidate
     name: "[plan] entries"
     runs-on: ubuntu-24.04
     permissions:
@@ -836,7 +846,7 @@ jobs:
   build-proof:
     name: "[prove] published binary"
     needs: [plan, distribution]
-    if: ${{ !cancelled() && (inputs.run != '' || (needs.distribution.outputs.state == 'complete' && needs.plan.outputs.binaryproof == 'true')) }}
+    if: ${{ !cancelled() && !inputs.candidate && (inputs.run != '' || (needs.distribution.outputs.state == 'complete' && needs.plan.outputs.binaryproof == 'true')) }}
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     permissions:
@@ -882,13 +892,64 @@ jobs:
           if-no-files-found: error
           retention-days: 14
 
+  build-candidate:
+    name: "[prove] candidate binary"
+    if: ${{ !cancelled() && inputs.candidate }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      actions: read
+    steps:
+      - name: "[checkout] trusted wharf"
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: ${{ github.sha }}
+          path: wharf
+          persist-credentials: false
+
+      - name: "[prove] candidate binary"
+        id: candidate
+        env:
+          GH_TOKEN: ${{ github.token }}
+          WHARF_REPOSITORY: ${{ inputs.repository }}
+          WHARF_MARKER: ${{ inputs.marker }}
+          WHARF_RUN: ${{ inputs.run }}
+          WHARF_ATTEMPT: ${{ inputs.attempt }}
+          WHARF_REFERENCE: ${{ inputs.reference }}
+          WHARF_OBSERVER: '{"run":"${{ github.run_id }}","attempt":"${{ github.run_attempt }}","wharf":"${{ github.sha }}"}'
+          WHARF_SOURCE: ${{ runner.temp }}/binary-candidate
+          WHARF_R2_ACCESS_KEY_ID: ${{ secrets.WHARF_R2_ACCESS_KEY_ID }}
+          WHARF_R2_SECRET_ACCESS_KEY: ${{ secrets.WHARF_R2_SECRET_ACCESS_KEY }}
+        run: python3 -B -m scripts.distribution build-candidate
+
+      - name: "[read] candidate binary"
+        if: always() && steps.candidate.outputs.digest != ''
+        env:
+          GH_TOKEN: ${{ github.token }}
+          WHARF_OBSERVER: '{"run":"${{ github.run_id }}","attempt":"${{ github.run_attempt }}","wharf":"${{ github.sha }}"}'
+          WHARF_DIGEST: ${{ steps.candidate.outputs.digest }}
+          WHARF_SOURCE: ${{ runner.temp }}/binary-candidate
+          WHARF_R2_ACCESS_KEY_ID: ${{ secrets.WHARF_R2_ACCESS_KEY_ID }}
+          WHARF_R2_SECRET_ACCESS_KEY: ${{ secrets.WHARF_R2_SECRET_ACCESS_KEY }}
+        run: python3 -B -m scripts.distribution build-candidate-read
+
+      - name: "[preserve] candidate binary"
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
+        with:
+          name: binary-candidate-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/binary-candidate
+          if-no-files-found: error
+          retention-days: 14
+
   windtun-prepare:
     name: "[windtun] prepare attempt"
     needs: [plan, distribution]
     permissions:
       contents: read
       actions: read
-    if: always() && (inputs.run == '' || inputs.reference == '') && (inputs.run != '' || (needs.distribution.outputs.state == 'complete' && needs.plan.outputs.windtun == 'true'))
+    if: always() && !inputs.candidate && (inputs.run == '' || inputs.reference == '') && (inputs.run != '' || (needs.distribution.outputs.state == 'complete' && needs.plan.outputs.windtun == 'true'))
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     outputs:
