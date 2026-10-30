@@ -11,6 +11,7 @@ from lib.media import release
 REPOSITORY = "PerishLab/wharf"
 ROLE = "build-proof"
 JOB = "[prove] published binary"
+ROLES = {ROLE: JOB, "build-candidate": "[prove] candidate binary"}
 
 
 def api(path):
@@ -48,9 +49,9 @@ def started(value):
     return value
 
 
-def active(raw):
+def active(raw, role=ROLE):
     identity = observer(raw)
-    require(os.environ.get("GITHUB_JOB") == ROLE, "binary proof requires its fixed native job")
+    require(role in ROLES and os.environ.get("GITHUB_JOB") == role, "binary proof requires its fixed native job")
     run = trusted(identity)
     repository = api("")
     require(repository.get("full_name") == REPOSITORY and repository.get("default_branch") == "main" and all(run[name].get("id") == repository.get("id") for name in ("repository", "head_repository")), "binary proof repository authority differs")
@@ -60,7 +61,7 @@ def active(raw):
     require(isinstance(jobs, list) and len(jobs) == result.get("total_count") and 1 <= len(jobs) <= 100, "binary proof job inventory is incomplete")
     require(all(isinstance(job, dict) and type(job.get("id")) is int and job["id"] > 0 and str(job.get("run_id")) == identity["run"] and str(job.get("run_attempt")) == identity["attempt"] and job.get("head_sha") == identity["wharf"] and job.get("head_branch") == "main" for job in jobs), "binary proof job inventory belongs to another source or attempt")
     require(len({job["id"] for job in jobs}) == len(jobs), "binary proof job inventory has duplicate identities")
-    selected = [job for job in jobs if job.get("name") == JOB]
+    selected = [job for job in jobs if job.get("name") == ROLES[role]]
     require(len(selected) == 1, "binary proof native role is ambiguous")
     job = selected[0]
     require(str(job.get("run_id")) == identity["run"] and str(job.get("run_attempt")) == identity["attempt"] and job.get("head_sha") == identity["wharf"] and job.get("head_branch") == "main" and job.get("status") == "in_progress" and job.get("conclusion") is None, "binary proof native role is not active for this source")

@@ -1401,6 +1401,25 @@ An exact publication replay with `reference` is a comparison request and starts 
 Windtun attempt. Ordinary non-stable distribution still starts its declared suite
 by default, including when the dispatch also requests a content comparison.
 
+The independent `build-candidate` role inspects an exact stable plan identified
+by repository, marker, run and plan attempt. Explicit candidate inspection skips
+all product distribution and Windtun jobs, holds no product release writer and
+executes no product. It requires a non-stable reference proof, verifies the real
+native plan and complete build/bind chain, and uses the publication packer to
+construct the expected Linux installation archive. It neither reads nor invents
+the target stable distribution, seal or public proof. Historical declarations
+must match the manifest digest already fixed in their native plan.
+
+Candidate and published comparisons share complete input, declaration and
+unbound-byte checks, including separately recorded non-installed build facts.
+Each candidate attempt records associated, refused or unknown evidence through
+the existing workload protocol; failed evidence never authorizes publication.
+The read action bounds and verifies the material before independently repeating
+successful byte verification without writes. Candidate output always carries
+`promotion: false`. This is an inspection capability; publication and promotion
+admission do not yet consume it as a gate. Replaying a historical candidate plan
+is not a fresh stable promotion canary.
+
 ## Managers
 
 A release carries the scripts that install it, and this repository renders them:

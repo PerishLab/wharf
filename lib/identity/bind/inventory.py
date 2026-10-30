@@ -26,16 +26,23 @@ def validate(value):
     return value
 
 
-def resolve(public, document):
-    held = document["context"].get("binary_declaration")
+def planned(context, source):
+    held = context.get("binary_declaration")
     if held is not None:
         return validate(held)
-    trial = document["context"].get("trial")
-    require(isinstance(trial, dict) and trial == public["distribution"].get("trial") and trial.get("source") == public["source"], "historical publication has no frozen binary declaration")
-    source = public["source"]
+    trial = context.get("trial")
+    require(isinstance(trial, dict) and trial.get("source") == source, "historical plan has no frozen binary declaration")
     raw = release.fetch(f"https://raw.githubusercontent.com/{source['repository']}/{source['commit']}/plumb.toml")
     require(sha(raw) == trial.get("manifest"), "historical declaration differs from its published manifest digest")
     with tempfile.TemporaryDirectory() as directory:
         (Path(directory) / "plumb.toml").write_bytes(raw)
         held = capture(directory)
     return validate(held)
+
+
+def resolve(public, document):
+    context = document["context"]
+    if context.get("binary_declaration") is None:
+        trial = context.get("trial")
+        require(isinstance(trial, dict) and trial == public["distribution"].get("trial") and trial.get("source") == public["source"], "historical publication has no frozen binary declaration")
+    return planned(context, public["source"])

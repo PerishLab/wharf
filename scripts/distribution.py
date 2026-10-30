@@ -3,7 +3,7 @@ import sys
 
 from lib import parameters
 from lib.media import release
-from lib.identity.bind import producer, comparison
+from lib.identity.bind import producer, comparison, candidate
 from lib.refusal import Refusal
 from lib.process.trial import admission, consumer, judgment, declaration
 from lib.process.trial import credential, transport
@@ -35,6 +35,8 @@ ACTIONS = {
     "windtun-issue": (credential.issue, ["observer", "repository", "marker", "digest"]),
     "build-proof": (producer.produce, ["observer", "repository", "marker", "run"]),
     "build-compare": (comparison.run, ["repository", "marker", "reference", "source"]),
+    "build-candidate": (candidate.produce, ["observer", "repository", "marker", "run", "attempt", "reference", "source"]),
+    "build-candidate-read": (candidate.consume, ["observer", "digest", "source"]),
 }
 
 
