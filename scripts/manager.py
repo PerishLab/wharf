@@ -10,7 +10,7 @@ from pathlib import Path
 
 from lib import parameters
 from lib.cargo import toolchain
-from lib.identity.guard import exercise
+from lib.identity.guard import exercise, library
 from lib.content import executables, resources
 from lib.media import release
 from lib.process import run
@@ -210,6 +210,10 @@ def lease(held):
     return exercise.case(held["source"], held["marker"], "lease", json.loads(held["domain"]))
 
 
+def libraries(held):
+    return library.case(held)
+
+
 def suite(held):
     selected = resources.read_json("manager/suite.json")
     cases = unittest.defaultTestLoader.loadTestsFromNames(selected)
@@ -219,7 +223,7 @@ def suite(held):
     return {"action": "manager.suite", "platform": sys.platform, "tests": result.testsRun, "skipped": len(result.skipped)}
 
 
-ACTIONS = {"windows": (windows, ["shell"]), "domain": (domain, []), "staging": (staging, ["source", "marker", "domain"]), "lease": (lease, ["source", "marker", "domain"]), "suite": (suite, [])}
+ACTIONS = {"windows": (windows, ["shell"]), "domain": (domain, []), "staging": (staging, ["source", "marker", "domain"]), "lease": (lease, ["source", "marker", "domain"]), "suite": (suite, []), "library": (libraries, ["source", "marker", "repository", "domain"])}
 
 
 def main(argv=None):

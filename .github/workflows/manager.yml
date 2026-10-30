@@ -5,7 +5,11 @@ on:
   workflow_dispatch:
     inputs:
       marker:
-        description: Exact Plumb marker for native staging regressions
+        description: Exact release marker for native verification
+        type: string
+        required: false
+      repository:
+        description: Explicit Cargo library repository for formal RC verification
         type: string
         required: false
   pull_request:
@@ -25,6 +29,8 @@ on:
       - lib/process/job.py
       - lib/process/windows.py
       - tests/lib/cargo/test_suite.py
+      - lib/identity/guard/library.py
+      - tests/scripts/manager/test_library.py
 
 permissions:
   contents: read
@@ -93,7 +99,7 @@ jobs:
         run: python3 -B -m scripts.manager windows
 
   staging:
-    if: ${{ github.event_name == 'workflow_dispatch' && inputs.marker }}
+    if: ${{ github.event_name == 'workflow_dispatch' && inputs.marker && !inputs.repository }}
     name: "[test] suite windows"
     runs-on: windows-2025
     timeout-minutes: 25
@@ -148,3 +154,54 @@ jobs:
           WHARF_MARKER: ${{ inputs.marker }}
           WHARF_DOMAIN: ${{ steps.domain.outputs.domain }}
         run: python3 -B -m scripts.manager lease
+
+  library:
+    if: ${{ github.event_name == 'workflow_dispatch' && inputs.marker && inputs.repository }}
+    name: "[test] suite windows library"
+    runs-on: windows-2025
+    timeout-minutes: 25
+    defaults:
+      run:
+        shell: bash
+        working-directory: wharf
+    steps:
+      - name: "[prepare] autocrlf"
+        working-directory: .
+        run: git config --global core.autocrlf false
+
+      - name: "[checkout] wharf"
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          path: wharf
+          persist-credentials: false
+
+      - name: "[prepare] machine controls"
+        uses: ./wharf/.github/actions/prepare
+        with:
+          prepare: snapshot
+
+      - name: "[read] engines"
+        id: domain
+        run: python3 -B -m scripts.manager domain
+
+      - name: "[prepare] machine rust"
+        uses: ./wharf/.github/actions/prepare
+        with:
+          prepare: rust
+          rust: ${{ steps.domain.outputs.rust }}
+
+      - name: "[checkout] product"
+        uses: ./wharf/.github/actions/product
+        with:
+          repository: ${{ inputs.repository }}
+          marker: ${{ inputs.marker }}
+          client-id: ${{ vars.WHARF_APP_CLIENT_ID }}
+          private-key: ${{ secrets.WHARF_APP_PRIVATE_KEY }}
+
+      - name: "[test] suite windows library"
+        env:
+          WHARF_SOURCE: ../product
+          WHARF_REPOSITORY: ${{ inputs.repository }}
+          WHARF_MARKER: ${{ inputs.marker }}
+          WHARF_DOMAIN: ${{ steps.domain.outputs.domain }}
+        run: python3 -B -m scripts.manager library
