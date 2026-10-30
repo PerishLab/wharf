@@ -161,6 +161,15 @@ and process-boundary regressions selected by `resources/manager/suite.json` on n
 Windows and macOS runners without publication credentials. These process tests
 do not replace the selected product's actual Cargo tests.
 
+An explicit repository and RC marker on `manager.yml` select published Cargo
+library verification on `windows-2025`. It requires a clean marker checkout and
+complete matching distribution, checks each public crate checksum and bound
+release metadata, and runs its packaged locked all-features tests in a private
+home without inherited credentials. Native domain Rust, test totals and logs,
+lock identity and successful temporary-directory cleanup enter the result.
+It grants no publication or Windtun promotion credential and does not change
+the default release suite or its Guard coverage reuse.
+
 The product's
 `plumb.toml` is likewise the one declaration of what else publishes: npm publishes
 exactly the packages `[release.npm]` lists, cargo exactly the crates
