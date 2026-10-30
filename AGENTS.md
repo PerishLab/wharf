@@ -1332,6 +1332,38 @@ implementation and input worlds plus current discovery; no time-based expiry or
 cross-platform or cross-medium equivalence is invented. Historical observations are
 not backfilled as credentials. This path does not yet enforce stable promotion.
 
+The canonical public vector for current validator requirements is
+`resources/check/windtun.json` on this repository's protected `main`. It has exactly
+`schema: wharf.windtun.requirements/v1`, `policy`, and `implementation`. The latter
+two are mechanically derived from `context.POLICY` and the canonical digest of
+`context.fingerprint()`. The fixed native source gate rejects absent, noncanonical,
+stale or malformed metadata. Regenerate it from `policy.expected()` when the actual
+validator changes. The descriptor, its checker and its public reader are outside
+that fingerprint, so no digest contains itself. Product cases, scenes and images
+remain declared only by each product's `plumb.toml`.
+
+`lib.process.trial.policy.current()` documents the public read protocol. It uses
+only GitHub.com, repository `PerishLab/wharf` with numeric identity `1374358737`
+and node `R_kgDOUesM0Q`, owned by PerishLab `330236468` / `O_kgDOE68CNA`. It reads
+the repository identity, protected default `main`, exact Git commit and tree,
+then the fixed Contents API path at that commit. File type, path, base64, integer
+size of at most 4096 bytes, native Git blob hash and canonical closed document
+shape must match. A second main read and repository identity read must agree;
+movement, unprotected main, foreign identity, unknown policy/schema, missing or
+unreadable data refuses. There is no caller-supplied authority, branch or URL and
+no fallback to a pass's self-reported implementation.
+
+`main` is the native production deployment boundary. Its commit, tree, blob SHA
+and document SHA256 accompany readback as provenance, never as an expected policy
+or as fields embedded in the descriptor. An unrelated main move can preserve the
+same requirements; a changed algorithm changes the derived implementation and
+requires consumers to reassess. Wharf's qualification consumer continues deriving
+expectations from its actual local validator. Public consumers must authenticate
+the descriptor through this fixed provider protocol before comparing credential
+policy/implementation, and still verify the complete current product world and
+latest declared attempt. This bridge supplies neither qualification nor promotion
+permission; it adds no TTL, new release authority, product setting or service.
+
 ## Release identity
 
 Sources declare version `0.0.0`. A distributable binary is built unbound and receives

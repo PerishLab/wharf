@@ -5,6 +5,7 @@ import tokenize
 from pathlib import Path
 
 from lib.check.structure import RULES
+from lib.process.trial import policy
 
 NESTING = (ast.If, ast.For, ast.AsyncFor, ast.While, ast.With, ast.AsyncWith, ast.Try, ast.Match)
 FUNCTIONS = (ast.FunctionDef, ast.AsyncFunctionDef, ast.Lambda)
@@ -64,7 +65,7 @@ def yaml(root, path):
 
 
 def check(root, paths):
-    findings = []
+    findings = policy.findings()
     for path in paths:
         if path.suffix == ".py":
             findings += python(root, path)
