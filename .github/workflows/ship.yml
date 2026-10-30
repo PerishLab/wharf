@@ -21,6 +21,10 @@ on:
         required: false
         type: string
         default: declared
+      reference:
+        description: Non-stable marker to compare with this stable Linux installation archive
+        required: false
+        type: string
 
 permissions:
   contents: read
@@ -66,6 +70,7 @@ jobs:
       trial: ${{ steps.plan.outputs.trial }}
       publisher: ${{ steps.plan.outputs.publisher }}
       windtun: ${{ steps.plan.outputs.windtun }}
+      binaryproof: ${{ steps.plan.outputs.binaryproof }}
       commit: ${{ steps.source.outputs.commit }}
       tree: ${{ steps.source.outputs.tree }}
     steps:
@@ -827,6 +832,55 @@ jobs:
           WHARF_RELEASES_ACCESS_KEY_ID: ${{ secrets.WHARF_RELEASES_ACCESS_KEY_ID }}
           WHARF_RELEASES_SECRET_ACCESS_KEY: ${{ secrets.WHARF_RELEASES_SECRET_ACCESS_KEY }}
         run: python3 -B -m scripts.distribution record
+
+  build-proof:
+    name: "[prove] published binary"
+    needs: [plan, distribution]
+    if: ${{ !cancelled() && (inputs.run != '' || (needs.distribution.outputs.state == 'complete' && needs.plan.outputs.binaryproof == 'true')) }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      actions: read
+    steps:
+      - name: "[checkout] trusted wharf"
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: ${{ github.sha }}
+          path: wharf
+          persist-credentials: false
+
+      - name: "[prove] published binary"
+        id: proved
+        env:
+          GH_TOKEN: ${{ github.token }}
+          WHARF_REPOSITORY: ${{ inputs.repository }}
+          WHARF_MARKER: ${{ inputs.marker }}
+          WHARF_RUN: ${{ inputs.run || 'null' }}
+          WHARF_OBSERVER: '{"run":"${{ github.run_id }}","attempt":"${{ github.run_attempt }}","wharf":"${{ github.sha }}"}'
+          WHARF_R2_ACCESS_KEY_ID: ${{ secrets.WHARF_R2_ACCESS_KEY_ID }}
+          WHARF_R2_SECRET_ACCESS_KEY: ${{ secrets.WHARF_R2_SECRET_ACCESS_KEY }}
+          WHARF_RELEASES_ACCESS_KEY_ID: ${{ secrets.WHARF_RELEASES_ACCESS_KEY_ID }}
+          WHARF_RELEASES_SECRET_ACCESS_KEY: ${{ secrets.WHARF_RELEASES_SECRET_ACCESS_KEY }}
+        run: python3 -B -m scripts.distribution build-proof
+
+      - name: "[compare] published binary"
+        if: inputs.reference != '' && steps.proved.outputs.ready == 'true'
+        env:
+          WHARF_REPOSITORY: ${{ inputs.repository }}
+          WHARF_MARKER: ${{ inputs.marker }}
+          WHARF_REFERENCE: ${{ inputs.reference }}
+          WHARF_SOURCE: ${{ runner.temp }}/binary-comparison
+        run: python3 -B -m scripts.distribution build-compare
+
+      - name: "[preserve] binary comparison"
+        if: always() && inputs.reference != ''
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
+        with:
+          name: binary-comparison-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/binary-comparison
+          if-no-files-found: error
+          retention-days: 14
 
   windtun-prepare:
     name: "[windtun] prepare attempt"
