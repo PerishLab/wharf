@@ -1,0 +1,8 @@
+{
+  "schema": "wharf.binary.native.policy/v2",
+  "targets": {
+    "aarch64-apple-darwin": {"unit": "macos", "runner": "macos-15", "key": "darwin-arm64", "format": "tar.gz", "signature": "adhoc"},
+    "x86_64-pc-windows-msvc": {"unit": "windows", "runner": "windows-2025", "key": "windows-x64", "format": "zip", "signature": null}
+  },
+  "signer": {"name": "rcodesign", "version": "0.29.0", "sha256": "dab9a7465f96aba3c81e793775510f745b91a46b6418e89f7317b5d8fc7bcea2", "seconds": 60}
+}

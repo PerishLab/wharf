@@ -9,6 +9,7 @@ from lib.process.trial import admission, consumer, judgment, declaration
 from lib.process.trial import credential, transport
 from lib.process.promotion import operation as promotion
 from lib.store import distribution, r2
+from lib.process.association import producer as native, public as native_public, candidate as native_candidate
 
 IDENTITY = ("repository", "marker", "commit", "tree")
 CONTEXT = ("repository", "marker", "commit", "tree", "wharf", "run", "attempt")
@@ -36,6 +37,11 @@ ACTIONS = {
     "windtun-load": (transport.load, ["source", "observer", "repository", "marker"]),
     "windtun-store": (transport.store, ["source", "observer", "repository", "marker"]),
     "windtun-issue": (credential.issue, ["observer", "repository", "marker", "digest"]),
+    "native-proof": (native.produce, ["observer", "repository", "marker", "run"]),
+    "native-read": (native_public.check, ["repository", "marker"]),
+    "native-compare": (native_public.compare, ["repository", "marker", "reference", "source"]),
+    "native-candidate": (native_candidate.produce, ["observer", "repository", "marker", "run", "attempt", "reference", "source"]),
+    "native-candidate-read": (native_candidate.consume, ["observer", "digest", "source"]),
     "build-proof": (producer.produce, ["observer", "repository", "marker", "run"]),
     "build-compare": (comparison.run, ["repository", "marker", "reference", "source"]),
     "build-candidate": (candidate.produce, ["observer", "repository", "marker", "run", "attempt", "reference", "source"]),
