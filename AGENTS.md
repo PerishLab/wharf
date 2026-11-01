@@ -1487,6 +1487,67 @@ successful byte verification without writes. Candidate output always carries
 admission do not yet consume it as a gate. Replaying a historical candidate plan
 is not a fresh stable promotion canary.
 
+## Native installation association
+
+The separate `wharf.binary.native.association/v2` and discovery v2 contracts
+cover the declared macOS arm64 and Windows x86_64 installation archives. They do
+not reinterpret the strict Linux v1 decoder. The frozen native plan's manifest
+hash qualifies the complete source declaration, target-specific built and installed
+inventories and Windows manager scope. Actual build/bind keys, complete receipts,
+producer plans and effective resolution must agree before any proof is published.
+Every built executable is checked, including those absent from installation archives.
+
+Windows admits only the existing unsigned reproducible x86-64 PE transformation:
+restore the identity payload and reproduce binding exactly, with no checksum mask.
+Mach-O admits only thin arm64 and the existing pinned ad-hoc signer. Its prepared
+executable bytes must match the fixed policy in `manager/association.json`.
+Re-signing the actual published image must reproduce every byte; neutralizing the
+identity payload and re-signing produces a complete canonical image, whose exact
+rebinding and re-signing must reproduce the original. The producer additionally
+repeats the transformation from the actual retained unbound build and compares
+complete canonical bytes. No signature region is ignored, and `rcodesign verify`
+is not treated as a native execution or signature oracle. The signer runs with
+only a private HOME and LANG, null standard streams and a 60-second deadline.
+It executes no product code and receives no provider or storage credential.
+
+Installed archives require the complete ordered regular-file inventory and exact
+deterministic packaging representation. Pinned managers are independently rebuilt
+from the complete declaration and exact known renderer. Cross-marker manager
+association compares the complete stable-default template result; no text is
+stripped heuristically. Published stable canonical managers additionally require
+the exact current stable pointer and root bytes with unchanged pointer readback.
+A non-stable release supplies no canonical publication, and a private candidate
+reports expected canonical bytes rather than claiming published readback.
+
+The fixed `native-proof` role follows complete distribution or an exact replay,
+executes only trusted verification and records immutable workload material and
+public proof objects. Per-target discovery is separately versioned under
+`build/native-darwin-arm64.json` and `build/native-windows-x64.json`. Conditional
+advancement preserves earlier objects and refuses changed content or regression
+behind a later native start. Independent public readback holds no storage writer,
+bounds material, rejects redirects and duplicate/foreign fields, and repeats
+current source, resolution, declaration, manager and actual archive verification.
+Historical unknown build/bind implementation refuses. Original generator provenance
+is retained; manager equivalence is proved by actual bytes and the known renderer,
+not by equating whole-publisher digests. The renderer fingerprint covers its exact
+functions, constants, filler and templates, so unrelated publisher edits do not
+change the content fact.
+
+The `native-candidate` role follows successful Linux candidate inspection. It
+independently restores that exact observer-bound Linux workload and verifies every
+declared supported native target against its public non-stable proof using the
+actual stable plan's complete build/bind outputs. It holds workload access alone,
+reads no future stable record and records refused/unknown attempts without a pass
+fallback. Readback independently repeats successful verification without writes.
+It is an inspector of an existing exact stable plan, not a way to create such a
+plan or a publication permit. Preparing that plan without entering publication
+remains a separate workflow capability.
+
+Other media remain explicitly unassessed. These post-distribution proof roles and
+candidate inspectors neither activate promotion admission nor change publisher
+conditions or credential grants. Source merge does not settle Wharf#314's promised
+real published-artifact canary or Concord#406's stable/readback obligations.
+
 ## Managers
 
 A release carries the scripts that install it, and this repository renders them:
