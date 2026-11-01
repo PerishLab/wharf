@@ -7,6 +7,7 @@ import tarfile
 import unittest
 
 from lib.media import release
+from tests.lib.store.memory import Memory
 from tests.scripts.manager.test_manager import Harness
 
 
@@ -164,7 +165,12 @@ class Inspection(Harness):
         self.assertEqual({row["state"] for row in report["files"]}, {"stale"})
 
     def test_moving_stable_is_bound_to_pointer_seal_digest(self):
-        release.point(self.release, self.managers, self.bucket)
+        bucket = Memory()
+        sealed = release.sealed(self.release)
+        bucket.put(sealed, self.bucket.get(sealed))
+        release.point(self.release, self.managers, bucket)
+        for key in bucket.writes:
+            self.bucket.put(key, bucket.get(key))
         pointer = self.bucket.root / "v1/channels/stable.json"
         data = json.loads(pointer.read_bytes())
         seal, _, _ = self.artifact()
