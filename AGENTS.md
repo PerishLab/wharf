@@ -1364,6 +1364,25 @@ policy/implementation, and still verify the complete current product world and
 latest declared attempt. This bridge supplies neither qualification nor promotion
 permission; it adds no TTL, new release authority, product setting or service.
 
+The independent `promotion-prepare` role observes ordinary stable Plumb ship plans
+between completed build layers and publication jobs. It holds workload access,
+never a product release writer, and executes only the current formal Plumb
+qualification reader, without passing storage credentials to that reader. The
+annotated stable intent selects a prerelease but supplies no authority; current
+public qualification must cover the exact archive and seal independently linked
+to the actual Linux candidate bytes and complete frozen declaration.
+
+Preparation and readback use observer-bound, create-only workload material. A
+successful read repeats both qualification and candidate verification; cache
+presence never skips them. Missing, failed or malformed collection remains refused
+or unknown. Reports always retain `promotion: false` and mark all other media and
+platforms unassessed. Publishers wait for collection but exclude its result from
+their existing build admission: this is observational, not an activated gate.
+Whole-workflow cancellation still stops preparation and publication explicitly.
+A collector Job success alone proves neither a prepared verdict nor permission.
+A source merge does not settle Wharf#305's promised fresh ordinary Plumb ship
+observation. Historical replays and empty releases cannot replace that canary.
+
 ## Release identity
 
 Sources declare version `0.0.0`. A distributable binary is built unbound and receives

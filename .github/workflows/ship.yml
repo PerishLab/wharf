@@ -475,10 +475,72 @@ jobs:
           WHARF_DOMAIN: ${{ needs.plan.outputs.domain }}
         run: python3 -B -m scripts.ship step
 
+  promotion-prepare:
+    name: "[windtun] prepare promotion"
+    needs: [plan, layer-1, layer-2, layer-3, layer-4]
+    if: always() && !cancelled() && needs.plan.result == 'success' && inputs.repository == 'PerishLab/plumb' && !contains(inputs.marker, '-') && !contains(needs.*.result, 'failure') && !contains(needs.*.result, 'cancelled')
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      actions: read
+    steps:
+      - name: "[checkout] trusted wharf"
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: ${{ github.sha }}
+          path: wharf
+          persist-credentials: false
+
+      - name: "[prepare] qualification reader"
+        working-directory: .
+        run: |
+          curl -fsSL https://releases.plumb.perish.uk/manage.sh -o "$RUNNER_TEMP/manage-plumb.sh"
+          env PLUMB_CHANNEL=stable PLUMB_VERSION= sh "$RUNNER_TEMP/manage-plumb.sh" install
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+
+      - name: "[windtun] prepare promotion"
+        id: prepared
+        env:
+          GH_TOKEN: ${{ github.token }}
+          WHARF_REPOSITORY: ${{ inputs.repository }}
+          WHARF_MARKER: ${{ inputs.marker }}
+          WHARF_RUN: ${{ github.run_id }}
+          WHARF_PLANNED: ${{ needs.plan.outputs.planned }}
+          WHARF_OBSERVER: '{"run":"${{ github.run_id }}","attempt":"${{ github.run_attempt }}","wharf":"${{ github.sha }}"}'
+          WHARF_SOURCE: ${{ runner.temp }}/promotion-preparation
+          WHARF_R2_ACCESS_KEY_ID: ${{ secrets.WHARF_R2_ACCESS_KEY_ID }}
+          WHARF_R2_SECRET_ACCESS_KEY: ${{ secrets.WHARF_R2_SECRET_ACCESS_KEY }}
+        run: python3 -B -m scripts.distribution promotion-prepare
+
+      - name: "[windtun] read promotion preparation"
+        if: always() && steps.prepared.outputs.digest != ''
+        env:
+          GH_TOKEN: ${{ github.token }}
+          WHARF_REPOSITORY: ${{ inputs.repository }}
+          WHARF_MARKER: ${{ inputs.marker }}
+          WHARF_RUN: ${{ github.run_id }}
+          WHARF_PLANNED: ${{ needs.plan.outputs.planned }}
+          WHARF_OBSERVER: '{"run":"${{ github.run_id }}","attempt":"${{ github.run_attempt }}","wharf":"${{ github.sha }}"}'
+          WHARF_SOURCE: ${{ runner.temp }}/promotion-preparation
+          WHARF_DIGEST: ${{ steps.prepared.outputs.digest }}
+          WHARF_R2_ACCESS_KEY_ID: ${{ secrets.WHARF_R2_ACCESS_KEY_ID }}
+          WHARF_R2_SECRET_ACCESS_KEY: ${{ secrets.WHARF_R2_SECRET_ACCESS_KEY }}
+        run: python3 -B -m scripts.distribution promotion-read
+
+      - name: "[preserve] promotion preparation"
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
+        with:
+          name: promotion-preparation-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/promotion-preparation
+          if-no-files-found: warn
+          retention-days: 14
+
   npm:
     name: "[publish] npm"
-    needs: [plan, layer-1, layer-2, layer-3, layer-4]
-    if: always() && needs.plan.result == 'success' && needs.plan.outputs.npm == 'run' && !contains(needs.*.result, 'failure') && !contains(needs.*.result, 'cancelled')
+    needs: [plan, layer-1, layer-2, layer-3, layer-4, promotion-prepare]
+    if: always() && !cancelled() && needs.plan.result == 'success' && needs.plan.outputs.npm == 'run' && !contains(format('{0} {1} {2} {3}', needs.layer-1.result, needs.layer-2.result, needs.layer-3.result, needs.layer-4.result), 'failure') && !contains(format('{0} {1} {2} {3}', needs.layer-1.result, needs.layer-2.result, needs.layer-3.result, needs.layer-4.result), 'cancelled')
     runs-on: ubuntu-24.04
     permissions:
       contents: read
@@ -526,8 +588,8 @@ jobs:
         run: python3 -B -m scripts.media npm-publish
   oci:
     name: "[publish] oci"
-    needs: [plan, layer-1, layer-2, layer-3, layer-4]
-    if: always() && needs.plan.result == 'success' && needs.plan.outputs.oci == 'run' && !contains(needs.*.result, 'failure') && !contains(needs.*.result, 'cancelled')
+    needs: [plan, layer-1, layer-2, layer-3, layer-4, promotion-prepare]
+    if: always() && !cancelled() && needs.plan.result == 'success' && needs.plan.outputs.oci == 'run' && !contains(format('{0} {1} {2} {3}', needs.layer-1.result, needs.layer-2.result, needs.layer-3.result, needs.layer-4.result), 'failure') && !contains(format('{0} {1} {2} {3}', needs.layer-1.result, needs.layer-2.result, needs.layer-3.result, needs.layer-4.result), 'cancelled')
     runs-on: ubuntu-24.04
     permissions:
       contents: read
@@ -583,8 +645,8 @@ jobs:
         run: python3 -B -m scripts.media oci-publish
   chart:
     name: "[publish] chart"
-    needs: [plan, layer-1, layer-2, layer-3, layer-4]
-    if: always() && needs.plan.result == 'success' && needs.plan.outputs.chart == 'run' && !contains(needs.*.result, 'failure') && !contains(needs.*.result, 'cancelled')
+    needs: [plan, layer-1, layer-2, layer-3, layer-4, promotion-prepare]
+    if: always() && !cancelled() && needs.plan.result == 'success' && needs.plan.outputs.chart == 'run' && !contains(format('{0} {1} {2} {3}', needs.layer-1.result, needs.layer-2.result, needs.layer-3.result, needs.layer-4.result), 'failure') && !contains(format('{0} {1} {2} {3}', needs.layer-1.result, needs.layer-2.result, needs.layer-3.result, needs.layer-4.result), 'cancelled')
     runs-on: ubuntu-24.04
     permissions:
       contents: read
@@ -640,8 +702,8 @@ jobs:
         run: python3 -B -m scripts.media chart-publish
   release:
     name: "[publish] binaries"
-    needs: [plan, layer-1, layer-2, layer-3, layer-4]
-    if: always() && needs.plan.result == 'success' && needs.plan.outputs.release == 'run' && !contains(needs.*.result, 'failure') && !contains(needs.*.result, 'cancelled')
+    needs: [plan, layer-1, layer-2, layer-3, layer-4, promotion-prepare]
+    if: always() && !cancelled() && needs.plan.result == 'success' && needs.plan.outputs.release == 'run' && !contains(format('{0} {1} {2} {3}', needs.layer-1.result, needs.layer-2.result, needs.layer-3.result, needs.layer-4.result), 'failure') && !contains(format('{0} {1} {2} {3}', needs.layer-1.result, needs.layer-2.result, needs.layer-3.result, needs.layer-4.result), 'cancelled')
     runs-on: ubuntu-24.04
     outputs:
       snapshot: ${{ steps.published.outputs.snapshot }}
@@ -688,7 +750,7 @@ jobs:
   channel:
     name: "[point] channel"
     needs: [plan, layer-1, layer-2, layer-3, layer-4, npm, oci, chart, cargo, cfworker, release]
-    if: always() && needs.plan.result == 'success' && needs.plan.outputs.channel == 'run' && !contains(needs.*.result, 'failure') && !contains(needs.*.result, 'cancelled')
+    if: always() && !cancelled() && needs.plan.result == 'success' && needs.plan.outputs.channel == 'run' && !contains(needs.*.result, 'failure') && !contains(needs.*.result, 'cancelled')
     runs-on: ubuntu-24.04
     steps:
       - name: "[checkout] wharf"
@@ -717,8 +779,8 @@ jobs:
 
   cfworker:
     name: "[deploy] cfworker"
-    needs: [plan, layer-1, layer-2, layer-3, layer-4]
-    if: always() && needs.plan.result == 'success' && needs.plan.outputs.cfworker == 'run' && !contains(needs.*.result, 'failure') && !contains(needs.*.result, 'cancelled')
+    needs: [plan, layer-1, layer-2, layer-3, layer-4, promotion-prepare]
+    if: always() && !cancelled() && needs.plan.result == 'success' && needs.plan.outputs.cfworker == 'run' && !contains(format('{0} {1} {2} {3}', needs.layer-1.result, needs.layer-2.result, needs.layer-3.result, needs.layer-4.result), 'failure') && !contains(format('{0} {1} {2} {3}', needs.layer-1.result, needs.layer-2.result, needs.layer-3.result, needs.layer-4.result), 'cancelled')
     runs-on: ubuntu-24.04
     permissions:
       contents: read
@@ -766,8 +828,8 @@ jobs:
         run: python3 -B -m scripts.ship cfworker-deploy
   cargo:
     name: "[publish] cargo"
-    needs: [plan, layer-1, layer-2, layer-3, layer-4]
-    if: always() && needs.plan.result == 'success' && needs.plan.outputs.cargo == 'run' && !contains(needs.*.result, 'failure') && !contains(needs.*.result, 'cancelled')
+    needs: [plan, layer-1, layer-2, layer-3, layer-4, promotion-prepare]
+    if: always() && !cancelled() && needs.plan.result == 'success' && needs.plan.outputs.cargo == 'run' && !contains(format('{0} {1} {2} {3}', needs.layer-1.result, needs.layer-2.result, needs.layer-3.result, needs.layer-4.result), 'failure') && !contains(format('{0} {1} {2} {3}', needs.layer-1.result, needs.layer-2.result, needs.layer-3.result, needs.layer-4.result), 'cancelled')
     runs-on: ubuntu-24.04
     outputs:
       snapshot: ${{ steps.published.outputs.snapshot }}
