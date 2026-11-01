@@ -215,11 +215,12 @@ def lead(bucket, rooted, moved, marker):
 
 
 def advance(bucket, key, body, held):
-    if bucket.exists(key):
-        current = json.loads(bucket.get(key))["releaseVersion"]
+    raw, etag = bucket.snapshot(key)
+    if raw is not None:
+        current = json.loads(raw)["releaseVersion"]
         if marker.holds(current) and order(current) >= order(held):
             return {"pointer": key, "state": "kept", "current": current}
-    bucket.put(key, body, {"Content-Type": JSON})
+    bucket.swap(key, body, etag)
     return {"pointer": key, "state": "advanced"}
 
 

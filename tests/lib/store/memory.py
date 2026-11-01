@@ -21,6 +21,9 @@ class Memory:
             raise Refusal(f"GET {key} answered 404")
         return self.objects[key]
 
+    def snapshot(self, key):
+        return (self.get(key), self.head(key)) if self.exists(key) else (None, None)
+
     def create(self, key, body, headers=None):
         if key in self.objects:
             raise Conflict(key)

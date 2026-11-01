@@ -1271,6 +1271,11 @@ that keeps them.
   keeps its bytes, which a test pins.
 - Managers, seals and channel pointers are rendered by the run that publishes
   them; no product carries them in its source.
+- A release channel advances through one versioned object snapshot and a conditional
+  write. Concurrent creation or a changed ETag refuses without automatic retry or
+  an unconditional overwrite. A pointer already at the same or a higher marker is
+  kept. This protects one pointer; canonical managers and other media aliases have
+  their own publication boundaries, and it grants no Windtun promotion authority.
 - The canonical managers at the authority's root are written only when a stable
   channel pointer names the marker that rendered them.
 - Publication authority never reaches a Windtun executor. Its trusted preparation
