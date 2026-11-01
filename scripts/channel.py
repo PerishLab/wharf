@@ -5,6 +5,7 @@ from pathlib import Path
 
 from lib import parameters
 from lib.content import executables
+from lib.identity.bind import publication
 from lib.media import release
 from lib.refusal import Refusal
 from lib.store import r2
@@ -23,16 +24,18 @@ def plan(held):
 
 
 def point(held):
+    context = publication.read(held)
     pointed = released(held)
     managers = Path(tempfile.mkdtemp()) / "managers"
     bucket = r2.writer(release.place(pointed)[1], "RELEASES")
     seal = json.loads(bucket.get(release.sealed(pointed)))
+    publication.sealed(context, seal)
     listed = executables.declared(held["source"], release.targets(held["source"]))
     release.render(pointed, str(managers), {target: executables.installed(listed, target) for target in release.sealed_targets(seal)}, held["source"])
     return release.point(pointed, managers, bucket)
 
 
-ACTIONS = {"plan": (plan, ["repository", "marker", "source"]), "point": (point, ["repository", "marker", "wharf", "source"])}
+ACTIONS = {"plan": (plan, ["repository", "marker", "source"]), "point": (point, ["repository", "marker", "wharf", "source", "run", "attempt", "planned"])}
 
 
 def main(argv=None):

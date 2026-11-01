@@ -189,6 +189,12 @@ package names and carries only its build, and a subpath that only `source`
 serves refuses. Channel decides for itself: it
 runs unless the pointer already names a newer marker, so a seal whose pointer
 never moved is pointed at by the next run instead of being skipped with it.
+Channel authenticates its active native ship role and successful plan job before
+publication. An earlier planned attempt of the same run remains valid. Its clean
+checkout, frozen snapshot, existing publication reservation and seal must agree;
+missing historical reservations require explicit recovery. Workload access here
+is read-only. This binds publication identity without rebuilding current packages
+or activating Windtun promotion admission.
 Skipping is absence from a matrix, not a condition on a job that exists. A
 single job that covers several targets takes them from the plan it already reads, and refuses
 when the plan decided none of them. Whether a medium is already published stays

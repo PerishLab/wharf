@@ -752,6 +752,9 @@ jobs:
     needs: [plan, layer-1, layer-2, layer-3, layer-4, npm, oci, chart, cargo, cfworker, release]
     if: always() && !cancelled() && needs.plan.result == 'success' && needs.plan.outputs.channel == 'run' && !contains(needs.*.result, 'failure') && !contains(needs.*.result, 'cancelled')
     runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      actions: read
     steps:
       - name: "[checkout] wharf"
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
@@ -769,6 +772,12 @@ jobs:
 
       - name: "[point] channel"
         env:
+          GH_TOKEN: ${{ github.token }}
+          WHARF_R2_ACCESS_KEY_ID: ${{ secrets.WHARF_R2_ACCESS_KEY_ID }}
+          WHARF_R2_SECRET_ACCESS_KEY: ${{ secrets.WHARF_R2_SECRET_ACCESS_KEY }}
+          WHARF_RUN: ${{ github.run_id }}
+          WHARF_ATTEMPT: ${{ github.run_attempt }}
+          WHARF_PLANNED: ${{ needs.plan.outputs.planned }}
           WHARF_SOURCE: ../product
           WHARF_RELEASES_ACCESS_KEY_ID: ${{ secrets.WHARF_RELEASES_ACCESS_KEY_ID }}
           WHARF_RELEASES_SECRET_ACCESS_KEY: ${{ secrets.WHARF_RELEASES_SECRET_ACCESS_KEY }}
