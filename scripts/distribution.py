@@ -7,6 +7,7 @@ from lib.identity.bind import producer, comparison, candidate
 from lib.refusal import Refusal
 from lib.process.trial import admission, consumer, judgment, declaration
 from lib.process.trial import credential, transport
+from lib.process.promotion import operation as promotion
 from lib.store import distribution, r2
 
 IDENTITY = ("repository", "marker", "commit", "tree")
@@ -25,6 +26,8 @@ def record(held):
 
 
 ACTIONS = {
+    "promotion-prepare": (promotion.prepare, ["repository", "marker", "run", "planned", "observer", "source"]),
+    "promotion-read": (promotion.read, ["repository", "marker", "run", "planned", "observer", "source", "digest"]),
     "record": (record, [*CONTEXT, "needs", "trial"]),
     "trial-admit": (admission.admit, ["source", "run", "publisher", "selection"]),
     "trial-run": (consumer.execute, ["source", "trialcase"]),
