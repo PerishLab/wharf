@@ -1276,6 +1276,11 @@ that keeps them.
   an unconditional overwrite. A pointer already at the same or a higher marker is
   kept. This protects one pointer; canonical managers and other media aliases have
   their own publication boundaries, and it grants no Windtun promotion authority.
+- Both binary and source-image publishers repeat their existing source publication
+  admission immediately before an OCI stable alias copy, including when the version
+  image already exists. Refusal stops the alias write; non-stable and unchanged
+  aliases perform no extra admission. This source check proves neither OCI content
+  association nor cross-marker exclusion, and does not activate Windtun promotion.
 - The canonical managers at the authority's root are written only when a stable
   channel pointer names the marker that rendered them.
 - Publication authority never reaches a Windtun executor. Its trusted preparation

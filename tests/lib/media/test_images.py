@@ -250,6 +250,31 @@ class Channel(unittest.TestCase):
             oci.advance(self.IMAGE, runner)
         self.assertEqual(self.created(commands), [])
 
+    def test_admission_immediately_precedes_the_alias_copy(self):
+        runner, commands, _ = self.registry("0.3.9")
+        result = oci.advance(self.IMAGE, runner, lambda: commands.append(["admit"]))
+        copy = commands.index(self.created(commands)[0])
+        self.assertEqual(commands[copy - 1], ["admit"])
+        self.assertEqual(commands.count(["admit"]), 1)
+        self.assertEqual(result["state"], "advanced")
+
+    def test_admission_failure_starts_no_alias_copy(self):
+        runner, commands, _ = self.registry("0.3.9")
+        confirm = mock.Mock(side_effect=Refusal("publication inputs changed"))
+        with self.assertRaisesRegex(Refusal, "publication inputs changed"):
+            oci.advance(self.IMAGE, runner, confirm)
+        confirm.assert_called_once_with()
+        self.assertEqual(self.created(commands), [])
+
+    def test_nonstable_and_kept_aliases_need_no_additional_admission(self):
+        for image, version, digests in ((self.IMAGE + "-rc.1", None, {}), (self.IMAGE, "0.4.1", {}), (self.IMAGE, "0.4.0", {self.TAG: "sha256:" + "4" * 64})):
+            runner, commands, _ = self.registry(version, digests=digests)
+            confirm = mock.Mock(side_effect=AssertionError("unnecessary admission"))
+            with self.subTest(image=image, version=version):
+                oci.advance(image, runner, confirm)
+                confirm.assert_not_called()
+                self.assertEqual(self.created(commands), [])
+
 
 class Chart(unittest.TestCase):
     def test_lists_the_declared_chart_alone(self):
