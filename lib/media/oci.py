@@ -214,7 +214,7 @@ def current(image, runner=run):
     return version is not None and marker.order(f"v{version}") >= marker.order(held)
 
 
-def advance(image, runner=run):
+def advance(image, runner=run, confirm=None):
     held = released(image)
     if marker.channel(held) != CHANNEL:
         return None
@@ -227,6 +227,8 @@ def advance(image, runner=run):
         return {"image": target, "state": "kept", "version": version}
     directory = Path(tempfile.mkdtemp())
     try:
+        if confirm is not None:
+            confirm()
         runner(["skopeo", "copy", "--preserve-digests", f"docker://{image.rsplit(':', 1)[0]}@{digest}", f"docker://{target}"], directory)
     finally:
         shutil.rmtree(directory, ignore_errors=True)
