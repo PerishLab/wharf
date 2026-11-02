@@ -32,7 +32,8 @@
     "observer": "string",
     "selection": "string",
     "preparing": "bool",
-    "preparation": "string"
+    "preparation": "string",
+    "observation": "string"
   },
   "shapes": {
     "repository": "PerishLab/[A-Za-z0-9._-]+",
@@ -46,6 +47,7 @@
     "publisher": "null",
     "selection": "null",
     "preparing": false,
-    "preparation": "null"
+    "preparation": "null",
+    "observation": "null"
   }
 }

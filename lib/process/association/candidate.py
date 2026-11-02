@@ -10,7 +10,7 @@ from lib.identity.bind import storage, verification
 from lib.identity.bind.spec import digest
 from lib.media import archive, release
 from lib.process.association import binary, chain, control, managers, public
-from lib.process.association.spec import LIMIT, TARGETS, document, entry, filename, require, sha, target
+from lib.process.association.spec import LIMIT, TARGETS, document, entry, filename, require, sha, target, Unavailable
 from lib.refusal import Refusal
 from lib.store import plan, r2, workload
 
@@ -55,6 +55,8 @@ def produced(bucket, basis):
     evidence = {}
     try:
         result, evidence = assess(bucket, basis["request"], basis["observer"])
+    except Unavailable as failure:
+        result = {"schema": SCHEMA, "state": "unknown", "associated": False, "reason": str(failure), "failure": {"kind": failure.kind, **failure.details}, "promotion": False}
     except Refusal as failure:
         result = {"schema": SCHEMA, "state": "refused", "associated": False, "reason": str(failure), "promotion": False}
     except (OSError, ValueError, KeyError, TypeError, subprocess.SubprocessError):

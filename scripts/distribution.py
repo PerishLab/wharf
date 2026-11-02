@@ -41,9 +41,9 @@ ACTIONS = {
     "windtun-load": (transport.load, ["source", "observer", "repository", "marker"]),
     "windtun-store": (transport.store, ["source", "observer", "repository", "marker"]),
     "windtun-issue": (credential.issue, ["observer", "repository", "marker", "digest"]),
-    "native-proof": (native.produce, ["observer", "repository", "marker", "run"]),
-    "native-read": (native_public.check, ["repository", "marker"]),
-    "native-compare": (native_public.compare, ["repository", "marker", "reference", "source"]),
+    "native-proof": (native.produce, ["observer", "repository", "marker", "run", "observation"]),
+    "native-read": (native_public.check, ["repository", "marker", "observation"]),
+    "native-compare": (native_public.compare, ["repository", "marker", "reference", "source", "observation"]),
     "native-candidate": (native_candidate.produce, ["observer", "repository", "marker", "run", "attempt", "reference", "source"]),
     "native-candidate-read": (native_candidate.consume, ["observer", "digest", "source"]),
     "build-proof": (producer.produce, ["observer", "repository", "marker", "run"]),
@@ -55,14 +55,23 @@ ACTIONS = {
 
 def main(argv=None):
     given = sys.argv[1:] if argv is None else argv
+    action, values = None, {}
     try:
         action, rest = parameters.acted("distribution", ACTIONS, given)
         handler, names = ACTIONS[action]
         values, origins = parameters.resolve(action, names, rest)
         print("\n".join(parameters.report(values, origins)), file=sys.stderr)
         result = handler(values)
+        if action in ("native-proof", "native-read", "native-compare"):
+            native_public.observe(action, values, result)
     except Refusal as refusal:
-        print(f"distribution: refused: {refusal}", file=sys.stderr)
+        if action in ("native-proof", "native-read", "native-compare"):
+            try:
+                native_public.observe(action, values, refusal)
+            except Refusal:
+                print("distribution: native observation unavailable", file=sys.stderr)
+        state = "unavailable" if isinstance(refusal, native_public.Unavailable) else "refused"
+        print(f"distribution: {state}: {refusal}", file=sys.stderr)
         return 2
     print(json.dumps(result, indent=2, sort_keys=True))
     if action == "trial-run" and result.get("exit", 0) != 0:

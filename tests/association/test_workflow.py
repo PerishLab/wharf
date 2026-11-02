@@ -30,3 +30,15 @@ class Workflow(unittest.TestCase):
             with self.subTest(job=name):
                 self.assertNotIn("native-proof", dependencies)
                 self.assertNotIn("native-candidate", dependencies)
+
+
+    def test_failure_observations_are_preserved_without_a_false_comparison_failure(self):
+        source = jobs()["native-proof"]
+        self.assertEqual(source.count("WHARF_OBSERVATION: ${{ runner.temp }}/native-observation"), 3)
+        comparison = source.split('- name: "[preserve] native comparison"', 1)[1].split('- name:', 1)[0]
+        self.assertIn("if-no-files-found: ignore", comparison)
+        observation = source.split('- name: "[preserve] native observation"', 1)[1]
+        self.assertIn("if: always() && steps.proved.outcome != 'skipped'", observation)
+        self.assertIn("name: native-observation-${{ github.run_attempt }}", observation)
+        self.assertIn("if-no-files-found: error", observation)
+        self.assertNotIn("SECRET", observation)
