@@ -3,6 +3,7 @@ import json
 import ssl
 import unittest
 import urllib.error
+from pathlib import Path
 from unittest import mock
 
 from lib.media import cfworker
@@ -144,8 +145,75 @@ class Worker(unittest.TestCase):
         self.assertIn("NPM_CONFIG_USERCONFIG", installed)
         for argv, env in zip(self.calls, self.envs):
             if argv[0] == "pnpm" and argv[1] not in ("install", "--version"):
-                self.assertEqual(env[cfworker.TOKEN], "t", argv)
+                self.assertEqual(env.get(cfworker.TOKEN), "t" if argv[1] == "exec" else None, argv)
                 self.assertFalse({"NPM_CONFIG_USERCONFIG", "WHARF_PACKAGES_TOKEN"} & set(env), argv)
+
+    def credentials(self):
+        return {"CLOUDFLARE_API_TOKEN": "deploy", "CLOUDFLARE_API_TOKEN_FILE": "/parent/deploy",
+                "WHARF_R2_ACCESS_KEY_ID": "access", "WHARF_R2_ACCESS_KEY_ID_FILE": "/parent/access",
+                "WHARF_R2_SECRET_ACCESS_KEY": "secret", "WHARF_R2_SECRET_ACCESS_KEY_FILE": "/parent/secret",
+                "WHARF_PACKAGES_TOKEN": "reader"}
+
+    def test_child_roles_keep_only_their_explicit_credentials(self):
+        events, configurations = [], []
+
+        def runner(argv, cwd, env=None):
+            events.append(argv)
+            if argv[1] == "install":
+                path = Path(env["NPM_CONFIG_USERCONFIG"])
+                self.assertIn("${WHARF_PACKAGES_TOKEN}", path.read_text())
+                configurations.append(path)
+            return self.runner(argv, cwd, env)
+
+        with mock.patch.dict(os.environ, dict(self.credentials(), CI="true", RUSTFLAGS="--cfg demo")):
+            parent = dict(os.environ)
+            receipt = cfworker.deploy(cfworker.Deploy(self.repository.root, self.repository.root / "out", lambda: events.append("confirm")), runner, lambda url: 200)
+            self.assertEqual(dict(os.environ), parent)
+        for argv, env in zip(self.calls, self.envs):
+            self.assertIsNotNone(env, argv)
+            expected = {"CLOUDFLARE_API_TOKEN"} if argv[1] == "exec" else {"WHARF_PACKAGES_TOKEN"} if argv[1] == "install" else set()
+            self.assertEqual(set(self.credentials()) & set(env), expected, argv)
+            self.assertEqual({name: env[name] for name in ("CI", "RUSTFLAGS", "WHARF_DOMAIN", "PATH")}, {name: parent[name] for name in ("CI", "RUSTFLAGS", "WHARF_DOMAIN", "PATH")})
+        self.assertLess(events.index(["pnpm", "--filter", "@demo/web", "build"]), events.index("confirm"))
+        self.assertLess(events.index("confirm"), events.index(["pnpm", "exec", "wrangler", "deploy"]))
+        self.assertTrue(all(not path.exists() for path in configurations))
+        self.assertEqual(receipt["workers"], [{"name": "demo", "domains": {"demo.example": 200}}])
+
+    def test_failures_keep_parent_credentials_and_clean_install_configuration(self):
+        for failure in ("install", "--filter", "exec"):
+            self.calls, self.envs = [], []
+            configurations, admissions = [], []
+
+            def runner(argv, cwd, env=None):
+                result = self.runner(argv, cwd, env)
+                if argv[1] == "install":
+                    configurations.append(Path(env["NPM_CONFIG_USERCONFIG"]))
+                if argv[1] == failure:
+                    raise Refusal("child refused")
+                return result
+
+            with self.subTest(failure=failure), mock.patch.dict(os.environ, self.credentials()):
+                parent = dict(os.environ)
+                with self.assertRaisesRegex(Refusal, "child refused"):
+                    cfworker.deploy(cfworker.Deploy(self.repository.root, self.repository.root / "out", lambda: admissions.append(True)), runner, lambda url: 200)
+                self.assertEqual(dict(os.environ), parent)
+            self.assertEqual(admissions, [True] if failure == "exec" else [])
+            self.assertFalse((self.repository.root / "out").exists())
+            self.assertTrue(all(not path.exists() for path in configurations))
+
+    def test_refused_admission_never_hands_the_deployment_token_to_a_child(self):
+        def confirm():
+            raise Refusal("admission refused")
+
+        with mock.patch.dict(os.environ, self.credentials()):
+            parent = dict(os.environ)
+            with self.assertRaisesRegex(Refusal, "admission refused"):
+                cfworker.deploy(cfworker.Deploy(self.repository.root, self.repository.root / "out", confirm), self.runner, lambda url: 200)
+            self.assertEqual(dict(os.environ), parent)
+        self.assertFalse((self.repository.root / "out").exists())
+        for argv, env in zip(self.calls, self.envs):
+            self.assertIsNotNone(env, argv)
+            self.assertFalse((set(self.credentials()) - {"WHARF_PACKAGES_TOKEN"}) & set(env), argv)
 
     def test_the_caller_npm_configuration_never_reaches_install_build_or_deploy(self):
         with mock.patch.dict(os.environ, {cfworker.TOKEN: "t", "NPM_CONFIG_USERCONFIG": "/caller/npmrc", "npm_config_userconfig": "/caller/npmrc"}):

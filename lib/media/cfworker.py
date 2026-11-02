@@ -16,6 +16,7 @@ from lib.refusal import Refusal
 
 CONFIG = "wrangler.jsonc"
 TOKEN = "CLOUDFLARE_API_TOKEN"
+WRITERS = (TOKEN, "WHARF_R2_ACCESS_KEY_ID", "WHARF_R2_SECRET_ACCESS_KEY")
 WIDENED = ["the whole repository tree, because the worker builds from the pnpm workspace"]
 PATIENCE = 40
 PAUSE = 15
@@ -104,6 +105,10 @@ def reached(url, probe, sleep):
     raise Refusal(f"{url} stayed unreachable for {PATIENCE} attempts after deploying: {last}")
 
 
+def environment(environ):
+    return {name: value for name, value in environ.items() if name.removesuffix("_FILE") not in WRITERS}
+
+
 def deploy(request, runner=run, probe=answer, sleep=time.sleep):
     request = Deploy(Path(request.source).resolve(), Path(request.output), request.confirm)
     if request.output.exists():
@@ -113,16 +118,17 @@ def deploy(request, runner=run, probe=answer, sleep=time.sleep):
     listed = workers(request.source)
     if not listed:
         raise Refusal(f"the product declares no {CONFIG}")
-    held = node.prepared(request.source, runner)
+    env = environment(os.environ)
+    held = node.prepared(request.source, lambda argv, cwd: runner(argv, cwd, node.withheld(env)))
     with tempfile.TemporaryDirectory() as directory:
-        runner(["pnpm", "install", "--frozen-lockfile"], request.source, node.reading(directory, dict(os.environ)))
+        runner(["pnpm", "install", "--frozen-lockfile"], request.source, node.reading(directory, env))
     for worker in listed:
-        runner(["pnpm", "--filter", worker["package"], "build"], request.source, node.withheld(dict(os.environ)))
+        runner(["pnpm", "--filter", worker["package"], "build"], request.source, node.withheld(env))
     results = []
     for worker in listed:
         if request.confirm is not None:
             request.confirm()
-        runner(["pnpm", "exec", "wrangler", "deploy"], request.source / worker["directory"], node.withheld(dict(os.environ)))
+        runner(["pnpm", "exec", "wrangler", "deploy"], request.source / worker["directory"], dict(node.withheld(env), **{TOKEN: os.environ[TOKEN]}))
         answered = {domain: reached(f"https://{domain}/", probe, sleep) for domain in worker["domains"]}
         if any(status != 200 for status in answered.values()):
             raise Refusal(f"{worker['name']} answered {answered} after deploying")
