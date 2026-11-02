@@ -1335,6 +1335,18 @@ that keeps them.
 
 ## Windtun evidence
 
+Publication admission resolves explicit product/source selection against its complete
+distribution before reading native metadata. That record fixes the exact publisher
+run, attempt and main control source; a later rerun cannot select another producer.
+Every read rechecks repository, workflow, event, branch and immutable identities.
+Only identity-exact queued metadata with no conclusion may converge: at most 18
+read-only pauses within 180 seconds, with each read capped by the remaining budget.
+Unknown states, provider errors, drift and exhaustion refuse without a fallback.
+Safe diagnostics name the publisher run/attempt and known rejected field or state,
+never provider prose. Legacy callers without selection retain terminal title
+discovery alone; any eligible publication still uses its exact recorded attempt.
+This read-only admission supplies no active-role, qualification or write authority.
+
 Windtun prepares, executes and qualifies in three independent native jobs after
 non-stable distribution is complete. Preparation fixes the published declaration,
 required cases, Linux platform, public product seal, runner stable, scene generation,
