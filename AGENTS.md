@@ -1288,7 +1288,12 @@ that keeps them.
   aliases perform no extra admission. This source check proves neither OCI content
   association nor cross-marker exclusion, and does not activate Windtun promotion.
 - The canonical managers at the authority's root are written only when a stable
-  channel pointer names the marker that rendered them.
+  channel pointer names the marker that rendered them. Before any canonical write,
+  every platform is read and checked against that pointer's complete content
+  reference. Matching root bytes are kept even if the current renderer differs.
+  Missing or incorrect roots are restored only with the exact referenced bytes;
+  unavailable material refuses for explicit recovery. This preflight does not
+  make the pointer and managers atomic or exclude another marker's writer.
 - Publication authority never reaches a Windtun executor. Its trusted preparation
   and qualification jobs pair existing workload access with the product release
   writer only in their fixed actions; they execute no product or scene code.
