@@ -1563,6 +1563,29 @@ candidate inspectors neither activate promotion admission nor change publisher
 conditions or credential grants. Source merge does not settle Wharf#314's promised
 real published-artifact canary or Concord#406's stable/readback obligations.
 
+## Stable scheduling
+
+Ordinary stable publication uses one workflow-wide concurrency group per product,
+covering request, builds, all publishers, channel and cleanup. Different products
+remain independent. Non-stable markers, build-only preparation, candidate inspection
+and publication replay retain their marker groups. Reference, diagnostic case or
+attempt inputs alone do not exempt an ordinary publisher. The existing hyphen
+exclusion is scheduling only; canonical marker parsing and request/source admission
+still authorize actual work.
+
+Groups keep active runs and use the provider's `queue: max` rather than replacing
+an existing pending request. This applies to every group and retains at most 100
+waiting runs; overflow is cancelled and must retain its native outcome for explicit
+recovery. Ordering is not version order. Version comparisons, pointer CAS and source
+checks remain required. No queued dispatch proves eventual publication.
+
+This excludes concurrent normal workflows using the new group. Cancellation or
+timeout releasing a group does not prove an already submitted remote mutation has
+stopped. Such unknowns need separate fencing/recovery and credential custody before
+full activation; old workflows and raw writers are not fenced by this declaration.
+Scheduling grants no publication or Windtun promotion permission and no cross-object
+or cross-registry transaction.
+
 ## Stable preparation
 
 The explicit boolean ship `prepare` selects build-only stable preparation. It
