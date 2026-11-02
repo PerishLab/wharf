@@ -1492,6 +1492,17 @@ successful byte verification without writes. Candidate output always carries
 admission do not yet consume it as a gate. Replaying a historical candidate plan
 is not a fresh stable promotion canary.
 
+Content-proof native run reads identify the exact run, attempt, use and rejected
+identity field. Only an identity-exact queued record with no conclusion may wait
+through at most 18 ten-second read-only pauses. Each observation rechecks run,
+attempt, source, repository, workflow, event and main branch before status. Only
+in_progress/completed returns trusted historical metadata; active roles still
+require in_progress and their exact active job. Unknown states, provider errors,
+foreign identities and exhausted queued observations refuse without a fallback.
+Diagnostics expose known native status names and internal coordinates, never
+provider prose or credentials. Original failures remain evidence; a later pass
+requires a fresh exact real publication replay and independent public readback.
+
 ## Native installation association
 
 The separate `wharf.binary.native.association/v2` and discovery v2 contracts
