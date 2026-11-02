@@ -7,6 +7,7 @@ from pathlib import Path
 
 from lib.content import canonical, declaration, fill, implementation, marker, resources
 from lib.media import archive
+from lib.media.release.managers import lead
 from lib.refusal import Conflict, Refusal
 
 LAYOUT = resources.read_json("releases.json")
@@ -204,14 +205,6 @@ def pointer(release, name, sealed, rooted):
     managers = {platform: entry[2] for platform, entry in sorted(rooted.items())}
     document = {"schema": 1, "product": name, "channel": held, "releaseVersion": release.marker, "commit": release.commit, "seal": sealed, "managers": managers}
     return pointing(release.marker), json.dumps(document, indent=2).encode()
-
-
-def lead(bucket, rooted, moved, marker):
-    if not rooted or json.loads(bucket.get(moved["pointer"]))["releaseVersion"] != marker:
-        return moved
-    for key, body, entry in rooted.values():
-        bucket.put(key, body, {"Content-Type": entry["mime"]})
-    return {**moved, "managers": sorted(key for key, _, _ in rooted.values())}
 
 
 def advance(bucket, key, body, held):
