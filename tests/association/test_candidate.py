@@ -8,7 +8,7 @@ from unittest import mock
 from lib.content import canonical
 from lib.identity.bind import candidate as linux_candidate, producer as linux
 from lib.identity.bind.spec import entry
-from lib.process.association import candidate, producer
+from lib.process.association import candidate, producer, spec
 from lib.refusal import Refusal
 from lib.store import workload
 from tests.association.fixtures import MACOS, WINDOWS
@@ -108,3 +108,15 @@ class Candidate(unittest.TestCase):
         self.world.documents["https://releases.demo.perish.uk/manage.ps1"] += b"changed"
         with self.world.wired(), self.assertRaises(Refusal):
             public.read("PerishLab/demo", self.world.source["marker"], WINDOWS)
+
+
+    def test_transport_failure_records_unknown_instead_of_content_refusal(self):
+        failure = spec.Unavailable("tls", {"stage": "archive", "target": WINDOWS, "marker": self.reference.source["marker"]})
+        with self.world.wired(), mock.patch.object(candidate, "assess", side_effect=failure):
+            result, reference = candidate.produced(self.world.blob, {"schema": candidate.MATERIAL, "observer": self.world.observer, "request": {name: self.held[name] for name in linux_candidate.REQUEST}})
+            readback, _ = candidate.restore(self.world.blob, reference["key"], self.world.observer)
+        self.assertEqual(readback, result)
+        self.assertEqual(result["state"], "unknown")
+        self.assertEqual(result["failure"], {"kind": "tls", **failure.details})
+        self.assertFalse(result["associated"])
+        self.assertFalse(result["promotion"])

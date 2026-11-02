@@ -1576,6 +1576,16 @@ not by equating whole-publisher digests. The renderer fingerprint covers its exa
 functions, constants, filler and templates, so unrelated publisher edits do not
 change the content fact.
 
+Native public material reads classify bounded HTTP, timeout, TLS and read failures
+as unavailable, retaining the known stage, target and marker without provider prose
+or raw URLs. No retry, timeout, proxy or TLS policy changes follow from this
+classification. The native proof, independent read and comparison actions retain
+bounded create-only local observations in a separate per-attempt workflow artifact.
+Unavailable evidence remains unknown and the action fails; content disagreement
+remains refused. An observation is diagnostic evidence, never a proof, qualification
+or permission, and cannot skip fresh verification. Missing comparison material after
+an earlier failure is not reported as a second comparison failure.
+
 The `native-candidate` role follows successful Linux candidate inspection. It
 independently restores that exact observer-bound Linux workload and verifies every
 declared supported native target against its public non-stable proof using the

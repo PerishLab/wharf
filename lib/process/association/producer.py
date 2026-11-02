@@ -8,7 +8,7 @@ from lib.identity.bind import producer as legacy
 from lib.identity.bind import storage
 from lib.media import release
 from lib.process.association import archive, chain, control, managers, public
-from lib.process.association.spec import DISCOVERY, SCHEMA, TARGETS, code, document, entry, filename, issuer, require, sha, target
+from lib.process.association.spec import DISCOVERY, SCHEMA, TARGETS, code, document, entry, filename, issuer, require, sha, target, Unavailable
 from lib.refusal import Conflict, Refusal
 from lib.store import plan, r2, workload
 
@@ -17,7 +17,7 @@ def archive_facts(publication, facts):
     selected = facts["target"]
     _, authority, _ = identity.location(publication["source"]["repository"], publication["source"]["marker"])
     reference = publication["seal"].get("artifacts", {}).get(target(selected)["key"])
-    raw = public.reference(reference, authority)
+    raw = public.reference(reference, authority, "archive")
     files = archive.unpack(raw, facts["declaration"]["targets"][selected]["installed"], selected)
     require(all(body == facts["binding"]["files"][filename(name.removesuffix(".exe") if target(selected)["unit"] == "windows" else name, selected)] for name, body in files.items()), "native public archive differs from verified bound workload")
     return dict(facts, archive=reference, files={name: entry(body) for name, body in files.items()})
@@ -61,7 +61,7 @@ def advance(bucket, location, proposed):
             require(set(held) == set(index) and held.get("schema") == DISCOVERY and held.get("source") == index["source"] and held.get("target") == index["target"] and held.get("authority") == index["authority"], "existing native discovery identity differs")
             identity.observer(held["observer"])
             identity.started(held["started"])
-            before = public.reference(held["proof"], index["authority"])
+            before = public.reference(held["proof"], index["authority"], "proof")
             require(held["proof"]["name"] == "native-association.json" and subject(document(before)) == subject(proof), "existing native proof records different publication content")
             previous = (held["started"], int(held["observer"]["run"]), int(held["observer"]["attempt"]))
             current = (index["started"], int(index["observer"]["run"]), int(index["observer"]["attempt"]))
@@ -89,11 +89,11 @@ def publish(publication, proof, observer, started):
     except Conflict:
         require(bucket.get(location) == body, "immutable native proof already holds different bytes")
     reference = release.remote(authority, location, body, release.JSON)
-    require(public.reference(reference, authority) == body, "public native proof readback differs")
+    require(public.reference(reference, authority, "proof") == body, "public native proof readback differs")
     index = {"schema": DISCOVERY, "source": source, "target": proof["target"], "authority": authority, "observer": observer, "started": started, "proof": reference}
     location = root + "/build/native-" + target(proof["target"])["key"] + ".json"
     advance(bucket, location, (index, proof))
-    require(document(public.fetch(authority + "/" + location)) == index, "public native discovery readback differs")
+    require(document(public.fetched(authority + "/" + location, "discovery")) == index, "public native discovery readback differs")
     return reference
 
 
@@ -107,14 +107,17 @@ def produce(held):
     if not selected:
         parameters.answer({"ready": "false"})
         return {"state": "not-declared", "source": publication["source"], "proofs": {}, "promotion": False}
-    management = managers.verify(publication, model)
+    management = public.managed(publication, model)
     results = {}
     for name in selected:
-        facts = chain.verify(bucket, publication["source"], document, (model, name))
-        facts = archive_facts(publication, dict(facts, managers=management))
-        recorded = material(bucket, publication, facts)
-        require(public.snapshot(held) == publication and managers.verify(publication, model) == management, "native publication changed during verification")
-        control.active(held["observer"], "native-proof")
-        results[name] = publish(publication, statement(publication, facts, recorded), observer, started)
+        try:
+            facts = chain.verify(bucket, publication["source"], document, (model, name))
+            facts = archive_facts(publication, dict(facts, managers=management))
+            recorded = material(bucket, publication, facts)
+            require(public.snapshot(held) == publication and public.managed(publication, model) == management, "native publication changed during verification")
+            control.active(held["observer"], "native-proof")
+            results[name] = publish(publication, statement(publication, facts, recorded), observer, started)
+        except Unavailable as failure:
+            raise failure.during(selected=name, version=held["marker"]) from None
     parameters.answer({"ready": str(bool(results)).lower()})
     return {"state": "proven" if results else "not-declared", "source": publication["source"], "proofs": results, "promotion": False}
