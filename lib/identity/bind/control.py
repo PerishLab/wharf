@@ -3,6 +3,7 @@ import json
 import os
 import re
 import subprocess
+import time
 
 from lib.content import canonical, marker
 from lib.identity.bind.spec import FIELDS, require, sha
@@ -34,13 +35,26 @@ def observer(value):
     return {name: str(value[name]) for name in value}
 
 
-def trusted(identity):
+def trusted(identity, purpose="producer"):
     identity = observer(identity)
-    run = api(f"actions/runs/{identity['run']}/attempts/{identity['attempt']}")
-    require(str(run.get("id")) == identity["run"] and str(run.get("run_attempt")) == identity["attempt"] and run.get("head_sha") == identity["wharf"], "binary proof producer run or attempt differs")
-    require(all(run.get(name, {}).get("full_name") == REPOSITORY for name in ("repository", "head_repository")), "binary proof producer repository differs")
-    require(run.get("path") == ".github/workflows/ship.yml" and run.get("event") == "workflow_dispatch" and run.get("head_branch") == "main" and run.get("status") in ("in_progress", "completed"), "binary proof requires trusted main ship code")
-    return run
+    require(purpose in ("producer", "observer", "publisher", "issuer"), "binary proof run purpose is unknown")
+    prefix = f"binary proof {purpose} run {identity['run']} attempt {identity['attempt']}: "
+    for attempt in range(19):
+        run = api(f"actions/runs/{identity['run']}/attempts/{identity['attempt']}")
+        require(str(run.get("id")) == identity["run"], prefix + "native run id differs")
+        require(str(run.get("run_attempt")) == identity["attempt"], prefix + "native attempt differs")
+        require(run.get("head_sha") == identity["wharf"], prefix + "native source differs")
+        require(all(run.get(name, {}).get("full_name") == REPOSITORY for name in ("repository", "head_repository")), prefix + "native repository differs")
+        require(run.get("path") == ".github/workflows/ship.yml", prefix + "native workflow path differs")
+        require(run.get("event") == "workflow_dispatch", prefix + "native event differs")
+        require(run.get("head_branch") == "main", prefix + "native branch differs")
+        state = run.get("status")
+        if state in ("in_progress", "completed"):
+            return run
+        known = state if state in ("queued", "waiting", "pending", "requested") else "unknown"
+        require(state == "queued" and run.get("conclusion") is None, prefix + f"native status {known} is not trusted")
+        require(attempt < 18, prefix + "native status queued did not converge after 18 read-only waits")
+        time.sleep(10)
 
 
 def started(value):
@@ -52,7 +66,7 @@ def started(value):
 def active(raw, role=ROLE):
     identity = observer(raw)
     require(role in ROLES and os.environ.get("GITHUB_JOB") == role, "binary proof requires its fixed native job")
-    run = trusted(identity)
+    run = trusted(identity, "observer")
     repository = api("")
     require(repository.get("full_name") == REPOSITORY and repository.get("default_branch") == "main" and all(run[name].get("id") == repository.get("id") for name in ("repository", "head_repository")), "binary proof repository authority differs")
     require(run.get("status") == "in_progress" and run.get("conclusion") is None, "binary proof observer is not active")
@@ -84,7 +98,7 @@ def public(held):
     require(record.get("media", {}).get("binaries") in ("published", "present"), "binary proof has no distributed binaries")
     publisher = observer(record.get("completed"))
     require(held["run"] == "null" or publisher["run"] == held["run"], "binary proof publication run differs from request")
-    trusted(publisher)
+    trusted(publisher, "publisher")
     seal_raw = release.fetch(f"{authority}/{root}/seal.json")
     seal = json.loads(seal_raw)
     require(seal.get("schema") == 1 and all(seal.get(name) == value for name, value in (("product", identity["repository"].split("/")[1]), ("releaseVersion", identity["marker"]), ("channel", marker.channel(identity["marker"])), ("commit", identity["commit"]))), "binary proof public seal identity differs")

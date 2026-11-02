@@ -9,7 +9,7 @@ ROLES = {"native-proof": "[prove] native binary", "native-candidate": "[prove] n
 def active(raw, role):
     identity = control.observer(raw)
     require(role in ROLES and os.environ.get("GITHUB_JOB") == role, "native association requires its fixed native role")
-    run = control.trusted(identity)
+    run = control.trusted(identity, "observer")
     repository = control.api("")
     require(repository.get("id") == 1374358737 and repository.get("node_id") == "R_kgDOUesM0Q" and repository.get("default_branch") == "main", "native association repository authority differs")
     require(all(run[name].get("id") == repository["id"] for name in ("repository", "head_repository")), "native association run belongs to another repository")
