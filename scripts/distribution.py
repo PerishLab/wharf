@@ -8,6 +8,7 @@ from lib.refusal import Refusal
 from lib.process.trial import admission, consumer, judgment, declaration
 from lib.process.trial import credential, transport
 from lib.process.promotion import operation as promotion
+from lib.process.promotion import preflight, prepared
 from lib.store import distribution, r2
 from lib.process.association import producer as native, public as native_public, candidate as native_candidate
 
@@ -27,6 +28,9 @@ def record(held):
 
 
 ACTIONS = {
+    "request": (preflight.request, ["observer", "selection"]),
+    "prepared": (prepared.produce, ["observer", "repository", "marker", "run", "planned", "preparation", "source"]),
+    "prepared-read": (prepared.consume, ["observer", "repository", "marker", "run", "planned", "preparation", "source", "digest"]),
     "promotion-prepare": (promotion.prepare, ["repository", "marker", "run", "planned", "observer", "source"]),
     "promotion-read": (promotion.read, ["repository", "marker", "run", "planned", "observer", "source", "digest"]),
     "record": (record, [*CONTEXT, "needs", "trial"]),

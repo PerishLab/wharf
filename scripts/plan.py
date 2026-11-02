@@ -11,6 +11,7 @@ from lib.media import cfworker, node, npm, release
 from lib.identity.guard import coverage, pull, snapshot
 from lib.identity.bind import inventory
 from lib.process import git
+from lib.process.promotion import preflight
 from lib.refusal import Refusal
 from lib.store import plan, r2, workload
 from lib.process.trial import declaration as trial
@@ -25,7 +26,7 @@ REPORTED = ("key", "decision", "presence", "existing")
 MEDIA = ("npm", "oci", "chart", "cargo", "release", "channel")
 IDENTITY = ("repository", "marker", "commit", "tree")
 CONTEXT = IDENTITY + ("wharf", "run", "attempt")
-TAKEN = IDENTITY + ("wharf", "run", "attempt", "source", "steps")
+TAKEN = IDENTITY + ("wharf", "run", "attempt", "source", "steps", "preparing", "preparation")
 CHECKED = ("repository", "marker")
 SOURCED = ("source",)
 NAMED = ("repository",)
@@ -123,7 +124,7 @@ def validation(bucket, entries):
     held = {"entry": {"kind": "binary-validate", "binary": primary}}
     entries["validate"] = decided(bucket, held, (["lib.identity.smoke"], ["validators.json"]), entries)
     for name in ("validate", "deb", "verify-deb"):
-        if name in entries and entries["release"]["decision"] == "skip":
+        if name in entries and entries.get("release", {}).get("decision") == "skip":
             entries[name]["decision"] = "skip"
 
 
@@ -200,6 +201,11 @@ def record(held):
         manifest.unbound(source)
     bucket = r2.configured()
     identity = {field: held[field] for field in IDENTITY}
+    preparing = held.get("preparing", False)
+    if preparing:
+        preflight.planning(held, identity)
+        if bucket.exists(plan.publication(held)):
+            raise Refusal("preparation has an existing publication reservation")
     recalled, offers = {}, {}
     expected = plan.reserved(bucket, held, recalled)
     request = snapshot.Request(Path(held["source"]), identity, toolchain.versions(), expected, destination=snapshot.destination(held["source"]), recall=lambda observed: plan.recall(bucket, observed, recalled), pull=lambda: pulled(identity, offers))
@@ -211,13 +217,16 @@ def record(held):
         observed = reported(held["steps"])
         if release.carried(root):
             binaries(scoped, bucket, entries)
-            placements(scoped, bucket, entries)
-        suites(scoped, bucket, entries)
-        media(observed, entries)
-        if entries["npm"]["decision"] == "run":
+            if not preparing:
+                placements(scoped, bucket, entries)
+        if not preparing:
+            suites(scoped, bucket, entries)
+            media(observed, entries)
+        if entries.get("npm", {}).get("decision") == "run":
             entries["pack-npm"] = decided(bucket, npm.basis(root, held["marker"]), (["lib.media.npm"], []), entries)
         validation(bucket, entries)
-        plan.legacy(bucket, held, entries, observed)
+        if not preparing:
+            plan.legacy(bucket, held, entries, observed)
         engines = node.expected(root) if node.carried(root) else {}
         taken = attributed(offers, verified["guard"])
         context = dict({field: held[field] for field in CONTEXT}, snapshot=verified, **({"recalled": recalled} if recalled else {}), **({"pulled": taken} if taken is not None else {}))
@@ -227,6 +236,8 @@ def record(held):
             context["binary_declaration"] = inventory.capture(root)
         parameters.answer({"binaryproof": str(bool(context.get("binary_declaration", {}).get("installed"))).lower()})
         confirm()
+        if preparing:
+            preflight.planning(held, identity)
         parameters.answer({"trial": json.dumps(suite, sort_keys=True, separators=(",", ":")), "publisher": json.dumps(identity, sort_keys=True, separators=(",", ":")), "windtun": str(suite is not None and marker.channel(identity["marker"]) in ("alpha", "beta", "rc")).lower()})
         recorded = plan.record(bucket, context, entries, engines)
         remembered = False if recalled else plan.remember(bucket, context)

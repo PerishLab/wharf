@@ -30,7 +30,9 @@
     "trial": "string",
     "publisher": "string",
     "observer": "string",
-    "selection": "string"
+    "selection": "string",
+    "preparing": "bool",
+    "preparation": "string"
   },
   "shapes": {
     "repository": "PerishLab/[A-Za-z0-9._-]+",
@@ -42,6 +44,8 @@
     "trial": "null",
     "trialcase": "declared",
     "publisher": "null",
-    "selection": "null"
+    "selection": "null",
+    "preparing": false,
+    "preparation": "null"
   }
 }
