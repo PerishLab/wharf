@@ -1539,14 +1539,46 @@ declared supported native target against its public non-stable proof using the
 actual stable plan's complete build/bind outputs. It holds workload access alone,
 reads no future stable record and records refused/unknown attempts without a pass
 fallback. Readback independently repeats successful verification without writes.
-It is an inspector of an existing exact stable plan, not a way to create such a
-plan or a publication permit. Preparing that plan without entering publication
-remains a separate workflow capability.
+It inspects an existing exact stable plan and grants no publication permission.
+The explicit preparation mode below creates such a plan without publication.
 
 Other media remain explicitly unassessed. These post-distribution proof roles and
 candidate inspectors neither activate promotion admission nor change publisher
 conditions or credential grants. Source merge does not settle Wharf#314's promised
 real published-artifact canary or Concord#406's stable/readback obligations.
+
+## Stable preparation
+
+The explicit boolean ship `prepare` selects build-only stable preparation. It
+refuses candidate inspection, publication replay, diagnostic cases and an explicit
+plan attempt together with this mode. A fixed-main read-only request role binds
+the actual native event to its versioned dispatch projection. Preparation requires
+an annotated stable tag selecting an exact complete non-stable publication of the
+same commit and tree, independently qualified by current formal stable Plumb.
+The exact intent and qualification are checked again during planning and readback.
+GitHub's native `inputs` field keeps that external spelling only in the adaptor.
+
+The preparation plan retains the ordinary immutable schema and complete source
+snapshot but contains only declared dependencies, binary builds, bindings, native
+smoke and configured validation. Registry decisions, package placement and all
+publication, channel, distribution, public-proof and Windtun writer jobs are
+excluded explicitly. Invalid request admission also blocks replay writer paths.
+No publication reservation is created; an existing reservation refuses preparation.
+Normal dispatches retain their publication flow and manual candidate inspection
+retains its exact externally selected run and attempt.
+
+The fixed read-only prepared role verifies the complete frozen declaration,
+actual build/bind bytes, original producer plans, all native smoke receipts and
+configured validator results. It observes skipped publication jobs and absence
+of a publication reservation before and after verification. Its versioned
+`wharf.ship.prepared/v1` result is observer-bound create-only workload material;
+independent readback repeats verification and checks exact basis, inventory,
+record and bytes. Linux and native candidate inspectors then consume that actual
+run and plan attempt, retaining their own refused and unknown results. Prepared
+state is a build observation, never qualification, association or publication
+permission. Published stable and all other media remain explicitly unassessed.
+Publication requires a separate ordinary dispatch and its fresh admission checks.
+Source merge does not settle Wharf#316's real Concord preparation canary.
 
 ## Managers
 

@@ -1,5 +1,5 @@
 name: ship
-run-name: "${{ inputs.candidate && '[candidate]' || (inputs.run != '' && (inputs.reference != '' && '[compare]' || '[windtun]') || '[ship]') }} ${{ inputs.repository }} ${{ inputs.marker }}"
+run-name: "${{ inputs.prepare && '[prepare]' || inputs.candidate && '[candidate]' || (inputs.run != '' && (inputs.reference != '' && '[compare]' || '[windtun]') || '[ship]') }} ${{ inputs.repository }} ${{ inputs.marker }}"
 
 on:
   workflow_dispatch:
@@ -30,6 +30,11 @@ on:
         required: false
         type: boolean
         default: false
+      prepare:
+        description: Build and inspect an annotated stable intent without product publication
+        required: false
+        type: boolean
+        default: false
       attempt:
         description: Exact plan attempt for candidate inspection
         required: false
@@ -52,12 +57,48 @@ defaults:
     working-directory: wharf
 
 jobs:
+  request:
+    name: "[verify] request"
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      actions: read
+    outputs:
+      mode: ${{ steps.request.outputs.mode }}
+      preparation: ${{ steps.request.outputs.preparation }}
+    steps:
+      - name: "[checkout] trusted wharf"
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: ${{ github.sha }}
+          path: wharf
+          persist-credentials: false
+
+      - name: "[prepare] qualification reader"
+        if: inputs.prepare
+        working-directory: .
+        run: |
+          curl -fsSL https://releases.plumb.perish.uk/manage.sh -o "$RUNNER_TEMP/manage-plumb.sh"
+          env PLUMB_CHANNEL=stable PLUMB_VERSION= sh "$RUNNER_TEMP/manage-plumb.sh" install
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+
+      - name: "[verify] request"
+        id: request
+        env:
+          GH_TOKEN: ${{ github.token }}
+          WHARF_OBSERVER: '{"run":"${{ github.run_id }}","attempt":"${{ github.run_attempt }}","wharf":"${{ github.sha }}"}'
+          WHARF_SELECTION: '{"schema":"wharf.ship.request/v1","inputs":${{ toJSON(inputs) }}}'
+        run: python3 -B -m scripts.distribution request
+
   plan:
-    if: inputs.run == '' && !inputs.candidate
+    needs: [request]
+    if: needs.request.result == 'success' && inputs.run == '' && !inputs.candidate
     name: "[plan] entries"
     runs-on: ubuntu-24.04
     permissions:
       contents: read
+      actions: read
       packages: read
     outputs:
       layer-1: ${{ steps.plan.outputs.layer-1 }}
@@ -128,6 +169,7 @@ jobs:
           permission-contents: read
 
       - name: "[login] registry"
+        if: ${{ !inputs.prepare }}
         working-directory: .
         env:
           TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -156,6 +198,7 @@ jobs:
           rust: ${{ fromJSON(steps.engines.outputs.domain)['rust.version'] }}
 
       - name: "[decide] npm"
+        if: ${{ !inputs.prepare }}
         id: npm
         env:
           WHARF_SOURCE: ../product
@@ -164,6 +207,7 @@ jobs:
         run: python3 -B -m scripts.media npm-plan
 
       - name: "[decide] oci"
+        if: ${{ !inputs.prepare }}
         id: oci
         env:
           WHARF_SOURCE: ../product
@@ -172,6 +216,7 @@ jobs:
         run: python3 -B -m scripts.media oci-plan
 
       - name: "[decide] chart"
+        if: ${{ !inputs.prepare }}
         id: chart
         env:
           WHARF_SOURCE: ../product
@@ -180,6 +225,7 @@ jobs:
         run: python3 -B -m scripts.media chart-plan
 
       - name: "[decide] binaries"
+        if: ${{ !inputs.prepare }}
         id: release
         env:
           WHARF_REPOSITORY: ${{ inputs.repository }}
@@ -190,6 +236,7 @@ jobs:
         run: python3 -B -m scripts.media release-plan
 
       - name: "[decide] channel"
+        if: ${{ !inputs.prepare }}
         id: channel
         env:
           WHARF_REPOSITORY: ${{ inputs.repository }}
@@ -198,6 +245,7 @@ jobs:
         run: python3 -B -m scripts.channel plan
 
       - name: "[decide] cargo"
+        if: ${{ !inputs.prepare }}
         id: cargo
         env:
           WHARF_SOURCE: ../product
@@ -206,6 +254,14 @@ jobs:
           WHARF_COMMIT: ${{ steps.source.outputs.commit }}
           WHARF_TREE: ${{ steps.source.outputs.tree }}
         run: python3 -B -m scripts.media cargo-plan
+
+      - name: "[prepare] qualification reader"
+        if: inputs.prepare
+        working-directory: .
+        run: |
+          curl -fsSL https://releases.plumb.perish.uk/manage.sh -o "$RUNNER_TEMP/manage-plumb.sh"
+          env PLUMB_CHANNEL=stable PLUMB_VERSION= sh "$RUNNER_TEMP/manage-plumb.sh" install
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
 
       - name: "[record] plan"
         id: plan
@@ -218,6 +274,9 @@ jobs:
           WHARF_WHARF: ${{ github.sha }}
           WHARF_RUN: ${{ github.run_id }}
           WHARF_ATTEMPT: ${{ github.run_attempt }}
+          GH_TOKEN: ${{ github.token }}
+          WHARF_PREPARING: ${{ inputs.prepare }}
+          WHARF_PREPARATION: ${{ needs.request.outputs.preparation }}
           WHARF_STEPS: ${{ toJSON(steps) }}
           WHARF_PACKAGES_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           WHARF_GUARD_TOKEN: ${{ steps.reader.outputs.token }}
@@ -478,7 +537,7 @@ jobs:
   promotion-prepare:
     name: "[windtun] prepare promotion"
     needs: [plan, layer-1, layer-2, layer-3, layer-4]
-    if: always() && !cancelled() && needs.plan.result == 'success' && inputs.repository == 'PerishLab/plumb' && !contains(inputs.marker, '-') && !contains(needs.*.result, 'failure') && !contains(needs.*.result, 'cancelled')
+    if: always() && !cancelled() && needs.plan.result == 'success' && inputs.repository == 'PerishLab/plumb' && !contains(inputs.marker, '-') && !contains(needs.*.result, 'failure') && !contains(needs.*.result, 'cancelled') && !inputs.prepare
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     permissions:
@@ -540,7 +599,7 @@ jobs:
   npm:
     name: "[publish] npm"
     needs: [plan, layer-1, layer-2, layer-3, layer-4, promotion-prepare]
-    if: always() && !cancelled() && needs.plan.result == 'success' && needs.plan.outputs.npm == 'run' && !contains(format('{0} {1} {2} {3}', needs.layer-1.result, needs.layer-2.result, needs.layer-3.result, needs.layer-4.result), 'failure') && !contains(format('{0} {1} {2} {3}', needs.layer-1.result, needs.layer-2.result, needs.layer-3.result, needs.layer-4.result), 'cancelled')
+    if: always() && !cancelled() && needs.plan.result == 'success' && needs.plan.outputs.npm == 'run' && !contains(format('{0} {1} {2} {3}', needs.layer-1.result, needs.layer-2.result, needs.layer-3.result, needs.layer-4.result), 'failure') && !contains(format('{0} {1} {2} {3}', needs.layer-1.result, needs.layer-2.result, needs.layer-3.result, needs.layer-4.result), 'cancelled') && !inputs.prepare
     runs-on: ubuntu-24.04
     permissions:
       contents: read
@@ -589,7 +648,7 @@ jobs:
   oci:
     name: "[publish] oci"
     needs: [plan, layer-1, layer-2, layer-3, layer-4, promotion-prepare]
-    if: always() && !cancelled() && needs.plan.result == 'success' && needs.plan.outputs.oci == 'run' && !contains(format('{0} {1} {2} {3}', needs.layer-1.result, needs.layer-2.result, needs.layer-3.result, needs.layer-4.result), 'failure') && !contains(format('{0} {1} {2} {3}', needs.layer-1.result, needs.layer-2.result, needs.layer-3.result, needs.layer-4.result), 'cancelled')
+    if: always() && !cancelled() && needs.plan.result == 'success' && needs.plan.outputs.oci == 'run' && !contains(format('{0} {1} {2} {3}', needs.layer-1.result, needs.layer-2.result, needs.layer-3.result, needs.layer-4.result), 'failure') && !contains(format('{0} {1} {2} {3}', needs.layer-1.result, needs.layer-2.result, needs.layer-3.result, needs.layer-4.result), 'cancelled') && !inputs.prepare
     runs-on: ubuntu-24.04
     permissions:
       contents: read
@@ -646,7 +705,7 @@ jobs:
   chart:
     name: "[publish] chart"
     needs: [plan, layer-1, layer-2, layer-3, layer-4, promotion-prepare]
-    if: always() && !cancelled() && needs.plan.result == 'success' && needs.plan.outputs.chart == 'run' && !contains(format('{0} {1} {2} {3}', needs.layer-1.result, needs.layer-2.result, needs.layer-3.result, needs.layer-4.result), 'failure') && !contains(format('{0} {1} {2} {3}', needs.layer-1.result, needs.layer-2.result, needs.layer-3.result, needs.layer-4.result), 'cancelled')
+    if: always() && !cancelled() && needs.plan.result == 'success' && needs.plan.outputs.chart == 'run' && !contains(format('{0} {1} {2} {3}', needs.layer-1.result, needs.layer-2.result, needs.layer-3.result, needs.layer-4.result), 'failure') && !contains(format('{0} {1} {2} {3}', needs.layer-1.result, needs.layer-2.result, needs.layer-3.result, needs.layer-4.result), 'cancelled') && !inputs.prepare
     runs-on: ubuntu-24.04
     permissions:
       contents: read
@@ -703,7 +762,7 @@ jobs:
   release:
     name: "[publish] binaries"
     needs: [plan, layer-1, layer-2, layer-3, layer-4, promotion-prepare]
-    if: always() && !cancelled() && needs.plan.result == 'success' && needs.plan.outputs.release == 'run' && !contains(format('{0} {1} {2} {3}', needs.layer-1.result, needs.layer-2.result, needs.layer-3.result, needs.layer-4.result), 'failure') && !contains(format('{0} {1} {2} {3}', needs.layer-1.result, needs.layer-2.result, needs.layer-3.result, needs.layer-4.result), 'cancelled')
+    if: always() && !cancelled() && needs.plan.result == 'success' && needs.plan.outputs.release == 'run' && !contains(format('{0} {1} {2} {3}', needs.layer-1.result, needs.layer-2.result, needs.layer-3.result, needs.layer-4.result), 'failure') && !contains(format('{0} {1} {2} {3}', needs.layer-1.result, needs.layer-2.result, needs.layer-3.result, needs.layer-4.result), 'cancelled') && !inputs.prepare
     runs-on: ubuntu-24.04
     outputs:
       snapshot: ${{ steps.published.outputs.snapshot }}
@@ -750,7 +809,7 @@ jobs:
   channel:
     name: "[point] channel"
     needs: [plan, layer-1, layer-2, layer-3, layer-4, npm, oci, chart, cargo, cfworker, release]
-    if: always() && !cancelled() && needs.plan.result == 'success' && needs.plan.outputs.channel == 'run' && !contains(needs.*.result, 'failure') && !contains(needs.*.result, 'cancelled')
+    if: always() && !cancelled() && needs.plan.result == 'success' && needs.plan.outputs.channel == 'run' && !contains(needs.*.result, 'failure') && !contains(needs.*.result, 'cancelled') && !inputs.prepare
     runs-on: ubuntu-24.04
     permissions:
       contents: read
@@ -789,7 +848,7 @@ jobs:
   cfworker:
     name: "[deploy] cfworker"
     needs: [plan, layer-1, layer-2, layer-3, layer-4, promotion-prepare]
-    if: always() && !cancelled() && needs.plan.result == 'success' && needs.plan.outputs.cfworker == 'run' && !contains(format('{0} {1} {2} {3}', needs.layer-1.result, needs.layer-2.result, needs.layer-3.result, needs.layer-4.result), 'failure') && !contains(format('{0} {1} {2} {3}', needs.layer-1.result, needs.layer-2.result, needs.layer-3.result, needs.layer-4.result), 'cancelled')
+    if: always() && !cancelled() && needs.plan.result == 'success' && needs.plan.outputs.cfworker == 'run' && !contains(format('{0} {1} {2} {3}', needs.layer-1.result, needs.layer-2.result, needs.layer-3.result, needs.layer-4.result), 'failure') && !contains(format('{0} {1} {2} {3}', needs.layer-1.result, needs.layer-2.result, needs.layer-3.result, needs.layer-4.result), 'cancelled') && !inputs.prepare
     runs-on: ubuntu-24.04
     permissions:
       contents: read
@@ -838,7 +897,7 @@ jobs:
   cargo:
     name: "[publish] cargo"
     needs: [plan, layer-1, layer-2, layer-3, layer-4, promotion-prepare]
-    if: always() && !cancelled() && needs.plan.result == 'success' && needs.plan.outputs.cargo == 'run' && !contains(format('{0} {1} {2} {3}', needs.layer-1.result, needs.layer-2.result, needs.layer-3.result, needs.layer-4.result), 'failure') && !contains(format('{0} {1} {2} {3}', needs.layer-1.result, needs.layer-2.result, needs.layer-3.result, needs.layer-4.result), 'cancelled')
+    if: always() && !cancelled() && needs.plan.result == 'success' && needs.plan.outputs.cargo == 'run' && !contains(format('{0} {1} {2} {3}', needs.layer-1.result, needs.layer-2.result, needs.layer-3.result, needs.layer-4.result), 'failure') && !contains(format('{0} {1} {2} {3}', needs.layer-1.result, needs.layer-2.result, needs.layer-3.result, needs.layer-4.result), 'cancelled') && !inputs.prepare
     runs-on: ubuntu-24.04
     outputs:
       snapshot: ${{ steps.published.outputs.snapshot }}
@@ -887,7 +946,7 @@ jobs:
   distribution:
     name: "[record] distribution"
     needs: [plan, layer-1, layer-2, layer-3, layer-4, npm, oci, chart, release, channel, cfworker, cargo]
-    if: always() && needs.plan.result == 'success'
+    if: always() && needs.plan.result == 'success' && !inputs.prepare
     runs-on: ubuntu-24.04
     outputs:
       state: ${{ steps.distribution.outputs.state }}
@@ -914,10 +973,79 @@ jobs:
           WHARF_RELEASES_SECRET_ACCESS_KEY: ${{ secrets.WHARF_RELEASES_SECRET_ACCESS_KEY }}
         run: python3 -B -m scripts.distribution record
 
+  prepared:
+    name: "[read] prepared plan"
+    needs: [request, plan, layer-1, layer-2, layer-3, layer-4, promotion-prepare, npm, oci, chart, release, channel, cfworker, cargo, distribution, build-proof, native-proof, windtun-prepare, windtun-issue]
+    if: always() && !cancelled() && inputs.prepare && needs.request.result == 'success' && needs.plan.result == 'success' && !contains(needs.*.result, 'failure') && !contains(needs.*.result, 'cancelled')
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    permissions:
+      contents: read
+      actions: read
+    steps:
+      - name: "[checkout] trusted wharf"
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: ${{ github.sha }}
+          path: wharf
+          persist-credentials: false
+
+      - name: "[prepare] machine"
+        uses: ./wharf/.github/actions/prepare
+        with:
+          prepare: rcodesign
+
+      - name: "[prepare] qualification reader"
+        working-directory: .
+        run: |
+          curl -fsSL https://releases.plumb.perish.uk/manage.sh -o "$RUNNER_TEMP/manage-plumb.sh"
+          env PLUMB_CHANNEL=stable PLUMB_VERSION= sh "$RUNNER_TEMP/manage-plumb.sh" install
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+
+      - name: "[read] prepared plan"
+        id: prepared
+        env:
+          GH_TOKEN: ${{ github.token }}
+          WHARF_OBSERVER: '{"run":"${{ github.run_id }}","attempt":"${{ github.run_attempt }}","wharf":"${{ github.sha }}"}'
+          WHARF_REPOSITORY: ${{ inputs.repository }}
+          WHARF_MARKER: ${{ inputs.marker }}
+          WHARF_RUN: ${{ github.run_id }}
+          WHARF_PLANNED: ${{ needs.plan.outputs.planned }}
+          WHARF_PREPARATION: ${{ needs.request.outputs.preparation }}
+          WHARF_SOURCE: ${{ runner.temp }}/prepared-plan
+          WHARF_R2_ACCESS_KEY_ID: ${{ secrets.WHARF_R2_ACCESS_KEY_ID }}
+          WHARF_R2_SECRET_ACCESS_KEY: ${{ secrets.WHARF_R2_SECRET_ACCESS_KEY }}
+        run: python3 -B -m scripts.distribution prepared
+
+      - name: "[read] prepared observation"
+        if: always() && steps.prepared.outputs.digest != ''
+        env:
+          GH_TOKEN: ${{ github.token }}
+          WHARF_OBSERVER: '{"run":"${{ github.run_id }}","attempt":"${{ github.run_attempt }}","wharf":"${{ github.sha }}"}'
+          WHARF_REPOSITORY: ${{ inputs.repository }}
+          WHARF_MARKER: ${{ inputs.marker }}
+          WHARF_RUN: ${{ github.run_id }}
+          WHARF_PLANNED: ${{ needs.plan.outputs.planned }}
+          WHARF_PREPARATION: ${{ needs.request.outputs.preparation }}
+          WHARF_SOURCE: ${{ runner.temp }}/prepared-plan
+          WHARF_R2_ACCESS_KEY_ID: ${{ secrets.WHARF_R2_ACCESS_KEY_ID }}
+          WHARF_R2_SECRET_ACCESS_KEY: ${{ secrets.WHARF_R2_SECRET_ACCESS_KEY }}
+          WHARF_DIGEST: ${{ steps.prepared.outputs.digest }}
+        run: python3 -B -m scripts.distribution prepared-read
+
+      - name: "[preserve] prepared observation"
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
+        with:
+          name: prepared-plan-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/prepared-plan
+          if-no-files-found: error
+          retention-days: 14
+
   build-proof:
     name: "[prove] published binary"
-    needs: [plan, distribution]
-    if: ${{ !cancelled() && !inputs.candidate && (inputs.run != '' || (needs.distribution.outputs.state == 'complete' && needs.plan.outputs.binaryproof == 'true')) }}
+    needs: [request, plan, distribution]
+    if: ${{ needs.request.result == 'success' && !inputs.prepare && !cancelled() && !inputs.candidate && (inputs.run != '' || (needs.distribution.outputs.state == 'complete' && needs.plan.outputs.binaryproof == 'true')) }}
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     permissions:
@@ -965,7 +1093,8 @@ jobs:
 
   build-candidate:
     name: "[prove] candidate binary"
-    if: ${{ !cancelled() && inputs.candidate }}
+    needs: [request, plan, prepared]
+    if: always() && !cancelled() && needs.request.result == 'success' && (inputs.candidate || (inputs.prepare && needs.prepared.result == 'success'))
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     permissions:
@@ -985,8 +1114,8 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           WHARF_REPOSITORY: ${{ inputs.repository }}
           WHARF_MARKER: ${{ inputs.marker }}
-          WHARF_RUN: ${{ inputs.run }}
-          WHARF_ATTEMPT: ${{ inputs.attempt }}
+          WHARF_RUN: ${{ inputs.prepare && github.run_id || inputs.run }}
+          WHARF_ATTEMPT: ${{ inputs.prepare && needs.plan.outputs.planned || inputs.attempt }}
           WHARF_REFERENCE: ${{ inputs.reference }}
           WHARF_OBSERVER: '{"run":"${{ github.run_id }}","attempt":"${{ github.run_attempt }}","wharf":"${{ github.sha }}"}'
           WHARF_SOURCE: ${{ runner.temp }}/binary-candidate
@@ -1016,8 +1145,8 @@ jobs:
 
   native-proof:
     name: "[prove] native binary"
-    needs: [plan, distribution]
-    if: ${{ !cancelled() && !inputs.candidate && (inputs.run != '' || (needs.distribution.outputs.state == 'complete' && needs.plan.outputs.binaryproof == 'true')) }}
+    needs: [request, plan, distribution]
+    if: ${{ needs.request.result == 'success' && !inputs.prepare && !cancelled() && !inputs.candidate && (inputs.run != '' || (needs.distribution.outputs.state == 'complete' && needs.plan.outputs.binaryproof == 'true')) }}
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     permissions:
@@ -1079,8 +1208,8 @@ jobs:
 
   native-candidate:
     name: "[prove] native candidate binary"
-    needs: [build-candidate]
-    if: ${{ !cancelled() && inputs.candidate && needs.build-candidate.result == 'success' }}
+    needs: [request, plan, prepared, build-candidate]
+    if: always() && !cancelled() && needs.request.result == 'success' && (inputs.candidate || (inputs.prepare && needs.prepared.result == 'success')) && needs.build-candidate.result == 'success'
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     permissions:
@@ -1105,8 +1234,8 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           WHARF_REPOSITORY: ${{ inputs.repository }}
           WHARF_MARKER: ${{ inputs.marker }}
-          WHARF_RUN: ${{ inputs.run }}
-          WHARF_ATTEMPT: ${{ inputs.attempt }}
+          WHARF_RUN: ${{ inputs.prepare && github.run_id || inputs.run }}
+          WHARF_ATTEMPT: ${{ inputs.prepare && needs.plan.outputs.planned || inputs.attempt }}
           WHARF_REFERENCE: ${{ inputs.reference }}
           WHARF_OBSERVER: '{"run":"${{ github.run_id }}","attempt":"${{ github.run_attempt }}","wharf":"${{ github.sha }}"}'
           WHARF_SOURCE: ${{ runner.temp }}/native-candidate
@@ -1136,11 +1265,11 @@ jobs:
 
   windtun-prepare:
     name: "[windtun] prepare attempt"
-    needs: [plan, distribution]
+    needs: [request, plan, distribution]
     permissions:
       contents: read
       actions: read
-    if: always() && !inputs.candidate && (inputs.run == '' || inputs.reference == '') && (inputs.run != '' || (needs.distribution.outputs.state == 'complete' && needs.plan.outputs.windtun == 'true'))
+    if: needs.request.result == 'success' && !inputs.prepare && always() && !inputs.candidate && (inputs.run == '' || inputs.reference == '') && (inputs.run != '' || (needs.distribution.outputs.state == 'complete' && needs.plan.outputs.windtun == 'true'))
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     outputs:
@@ -1244,11 +1373,11 @@ jobs:
 
   windtun-issue:
     name: "[windtun] issue qualification"
-    needs: [windtun-prepare, windtun]
+    needs: [request, windtun-prepare, windtun]
     permissions:
       contents: read
       actions: read
-    if: always() && needs.windtun-prepare.outputs.ready == 'true'
+    if: always() && needs.request.result == 'success' && needs.windtun-prepare.outputs.ready == 'true' && !inputs.prepare
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     steps:

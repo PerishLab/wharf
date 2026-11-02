@@ -58,7 +58,7 @@ class Workflow(unittest.TestCase):
 
     def test_inspection_and_nonstable_default_execution_keep_their_separate_conditions(self):
         document = jobs()
-        self.assertIn('!cancelled() && inputs.candidate', document['build-candidate'])
+        self.assertIn("(inputs.candidate || (inputs.prepare && needs.prepared.result == 'success'))", document['build-candidate'])
         self.assertNotIn('promotion-prepare', next(line for line in document['windtun-prepare'].splitlines() if line.startswith('    needs:')))
 
     def test_channel_still_requires_all_original_publication_results(self):
