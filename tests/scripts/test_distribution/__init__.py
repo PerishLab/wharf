@@ -232,16 +232,12 @@ class Declaration(unittest.TestCase):
                 admission.publication(run, selected, dict(record, **change))
 
     def test_replay_reads_exact_completed_publication_attempt(self):
-        run = dict(publisher(), run_attempt=3)
         record = {"completed": {"run": "7", "attempt": "1", "wharf": "a" * 40}}
         with mock.patch.object(admission.subprocess, "check_output", return_value=json.dumps(publisher())) as provider:
-            self.assertEqual(admission.completed(run, "7", record)["run_attempt"], 1)
+            self.assertEqual(admission.completed("7", record)["run_attempt"], 1)
             self.assertTrue(provider.call_args.args[0][-1].endswith("/runs/7/attempts/1"))
-        with mock.patch.object(admission.subprocess, "check_output") as provider:
-            self.assertEqual(admission.completed(publisher(), "7", record), publisher())
-            provider.assert_not_called()
         with self.assertRaises(Refusal):
-            admission.completed(run, "7", {"completed": {"run": "7", "attempt": "../2"}})
+            admission.completed("7", {"completed": {"run": "7", "attempt": "../2", "wharf": "a" * 40}})
 
     def test_replay_cannot_test_another_product_than_requested(self):
         selected = {"repository": "PerishLab/keel", "marker": "v1.2.3-rc.1"}
