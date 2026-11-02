@@ -1227,6 +1227,21 @@ serializes each signed repository, uses a finite process budget and terminates i
 command group on exit. A current consumer creates nothing. No schedule or RC gate
 backs up this path.
 
+## Worker child environments
+
+Release CF worker tool inspection, dependency installation and product builds
+receive explicit environments without the deployment token or workload R2 access
+and secret keys, including their `_FILE` forms. Installation alone receives the
+package reader through its temporary npm configuration. Tool inspection and builds
+receive neither that reader nor caller npm configuration. Ordinary toolchain and
+build settings remain available.
+
+After publication admission, the Wrangler child receives the deployment token,
+but no workload credentials or package reader. The trusted parent retains its
+original environment for admission and workload recording, including on failure.
+This limits explicit environment inheritance, not same-user process or filesystem
+access, Wrangler configuration hooks, historical writers or remote cancellation.
+
 ## Names
 
 Workflow filenames are one lowercase ASCII word followed by `.yml`. The sole
