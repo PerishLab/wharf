@@ -20,7 +20,7 @@ on:
       - lib/content/executables.py
       - lib/content/declaration.py
       - lib/media/archive.py
-      - lib/media/release.py
+      - lib/media/release/**
       - lib/store/directory.py
       - lib/store/mirror.py
       - scripts/manager.py
