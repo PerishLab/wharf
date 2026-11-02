@@ -45,7 +45,8 @@ permissions:
   contents: read
 
 concurrency:
-  group: ship-${{ inputs.repository }}-${{ inputs.marker }}
+  group: ship-${{ inputs.repository }}-${{ !inputs.prepare && !inputs.candidate && inputs.run == '' && !contains(inputs.marker, '-') && 'stable' || inputs.marker }}
+  queue: max
   cancel-in-progress: false
 
 env:
