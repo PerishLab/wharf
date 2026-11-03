@@ -30,6 +30,7 @@ permissions:
 
 concurrency:
   group: depot-${{ inputs.repository }}-${{ inputs.kind }}
+  queue: max
   cancel-in-progress: false
 
 defaults:
