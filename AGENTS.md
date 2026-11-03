@@ -1476,7 +1476,14 @@ must reproduce byte for byte and every reader must test against.
 Linux build association is independent of Windtun qualification. The plan freezes
 `binary_declaration` with the complete manifest digest and built/installed lists.
 The fixed main `build-proof` job runs after complete distribution, or on an exact
-publication replay, and executes no product code. Its trusted action alone pairs
+publication replay with explicit `proof` or `reference`, and executes no product
+code. A replay without either requests Windtun only: neither binary proof role
+nor its signing preparation runs. Boolean `proof` independently revalidates the
+existing non-stable or stable publication without starting Windtun or republishing
+products. It requires `run` and excludes preparation, candidate inspection,
+diagnostic cases and a candidate plan attempt. An optional `reference` retains
+the existing stable comparison contract. Ordinary publication retains both proof roles
+when its completed plan declares binary proof, independently of Windtun. Its trusted action alone pairs
 existing workload access with the product release writer. Historical plans are
 accepted only when their recorded declaration digest can be matched to the exact
 source manifest and their producer plans and workload chains remain available.
@@ -1569,7 +1576,8 @@ the exact current stable pointer and root bytes with unchanged pointer readback.
 A non-stable release supplies no canonical publication, and a private candidate
 reports expected canonical bytes rather than claiming published readback.
 
-The fixed `native-proof` role follows complete distribution or an exact replay,
+The fixed `native-proof` role follows complete distribution or an exact replay
+with explicit `proof` or comparison `reference`,
 executes only trusted verification and records immutable workload material and
 public proof objects. Per-target discovery is separately versioned under
 `build/native-darwin-arm64.json` and `build/native-windows-x64.json`. Conditional

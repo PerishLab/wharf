@@ -80,3 +80,12 @@ class Request(unittest.TestCase):
         changed["qualification"]["world"]["current"] = False
         with mock.patch.object(preflight, "qualify", return_value=changed), self.assertRaises(Refusal):
             preflight.confirm(value, source)
+
+    def test_explicit_proof_replay_has_a_separate_bounded_request(self):
+        requested = {"repository": "PerishLab/plumb", "marker": "v1.2.3-rc.1", "run": "7", "proof": True}
+        self.assertTrue(preflight.selection(requested)["proof"])
+        self.assertFalse(preflight.selection({"repository": "PerishLab/plumb", "marker": "v1.2.3-rc.1"})["proof"])
+        self.assertEqual(preflight.selection(requested), preflight.selection(requested | {"proof": "true"}))
+        for changed in ({"run": ""}, {"prepare": True}, {"candidate": True}, {"case": "diagnostic"}, {"attempt": "2"}, {"proof": 1}, {"proof": "yes"}):
+            with self.subTest(changed=changed), self.assertRaises(Refusal):
+                preflight.selection(requested | changed)
