@@ -21,7 +21,7 @@ def condition(source, selected, outcomes):
     text = re.sub(r"needs\.windtun-prepare\.outputs\.ready", repr("true"), text)
     text = text.replace("&&", " and ").replace("||", " or ")
     text = re.sub(r"!(?!=)", "not ", text)
-    return bool(eval(text, {"__builtins__": {}}, {"inputs": SimpleNamespace(**selected), "always": lambda: True, "cancelled": lambda: False, "contains": lambda held, value: value in held, "format": lambda pattern, *values: pattern.format(*values)}))
+    return bool(eval(text, {"__builtins__": {}}, {"inputs": SimpleNamespace(**({"proof": False} | selected)), "always": lambda: True, "cancelled": lambda: False, "contains": lambda held, value: value in held, "format": lambda pattern, *values: pattern.format(*values)}))
 
 
 class Workflow(unittest.TestCase):

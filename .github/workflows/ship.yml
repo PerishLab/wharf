@@ -1,5 +1,5 @@
 name: ship
-run-name: "${{ inputs.prepare && '[prepare]' || inputs.candidate && '[candidate]' || (inputs.run != '' && (inputs.reference != '' && '[compare]' || '[windtun]') || '[ship]') }} ${{ inputs.repository }} ${{ inputs.marker }}"
+run-name: "${{ inputs.prepare && '[prepare]' || inputs.candidate && '[candidate]' || (inputs.run != '' && (inputs.reference != '' && '[compare]' || inputs.proof && '[prove]' || '[windtun]') || '[ship]') }} ${{ inputs.repository }} ${{ inputs.marker }}"
 
 on:
   workflow_dispatch:
@@ -16,6 +16,11 @@ on:
         description: Replay a publication or select the run holding a candidate plan
         required: false
         type: string
+      proof:
+        description: Revalidate published binary association without running Windtun
+        required: false
+        type: boolean
+        default: false
       case:
         description: Declared suite or one explicit diagnostic case
         required: false
@@ -1046,7 +1051,7 @@ jobs:
   build-proof:
     name: "[prove] published binary"
     needs: [request, plan, distribution]
-    if: ${{ needs.request.result == 'success' && !inputs.prepare && !cancelled() && !inputs.candidate && (inputs.run != '' || (needs.distribution.outputs.state == 'complete' && needs.plan.outputs.binaryproof == 'true')) }}
+    if: ${{ needs.request.result == 'success' && !inputs.prepare && !cancelled() && !inputs.candidate && ((inputs.run != '' && (inputs.proof || inputs.reference != '')) || (inputs.run == '' && needs.distribution.outputs.state == 'complete' && needs.plan.outputs.binaryproof == 'true')) }}
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     permissions:
@@ -1147,7 +1152,7 @@ jobs:
   native-proof:
     name: "[prove] native binary"
     needs: [request, plan, distribution]
-    if: ${{ needs.request.result == 'success' && !inputs.prepare && !cancelled() && !inputs.candidate && (inputs.run != '' || (needs.distribution.outputs.state == 'complete' && needs.plan.outputs.binaryproof == 'true')) }}
+    if: ${{ needs.request.result == 'success' && !inputs.prepare && !cancelled() && !inputs.candidate && ((inputs.run != '' && (inputs.proof || inputs.reference != '')) || (inputs.run == '' && needs.distribution.outputs.state == 'complete' && needs.plan.outputs.binaryproof == 'true')) }}
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     permissions:
@@ -1282,7 +1287,7 @@ jobs:
     permissions:
       contents: read
       actions: read
-    if: needs.request.result == 'success' && !inputs.prepare && always() && !inputs.candidate && (inputs.run == '' || inputs.reference == '') && (inputs.run != '' || (needs.distribution.outputs.state == 'complete' && needs.plan.outputs.windtun == 'true'))
+    if: needs.request.result == 'success' && !inputs.prepare && !inputs.proof && always() && !inputs.candidate && (inputs.run == '' || inputs.reference == '') && (inputs.run != '' || (needs.distribution.outputs.state == 'complete' && needs.plan.outputs.windtun == 'true'))
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     outputs:
@@ -1390,7 +1395,7 @@ jobs:
     permissions:
       contents: read
       actions: read
-    if: always() && needs.request.result == 'success' && needs.windtun-prepare.outputs.ready == 'true' && !inputs.prepare
+    if: always() && needs.request.result == 'success' && needs.windtun-prepare.outputs.ready == 'true' && !inputs.prepare && !inputs.proof
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     steps:

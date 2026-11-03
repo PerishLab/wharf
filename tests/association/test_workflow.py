@@ -1,5 +1,6 @@
 import unittest
 
+from tests.promotion.preparation.test_workflow import condition
 from tests.promotion.test_workflow import jobs
 
 
@@ -42,3 +43,47 @@ class Workflow(unittest.TestCase):
         self.assertIn("name: native-observation-${{ github.run_attempt }}", observation)
         self.assertIn("if-no-files-found: error", observation)
         self.assertNotIn("SECRET", observation)
+
+    def test_replay_roles_follow_the_requested_testing_domain(self):
+        document = jobs()
+        outcomes = {name: "skipped" for name in document} | {"request": "success"}
+        selected = {"prepare": False, "candidate": False, "run": "7", "reference": ""}
+        for reference in ("", "v1.2.3-rc.1"):
+            selected["reference"] = reference
+            for name in ("build-proof", "native-proof"):
+                with self.subTest(reference=reference, job=name):
+                    self.assertEqual(condition(document[name], selected, outcomes), bool(reference))
+            self.assertEqual(condition(document["windtun-prepare"], selected, outcomes), not reference)
+        selected["reference"] = ""
+        outcomes = {name: "success" for name in document}
+        for name in ("build-proof", "native-proof"):
+            self.assertFalse(condition(document[name], selected, outcomes))
+
+    def test_publication_keeps_proof_roles_and_their_admission(self):
+        document = jobs()
+        outcomes = {name: "success" for name in document}
+        selected = {"prepare": False, "candidate": False, "run": "", "reference": ""}
+        for name in ("build-proof", "native-proof"):
+            source = document[name]
+            for reference in ("", "v1.2.3-rc.1"):
+                selected["reference"] = reference
+                self.assertTrue(condition(source, selected, outcomes))
+                self.assertFalse(condition(source.replace("state == 'complete'", "state == 'pending'"), selected, outcomes))
+                self.assertFalse(condition(source.replace("binaryproof == 'true'", "binaryproof == 'false'"), selected, outcomes))
+            for rejected in ("failure", "skipped", "cancelled"):
+                self.assertFalse(condition(source, selected, outcomes | {"request": rejected}))
+
+    def test_explicit_proof_replays_nonstable_without_windtun_or_publication(self):
+        document = jobs()
+        outcomes = {name: "skipped" for name in document} | {"request": "success"}
+        selected = {"prepare": False, "candidate": False, "proof": True, "run": "7", "reference": "", "repository": "PerishLab/plumb", "marker": "v1.2.3-rc.1"}
+        for name in ("build-proof", "native-proof"):
+            self.assertTrue(condition(document[name], selected, outcomes))
+        for name in ("plan", "release", "cargo", "npm", "oci", "chart", "cfworker", "channel", "distribution", "windtun-prepare", "windtun-issue"):
+            with self.subTest(job=name):
+                self.assertFalse(condition(document[name], selected, outcomes))
+        selected["reference"] = "v1.2.3-rc.1"
+        selected["marker"] = "v1.2.3"
+        for name in ("build-proof", "native-proof"):
+            self.assertTrue(condition(document[name], selected, outcomes))
+        self.assertFalse(condition(document["windtun-prepare"], selected, outcomes))

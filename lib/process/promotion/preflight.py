@@ -13,7 +13,7 @@ from lib.process.promotion import reader, subject
 
 SCHEMA = "wharf.ship.request/v1"
 INTENT = "wharf.ship.preparation.intent/v1"
-DEFAULTS = {"run": "", "case": "declared", "reference": "", "candidate": False, "prepare": False, "attempt": "1"}
+DEFAULTS = {"run": "", "case": "declared", "reference": "", "candidate": False, "prepare": False, "proof": False, "attempt": "1"}
 ROLES = {"request": "[verify] request", "prepared": "[read] prepared plan", "plan": "[plan] entries"}
 
 
@@ -21,11 +21,13 @@ def selection(value):
     require(isinstance(value, dict) and set(value) <= set(DEFAULTS) | {"repository", "marker"}, "dispatch fields differ")
     result = DEFAULTS | value
     require(all(isinstance(result.get(name), str) for name in ("repository", "marker", "run", "case", "reference", "attempt")), "dispatch text fields differ")
-    for name in ("prepare", "candidate"):
+    for name in ("prepare", "candidate", "proof"):
         if result[name] in ("true", "false"):
             result[name] = result[name] == "true"
         require(type(result[name]) is bool, "dispatch modes must be boolean")
     marker.channel(result["marker"])
+    if result["proof"]:
+        require(not result["prepare"] and not result["candidate"] and result["run"] != "" and result["case"] == "declared" and result["attempt"] == "1", "proof replay needs a publication run without preparation, candidate or diagnostic selection")
     if result["prepare"]:
         require(not result["candidate"] and result["run"] == "" and result["case"] == "declared" and result["attempt"] == "1", "preparation conflicts with inspection, replay or diagnostic modes")
         require(marker.channel(result["marker"]) == "stable" and result["reference"] and marker.channel(result["reference"]) in ("rc", "beta"), "preparation needs real stable and non-stable intents")
