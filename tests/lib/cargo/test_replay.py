@@ -73,9 +73,9 @@ class Replay(unittest.TestCase):
         self.assertEqual(replay.moves(self.root, expected), [("demo", "0.9.0")])
 
     def test_applies_only_to_planned_cargo_snapshots(self):
-        self.assertTrue(replay.applies(self.held(self.expected)))
-        self.assertFalse(replay.applies(self.held(None)))
-        self.assertFalse(replay.applies(self.held({"packages": [{"ecosystem": "npm", "name": "x", "version": "1"}]})))
+        self.assertTrue(replay.applies(self.held(self.expected), lambda held, *args: git(self.root, *args).strip()))
+        self.assertFalse(replay.applies(self.held(None), None))
+        self.assertFalse(replay.applies(self.held({"packages": [{"ecosystem": "npm", "name": "x", "version": "1"}]}), None))
 
 
 
@@ -198,7 +198,7 @@ class Mixed(unittest.TestCase):
                 return replay.resolved(self.held(self.expected), self.execute, run)
 
     def test_mixed_replay_reads_only_the_declared_registry_without_product_processes(self):
-        self.assertTrue(replay.applies(self.held(self.expected)))
+        self.assertTrue(replay.applies(self.held(self.expected), lambda held, *args: git(self.root, *args).strip()))
         self.assertEqual(self.resolve()["tree"], self.expected["tree"])
         self.assertEqual(self.calls, [("@perishlab/demo", "https://npm.pkg.github.com/")])
 

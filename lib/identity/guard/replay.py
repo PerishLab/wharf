@@ -16,11 +16,11 @@ INDEX = registry.KNOWN["perish"]["index"]
 SOURCE = "sparse+" + INDEX
 
 
-def applies(held):
+def applies(held, git):
     expected = held["request"].expected
     packages = expected.get("packages") if isinstance(expected, dict) else None
     cargo = "cargo" in held["tools"] and (Path(held["root"]) / "Cargo.toml").is_file()
-    return cargo and isinstance(packages, list) and all(isinstance(item, dict) and item.get("ecosystem") in {"cargo", "npm"} for item in packages) and (not any(item["ecosystem"] == "npm" for item in packages) or "pnpm" in held["tools"])
+    return cargo and isinstance(packages, list) and all(isinstance(item, dict) and item.get("ecosystem") in {"cargo", "npm"} for item in packages) and (not any(item["ecosystem"] == "npm" for item in packages) or "pnpm" in held["tools"] and git(held, "write-tree") == expected.get("tree"))
 
 
 def locked(root):
