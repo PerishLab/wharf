@@ -1,4 +1,6 @@
+import hashlib
 import json
+import re
 import sys
 from pathlib import Path
 
@@ -195,6 +197,19 @@ def attributed(offers, guard):
     return offers["sources"].get(guard.get("digest"), {"offered": len(offers["sources"])})
 
 
+def storage(bucket):
+    host = getattr(bucket, "host", None)
+    name = getattr(bucket, "name", None)
+    key = getattr(getattr(bucket, "credentials", None), "access_key", None)
+    if not isinstance(host, str) or not re.fullmatch(r"[a-f0-9]{32}\.r2\.cloudflarestorage\.com", host):
+        return {"schema": "wharf.store.reference/v1", "state": "unavailable"}
+    if not isinstance(name, str) or not re.fullmatch(r"[a-z0-9][a-z0-9-]{1,61}[a-z0-9]", name):
+        return {"schema": "wharf.store.reference/v1", "state": "unavailable"}
+    if not isinstance(key, str) or not re.fullmatch(r"[a-f0-9]{32}", key):
+        return {"schema": "wharf.store.reference/v1", "state": "unavailable"}
+    return {"schema": "wharf.store.reference/v1", "state": "observed", "host": host, "bucket": name, "access_sha256": hashlib.sha256(key.encode()).hexdigest()}
+
+
 def record(held):
     source = Path(held["source"])
     if basis.carried(source):
@@ -241,7 +256,7 @@ def record(held):
         parameters.answer({"trial": json.dumps(suite, sort_keys=True, separators=(",", ":")), "publisher": json.dumps(identity, sort_keys=True, separators=(",", ":")), "windtun": str(suite is not None and marker.channel(identity["marker"]) in ("alpha", "beta", "rc")).lower()})
         recorded = plan.record(bucket, context, entries, engines)
         remembered = False if recalled else plan.remember(bucket, context)
-        return dict(recorded, recalled=recalled or None, pulled=taken, remembered=remembered, decided=emit(entries, held["attempt"], verified), entry={name: entries[name]["decision"] for name in sorted(entries)})
+        return dict(recorded, storage=storage(bucket), recalled=recalled or None, pulled=taken, remembered=remembered, decided=emit(entries, held["attempt"], verified), entry={name: entries[name]["decision"] for name in sorted(entries)})
 
 
 def named(held):

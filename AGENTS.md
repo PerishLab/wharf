@@ -80,6 +80,13 @@ and any resources it reads. Records live under `workload/<hash_version>/<key>/` 
 different bytes under an existing key refuse as non-determinism. Jobs hand work to
 each other only through recorded workloads, never through run artifacts.
 
+After successful plan storage and verification recall storage, the plan log reports
+`wharf.store.reference/v1`: the canonical R2 host, bucket and SHA256 of the
+access ID, or `unavailable` for unsupported metadata shapes. It never reads the
+secret key or reports the raw access ID. This is an observation of the existing
+workload role, not authorization or complete permission evidence. It adds no
+request and changes no stored plan, workload or runner decision.
+
 The plan job decides, for every entry a run could hold, the workload key and
 whether it runs, and records that as one document at
 `plan/<owner>/<repository>/<marker>/<run>-<attempt>.json`, with a `latest.json`
