@@ -24,7 +24,7 @@ def archive_facts(publication, facts):
 
 
 def material(bucket, publication, facts):
-    basis = {"schema": "wharf.binary.native.material/v2", "source": publication["source"], "target": facts["target"], "archive": facts["archive"]["sha256"], "build": facts["build"]["key"], "binding": facts["binding"]["key"], "declaration": canonical.digest(facts["declaration"]), "managers": canonical.digest(facts["managers"])}
+    basis = {"schema": "wharf.binary.native.material/v3", "source": publication["source"], "plan": publication["distribution"]["plan"], "target": facts["target"], "archive": facts["archive"]["sha256"], "build": facts["build"]["key"], "binding": facts["binding"]["key"], "declaration": canonical.digest(facts["declaration"]), "managers": canonical.digest(facts["managers"])}
     key = workload.key(basis, code())
     evidence = {name: facts[name] for name in ("declaration", "binaries", "archive", "files", "managers")}
     for name in ("build", "binding"):
@@ -45,8 +45,7 @@ def statement(publication, facts, recorded):
     result = {"schema": SCHEMA, "issuer": issuer(), "source": publication["source"], "publisher": publication["publisher"], "resolution": canonical.digest(resolution), "seal": publication["seal_ref"], "evidence": recorded}
     result.update({name: facts[name] for name in ("target", "declaration", "archive", "files", "binaries", "managers")})
     result.update({name: storage.summary(facts[name]) for name in ("build", "binding")})
-    if "plan" in publication["distribution"]:
-        result["plan"] = publication["distribution"]["plan"]
+    result["plan"] = publication["distribution"]["plan"]
     return result
 
 
@@ -102,6 +101,7 @@ def publish(publication, proof, observer, started):
 def produce(held):
     observer, started = control.active(held["observer"], "native-proof")
     publication = public.snapshot(held)
+    require("plan" in publication["distribution"], "native declaration requires an exact publication plan reference")
     bucket = r2.configured()
     document = legacy.planned(bucket, publication)
     model = chain.frozen(document, publication["source"])

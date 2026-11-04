@@ -7,12 +7,15 @@ from unittest import mock
 
 from lib.content import canonical
 from lib.identity.bind import candidate as linux_candidate, producer as linux
+from lib.identity.bind import control
 from lib.identity.bind.spec import entry
-from lib.process.association import candidate, producer, spec
+from lib.process.association import candidate, producer, public, spec
+from lib.process.association import control as native
 from lib.refusal import Refusal
-from lib.store import workload
+from lib.store import plan, workload
 from tests.association.fixtures import MACOS, WINDOWS
-from tests.association.world import World
+from tests.association.world import AUTHORITY, World
+from tests.association.test_run import IDENTITY, REPOSITORY, run
 
 
 class Candidate(unittest.TestCase):
@@ -36,9 +39,13 @@ class Candidate(unittest.TestCase):
     def test_unpublished_plan_covers_both_targets_and_exact_linux_material(self):
         original = self.world.fetch
         calls = []
+        for location in list(self.world.documents):
+            if location.startswith("https://raw.githubusercontent.com/"):
+                del self.world.documents[location]
 
         def fetch(url):
             calls.append(url)
+            self.assertNotIn("raw.githubusercontent.com", url)
             self.assertNotIn("/v1/releases/stable/", url)
             self.assertFalse(url.endswith("/v1/channels/stable.json"))
             return original(url)
@@ -99,7 +106,6 @@ class Candidate(unittest.TestCase):
         self.world.role = "native-proof"
         with self.world.wired():
             result = producer.produce(self.world.held)
-            from lib.process.association import public
             for target in result["proofs"]:
                 left, before = public.read("PerishLab/demo", self.reference.source["marker"], target)
                 right, after = public.read("PerishLab/demo", self.world.source["marker"], target)
@@ -120,3 +126,98 @@ class Candidate(unittest.TestCase):
         self.assertEqual(result["failure"], {"kind": "tls", **failure.details})
         self.assertFalse(result["associated"])
         self.assertFalse(result["promotion"])
+
+
+class Provenance(unittest.TestCase):
+    def observation(self, role="[prove] native binary", step="[prove] native binary"):
+        self.job = {"id": 42, "name": role, "run_id": 7, "run_attempt": 1, "head_sha": "a" * 40, "head_branch": "main", "status": "completed", "conclusion": "success", "started_at": "2026-11-04T05:00:00Z", "steps": [{"name": step, "status": "completed", "conclusion": "success", "started_at": "2026-11-04T05:00:00Z"}]}
+        self.document = {"total_count": 1, "jobs": [self.job]}
+        self.native = run("completed")
+
+        def api(path):
+            if path == "":
+                return REPOSITORY
+            if path == "branches/main":
+                return {"name": "main", "protected": True}
+            if path.endswith("/jobs?per_page=100"):
+                return self.document
+            return self.native
+
+        return api
+
+    def test_successful_proof_step_is_distinct_from_whole_workflow_success(self):
+        api = self.observation()
+        self.native["conclusion"] = "failure"
+        with mock.patch.object(control, "api", side_effect=api) as called:
+            self.assertEqual(native.issued(IDENTITY), (IDENTITY, self.job["started_at"]))
+        called.assert_any_call("actions/runs/7/attempts/1/jobs?per_page=100")
+        self.assertFalse(any("/attempts/2" in call.args[0] for call in called.call_args_list))
+
+    def test_missing_ambiguous_or_unsuccessful_issuer_roles_refuse(self):
+        cases = [{"name": "foreign"}, {"status": "queued"}, {"steps": None}, {"steps": []}, {"steps": [{"name": "[prove] native binary", "status": "completed", "conclusion": "failure"}]}, {"steps": [{"name": "foreign", "status": "completed", "conclusion": "success"}]}]
+        for changed in cases:
+            api = self.observation()
+            self.job.update(changed)
+            with self.subTest(changed=changed), mock.patch.object(control, "api", side_effect=api), self.assertRaises(Refusal):
+                native.issued(IDENTITY)
+
+        api = self.observation()
+        self.document["jobs"].append(dict(self.job, id=43))
+        self.document["total_count"] = 2
+        with mock.patch.object(control, "api", side_effect=api), self.assertRaisesRegex(Refusal, "ambiguous"):
+            native.issued(IDENTITY)
+
+    def test_foreign_job_attempt_source_or_truncated_catalog_refuses(self):
+        for changed in ({"run_attempt": 2}, {"run_id": 8}, {"head_sha": "b" * 40}, {"head_branch": "feature/331"}, {"id": True}):
+            api = self.observation()
+            self.job.update(changed)
+            with self.subTest(changed=changed), mock.patch.object(control, "api", side_effect=api), self.assertRaisesRegex(Refusal, "catalog identity"):
+                native.issued(IDENTITY)
+        api = self.observation()
+        self.document["total_count"] = 2
+        with mock.patch.object(control, "api", side_effect=api), self.assertRaisesRegex(Refusal, "catalog is incomplete"):
+            native.issued(IDENTITY)
+
+    def test_issuance_requires_the_fixed_completed_proof_step(self):
+        api = self.observation("[prove] native binary", "[prove] native binary")
+        self.job.update(status="in_progress", conclusion=None)
+        with mock.patch.object(control, "api", side_effect=api):
+            self.assertEqual(native.issued(IDENTITY), (IDENTITY, self.job["started_at"]))
+        for changed in ({"status": "in_progress", "conclusion": None}, {"status": "completed", "conclusion": "failure"}, {"name": "[read] native binary"}, {"started_at": None}):
+            api = self.observation("[prove] native binary", "[prove] native binary")
+            self.job["steps"][0].update(changed)
+            with self.subTest(changed=changed), mock.patch.object(control, "api", side_effect=api), self.assertRaises(Refusal):
+                native.issued(IDENTITY)
+
+
+class Declarations(unittest.TestCase):
+    def test_altered_private_plan_is_rejected_before_release_writer(self):
+        world = World()
+        world.plan["context"]["native_declaration"]["model"]["windows"] = "machine"
+        world.blob.objects[plan.location(world.plan["context"])] = canonical.encode(world.plan)
+        with world.wired(), mock.patch.object(producer.r2, "writer", side_effect=AssertionError("release writer")), self.assertRaisesRegex(Refusal, "referenced plan bytes"):
+            producer.produce(world.held)
+        self.assertFalse(world.public.objects)
+
+    def test_missing_public_plan_reference_has_no_historical_source_fallback(self):
+        world = World()
+        del world.distribution["plan"]
+        world.documents[AUTHORITY + "/" + world.root + "/distribution.json"] = canonical.encode(world.distribution)
+        with world.wired(), mock.patch.object(producer.r2, "configured", side_effect=AssertionError("private plan read")), self.assertRaisesRegex(Refusal, "exact publication plan reference"):
+            producer.produce(world.held)
+        self.assertFalse(world.public.objects)
+
+    def test_public_declaration_needs_actual_successful_issuer_step(self):
+        world = World()
+        with world.wired():
+            producer.produce(world.held)
+        original = world.api
+
+        def changed(path):
+            value = original(path)
+            if path == f"actions/runs/{world.observer['run']}/attempts/1/jobs?per_page=100":
+                value["jobs"][0]["steps"][0]["conclusion"] = "failure"
+            return value
+
+        with world.wired(), mock.patch.object(control, "api", side_effect=changed), self.assertRaisesRegex(Refusal, "proof step did not succeed"):
+            public.check(world.held)

@@ -8,6 +8,7 @@ import time
 from lib.content import canonical, marker
 from lib.identity.bind.spec import FIELDS, require, sha
 from lib.media import release
+from lib.refusal import Refusal
 
 REPOSITORY = "PerishLab/wharf"
 ROLE = "build-proof"
@@ -22,9 +23,10 @@ def api(path):
 
 def source(value):
     require(isinstance(value, dict) and set(value) == set(FIELDS), "binary proof source fields differ")
-    require(re.fullmatch(r"PerishLab/[a-z0-9_-]+", str(value["repository"])), "binary proof repository differs")
+    require(all(isinstance(value[name], str) for name in FIELDS), "binary proof source values must be strings")
+    require(re.fullmatch(r"PerishLab/[a-z0-9_-]+", value["repository"]), "binary proof repository differs")
     marker.channel(value["marker"])
-    require(all(re.fullmatch(r"[0-9a-f]{40}", str(value[name])) for name in ("commit", "tree")), "binary proof source identity is invalid")
+    require(all(re.fullmatch(r"[0-9a-f]{40}", value[name]) for name in ("commit", "tree")), "binary proof source identity is invalid")
     return value
 
 
@@ -59,7 +61,10 @@ def trusted(identity, purpose="producer"):
 
 def started(value):
     require(isinstance(value, str) and re.fullmatch(r"[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z", value), "binary proof native start is missing")
-    datetime.datetime.strptime(value, "%Y-%m-%dT%H:%M:%SZ")
+    try:
+        datetime.datetime.strptime(value, "%Y-%m-%dT%H:%M:%SZ")
+    except ValueError:
+        raise Refusal("binary proof native start is invalid") from None
     return value
 
 

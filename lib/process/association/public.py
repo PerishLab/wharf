@@ -1,15 +1,15 @@
 from pathlib import Path
 
 from lib.content import canonical, marker
-from lib.identity.bind import control, storage
+from lib.identity.bind import control, inventory, storage
 from lib.identity.bind.spec import digest
 from lib.media import release
-from lib.process.association import archive, binary, chain, managers
+from lib.process.association import archive, binary, control as native, managers
 from lib.process.association.spec import DISCOVERY, LIMIT, SCHEMA, TARGETS, document, entry, fetch, issuer, require, sha, target, Unavailable
 from lib.store import plan
 from lib.refusal import Refusal
 
-FIELDS = {"schema", "issuer", "source", "publisher", "resolution", "target", "declaration", "seal", "archive", "files", "binaries", "build", "binding", "evidence", "managers"}
+FIELDS = {"schema", "issuer", "source", "publisher", "resolution", "target", "declaration", "seal", "archive", "files", "binaries", "build", "binding", "evidence", "managers", "plan"}
 
 
 def fetched(url, stage, limit=1048576):
@@ -67,20 +67,20 @@ def verified(repository, version, selected):
     require(isinstance(index, dict) and set(index) == {"schema", "source", "target", "authority", "observer", "started", "proof"} and index["schema"] == DISCOVERY and index["target"] == selected and index["authority"] == authority, "native discovery fields or target differ")
     control.source(index["source"])
     require(index["source"]["repository"] == repository and index["source"]["marker"] == version, "native discovery belongs to another publication")
-    control.trusted(control.observer(index["observer"]), "issuer")
-    control.started(index["started"])
+    _, started = native.issued(index["observer"])
+    require(control.started(index["started"]) == started, "native discovery start differs from issuer job")
     require(isinstance(index["proof"], dict) and type(index["proof"].get("size")) is int and index["proof"]["size"] <= 4194304, "native proof exceeds document bounds")
     raw = reference(index["proof"], authority, "proof")
     require(len(raw) <= 4194304 and index["proof"]["name"] == "native-association.json", "native proof is outside policy bounds")
     proof = document(raw)
-    require(isinstance(proof, dict) and set(proof) in (FIELDS, FIELDS | {"plan"}) and proof.get("schema") == SCHEMA and proof.get("issuer") == issuer() and proof.get("target") == selected and canonical.encode(proof) == raw, "native proof schema, issuer or canonical fields differ")
-    metadata(proof)
+    require(isinstance(proof, dict) and set(proof) == FIELDS and proof.get("schema") == SCHEMA and proof.get("issuer") == issuer() and proof.get("target") == selected and canonical.encode(proof) == raw, "native proof schema, issuer or canonical fields differ")
     public = snapshot({"repository": repository, "marker": version, "run": "null"})
     require(proof["source"] == index["source"] == public["source"] and proof["publisher"] == public["publisher"] and proof["seal"] == public["seal_ref"], "native proof publication identity changed")
+    metadata(proof)
     storage.published(proof, public["distribution"])
     require(proof["resolution"] == canonical.digest(plan.lineage(dict(public["distribution"]["resolution"]["binaries"], guard={}))), "native effective resolution changed")
-    model = chain.model(fetched(f"https://raw.githubusercontent.com/{repository}/{public['source']['commit']}/plumb.toml", "declaration"))
-    require(model == proof["declaration"], "native proof full declaration differs from source")
+    model = inventory.complete(proof["declaration"])
+    require(selected in model["targets"] and model["targets"][selected]["installed"], "native proof target is absent from the complete declaration")
     require(proof["managers"] == managed(public, model), "native manager facts differ")
     held = public["seal"].get("artifacts", {}).get(specification["key"])
     require(held == proof["archive"], "native installation archive differs from seal")
@@ -107,14 +107,24 @@ def associated(left, right, before, after):
 
 def check(held):
     public = snapshot(dict(held, run="null"))
-    model = chain.model(fetched(f"https://raw.githubusercontent.com/{held['repository']}/{public['source']['commit']}/plumb.toml", "declaration"))
+    artifacts = public["seal"].get("artifacts")
+    require(isinstance(artifacts, dict), "native publication archive inventory is missing")
+    expected = {name for name, specification in TARGETS.items() if specification["key"] in artifacts}
+    require(expected, "publication declares no supported native target")
     results = {}
-    for selected in model["targets"]:
-        if selected in TARGETS and model["targets"][selected]["installed"]:
-            proof, _ = read(held["repository"], held["marker"], selected)
-            results[selected] = {"proof": canonical.digest(proof), "archive": proof["archive"], "managers": proof["managers"]}
-    require(results, "publication declares no supported native target")
-    return {"schema": "wharf.binary.native.readback/v2", "source": public["source"], "targets": results, "unassessed": ["linux", "oci", "chart", "cargo", "npm", "cfworker", "deb"], "promotion": False}
+    declaration = None
+    for selected in sorted(expected):
+        proof, _ = read(held["repository"], held["marker"], selected)
+        require(proof["source"] == public["source"] and proof["publisher"] == public["publisher"] and proof["seal"] == public["seal_ref"], "native target proofs belong to another publication")
+        model = inventory.complete(proof["declaration"])
+        declared = {name for name in model["targets"] if name in TARGETS and model["targets"][name]["installed"]}
+        require(declared == expected, "native declaration differs from complete sealed target coverage")
+        if declaration is None:
+            declaration = model
+        require(model == declaration, "native target proofs disagree on the complete declaration")
+        results[selected] = {"proof": canonical.digest(proof), "archive": proof["archive"], "managers": proof["managers"]}
+    require(snapshot(dict(held, run="null")) == public, "native publication changed during complete target readback")
+    return {"schema": "wharf.binary.native.readback/v3", "source": public["source"], "targets": results, "unassessed": ["linux", "oci", "chart", "cargo", "npm", "cfworker", "deb"], "promotion": False}
 
 
 def compare(held):
@@ -126,7 +136,7 @@ def compare(held):
         right, after = read(held["repository"], held["marker"], selected)
         associated(left, right, before, after)
         results[selected] = {"proofs": [canonical.digest(left), canonical.digest(right)], "associated": True, "managers": right["managers"]}
-    result = {"schema": "wharf.binary.native.comparison/v2", "associated": True, "targets": results, "source": checked["source"], "reference": held["reference"], "promotion": False}
+    result = {"schema": "wharf.binary.native.comparison/v3", "associated": True, "targets": results, "source": checked["source"], "reference": held["reference"], "promotion": False}
     root = Path(held["source"]).resolve()
     root.mkdir(parents=True, exist_ok=False)
     (root / "comparison.json").write_bytes(canonical.encode(result))
@@ -138,8 +148,9 @@ def metadata(proof):
         held = proof[name]
         require(isinstance(held, dict) and set(held) == {"key", "basis", "implementation", "record", "producer"} and all(digest(held[field]) for field in ("key", "basis", "implementation", "record")), "native workload summary fields differ")
         producer = held["producer"]
-        require(isinstance(producer, dict) and producer.get("repository") == proof["source"]["repository"], "native workload producer fields differ")
+        require(isinstance(producer, dict) and producer.get("repository") == proof["source"]["repository"] and isinstance(producer.get("marker"), str), "native workload producer fields differ")
         storage.origin(producer)
+    require(isinstance(proof["binaries"], dict) and 1 <= len(proof["binaries"]) <= 256, "native binary fact inventory is missing or outside bounds")
     for value in proof["binaries"].values():
         require(isinstance(value, dict) and set(value) == {"origin", "bound", "normalized", "signature"} and value["origin"] == {"prefix": proof["source"]["repository"].split("/")[1].upper().replace("-", "_"), "commit": "", "target": proof["target"]} and value["signature"] == target(proof["target"])["signature"], "native complete binary facts differ")
         require(all(isinstance(value[field], dict) and set(value[field]) == {"size", "sha256"} and type(value[field]["size"]) is int and 0 < value[field]["size"] <= LIMIT and digest(value[field]["sha256"]) for field in ("bound", "normalized")), "native binary fact bounds differ")

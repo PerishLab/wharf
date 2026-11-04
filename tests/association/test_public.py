@@ -49,11 +49,24 @@ class Public(unittest.TestCase):
         with self.world.wired(), self.assertRaises(Refusal):
             public.read("PerishLab/demo", self.world.source["marker"], WINDOWS)
 
+    def test_malformed_proof_identity_and_inventories_stay_explicit_refusals(self):
+        result = self.publish()
+        key = result["proofs"][MACOS]["url"].removeprefix(AUTHORITY + "/")
+        original = json.loads(self.world.public.get(key))
+        for field in ("source", "binaries", "producer_marker"):
+            value = copy.deepcopy(original)
+            if field == "producer_marker":
+                value["build"]["producer"]["marker"] = None
+            else:
+                value[field] = None
+            with self.subTest(field=field), self.world.wired(), mock.patch.object(public, "reference", return_value=canonical.encode(value)), self.assertRaises(Refusal):
+                public.read("PerishLab/demo", self.world.source["marker"], MACOS)
+
     def test_duplicate_unknown_or_downgraded_proof_fields_refuse(self):
         result = self.publish()
         key = result["proofs"][MACOS]["url"].removeprefix(AUTHORITY + "/")
         original = self.world.public.get(key)
-        for raw in (b'{"schema":1,"schema":2}', canonical.encode(dict(json.loads(original), unknown=True)), canonical.encode(dict(json.loads(original), schema="wharf.binary.association/v1"))):
+        for raw in (b'{"schema":1,"schema":2}', canonical.encode(dict(json.loads(original), unknown=True)), canonical.encode(dict(json.loads(original), schema="wharf.binary.association/v1")), canonical.encode(dict(json.loads(original), schema="wharf.binary.native.association/v2")), canonical.encode({name: value for name, value in json.loads(original).items() if name != "plan"})):
             with self.subTest(raw=raw[:40]), self.world.wired(), mock.patch.object(public, "reference", return_value=raw), self.assertRaises(Refusal):
                 public.read("PerishLab/demo", self.world.source["marker"], MACOS)
 
@@ -86,6 +99,68 @@ class Public(unittest.TestCase):
             result = linux.produce(self.world.held)
             self.assertEqual(result["state"], "proven")
         self.assertFalse(any("native-" in key for key in self.world.public.objects))
+
+    def test_discovery_time_is_bound_to_the_actual_issuer_job_start(self):
+        self.publish()
+        location = self.world.root + "/build/native-darwin-arm64.json"
+        index = json.loads(self.world.public.objects[location])
+        for started in ("2099-01-01T00:00:00Z", "2099-13-99T00:00:00Z"):
+            index["started"] = started
+            self.world.public.objects[location] = canonical.encode(index)
+            with self.subTest(started=started), self.world.wired(), self.assertRaises(Refusal):
+                public.read("PerishLab/demo", self.world.source["marker"], MACOS)
+
+    def test_complete_readback_checks_all_sealed_native_targets_without_writes(self):
+        self.publish()
+        before = copy.deepcopy(self.world.public.objects)
+        with self.world.wired():
+            result = public.check({"repository": "PerishLab/demo", "marker": self.world.source["marker"]})
+        self.assertEqual(set(result["targets"]), {MACOS, WINDOWS})
+        self.assertFalse(result["promotion"])
+        self.assertEqual(before, self.world.public.objects)
+
+    def test_complete_readback_refuses_missing_platform_declaration(self):
+        self.publish()
+        with self.world.wired():
+            original = public.read("PerishLab/demo", self.world.source["marker"], MACOS)
+        changed = copy.deepcopy(original)
+        changed[0]["declaration"]["targets"][WINDOWS]["installed"] = []
+        with self.world.wired(), mock.patch.object(public, "read", return_value=changed), self.assertRaisesRegex(Refusal, "complete sealed target coverage"):
+            public.check({"repository": "PerishLab/demo", "marker": self.world.source["marker"]})
+
+    def test_complete_readback_refuses_cross_target_declaration_drift(self):
+        self.publish()
+        with self.world.wired():
+            proofs = [public.read("PerishLab/demo", self.world.source["marker"], name) for name in sorted((MACOS, WINDOWS))]
+        proofs[1][0]["declaration"]["windows"] = "machine"
+        with self.world.wired(), mock.patch.object(public, "read", side_effect=proofs), self.assertRaisesRegex(Refusal, "disagree on the complete declaration"):
+            public.check({"repository": "PerishLab/demo", "marker": self.world.source["marker"]})
+
+    def test_complete_readback_refuses_publication_change_between_targets(self):
+        self.publish()
+        held = {"repository": "PerishLab/demo", "marker": self.world.source["marker"]}
+        with self.world.wired():
+            observed = public.snapshot(dict(held, run="null"))
+            proofs = [public.read(held["repository"], held["marker"], name) for name in sorted((MACOS, WINDOWS))]
+        changed = copy.deepcopy(observed)
+        changed["publisher"]["attempt"] = "2"
+        with mock.patch.object(public, "snapshot", side_effect=[observed, changed]), mock.patch.object(public, "read", side_effect=proofs), self.assertRaisesRegex(Refusal, "publication changed"):
+            public.check(held)
+
+    def test_complete_readback_keeps_unavailable_second_platform_unknown(self):
+        self.publish()
+        original = self.world.fetch
+        url = AUTHORITY + "/" + self.world.root + "/build/native-windows-x64.json"
+
+        def fetch(location):
+            if location == url:
+                raise spec.Unavailable("http", {"status": 404})
+            return original(location)
+
+        with self.world.wired(), mock.patch.object(self.world, "fetch", side_effect=fetch) as fetched, self.assertRaises(spec.Unavailable) as raised:
+            public.check({"repository": "PerishLab/demo", "marker": self.world.source["marker"]})
+        self.assertEqual(raised.exception.details, {"stage": "discovery", "target": WINDOWS, "marker": self.world.source["marker"], "status": 404})
+        self.assertEqual(sum(call.args[0] == url for call in fetched.call_args_list), 1)
 
 
 class Transport(unittest.TestCase):
