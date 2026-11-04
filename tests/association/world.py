@@ -63,7 +63,7 @@ class World(Linux):
         bound = {name: bind.bind(body, binding) for name, body in built.items() if name != "receipt.json"}
         if specification["signature"]:
             bound = {name: sign(body, name) for name, body in bound.items()}
-        bound["receipt.json"] = canonical.encode({"action": "ship.identity", "binding": binding, "binaries": [{"file": name, "origin": bind.inspect(body)[0], "signature": specification["signature"], **entry(body)} for name, body in bound.items()]})
+        bound["receipt.json"] = canonical.encode({"action": "ship.identity", "binding": binding, "binaries": [{"file": spec.filename(name, selected), "origin": bind.inspect(bound[spec.filename(name, selected)])[0], "signature": specification["signature"], **entry(bound[spec.filename(name, selected)])} for name in sorted(self.declaration["built"])]})
         self.store((bound_key, binding_basis, dict(self.publisher, repository="PerishLab/demo", marker=self.source["marker"])), bound)
         self.plan["entries"]["binary-" + specification["unit"]] = {"key": key, "decision": "skip" if shared else "run"}
         self.plan["entries"]["bind-" + specification["unit"]] = {"key": bound_key, "decision": "run"}
