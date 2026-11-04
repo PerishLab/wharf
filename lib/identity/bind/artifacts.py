@@ -63,7 +63,7 @@ def binaries(public, declaration, built, bound):
     receipt = bound["receipt"]
     expected_binding = bind.inspect(bound["files"][names[0] + "-" + TARGET])[1]
     require(receipt.get("action") == "ship.identity" and receipt.get("binding") == expected_binding, "binding receipt identity differs")
-    expected = [{"file": name + "-" + TARGET, "origin": result[name]["origin"], "signature": None, **entry(bound["files"][name + "-" + TARGET])} for name in names]
+    expected = [{"file": name + "-" + TARGET, "origin": result[name]["origin"], "signature": None, **entry(bound["files"][name + "-" + TARGET])} for name in sorted(names)]
     require(receipt.get("binaries") == expected, "binding receipt is incomplete or carries unsupported signing")
     return result
 
