@@ -94,6 +94,27 @@ class Content(unittest.TestCase):
             artifacts.unpack(stream.getvalue(), ["demo"])
 
 
+class Receipt(unittest.TestCase):
+    def test_canonical_bare_name_order_is_independent_of_declaration_order(self):
+        class Reversed(World):
+            names = ("demo-api", "demo")
+
+        world = Reversed()
+        with world.wired():
+            public = control.public(world.held)
+            facts = producer.verified(world.blob, public, world.plan)
+        rows = facts["binding"]["receipt"]["binaries"]
+        self.assertEqual([row["file"] for row in rows], ["demo-" + TARGET, "demo-api-" + TARGET])
+        self.assertEqual(facts["build"]["receipt"]["binaries"], ["demo-api", "demo"])
+        self.assertEqual(set(facts["binaries"]), {"demo", "demo-api"})
+        self.assertEqual(set(facts["files"]), {"demo"})
+        for changed in (list(reversed(rows)), rows[:1], rows + rows[:1], [dict(rows[0], signature="adhoc"), rows[1]], [dict(rows[0], sha256="f" * 64), rows[1]]):
+            loaded = copy.deepcopy(facts["binding"])
+            loaded["receipt"]["binaries"] = changed
+            with self.subTest(rows=changed), self.assertRaises(Refusal):
+                artifacts.binaries(public, world.declaration, facts["build"], loaded)
+
+
 class Declaration(unittest.TestCase):
     def test_current_plan_freezes_all_and_installed_separately(self):
         with tempfile.TemporaryDirectory() as directory:

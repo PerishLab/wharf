@@ -18,6 +18,8 @@ AUTHORITY = "https://releases.demo.perish.uk"
 
 
 class World:
+    names = ("demo", "demo-api")
+
     def __init__(self, version="v1.2.3-rc.1", shared=None, commit=None):
         self.blob = shared.blob if shared else Bucket()
         self.public = shared.public if shared else Bucket()
@@ -27,7 +29,7 @@ class World:
         self.publisher = {"run": "7" if "rc" in version else "8", "attempt": "1", "wharf": "a" * 40}
         self.observer = {"run": "20" if "rc" in version else "21", "attempt": "1", "wharf": "a" * 40}
         self.started = "2026-10-30T10:00:00Z"
-        self.declaration = {"manifest": "d" * 64, "target": TARGET, "built": ["demo", "demo-api"], "installed": ["demo"]}
+        self.declaration = {"manifest": "d" * 64, "target": TARGET, "built": list(self.names), "installed": ["demo"]}
         self.basis = {"entry": {"kind": "cargo-binary", "binaries": self.declaration["built"], "target": TARGET, "runner": "ubuntu-24.04", "packages": ["demo"]}, "toolchain": {"channel": "1.96.1", "profile": "minimal", "components": ["clippy", "rustfmt"], "targets": []}, "manifest": {"Cargo.toml": "e" * 40}, "members": {"crates/demo": "f" * 40}, "lock": [["demo", "0.0.0", "", ""]], "config": {}, "widened": WIDENED}
         self.build_key = workload.key(self.basis, implementation.resourced(*CARGO))
         built = {}
@@ -43,7 +45,7 @@ class World:
         self.bind_key = workload.key(binding_basis, implementation.resourced(*BIND))
         binding = {"product": "demo", "marker": version, "commit": self.source["commit"], "digest": canonical.digest(self.source), "workload": self.build_key}
         bound = {name: bind.bind(body, binding) for name, body in built.items() if name != "receipt.json"}
-        receipt = {"action": "ship.identity", "binding": binding, "binaries": [{"file": name, "origin": bind.inspect(body)[0], "signature": None, **entry(body)} for name, body in bound.items()]}
+        receipt = {"action": "ship.identity", "binding": binding, "binaries": [{"file": name + "-" + TARGET, "origin": bind.inspect(bound[name + "-" + TARGET])[0], "signature": None, **entry(bound[name + "-" + TARGET])} for name in sorted(self.names)]}
         bound["receipt.json"] = canonical.encode(receipt)
         context = dict(self.publisher, repository="PerishLab/demo", marker=version)
         self.store((self.bind_key, binding_basis, context), bound)
