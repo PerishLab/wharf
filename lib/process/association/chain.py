@@ -68,7 +68,7 @@ def binaries(subject, declared, built, bound):
         result[name] = facts
     receipt = bound["receipt"]
     require(receipt.get("action") == "ship.identity" and receipt.get("binding") == binding, "native binding receipt identity differs")
-    expected = [{"file": filename(name, selected), "origin": result[name]["origin"], "signature": target(selected)["signature"], **entry(bound["files"][filename(name, selected)])} for name in names]
+    expected = [{"file": filename(name, selected), "origin": result[name]["origin"], "signature": target(selected)["signature"], **entry(bound["files"][filename(name, selected)])} for name in sorted(names)]
     require(receipt.get("binaries") == expected, "native binding receipt inventory or signature differs")
     return result
 
