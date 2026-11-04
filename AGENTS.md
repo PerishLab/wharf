@@ -1489,6 +1489,20 @@ accepted only when their recorded declaration digest can be matched to the exact
 source manifest and their producer plans and workload chains remain available.
 Unknown historical implementation, missing material or declaration drift refuses.
 
+New ship workload records retain the executing run and attempt separately from
+their `wharf.plan.reference/v1` reference. That reference binds the exact plan
+bytes, product source, Wharf source and original planner attempt of the same run.
+The planner output carries the same reference into distribution, which verifies
+the exact private plan bytes and planner attempt before opening its release writer.
+First completion
+and its plan remain paired across later observations; a new plan never repairs an
+older completion or immutable workload. Association authenticates execution and
+planner identities independently, requires the original successful planner record
+step and checks the referenced digest and planned workload entry. Linux and native
+public proofs retain and independently validate those identities. The exact legacy
+shape still addresses its single recorded attempt; missing history refuses without
+searching earlier attempts, consulting latest pointers or rewriting old records.
+
 Association supports Ubuntu 24.04 builds of `x86_64-unknown-linux-gnu` ELF and the
 existing deterministic Linux installation tar.gz representation only. It recomputes
 build and binding keys from their actual basis and implementation, verifies every

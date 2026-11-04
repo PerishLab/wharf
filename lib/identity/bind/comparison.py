@@ -2,7 +2,7 @@ import json
 from pathlib import Path
 
 from lib.content import canonical, marker
-from lib.identity.bind import artifacts, control, inventory
+from lib.identity.bind import artifacts, control, inventory, storage
 from lib.identity.bind.spec import TARGET, entry, issuer, require
 from lib.media import release
 from lib.store import plan
@@ -18,13 +18,18 @@ def read(repository, version):
     raw = release.fetch(reference["url"])
     require(entry(raw) == {name: reference.get(name) for name in ("size", "sha256")}, "Linux association proof bytes differ")
     proof = json.loads(raw)
-    require(isinstance(proof, dict) and set(proof) == {"schema", "issuer", "source", "publisher", "resolution", "target", "declaration", "seal", "archive", "files", "binaries", "build", "binding", "evidence"}, "Linux association proof fields differ")
+    fields = {"schema", "issuer", "source", "publisher", "resolution", "target", "declaration", "seal", "archive", "files", "binaries", "build", "binding", "evidence"}
+    require(isinstance(proof, dict) and set(proof) in (fields, fields | {"plan"}), "Linux association proof fields differ")
     require(proof.get("schema") == "wharf.binary.association/v1" and proof.get("issuer") == issuer() and proof.get("target") == TARGET, "Linux association policy or implementation is unsupported")
     source = control.source(proof["source"])
     require(index["source"] == source, "Linux association discovery points to another source")
     require(source["repository"] == repository and source["marker"] == version, "Linux association proof belongs to another publication")
     record = json.loads(release.fetch(f"{authority}/{root}/distribution.json"))
     require(record.get("state") == "complete" and {name: record.get(name) for name in source} == source and record.get("completed") == proof["publisher"] and canonical.digest(plan.lineage(dict(record.get("resolution", {}).get("binaries", {}), guard={}))) == proof["resolution"], "Linux association publication context changed")
+    storage.published(proof, record)
+    for name in ("build", "binding"):
+        if "plan" in proof[name]["producer"]:
+            storage.origin(proof[name]["producer"])
     declaration = inventory.validate(proof["declaration"])
     require(proof["seal"].get("url") == f"{authority}/{root}/seal.json", "Linux association seal reference is foreign")
     raw = release.fetch(proof["seal"]["url"])

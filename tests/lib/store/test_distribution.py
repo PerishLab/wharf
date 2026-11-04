@@ -1,8 +1,11 @@
 import json
 import unittest
+from unittest import mock
 
+from lib.content import canonical
 from lib.refusal import Refusal
-from lib.store import distribution
+from lib.store import distribution, plan
+from scripts import distribution as recording
 from tests.lib.store.memory import Memory
 
 CONTEXT = {"repository": "PerishLab/plumb", "marker": "v0.42.0-rc.1", "commit": "a" * 40, "tree": "b" * 40, "wharf": "c" * 40, "run": "7", "attempt": "1"}
@@ -15,7 +18,7 @@ SNAPSHOT = {"schema": "wharf.release.snapshot/v1", "source": {field: CONTEXT[fie
 
 
 def needs(**results):
-    held = {"plan": {"result": "success", "outputs": dict(DECIDED, presence=json.dumps(PRESENCE))}, "layer-1": {"result": "success"}}
+    held = {"plan": {"result": "success", "outputs": dict(DECIDED, planned="1", presence=json.dumps(PRESENCE))}, "layer-1": {"result": "success"}}
     for job, decision in DECIDED.items():
         held[job] = {"result": results.get(job, "success" if decision == "run" else "skipped")}
         if job != "channel" and held[job]["result"] == "success":
@@ -65,6 +68,41 @@ class Record(unittest.TestCase):
         held = self.standing()
         self.assertEqual((held["state"], held["media"]["npm"], held["media"]["channel"]), ("complete", "published", "pointed"))
         self.assertEqual(held["completed"]["attempt"], "2")
+
+    def test_retained_planner_reference_stays_paired_with_first_completion(self):
+        reference = plan.reference(plan.document(CONTEXT, {}, {}))
+        held = needs()
+        held["plan"]["outputs"]["plan-reference"] = json.dumps(reference)
+        self.record(held, attempt="2")
+        self.assertEqual(self.standing()["plan"], reference)
+        fresh = needs()
+        fresh["plan"]["outputs"]["plan-reference"] = json.dumps(plan.reference(plan.document(dict(CONTEXT, run="8"), {}, {})))
+        self.record(fresh, run="8")
+        self.assertEqual(self.standing()["completed"]["attempt"], "2")
+        self.assertEqual(self.standing()["plan"], reference)
+        self.assertEqual(self.standing()["attempt"]["run"], "8")
+
+    def test_later_plan_never_attaches_to_a_legacy_completion(self):
+        self.record(needs())
+        fresh = needs()
+        fresh["plan"]["outputs"]["plan-reference"] = json.dumps(plan.reference(plan.document(dict(CONTEXT, run="8"), {}, {})))
+        self.record(fresh, run="8")
+        self.assertNotIn("plan", self.standing())
+        self.assertEqual(self.standing()["completed"]["run"], "7")
+
+    def test_foreign_planner_reference_refuses_before_distribution_write(self):
+        held = needs()
+        held["plan"]["outputs"]["plan-reference"] = json.dumps(plan.reference(plan.document(dict(CONTEXT, commit="d" * 40), {}, {})))
+        with self.assertRaisesRegex(Refusal, "another source"):
+            self.record(held)
+        self.assertFalse(self.bucket.writes)
+
+    def test_a_reference_to_a_different_successful_attempt_cannot_become_completion(self):
+        held = needs()
+        held["plan"]["outputs"].update(planned="2", **{"plan-reference": json.dumps(plan.reference(plan.document(CONTEXT, {}, {})))})
+        with self.assertRaisesRegex(Refusal, "actual planner attempt"):
+            self.record(held, attempt="2")
+        self.assertFalse(self.bucket.writes)
 
     def test_nothing_published_or_complete_is_taken_back(self):
         self.record(needs())
@@ -146,3 +184,35 @@ class Record(unittest.TestCase):
         with self.assertRaisesRegex(Refusal, "release identity"):
             self.record(held)
         self.assertEqual(self.bucket.writes, [])
+
+
+class Publication(unittest.TestCase):
+    def setUp(self):
+        self.blob = Memory()
+        self.public = Memory()
+        self.document = plan.document(CONTEXT, {}, {})
+        self.reference = plan.reference(self.document)
+        self.blob.objects[plan.location(CONTEXT)] = canonical.encode(self.document)
+
+    def held(self, reference):
+        observed = needs()
+        observed["plan"]["outputs"]["plan-reference"] = json.dumps(reference)
+        return dict(CONTEXT, attempt="2", trial="null", needs=json.dumps(observed))
+
+    def test_real_plan_bytes_are_verified_before_the_release_writer_is_opened(self):
+        with mock.patch.object(recording.r2, "configured", return_value=self.blob), mock.patch.object(recording.r2, "writer", return_value=self.public), mock.patch.object(recording.release, "fetch", side_effect=lambda url: self.public.get(KEY)), mock.patch.object(recording.parameters, "answer"):
+            self.assertEqual(recording.record(self.held(self.reference))["state"], "complete")
+        self.assertEqual(json.loads(self.public.get(KEY))["plan"], self.reference)
+        self.assertFalse(self.blob.writes)
+
+    def test_altered_unavailable_or_foreign_plan_never_opens_the_release_writer(self):
+        for change in ({"sha256": "f" * 64}, {"commit": "f" * 40}, {"run": "8"}):
+            with self.subTest(change=change), mock.patch.object(recording.r2, "configured", return_value=self.blob), mock.patch.object(recording.r2, "writer") as writer:
+                with self.assertRaises(Refusal):
+                    recording.record(self.held(dict(self.reference, **change)))
+                writer.assert_not_called()
+        self.blob.objects.clear()
+        with mock.patch.object(recording.r2, "configured", return_value=self.blob), mock.patch.object(recording.r2, "writer") as writer:
+            with self.assertRaises(Refusal):
+                recording.record(self.held(self.reference))
+            writer.assert_not_called()

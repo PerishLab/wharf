@@ -70,7 +70,12 @@ def writer(held, runner):
 def publish(held, bucket, key, produced):
     if "confirm" in held:
         held["confirm"]()
-    return workload.publish(bucket, key, produced)
+    context = {name: held[name] for name in (*CONTEXT, "attempt")}
+    document = plan.read(bucket, dict(context, attempt=held["planned"]))
+    if document["context"].get("attempt") != held["planned"]:
+        raise Refusal("workload plan attempt differs from the consumed planner")
+    context = plan.recorded(context, document)
+    return workload.publish(bucket, key, replace(produced, context=context))
 
 
 def pack(held):

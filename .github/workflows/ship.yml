@@ -122,6 +122,7 @@ jobs:
       channel: ${{ steps.channel.outputs.decision }}
       cargo: ${{ steps.cargo.outputs.decision }}
       planned: ${{ steps.plan.outputs.planned }}
+      plan-reference: ${{ steps.plan.outputs.plan-reference }}
       presence: ${{ steps.plan.outputs.presence }}
       snapshot: ${{ steps.plan.outputs.snapshot }}
       trial: ${{ steps.plan.outputs.trial }}
@@ -968,6 +969,8 @@ jobs:
         env:
           WHARF_TRIAL: ${{ needs.plan.outputs.trial }}
           WHARF_NEEDS: ${{ toJSON(needs) }}
+          WHARF_R2_ACCESS_KEY_ID: ${{ secrets.WHARF_R2_ACCESS_KEY_ID }}
+          WHARF_R2_SECRET_ACCESS_KEY: ${{ secrets.WHARF_R2_SECRET_ACCESS_KEY }}
           WHARF_REPOSITORY: ${{ inputs.repository }}
           WHARF_MARKER: ${{ inputs.marker }}
           WHARF_COMMIT: ${{ needs.plan.outputs.commit }}
@@ -1082,6 +1085,7 @@ jobs:
       - name: "[compare] published binary"
         if: inputs.reference != '' && steps.proved.outputs.ready == 'true'
         env:
+          GH_TOKEN: ${{ github.token }}
           WHARF_REPOSITORY: ${{ inputs.repository }}
           WHARF_MARKER: ${{ inputs.marker }}
           WHARF_REFERENCE: ${{ inputs.reference }}

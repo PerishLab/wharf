@@ -9,7 +9,7 @@ from lib.process.trial import admission, consumer, judgment, declaration
 from lib.process.trial import credential, transport
 from lib.process.promotion import operation as promotion
 from lib.process.promotion import preflight, prepared
-from lib.store import distribution, r2
+from lib.store import distribution, plan, r2
 from lib.process.association import producer as native, public as native_public, candidate as native_candidate
 
 IDENTITY = ("repository", "marker", "commit", "tree")
@@ -22,7 +22,18 @@ def record(held):
     context = {field: held[field] for field in CONTEXT}
     trial = json.loads(held.get("trial", "null"))
     context["trial"] = None if trial is None else declaration.bound(trial, {field: context[field] for field in IDENTITY})
-    result = distribution.record(r2.writer(bucket, "RELEASES"), context, json.loads(held["needs"]), lambda key: release.fetch(f"{authority}/{key}"))
+    needs = json.loads(held["needs"])
+    if needs.get("plan", {}).get("result") == "success":
+        outputs = needs["plan"].get("outputs", {})
+        try:
+            reference = json.loads(outputs.get("plan-reference", ""))
+        except (TypeError, ValueError):
+            raise Refusal("successful planner has no valid immutable plan reference") from None
+        query = plan.provenance(context, reference)
+        if query["attempt"] != outputs.get("planned"):
+            raise Refusal("distribution reference differs from the actual planner attempt")
+        plan.referenced(r2.configured(), context, reference)
+    result = distribution.record(r2.writer(bucket, "RELEASES"), context, needs, lambda key: release.fetch(f"{authority}/{key}"))
     parameters.answer({"state": result["state"]})
     return result
 

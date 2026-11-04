@@ -10,6 +10,7 @@ PUBLISHED = ("npm", "oci", "chart", "cargo", "release", "channel", "cfworker")
 NAMED = re.compile(r"[A-Za-z0-9._-]+/[A-Za-z0-9._-]+")
 COMMIT = re.compile(r"[0-9a-f]{40}")
 REMEMBERED = {"snapshot", "run", "attempt"}
+REFERENCE = {"repository", "marker", "commit", "tree", "wharf", "run", "attempt"}
 
 
 def named(context):
@@ -132,6 +133,51 @@ def read(bucket, context):
     if held.get("schema") != SCHEMA:
         raise Refusal(f"{location(context)} is not a schema {SCHEMA} plan")
     return held
+
+
+def reference(document):
+    context = document["context"]
+    return {"schema": "wharf.plan.reference/v1", **{name: context[name] for name in REFERENCE}, "sha256": canonical.digest(document)}
+
+
+def provenance(context, held):
+    if not isinstance(held, dict) or set(held) != REFERENCE | {"schema", "sha256"} or held["schema"] != "wharf.plan.reference/v1":
+        raise Refusal("plan reference fields or schema differ")
+    if not isinstance(held["repository"], str) or not NAMED.fullmatch(held["repository"]) or not isinstance(held["marker"], str) or not marker.holds(held["marker"]):
+        raise Refusal("plan reference product identity is invalid")
+    if any(not isinstance(held[name], str) or not COMMIT.fullmatch(held[name]) for name in ("commit", "tree", "wharf")):
+        raise Refusal("plan reference source identity is invalid")
+    if not isinstance(held["sha256"], str) or not re.fullmatch(r"[0-9a-f]{64}", held["sha256"]):
+        raise Refusal("plan reference digest is invalid")
+    for name in ("run", "attempt"):
+        value = held[name]
+        if not isinstance(value, str) or not re.fullmatch(r"[1-9][0-9]{0,19}", value):
+            raise Refusal("plan reference native identity is invalid")
+    if any(context.get(name) != held[name] for name in REFERENCE - {"attempt"} if name in context):
+        raise Refusal("plan reference belongs to another source or run")
+    attempt = context.get("attempt")
+    if not isinstance(attempt, str) or not re.fullmatch(r"[1-9][0-9]{0,19}", attempt) or int(held["attempt"]) > int(attempt):
+        raise Refusal("plan reference attempt is in the future or invalid")
+    return {name: held[name] for name in REFERENCE}
+
+
+def referenced(bucket, context, held):
+    query = provenance(context, held)
+    raw = bucket.get(location(query))
+    try:
+        document = json.loads(raw)
+        matches = canonical.encode(document) == raw and type(document.get("schema")) is int and document["schema"] == SCHEMA and reference(document) == held
+    except (ValueError, TypeError, KeyError, AttributeError):
+        matches = False
+    if not matches:
+        raise Refusal("referenced plan bytes or source differ")
+    return document
+
+
+def recorded(context, document):
+    held = reference(document)
+    provenance(context, held)
+    return dict(context, plan=held)
 
 
 def planned(document, name):

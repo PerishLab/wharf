@@ -94,14 +94,16 @@ class Building(unittest.TestCase):
         self.stored({"binary-linux": {"key": self.key, "decision": "run"}})
         self.run_binary()
         record = json.loads(self.bucket.objects[f"workload/1/{self.key}/record.json"])
-        self.assertEqual(record["context"], CONTEXT)
+        self.assertEqual({name: record["context"][name] for name in CONTEXT}, CONTEXT)
+        self.assertEqual(record["context"]["plan"], plan.reference(plan.read(self.bucket, CONTEXT)))
 
     def test_a_failed_job_run_again_reads_the_plan_its_run_recorded(self):
         self.stored({"binary-linux": {"key": self.key, "decision": "run"}})
         self.held.update(attempt="2", planned="1")
         self.assertEqual(self.run_binary()["state"], "recorded")
         record = json.loads(self.bucket.objects[f"workload/1/{self.key}/record.json"])
-        self.assertEqual(record["context"], dict(CONTEXT, attempt="2"))
+        self.assertEqual({name: record["context"][name] for name in CONTEXT}, dict(CONTEXT, attempt="2"))
+        self.assertEqual(record["context"]["plan"], plan.reference(plan.read(self.bucket, CONTEXT)))
 
     def test_a_plan_that_decided_to_skip_stops_the_job(self):
         self.stored({"binary-linux": {"key": self.key, "decision": "skip"}})

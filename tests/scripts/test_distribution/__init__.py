@@ -7,9 +7,11 @@ import unittest
 from unittest import mock
 
 from lib import parameters
+from lib.content import canonical
 from scripts import distribution
 from lib.process.trial import admission, consumer, judgment, declaration
 from lib.refusal import Refusal
+from tests.lib.store.memory import Memory
 
 HELD = {"repository": "PerishLab/plumb", "marker": "v0.42.0", "commit": "a" * 40, "tree": "b" * 40, "wharf": "c" * 40, "run": "7", "attempt": "1", "needs": json.dumps({"plan": {"result": "success"}})}
 
@@ -23,6 +25,12 @@ class Taken(unittest.TestCase):
 class Record(unittest.TestCase):
     def test_the_record_is_written_to_the_product_release_bucket_and_read_back_from_its_authority(self):
         seen = {}
+        document = distribution.plan.document({name: HELD[name] for name in distribution.CONTEXT}, {}, {})
+        reference = distribution.plan.reference(document)
+        needs = {"plan": {"result": "success", "outputs": {"planned": "1", "plan-reference": json.dumps(reference)}}}
+        held = dict(HELD, needs=json.dumps(needs))
+        blob = Memory()
+        blob.objects[distribution.plan.location(document["context"])] = canonical.encode(document)
 
         def record(bucket, context, needs, reader):
             seen.update(bucket=bucket, context=context, needs=needs)
@@ -30,12 +38,12 @@ class Record(unittest.TestCase):
                 seen["read"] = reader("v1/releases/stable/v0.42.0/distribution.json")
             return {"state": "complete"}
 
-        with mock.patch.object(distribution.r2, "writer", side_effect=lambda name, role: (name, role)), mock.patch.object(distribution.distribution, "record", side_effect=record), mock.patch.object(distribution.parameters, "answer") as answer:
-            self.assertEqual(distribution.record(HELD), {"state": "complete"})
+        with mock.patch.object(distribution.r2, "configured", return_value=blob), mock.patch.object(distribution.r2, "writer", side_effect=lambda name, role: (name, role)), mock.patch.object(distribution.distribution, "record", side_effect=record), mock.patch.object(distribution.parameters, "answer") as answer:
+            self.assertEqual(distribution.record(held), {"state": "complete"})
         answer.assert_called_once_with({"state": "complete"})
         self.assertEqual(seen["bucket"], ("perish-plumb-releases", "RELEASES"))
         self.assertEqual(seen["read"], "https://releases.plumb.perish.uk/v1/releases/stable/v0.42.0/distribution.json")
-        self.assertEqual((seen["context"]["commit"], seen["needs"]), ("a" * 40, {"plan": {"result": "success"}}))
+        self.assertEqual((seen["context"]["commit"], seen["needs"]), ("a" * 40, needs))
 
 
 def publisher():
