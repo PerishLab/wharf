@@ -7,6 +7,7 @@ from lib import parameters
 from lib.content import executables
 from lib.identity.bind import publication
 from lib.media import release
+from lib.media.release import completion
 from lib.refusal import Refusal
 from lib.store import r2
 
@@ -24,7 +25,7 @@ def plan(held):
 
 
 def point(held):
-    context = publication.read(held)
+    context = publication.read(held, completion.validate)
     pointed = released(held)
     managers = Path(tempfile.mkdtemp()) / "managers"
     bucket = r2.writer(release.place(pointed)[1], "RELEASES")

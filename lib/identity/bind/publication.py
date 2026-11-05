@@ -57,7 +57,7 @@ def planned(held):
     return {name: held[name] for name in ("repository", "marker", "wharf", "run")} | {"attempt": original["attempt"]}
 
 
-def read(held):
+def read(held, continuation=None):
     try:
         query = planned(held)
         bucket = r2.configured()
@@ -72,6 +72,9 @@ def read(held):
         require(git(held["source"], "rev-parse", "HEAD") == source["commit"] and git(held["source"], "rev-parse", "HEAD^{tree}") == source["tree"], "channel checkout differs from planned source")
         require(not git(held["source"], "status", "--porcelain", "--untracked-files=all"), "channel checkout is dirty")
         require(bucket.get(plan.publication(context)) == canonical.encode(frozen), "channel publication reservation differs")
+        if "completion" in context:
+            require(continuation is not None, "channel requires sealed completion revalidation")
+            continuation(bucket, dict(context, source=held["source"]), context["completion"])
         return source
     except Refusal:
         raise

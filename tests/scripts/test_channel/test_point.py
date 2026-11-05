@@ -55,8 +55,8 @@ class Point(unittest.TestCase):
         bucket.get.return_value = json.dumps(dict(schema=1, product="plumb", channel="stable", releaseVersion=HELD["marker"], commit="a" * 40, artifacts={key: {} for key in ("linux-x64", "darwin-arm64", "windows-x64")})).encode()
         source = Path(tempfile.mkdtemp())
         (source / "plumb.toml").write_text('[release]\nbinaries = ["plumb"]\ntargets = ["x86_64-unknown-linux-gnu", "aarch64-apple-darwin", "x86_64-pc-windows-msvc"]\n')
-        with mock.patch.object(channel.publication, "read", side_effect=lambda held: dict(held, commit="a" * 40)), mock.patch.object(channel.r2, "writer", return_value=bucket), mock.patch.object(channel.release, "point", side_effect=point):
-            self.assertEqual(channel.point(dict(HELD, source=str(source))), {"pointer": "moved"})
+        with mock.patch.object(channel.publication, "read", side_effect=lambda held, continuation: dict(held, commit="a" * 40)), mock.patch.object(channel.r2, "writer", return_value=bucket), mock.patch.object(channel.release, "point", side_effect=point):
+            self.assertEqual(channel.point(dict(HELD, source=str(source), planned="1")), {"pointer": "moved"})
         self.assertEqual(seen, {"marker": "v0.38.0", "wharf": "c" * 40, "files": ["manage.ps1", "manage.ps1", "manage.sh", "manage.sh"]})
 
     def test_the_canonical_managers_install_what_the_product_declares_for_each_sealed_platform(self):
@@ -65,6 +65,6 @@ class Point(unittest.TestCase):
         (source / "plumb.toml").write_text('[release]\nbinaries = ["santi", "santi-api"]\ntargets = ["x86_64-unknown-linux-gnu", "aarch64-apple-darwin"]\n[release.binary.santi-api]\ninstall = false\n')
         bucket = mock.Mock()
         bucket.get.return_value = json.dumps(dict(schema=1, product="santi", channel="stable", releaseVersion=HELD["marker"], commit="a" * 40, artifacts={"linux-x64": {}, "linux-x64-deb": {}})).encode()
-        with mock.patch.object(channel.publication, "read", side_effect=lambda held: dict(held, commit="a" * 40)), mock.patch.object(channel.r2, "writer", return_value=bucket), mock.patch.object(channel.release, "render", side_effect=lambda release, output, installed, source: rendered.update(installed)), mock.patch.object(channel.release, "point", return_value={}):
-            channel.point(dict(HELD, repository="PerishLab/santi", source=str(source)))
+        with mock.patch.object(channel.publication, "read", side_effect=lambda held, continuation: dict(held, commit="a" * 40)), mock.patch.object(channel.r2, "writer", return_value=bucket), mock.patch.object(channel.release, "render", side_effect=lambda release, output, installed, source: rendered.update(installed)), mock.patch.object(channel.release, "point", return_value={}):
+            channel.point(dict(HELD, repository="PerishLab/santi", source=str(source), planned="1"))
         self.assertEqual(rendered, {"x86_64-unknown-linux-gnu": ["santi"]})

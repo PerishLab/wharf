@@ -11,6 +11,27 @@ from tests.scripts.test_channel.world import World
 
 
 class Publication(unittest.TestCase):
+    def test_completion_requires_revalidation_before_any_channel_write(self):
+        world = World(self)
+        world.context["completion"] = {"schema": "wharf.release.completion/v1"}
+        world.save()
+        with self.assertRaisesRegex(Refusal, "revalidation"):
+            publication.read(world.held)
+        with mock.patch.object(channel.completion, "validate", side_effect=Refusal("completion changed")) as validate:
+            self.rejected(world)
+        validate.assert_called_once_with(world.workload, dict(world.context, source=str(world.root)), world.context["completion"])
+
+    def test_successful_completion_revalidation_precedes_pointer_publication(self):
+        world = World(self)
+        world.context["completion"] = {"schema": "wharf.release.completion/v1"}
+        world.save()
+        def validate(bucket, context, checkpoint):
+            self.assertEqual(world.bucket.writes, [])
+            self.assertEqual(context["snapshot"], world.context["snapshot"])
+        with mock.patch.object(channel.completion, "validate", side_effect=validate) as checked:
+            self.assertEqual(channel.point(world.held)["pointer"]["state"], "advanced")
+        checked.assert_called_once()
+
     def rejected(self, world):
         before = dict(world.bucket.objects)
         private = dict(world.workload.objects)
