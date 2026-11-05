@@ -202,6 +202,18 @@ checkout, frozen snapshot, existing publication reservation and seal must agree;
 missing historical reservations require explicit recovery. Workload access here
 is read-only. This binds publication identity without rebuilding current packages
 or activating Windtun promotion admission.
+An already sealed stable binary-only marker may finish its channel without a
+fresh build world. This completion requires its unchanged clean source, frozen
+publication reservation, genuine original Guard, exact original immutable plan,
+quiescent native run, successful planned native verification and retained build
+records. Every declared archive, optional closed APK placement and pinned manager
+must read back at its sealed content address. The completion plan names that exact
+seal and original plan, carries the historical snapshot as provenance and schedules
+only channel publication. Channel repeats these checks before any write. It never
+rebuilds, signs, overwrites immutable objects or treats cancellation as a pass.
+Missing original evidence, other publication media and Windtun declarations refuse
+this path. A retry retains the same original publisher through completion plans;
+the existing feed, pointer and canonical-manager conditional publication rules apply.
 Skipping is absence from a matrix, not a condition on a job that exists. A
 single job that covers several targets takes them from the plan it already reads, and refuses
 when the plan decided none of them. Whether a medium is already published stays

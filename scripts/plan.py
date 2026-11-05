@@ -10,6 +10,7 @@ from lib.content import declaration, executables, implementation, marker, resour
 from lib.package.debian import package
 from lib.package.debian.version import debian
 from lib.media import cfworker, node, npm, release
+from lib.media.release import completion
 from lib.identity.guard import coverage, material, pull, snapshot
 from lib.identity.bind import inventory
 from lib.process import git
@@ -216,6 +217,11 @@ def record(held):
             raise Refusal("preparation has an existing publication reservation")
     recalled, offers = {}, {}
     expected = plan.reserved(bucket, held, recalled)
+    completed = None if preparing else completion.prepare(held, bucket, expected)
+    if completed is not None:
+        context, entries = completed
+        recorded = completion.recorded(bucket, context, entries)
+        return dict(recorded, storage=storage(bucket), decided=emit(entries, held["attempt"], context["snapshot"]), entry={name: entry["decision"] for name, entry in entries.items()})
     request = snapshot.Request(Path(held["source"]), identity, toolchain.versions(), expected, destination=snapshot.destination(held["source"]), recall=lambda observed: plan.recall(bucket, observed, recalled), pull=lambda: pulled(identity, offers))
     with snapshot.prepared(request) as (root, verified, confirm):
         plan.matching(bucket, held, verified)
