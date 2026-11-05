@@ -13,7 +13,13 @@ from lib.store import plan, r2, workload
 
 def planned(bucket, public):
     context = dict(public["source"], **public["publisher"])
-    document = plan.read(bucket, context)
+    if "plan" in public["distribution"]:
+        reference = public["distribution"]["plan"]
+        query = storage.planner(context, reference)
+        document = plan.referenced(bucket, context, reference)
+        context = query
+    else:
+        document = plan.read(bucket, context)
     require(all(document["context"].get(name) == value for name, value in context.items()), "publication plan belongs to another source or attempt")
     expected = public["distribution"].get("resolution", {}).get("binaries")
     require(expected is not None and plan.combination(document["context"]["snapshot"]) == expected, "publication plan differs from the complete binary resolution")
@@ -53,7 +59,10 @@ def material(bucket, public, facts):
 
 def statement(public, facts, recorded):
     resolution = plan.lineage(dict(public["distribution"]["resolution"]["binaries"], guard={}))
-    return {"schema": "wharf.binary.association/v1", "issuer": issuer(), "source": public["source"], "publisher": public["publisher"], "resolution": canonical.digest(resolution), "target": TARGET, "declaration": facts["declaration"], "seal": public["seal_ref"], "archive": facts["archive"], "files": facts["files"], "binaries": facts["binaries"], "build": storage.summary(facts["build"]), "binding": storage.summary(facts["binding"]), "evidence": recorded}
+    result = {"schema": "wharf.binary.association/v1", "issuer": issuer(), "source": public["source"], "publisher": public["publisher"], "resolution": canonical.digest(resolution), "target": TARGET, "declaration": facts["declaration"], "seal": public["seal_ref"], "archive": facts["archive"], "files": facts["files"], "binaries": facts["binaries"], "build": storage.summary(facts["build"]), "binding": storage.summary(facts["binding"]), "evidence": recorded}
+    if "plan" in public["distribution"]:
+        result["plan"] = public["distribution"]["plan"]
+    return result
 
 
 def subject(value):

@@ -255,6 +255,7 @@ def record(held):
             preflight.planning(held, identity)
         parameters.answer({"trial": json.dumps(suite, sort_keys=True, separators=(",", ":")), "publisher": json.dumps(identity, sort_keys=True, separators=(",", ":")), "windtun": str(suite is not None and marker.channel(identity["marker"]) in ("alpha", "beta", "rc")).lower()})
         recorded = plan.record(bucket, context, entries, engines)
+        parameters.answer({"plan-reference": json.dumps(plan.reference(plan.read(bucket, context)), sort_keys=True, separators=(",", ":"))})
         remembered = False if recalled else plan.remember(bucket, context)
         return dict(recorded, storage=storage(bucket), recalled=recalled or None, pulled=taken, remembered=remembered, decided=emit(entries, held["attempt"], verified), entry={name: entries[name]["decision"] for name in sorted(entries)})
 

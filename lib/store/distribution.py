@@ -47,6 +47,17 @@ def observed(context, needs):
         plan.combination(dict(verified, guard={}))
         resolution[name] = verified
     held = {"schema": 1, **{field: context[field] for field in IDENTITY}, "media": media, "state": state, "attempt": attempt, "completed": attempt if state == "complete" else None}
+    reference = decided.get("plan-reference")
+    if reference:
+        try:
+            reference = json.loads(reference)
+        except (TypeError, ValueError):
+            raise Refusal("distribution plan reference is not valid JSON") from None
+        plan.provenance(context, reference)
+        if reference["attempt"] != decided.get("planned"):
+            raise Refusal("distribution reference differs from the actual planner attempt")
+        if state == "complete":
+            held["plan"] = reference
     if "trial" in context:
         held["trial"] = context["trial"]
     return dict(held, resolution=resolution) if resolution else held
@@ -74,6 +85,10 @@ def merged(standing, fresh):
     if resolution and any(record != next(iter(resolution.values())) for record in resolution.values()):
         raise Refusal("one immutable marker carries different published combinations")
     held = dict(fresh, media=media, state="complete" if completed else "incomplete", completed=completed)
+    if standing["completed"]:
+        held.pop("plan", None)
+        if "plan" in standing:
+            held["plan"] = standing["plan"]
     if "trial" in fresh:
         held["trial"] = fresh["trial"]
     return dict(held, resolution=resolution) if resolution else held

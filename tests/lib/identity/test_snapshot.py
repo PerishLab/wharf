@@ -13,15 +13,15 @@ from lib.identity.guard import execution, snapshot
 from lib.media import oci
 from lib.process import git
 from lib.refusal import Refusal
-from lib.store import plan
+from lib.store import plan, workload
 from tests.lib.media.repository import Repository
 from tests.lib.store.memory import Memory
 
 
 class Execution(unittest.TestCase):
     def setUp(self):
-        self.held = {"repository": "PerishLab/example", "marker": "v1.0.0", "wharf": "b" * 40, "run": "7", "planned": "1", "source": "/original"}
-        self.context = dict(self.held, commit="a" * 40, tree="c" * 40, snapshot={"verified": "receipt"})
+        self.held = {"repository": "PerishLab/example", "marker": "v1.0.0", "wharf": "b" * 40, "run": "7", "attempt": "2", "planned": "1", "source": "/original"}
+        self.context = dict(self.held, attempt="1", commit="a" * 40, tree="c" * 40, snapshot={"verified": "receipt"})
 
     def test_build_refuses_an_old_plan_before_running_source(self):
         del self.context["snapshot"]
@@ -49,9 +49,11 @@ class Execution(unittest.TestCase):
             yield Path("/verified"), request.expected, confirm
         def build(held):
             self.assertEqual(held["source"], Path("/verified"))
-            return execution.publish(held, "bucket", "key", "bytes")
+            return execution.publish(held, "bucket", "key", workload.Produced(Path("/produced"), {}, {}))
         def publish(*args):
             events.append("written")
+            self.assertEqual(args[2].context["attempt"], "2")
+            self.assertEqual(args[2].context["plan"]["attempt"], "1")
             return args
         with mock.patch.object(execution.r2, "configured"), mock.patch.object(execution.plan, "read", return_value={"context": self.context}), mock.patch.object(execution.toolchain, "versions", return_value={}):
             with mock.patch.object(snapshot, "prepared", prepared), mock.patch.object(execution.workload, "publish", publish):

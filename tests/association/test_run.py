@@ -1,9 +1,15 @@
+import copy
+import json
 import os
 import subprocess
 import unittest
 from unittest import mock
 
-from lib.identity.bind import control, storage
+from lib.content import canonical
+from lib.identity.bind import comparison, control, storage
+from lib.identity.bind import producer as legacy
+from lib.store import distribution, plan, workload
+from tests.scripts.test_distribution.binary_world import AUTHORITY
 from lib.process.association import control as native
 from lib.process.association import producer, public
 from lib.refusal import Refusal
@@ -121,3 +127,120 @@ class Composition(unittest.TestCase):
                 public.read("PerishLab/demo", world.source["marker"], "aarch64-apple-darwin")
             trusted.assert_any_call(world.observer, "issuer")
             trusted.assert_any_call(world.publisher, "publisher")
+
+
+def retained(world):
+    reference = plan.reference(world.plan)
+    for entry in world.plan["entries"].values():
+        path = workload.prefix(entry["key"]) + "record.json"
+        record = json.loads(world.blob.get(path))
+        record["context"] = plan.recorded(dict(record["context"], attempt="2"), world.plan)
+        world.blob.objects[path] = canonical.encode(record)
+    world.publisher["attempt"] = "2"
+    world.distribution["plan"] = reference
+    world.documents[AUTHORITY + "/" + world.root + "/distribution.json"] = canonical.encode(world.distribution)
+    return reference
+
+
+def api(world, path):
+    value = world.api(path)
+    if "/attempts/" not in path:
+        return value
+    attempt = int(path.split("/attempts/")[1].split("/")[0])
+    if "/jobs?" not in path:
+        return dict(value, run_attempt=attempt)
+    run = path.split("/")[2]
+    if run == world.observer["run"]:
+        return value
+    job = dict(value["jobs"][0], name="[plan] entries", run_attempt=attempt, status="completed", conclusion="success", steps=[{"name": "[record] plan", "status": "completed", "conclusion": "success"}])
+    return {"total_count": 1, "jobs": [job]}
+
+
+class Retained(unittest.TestCase):
+    def test_legacy_linux_public_read_adds_no_native_api_dependency(self):
+        world = World()
+        world.role = "build-proof"
+        with world.wired():
+            legacy.produce(world.held)
+            with mock.patch.object(control, "api", side_effect=AssertionError("legacy read acquired a new API dependency")):
+                proof, _ = comparison.read(world.source["repository"], world.source["marker"])
+            self.assertNotIn("plan", proof)
+
+    def test_rerun_proves_and_independently_reads_linux_and_native_content(self):
+        world = World()
+        reference = retained(world)
+        with world.wired(), mock.patch.object(control, "api", side_effect=lambda path: api(world, path)):
+            producer.produce(world.held)
+            self.assertEqual(len(public.check(world.held)["targets"]), 2)
+            for selected in world.native:
+                proof, _ = public.read(world.source["repository"], world.source["marker"], selected)
+                self.assertEqual(proof["plan"], reference)
+                self.assertEqual(proof["publisher"]["attempt"], "2")
+                self.assertEqual(proof["build"]["producer"]["plan"]["attempt"], "1")
+            world.role = "build-proof"
+            with mock.patch.dict(os.environ, {"GITHUB_JOB": world.role}):
+                legacy.produce(world.held)
+                proof, _ = comparison.read(world.source["repository"], world.source["marker"])
+            self.assertEqual(proof["plan"], reference)
+            self.assertEqual(proof["binding"]["producer"]["attempt"], "2")
+        self.assertNotIn(plan.location(dict(world.plan["context"], attempt="2")), world.blob.objects)
+
+    def test_fresh_observation_preserves_first_completion_and_original_producer(self):
+        world = World()
+        reference = retained(world)
+        fresh_plan = copy.deepcopy(world.plan)
+        fresh_plan["context"].update(run="9", attempt="1")
+        for entry in fresh_plan["entries"].values():
+            entry["decision"] = "skip"
+        world.blob.objects[plan.location(fresh_plan["context"])] = canonical.encode(fresh_plan)
+        current = {"run": "9", "attempt": "1", "wharf": world.publisher["wharf"]}
+        fresh = dict(world.distribution, attempt=current, completed=current, plan=plan.reference(fresh_plan))
+        world.distribution = distribution.merged(world.distribution, fresh)
+        self.assertEqual(world.distribution["completed"], world.publisher)
+        self.assertEqual(world.distribution["plan"], reference)
+        world.documents[AUTHORITY + "/" + world.root + "/distribution.json"] = canonical.encode(world.distribution)
+        with world.wired(), mock.patch.object(control, "api", side_effect=lambda path: api(world, path)):
+            producer.produce(world.held)
+            self.assertEqual(len(public.check(world.held)["targets"]), 2)
+
+    def test_missing_legacy_producer_plan_never_searches_an_earlier_attempt(self):
+        world = World()
+        context = dict(world.build_context, attempt="2")
+        loaded = {"key": world.build_key, "record": {"context": context}}
+        with world.wired(), mock.patch.object(control, "api", side_effect=lambda path: api(world, path)), mock.patch.object(world.blob, "get", wraps=world.blob.get) as get:
+            with self.assertRaises(Refusal):
+                storage.producer(world.blob, loaded, "binary-linux")
+            get.assert_called_once_with(plan.location(context))
+
+    def test_foreign_future_tampered_and_missing_plan_references_refuse(self):
+        world = World()
+        reference = retained(world)
+        context = dict(world.build_context, attempt="2")
+        for changes in ({"run": "9"}, {"repository": "Other/demo"}, {"wharf": "f" * 40}, {"attempt": "3"}, {"sha256": "f" * 64}, {"commit": "f" * 40}, {"attempt": "02"}, {"extra": True}, {"marker": None}):
+            with self.subTest(changes=changes), self.assertRaises(Refusal):
+                plan.referenced(world.blob, context, dict(reference, **changes))
+        location = plan.location(world.plan["context"])
+        del world.blob.objects[location]
+        with self.assertRaises(Refusal):
+            plan.referenced(world.blob, context, reference)
+
+    def test_plan_digest_does_not_replace_entry_or_native_planner_checks(self):
+        world = World()
+        reference = retained(world)
+        context = dict(world.build_context, attempt="2", plan=reference)
+        loaded = {"key": "e" * 64, "record": {"context": context}}
+        with world.wired(), mock.patch.object(control, "api", side_effect=lambda path: api(world, path)):
+            with self.assertRaisesRegex(Refusal, "differs from its producer"):
+                storage.producer(world.blob, loaded, "binary-linux")
+            with mock.patch.object(storage.publication, "jobs", return_value=[{"name": "[plan] entries", "status": "completed", "conclusion": "failure"}]), self.assertRaisesRegex(Refusal, "planner did not succeed"):
+                storage.origin(context)
+
+    def test_public_readback_rejects_a_retargeted_distribution_plan(self):
+        world = World()
+        retained(world)
+        with world.wired(), mock.patch.object(control, "api", side_effect=lambda path: api(world, path)):
+            producer.produce(world.held)
+            world.distribution["plan"]["sha256"] = "e" * 64
+            world.documents[AUTHORITY + "/" + world.root + "/distribution.json"] = canonical.encode(world.distribution)
+            with self.assertRaisesRegex(Refusal, "plan reference differs"):
+                public.check(world.held)

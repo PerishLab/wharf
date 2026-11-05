@@ -21,6 +21,13 @@ class Credentials:
 
 
 class Store(unittest.TestCase):
+    def test_planner_output_binds_the_exact_stored_plan(self):
+        bucket = self.bucket()
+        result, outputs = self.observe(bucket)
+        reference = next(json.loads(call.args[0]["plan-reference"]) for call in outputs if "plan-reference" in call.args[0])
+        document = json.loads(bucket.get(result["plan"]))
+        self.assertEqual(reference, plan.plan.reference(document))
+
     def bucket(self):
         bucket = Memory()
         bucket.host = "a" * 32 + ".r2.cloudflarestorage.com"

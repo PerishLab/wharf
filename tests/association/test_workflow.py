@@ -5,6 +5,21 @@ from tests.promotion.test_workflow import jobs
 
 
 class Workflow(unittest.TestCase):
+    def test_distribution_receives_the_plan_reference_and_workload_reader(self):
+        source = jobs()
+        self.assertIn("plan-reference: ${{ steps.plan.outputs.plan-reference }}", source["plan"])
+        self.assertIn("WHARF_NEEDS: ${{ toJSON(needs) }}", source["distribution"])
+        self.assertIn("WHARF_R2_ACCESS_KEY_ID: ${{ secrets.WHARF_R2_ACCESS_KEY_ID }}", source["distribution"])
+        self.assertIn("WHARF_R2_SECRET_ACCESS_KEY: ${{ secrets.WHARF_R2_SECRET_ACCESS_KEY }}", source["distribution"])
+
+    def test_linux_comparison_can_read_native_provenance_without_storage_writers(self):
+        source = jobs()["build-proof"]
+        reader = source.split('- name: "[compare] published binary"', 1)[1].split('- name:', 1)[0]
+        self.assertIn("GH_TOKEN: ${{ github.token }}", reader)
+        self.assertIn("actions: read", source)
+        self.assertNotIn("ACCESS_KEY", reader)
+        self.assertNotIn("SECRET", reader)
+
     def test_producer_is_post_distribution_and_reader_holds_no_writers(self):
         source = jobs()["native-proof"]
         self.assertIn("needs: [request, plan, distribution]", source)

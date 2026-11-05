@@ -45,6 +45,8 @@ def statement(publication, facts, recorded):
     result = {"schema": SCHEMA, "issuer": issuer(), "source": publication["source"], "publisher": publication["publisher"], "resolution": canonical.digest(resolution), "seal": publication["seal_ref"], "evidence": recorded}
     result.update({name: facts[name] for name in ("target", "declaration", "archive", "files", "binaries", "managers")})
     result.update({name: storage.summary(facts[name]) for name in ("build", "binding")})
+    if "plan" in publication["distribution"]:
+        result["plan"] = publication["distribution"]["plan"]
     return result
 
 
