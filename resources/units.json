@@ -87,13 +87,30 @@
     "apk": {
       "action": "apk",
       "verb": "build",
-      "object": "apk"
+      "object": "apk",
+      "prepare": [
+        "snapshot",
+        "rust",
+        "node",
+        "pnpm"
+      ]
     },
     "verify-apk": {
       "action": "apk-verify",
       "verb": "verify",
       "object": "apk",
       "runner": "ubuntu-24.04-arm"
+    },
+    "binary-arm64": {
+      "action": "binary",
+      "verb": "build",
+      "object": "binary",
+      "per": "target",
+      "prepare": [
+        "rust",
+        "node",
+        "pnpm"
+      ]
     }
   }
 }

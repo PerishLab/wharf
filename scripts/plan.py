@@ -10,7 +10,7 @@ from lib.content import declaration, executables, implementation, marker, resour
 from lib.package.debian import package
 from lib.package.debian.version import debian
 from lib.media import cfworker, node, npm, release
-from lib.identity.guard import coverage, pull, snapshot
+from lib.identity.guard import coverage, material, pull, snapshot
 from lib.identity.bind import inventory
 from lib.process import git
 from lib.process.promotion import preflight
@@ -238,6 +238,8 @@ def record(held):
         engines = node.expected(root) if node.carried(root) else {}
         taken = attributed(offers, verified["guard"])
         context = dict({field: held[field] for field in CONTEXT}, snapshot=verified, **({"recalled": recalled} if recalled else {}), **({"pulled": taken} if taken is not None else {}))
+        if "binary-arm64" in entries:
+            context["material"] = material.capture(root, verified)
         if suite is not None:
             context["trial"] = suite
         if release.carried(root):

@@ -7,7 +7,7 @@ from lib import parameters
 from lib.cargo import toolchain
 from lib.cargo.version import marker
 from lib.content import implementation
-from lib.identity.guard import snapshot
+from lib.identity.guard import material, snapshot
 from lib.media import npm
 from lib.refusal import Refusal
 from lib.store import plan, r2, workload
@@ -29,7 +29,9 @@ def perform(action, handler, held):
         raise Refusal("this build needs a verified release snapshot in its plan")
     identity = {field: document["context"][field] for field in IDENTITY}
     request = snapshot.Request(Path(held["source"]), identity, toolchain.versions(), expected, snapshot.destination(held["source"]))
-    with snapshot.prepared(request) as (root, record, confirm):
+    native = action == "apk-verify" or action == "binary" and held.get("target") == "aarch64-unknown-linux-musl"
+    prepared = material.prepared(request, document["context"].get("material"), action == "binary") if native else snapshot.prepared(request)
+    with prepared as (root, record, confirm):
         scoped = dict(held, source=root, snapshot=record, confirm=confirm)
         if action in PUBLISHING:
             scoped["publication"] = lambda: admit(bucket, document, request, confirm)
