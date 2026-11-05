@@ -1761,6 +1761,11 @@ no credential.
 
 ## Cargo
 
+Cargo closure includes top-level and target-specific normal, build and dev
+dependencies, with workspace inheritance and path aliases. Publication orders
+all declared packages by that complete packaged graph and refuses cycles;
+the release list order grants no dependency exception.
+
 The perish cargo registry is a static sparse index on R2: `perish-cargo`, served
 at `https://cargo.perish.uk/`, which `resources/registries.json` names. Cargo reads
 it with no API at all — `config.json`, one index file per crate, and the `.crate`

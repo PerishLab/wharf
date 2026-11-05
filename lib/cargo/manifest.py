@@ -75,17 +75,23 @@ def closure(source, workspace, package, kinds=KINDS):
     return sorted(seen)
 
 
+def dependencies(declared, kinds):
+    tables = [declared, *declared.get("target", {}).values()]
+    for table in tables:
+        for kind in kinds:
+            yield from table.get(kind, {}).items()
+
+
 def reached(source, workspace, current, kinds):
     inherited = read(source, "Cargo.toml").get("workspace", {}).get("dependencies", {})
     declared = read(source, f"{workspace[current]}/Cargo.toml")
     found = []
-    for kind in kinds:
-        for name, spec in declared.get(kind, {}).items():
-            base = workspace[current]
-            if isinstance(spec, dict) and spec.get("workspace"):
-                spec, base = inherited.get(name, {}), ""
-            if isinstance(spec, dict) and "path" in spec:
-                found.append(local(workspace, current, spec, base))
+    for name, spec in dependencies(declared, kinds):
+        base = workspace[current]
+        if isinstance(spec, dict) and spec.get("workspace"):
+            spec, base = inherited.get(name, {}), ""
+        if isinstance(spec, dict) and "path" in spec:
+            found.append(local(workspace, current, spec, base))
     return found
 
 
