@@ -21,7 +21,7 @@ def target(value):
 
 
 def code():
-    return implementation.resourced(["lib.process.association.public", "lib.process.association.producer"], ["manager/association.json", "identity/format.json", "releases.json", "build.json", "manager/unix.sh.in", "manager/windows.ps1.in"])
+    return implementation.resourced(["lib.process.association.public", "lib.process.association.producer"], ["manager/association.json", "identity/format.json", "releases.json", "build/config.json", "manager/unix.sh.in", "manager/windows.ps1.in"])
 
 
 def issuer():

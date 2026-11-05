@@ -43,5 +43,5 @@ def prepare(bucket, request, observer):
     after = latest["report"]["evidence"]
     require(all(before[name] == after[name] for name in ("credential", "intent", "source", "tag", "observer", "world")) and before["final_requirements"]["requirements"] == after["final_requirements"]["requirements"], "qualification changed during candidate collection")
     files["qualification.json"] = canonical.encode(latest)
-    result = {"identity": identity, "plan": canonical.digest(document), "qualification": True, "association": True, "scope": {"target": "x86_64-unknown-linux-gnu", "medium": "installation-tar.gz"}, "complete_publication": False, "unassessed": ["macos", "windows", "oci", "cargo", "npm", "chart", "cfworker", "deb", "cross-product"]}
+    result = {"identity": identity, "plan": canonical.digest(document), "qualification": True, "association": True, "scope": {"target": "x86_64-unknown-linux-gnu", "medium": "installation-tar.gz"}, "complete_publication": False, "unassessed": ["linux-arm64-musl", "apk", "macos", "windows", "oci", "cargo", "npm", "chart", "cfworker", "deb", "cross-product"]}
     return result, files

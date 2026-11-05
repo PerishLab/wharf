@@ -46,7 +46,7 @@ class Units(Seeded):
     def test_a_library_suite_consumes_its_exact_native_platform_entry(self):
         held = dict(self.held, target="aarch64-apple-darwin")
         held_basis = {"entry": {"kind": "cargo-suite", "target": held["target"], "runner": "macos-15"}}
-        modules = (["lib.cargo.basis", "lib.cargo.suite"], ["build.json"])
+        modules = (["lib.cargo.basis", "lib.cargo.suite"], ["build/config.json"])
         key = self.key(held_basis, modules)
         self.planned({"suite-macos": {"key": key, "decision": "run"}})
         seen = {}

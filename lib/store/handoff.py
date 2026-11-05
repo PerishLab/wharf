@@ -32,7 +32,7 @@ def recipe(receipt):
     if not isinstance(receipt["implementation"], dict) or not receipt["implementation"]:
         raise Refusal("static build receipt must bind its implementation")
     for name, digest in receipt["implementation"].items():
-        if not isinstance(name, str) or not (name.startswith("lib.") or name in ("resource:registries.json", "resource:build.json", "resource:identity/lane.json")):
+        if not isinstance(name, str) or not (name.startswith("lib.") or name in ("resource:registries.json", "resource:build/config.json", "resource:identity/lane.json")):
             raise Refusal("static implementation identity is malformed")
         preview.matches(digest, preview.HEX[64], "implementation digest")
     if isolated:
@@ -192,10 +192,10 @@ def observed(value):
     options = value["engine"]["SecurityOptions"]
     if not isinstance(options, list) or any(not isinstance(option, str) for option in options) or not any("seccomp" in option and "unconfined" not in option for option in options):
         raise Refusal("isolated engine lacks the trusted seccomp boundary")
-    if value["implementation"] != implementation.resourced(["lib.content.static.runtime"], ["build.json"]):
+    if value["implementation"] != implementation.resourced(["lib.content.static.runtime"], ["build/config.json"]):
         raise Refusal("isolated runtime implementation disagrees with the consumer")
 
 
 def world(isolated=False):
     modules = MODULES + (("lib.content.static.bridge", "lib.content.static.control") if isolated else ())
-    return implementation.resourced(modules, ["registries.json", "identity/lane.json"] + (["build.json"] if isolated else []))
+    return implementation.resourced(modules, ["registries.json", "identity/lane.json"] + (["build/config.json"] if isolated else []))

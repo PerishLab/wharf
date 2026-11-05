@@ -36,7 +36,7 @@ class Writer:
             raise Refusal("cfworker discard pre-write status moved")
         if self._spent:
             raise Refusal("cfworker discard writer was already attempted; no retry")
-        policy = resources.read_json("build.json")["cfworker"]
+        policy = resources.read_json("build/config.json")["cfworker"]
         identity = plan["before"]["preview"]["id"]
         url = f"{policy['api']}/accounts/{selected['account']}/workers/workers/{selected['parent']}/previews/{identity}"
         headers = {"Authorization": "Bearer " + self._token, "Accept": "application/json", "Accept-Encoding": "identity", "User-Agent": "wharf-lane"}
@@ -70,7 +70,7 @@ class Deployer:
         self._client = urllib.request.build_opener(urllib.request.ProxyHandler({}), reader.Redirect())
 
     def _post(self, material):
-        policy = resources.read_json("build.json")["cfworker"]
+        policy = resources.read_json("build/config.json")["cfworker"]
         selected = self._selected
         preview = self._plan["before"]["preview"]
         url = f"{policy['api']}/accounts/{selected['account']}/workers/workers/{selected['parent']}/previews/{preview['id']}/deployments?ignore_defaults=true"

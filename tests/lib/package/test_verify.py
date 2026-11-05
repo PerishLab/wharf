@@ -5,7 +5,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from lib.debian import verify
+from lib.package.debian import verify
 from lib.refusal import Refusal
 
 UNIT = "/lib/systemd/system/santi.service"

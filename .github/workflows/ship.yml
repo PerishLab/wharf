@@ -799,6 +799,7 @@ jobs:
       - name: "[publish] binaries"
         id: published
         env:
+          WHARF_APK_SIGNING_KEY: ${{ secrets.WHARF_APK_SIGNING_KEY }}
           WHARF_PACKAGES_TOKEN: ${{ secrets.PERISHLAB_PACKAGES_READ }}
           WHARF_DOMAIN: ${{ needs.plan.outputs.domain }}
           WHARF_SOURCE: ../product

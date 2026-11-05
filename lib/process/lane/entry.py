@@ -54,7 +54,7 @@ def requested(body):
 
 
 def policy():
-    held = resources.read_json("build.json")
+    held = resources.read_json("build/config.json")
     return dict(held["admission"], workflow=held["lane"]["workflow"])
 
 

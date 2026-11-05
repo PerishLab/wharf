@@ -45,7 +45,7 @@ class Taken(unittest.TestCase):
 
     def test_every_build_target_states_its_name_target_and_runner(self):
         self.assertEqual(sorted(plan.BUILD["targets"][0]), ["name", "runner", "target"])
-        self.assertEqual([target["name"] for target in plan.BUILD["targets"]], ["linux", "windows", "macos"])
+        self.assertEqual([target["name"] for target in plan.BUILD["targets"]], ["linux", "windows", "macos", "arm64"])
 
 
 class Checked(unittest.TestCase):
@@ -189,7 +189,7 @@ class Derived(unittest.TestCase):
         entries = {}
         patches = (
             mock.patch.object(plan.basis, "carried", return_value=rust),
-            mock.patch.object(plan.release, "targets", return_value=list(plan.release.LAYOUT["targets"])),
+            mock.patch.object(plan.release, "targets", return_value=[target for target in plan.release.LAYOUT["targets"] if target != "aarch64-unknown-linux-musl"]),
             mock.patch.object(plan.basis, "resolve", side_effect=lambda source, names, target, runner: {"entry": "binary", "target": target}),
             mock.patch.object(plan.basis, "dependencies", side_effect=lambda source, names, target, runner: {"entry": "dependencies", "target": target}),
             mock.patch.object(plan.basis, "suite", return_value={"entry": "suite"}),

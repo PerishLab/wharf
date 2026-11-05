@@ -55,7 +55,7 @@ class Reader:
     def page(self, number):
         if type(number) is not int or not 1 <= number <= inventory.PAGES:
             raise Refusal("cfworker Worker versions need one bounded exact page number")
-        root = resources.read_json("build.json")["cfworker"]["api"]
+        root = resources.read_json("build/config.json")["cfworker"]["api"]
         url = root + "/accounts/" + self._parent["account"] + "/workers/workers/" + self._parent["id"] + "/versions?per_page=50&page=" + str(number)
         headers = {"Authorization": "Bearer " + self._token, "Accept": "application/json", "Accept-Encoding": "identity", "User-Agent": "wharf-lane"}
         request = urllib.request.Request(url, headers=headers, method="GET")

@@ -178,7 +178,7 @@ class Reader:
         deployment = f"/previews/{name}/deployments/"
         if suffix not in allowed and (not isinstance(suffix, str) or not suffix.startswith(deployment) or not observation.DEPLOYMENT.fullmatch(suffix[len(deployment):])):
             raise Refusal("static provider read needs one exact fixed lane identity endpoint")
-        policy = resources.read_json("build.json")["cfworker"]
+        policy = resources.read_json("build/config.json")["cfworker"]
         account = self._registered["account"]
         parent = self._registered["parent"]
         url = f"{policy['api']}/accounts/{account}/workers/workers/{parent}{suffix}"

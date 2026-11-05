@@ -232,7 +232,7 @@ glibc, 2.39. `[release.deb]` packs it at
 everything under `/etc`, and packs it at `SOURCE_DATE_EPOCH=0` with one
 compressor thread, the fixed instant every archive here uses, so a rerun
 repeats the bytes. `[verify] deb` installs it with a strict `dpkg -i` in the
-`ubuntu:24.04` image `resources/build.json` pins by digest, after only the
+`ubuntu:24.04` image `resources/build/config.json` pins by digest, after only the
 `Depends` it declares, and checks its version, its files, its units and the
 marker its executable reports, starting nothing. It enters the seal as
 `linux-x64-deb`, written by `[publish] binaries` with the credentials that job
@@ -245,6 +245,38 @@ whatever executable it carries, and the deb is built for amd64 alone; a second
 server placement or architecture is a new declaration, not a second table
 today. plumb is the one gate on a declaration's shape, so wharf does not
 repeat its checks, such as the systemd unit a deb must carry.
+
+OpenWrt placement is a closed APK v3 profile for aarch64_cortex-a53 carrying
+an aarch64-unknown-linux-musl executable. Native ARM64 builds and smoke use
+ubuntu-24.04-arm with musl-gcc; APK tools and the ARM64 OpenWrt userspace
+verifier are digest-bound. Plumb owns the declaration and package-root shape.
+Wharf owns version mapping, root ownership, zero timestamps, packaging,
+verification, signing and the feed. Debian and OpenWrt mechanics share the
+lib/package boundary; resources/build carries the build world and fixed APK
+staging script. Product scripts never execute while packaging or signing.
+
+The build workload holds an unsigned APK. Native verification signs a temporary
+copy with a temporary key, installs declared dependencies through that image's
+trusted distribution repositories, installs it in the pinned OpenWrt container, checks
+the package version, exact bound executable and reported marker, removes it and
+removes the container. Its generic ARM64 rootfs retains its architecture beside
+the declared cortex-a53 package architecture only in that disposable fixture.
+The publication job alone receives WHARF_APK_SIGNING_KEY or its _FILE seat.
+It signs a fresh copy and verifies the signature and unchanged metadata/payload
+identities. Unsigned input admission applies to that exact internal signing
+operation alone; installation and feed consumption never allow untrusted data.
+
+A seal carries the signed APK, signed packages.adb and public key as immutable
+objects. The index names the content-addressed package URL. Channel feeds live
+at v1/apk/channels/<channel>/aarch64_cortex-a53/packages.adb and advance through
+conditional replacement after package, key and index public readback. Signed
+prior indexes are version-compared; later versions refuse older activation, conflicting equal
+versions refuse and missing or different trust refuses. Equal retries still require
+public channel readback. This is no cross-object
+atomic transaction or key-rotation protocol. The existing release pointer moves
+after feed activation. Installing a package enables no service or traffic;
+router trust and installation remain separate operator actions. Native package
+verification does not claim Windtun coverage for ARM64 or APK promotion.
 
 A job that consumes another job's workload names every job that produced one in
 its `needs`, not only the last of them. A job the plan left nothing to do and a
@@ -1029,7 +1061,7 @@ browser access, timings or installed Plumb consumption; those remain downstream.
 `lib/content/static/runtime.py` owns the bounded local Preview guest primitive.
 Only disposable temporary product directories and separate read-only trusted
 controls are mounted. The public Images stable reference and resource budgets
-live in `resources/build.json`; the fixed Docker profile permits ordinary bridge
+live in `resources/build/config.json`; the fixed Docker profile permits ordinary bridge
 networking, never host networking. No host credentials, home or Docker socket enter
 the guest. Network reachability is not credential authority or a confinement proof.
 Stdout alone is returned; stderr remains diagnostic. Both streams are
@@ -1173,7 +1205,7 @@ the isolated POSIX snapshot includes trusted system sbin directories after tool
 path reconstruction. Preview guest tool discovery remains unchanged. A refused
 control invocation names only its executable and exit status, never child output
 or arguments. Compilation uses the
-fixed sibling directory declared by `resources/build.json`; the layout is part
+fixed sibling directory declared by `resources/build/config.json`; the layout is part
 of Cargo workload implementation identity. An existing destination refuses.
 Source checkouts stay unchanged and disposable directories are removed on exit.
 

@@ -7,7 +7,7 @@ from lib.content import resources
 from lib.process import run, stream
 from lib.refusal import Refusal
 
-VERIFIER = resources.read_json("build.json")["verify"]["deb"]
+VERIFIER = resources.read_json("build/config.json")["verify"]["deb"]
 PLACED = "/tmp"
 QUIET = ("-e", "DEBIAN_FRONTEND=noninteractive")
 

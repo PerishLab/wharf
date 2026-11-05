@@ -7,8 +7,8 @@ from pathlib import Path
 from lib import parameters
 from lib.cargo import basis, manifest, toolchain
 from lib.content import declaration, executables, implementation, marker, resources
-from lib.debian import package
-from lib.debian.version import debian
+from lib.package.debian import package
+from lib.package.debian.version import debian
 from lib.media import cfworker, node, npm, release
 from lib.identity.guard import coverage, pull, snapshot
 from lib.identity.bind import inventory
@@ -16,13 +16,15 @@ from lib.process import git
 from lib.process.promotion import preflight
 from lib.refusal import Refusal
 from lib.store import plan, r2, workload
+from lib.store.plan import decided
+from lib.package.openwrt import operation
 from lib.process.trial import declaration as trial
 
-BUILD = resources.read_json("build.json")
+BUILD = resources.read_json("build/config.json")
 UNITS = resources.read_json("units.json")
 RUNNER = BUILD["runner"]
 PRIMARY = next(target for target in BUILD["targets"] if target["name"] == BUILD["primary"])
-CARGO = (["lib.cargo.basis", "lib.cargo.build"], ["build.json", "identity/format.json"])
+CARGO = (["lib.cargo.basis", "lib.cargo.build"], ["build/config.json", "identity/format.json"])
 SINGLE = ("cfworker",)
 REPORTED = ("key", "decision", "presence", "existing")
 MEDIA = ("npm", "oci", "chart", "cargo", "release", "channel")
@@ -32,20 +34,6 @@ TAKEN = IDENTITY + ("wharf", "run", "attempt", "source", "steps", "preparing", "
 CHECKED = ("repository", "marker")
 SOURCED = ("source",)
 NAMED = ("repository",)
-
-
-def referenced(held, keys):
-    if isinstance(held, dict):
-        return set().union(*(referenced(value, keys) for value in held.values()))
-    if isinstance(held, list):
-        return set().union(*(referenced(value, keys) for value in held))
-    return {keys[held]} if isinstance(held, str) and held in keys else set()
-
-
-def decided(bucket, held, modules, entries):
-    key = workload.key(held, implementation.resourced(*modules))
-    consumed = sorted(referenced(held, {entry["key"]: name for name, entry in entries.items() if "key" in entry}))
-    return {"key": key, "decision": "skip" if workload.reusable(bucket, key) else "run", **({"consumes": consumed} if consumed else {})}
 
 
 def declared(source, product):
@@ -78,13 +66,18 @@ def binaries(held, bucket, entries):
 def placements(held, bucket, entries):
     listed = executables.declared(held["source"], release.targets(held["source"]))
     binary = executables.placed(held["source"], "deb", listed, plan.product(held))
-    if binary is None:
-        return
-    bound = entries[f"bind-{PRIMARY['name']}"]["key"]
-    built = package.basis(held["source"], package.declared(held["source"], binary), bound, debian(held["marker"]))
-    entries["deb"] = decided(bucket, built, (["lib.debian.package"], ["releases.json"]), entries)
-    verified = {"entry": {"kind": "deb-verify", "deb": entries["deb"]["key"]}}
-    entries["verify-deb"] = decided(bucket, verified, (["lib.debian.verify"], ["build.json"]), entries)
+    if binary is not None:
+        bound = entries[f"bind-{PRIMARY['name']}"]["key"]
+        built = package.basis(held["source"], package.declared(held["source"], binary), bound, debian(held["marker"]))
+        entries["deb"] = decided(bucket, built, (["lib.package.debian.package"], ["releases.json"]), entries)
+        entries["verify-deb"] = decided(bucket, {"entry": {"kind": "deb-verify", "deb": entries["deb"]["key"]}}, (["lib.package.debian.verify"], ["build/config.json"]), entries)
+    selected = operation.declared(held["source"], plan.product(held))
+    if selected is not None:
+        bound = entries["bind-arm64"]["key"]
+        built = operation.package.basis(held["source"], selected, bound, operation.version(held["marker"]))
+        entries["apk"] = decided(bucket, built, operation.PACK, entries)
+        verified = {"entry": {"kind": "apk-verify", "apk": entries["apk"]["key"], "binary": bound}}
+        entries["verify-apk"] = decided(bucket, verified, operation.VERIFY, entries)
 
 
 def suites(held, bucket, entries):
@@ -95,7 +88,7 @@ def suites(held, bucket, entries):
             if target["name"] == BUILD["primary"] and covered:
                 continue
             held_basis = basis.suite(source, target["runner"], target["target"])
-            entries[f"suite-{target['name']}"] = decided(bucket, held_basis, (["lib.cargo.basis", "lib.cargo.suite"], ["build.json"]), entries)
+            entries[f"suite-{target['name']}"] = decided(bucket, held_basis, (["lib.cargo.basis", "lib.cargo.suite"], ["build/config.json"]), entries)
     if node.carried(source):
         entries["suite-node"] = decided(bucket, node.basis(source, RUNNER), (["lib.media.node"], []), entries)
     if cfworker.workers(source):
@@ -142,7 +135,7 @@ def unit(name):
         return None
     named = f"[{spec['verb']}] {spec['object']}"
     if spec.get("per") != "target":
-        return {"name": named, "action": spec["action"], "target": "", "runner": RUNNER, "prepare": spec.get("prepare", [])}
+        return {"name": named, "action": spec["action"], "target": "", "runner": spec.get("runner", RUNNER), "prepare": spec.get("prepare", [])}
     known = next(item for item in BUILD["targets"] if item["name"] == target)
     prepared = UNITS["prepare"].get(target, []) + spec.get("prepare", [])
     return {"name": f"{named} {target}", "action": spec["action"], "target": known["target"], "runner": known["runner"], "prepare": prepared}

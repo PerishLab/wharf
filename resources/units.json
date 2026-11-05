@@ -3,6 +3,9 @@
   "prepare": {
     "windows": [
       "autocrlf"
+    ],
+    "arm64": [
+      "musl"
     ]
   },
   "units": {
@@ -80,6 +83,17 @@
       "action": "deb-verify",
       "verb": "verify",
       "object": "deb"
+    },
+    "apk": {
+      "action": "apk",
+      "verb": "build",
+      "object": "apk"
+    },
+    "verify-apk": {
+      "action": "apk-verify",
+      "verb": "verify",
+      "object": "apk",
+      "runner": "ubuntu-24.04-arm"
     }
   }
 }

@@ -7,7 +7,7 @@ from lib.refusal import Refusal
 TARGET = "x86_64-unknown-linux-gnu"
 POLICY = "wharf.binary.linux/v1"
 FIELDS = ("repository", "marker", "commit", "tree")
-CARGO = (["lib.cargo.basis", "lib.cargo.build"], ["build.json", "identity/format.json"])
+CARGO = (["lib.cargo.basis", "lib.cargo.build"], ["build/config.json", "identity/format.json"])
 BIND = (["lib.identity.bind"], ["identity/format.json"])
 LIMIT = 256 * 1024 * 1024
 
@@ -31,7 +31,7 @@ def entry(body):
 
 def code():
     modules = [f"lib.identity.bind.{name}" for name in ("spec", "control", "inventory", "storage", "artifacts", "producer", "comparison")]
-    return implementation.resourced(modules, ["build.json", "identity/format.json", "releases.json"])
+    return implementation.resourced(modules, ["build/config.json", "identity/format.json", "releases.json"])
 
 
 def issuer():

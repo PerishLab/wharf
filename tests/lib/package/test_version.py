@@ -3,7 +3,7 @@ import subprocess
 import unittest
 
 from lib.content import marker
-from lib.debian.version import debian
+from lib.package.debian.version import debian
 from lib.refusal import Refusal
 
 MARKERS = ["v1.0.0-alpha.1", "v1.0.0-alpha.2", "v1.0.0-beta.1", "v1.0.0-rc.9", "v1.0.0-rc.10", "v1.0.0", "v1.0.1-alpha.1", "v1.0.1", "v1.10.0"]

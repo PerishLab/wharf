@@ -97,7 +97,7 @@ class Publish(unittest.TestCase):
         self.assertEqual(result["state"], "published")
         seal = json.loads(self.bucket.get("v1/releases/beta/v0.38.0-beta.7/seal.json"))
         self.assertEqual(set(seal), SEAL_FIELDS)
-        self.assertEqual(sorted(seal["artifacts"]), ["darwin-arm64", "linux-x64", "windows-x64"])
+        self.assertEqual(sorted(seal["artifacts"]), ["darwin-arm64", "linux-arm64-musl", "linux-x64", "windows-x64"])
         for entry in seal["artifacts"].values():
             self.assertEqual(set(entry), REMOTE_FIELDS)
             key = entry["url"].split(".perish.uk/", 1)[1]

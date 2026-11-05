@@ -1,7 +1,7 @@
 import json
 import re
 
-from lib.content import canonical, marker
+from lib.content import canonical, implementation, marker
 from lib.refusal import Conflict, Refusal
 from lib.store import workload
 
@@ -196,3 +196,17 @@ def record(bucket, context, entries, engines):
     bucket.create(name, body)
     bucket.put(standing(context), body)
     return {"plan": name, "standing": standing(context), "entries": len(held["entries"]), "shape": held["shape"]}
+
+
+def consumed(held, keys):
+    if isinstance(held, dict):
+        return set().union(*(consumed(value, keys) for value in held.values()))
+    if isinstance(held, list):
+        return set().union(*(consumed(value, keys) for value in held))
+    return {keys[held]} if isinstance(held, str) and held in keys else set()
+
+
+def decided(bucket, held, modules, entries):
+    key = workload.key(held, implementation.resourced(*modules))
+    dependencies = sorted(consumed(held, {entry["key"]: name for name, entry in entries.items() if "key" in entry}))
+    return {"key": key, "decision": "skip" if workload.reusable(bucket, key) else "run", **({"consumes": dependencies} if dependencies else {})}

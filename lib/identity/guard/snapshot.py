@@ -233,7 +233,7 @@ def unchanged(held, head, tree):
 
 
 def destination(source):
-    return Path(source).resolve().parent / resources.read_json("build.json")["snapshot"]
+    return Path(source).resolve().parent / resources.read_json("build/config.json")["snapshot"]
 
 
 def remove_readonly(function, path, error):

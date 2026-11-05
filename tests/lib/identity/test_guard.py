@@ -25,7 +25,7 @@ UNGUARDED = "0a39d831b34519176930506d747992a0d1f16fe2749db51a91f42edeaf9a9a9a"
 def bound(name):
     root = Path(tempfile.mkdtemp())
     held = {}
-    for target in release.LAYOUT["targets"]:
+    for target in ("x86_64-unknown-linux-gnu", "aarch64-apple-darwin", "x86_64-pc-windows-msvc"):
         directory = root / target
         directory.mkdir()
         suffix = ".exe" if "windows" in target else ""

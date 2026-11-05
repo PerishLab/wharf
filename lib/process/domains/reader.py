@@ -21,7 +21,7 @@ class Reader:
 
     def read(self):
         pins = identity.prepare(self._registered, self._pins)
-        base = resources.read_json("build.json")["cfworker"]["api"]
+        base = resources.read_json("build/config.json")["cfworker"]["api"]
         url = base + "/accounts/" + pins["account"] + "/workers/domains/" + pins["domain"]["id"]
         headers = {"Authorization": "Bearer " + self._token, "Accept": "application/json", "Accept-Encoding": "identity", "User-Agent": "wharf-lane"}
         request = urllib.request.Request(url, headers=headers, method="GET")

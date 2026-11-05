@@ -11,7 +11,7 @@ FILES = {"result.json", "association.json", "verification.json", "candidate.tar.
 
 
 def code():
-    return implementation.resourced(["lib.process.promotion.operation"], ["build.json", "identity/format.json", "releases.json", "parameters.json"])
+    return implementation.resourced(["lib.process.promotion.operation"], ["build/config.json", "identity/format.json", "releases.json", "parameters.json"])
 
 
 def publish(bucket, basis, directory):

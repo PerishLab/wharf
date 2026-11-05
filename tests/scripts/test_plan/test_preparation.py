@@ -34,7 +34,7 @@ class Preparation(unittest.TestCase):
                 stack.enter_context(mock.patch.object(plan.plan, "legacy", side_effect=AssertionError("preparation reached legacy publisher admission")))
                 result = plan.record(held)
             document = json.loads(bucket.get(result["plan"]))
-            expected = {prefix + target["name"] for target in plan.BUILD["targets"] for prefix in ("dependencies-", "binary-", "bind-", "smoke-")} | {"validate"}
+            expected = {prefix + target["name"] for target in plan.BUILD["targets"] if target["target"] != "aarch64-unknown-linux-musl" for prefix in ("dependencies-", "binary-", "bind-", "smoke-")} | {"validate"}
             self.assertEqual(set(document["entries"]), expected)
             self.assertEqual(document["entries"]["validate"]["decision"], "run")
             self.assertEqual(admitted.call_count, 2)

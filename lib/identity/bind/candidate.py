@@ -19,7 +19,7 @@ FILES = {"result.json", "verification.json", "candidate.tar.gz"}
 
 
 def code():
-    return implementation.resourced(["lib.identity.bind.candidate"], ["build.json", "identity/format.json", "releases.json", "parameters.json"])
+    return implementation.resourced(["lib.identity.bind.candidate"], ["build/config.json", "identity/format.json", "releases.json", "parameters.json"])
 
 
 def request(value):

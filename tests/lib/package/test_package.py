@@ -8,7 +8,7 @@ import unittest
 from pathlib import Path
 from unittest import mock
 
-from lib.debian import package
+from lib.package.debian import package
 from lib.process import git
 from lib.refusal import Refusal
 from tests.lib.media.repository import Repository

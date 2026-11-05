@@ -37,6 +37,14 @@
         "Windows:x86_64",
         "Windows:amd64"
       ]
+    },
+    "aarch64-unknown-linux-musl": {
+      "key": "linux-arm64-musl",
+      "format": "tar.gz",
+      "systems": [
+        "Linux:aarch64",
+        "Linux:arm64"
+      ]
     }
   },
   "placements": {
@@ -46,6 +54,23 @@
       "architecture": "amd64",
       "format": "deb",
       "mime": "application/vnd.debian.binary-package"
+    },
+    "apk": {
+      "key": "openwrt-aarch64-cortex-a53-apk",
+      "target": "aarch64-unknown-linux-musl",
+      "architecture": "aarch64_cortex-a53",
+      "format": "apk",
+      "mime": "application/vnd.alpine.apk"
+    },
+    "apk-index": {
+      "key": "openwrt-aarch64-cortex-a53-index",
+      "format": "adb",
+      "mime": "application/octet-stream"
+    },
+    "apk-key": {
+      "key": "openwrt-apk-key",
+      "format": "pem",
+      "mime": "application/x-pem-file"
     }
   }
 }

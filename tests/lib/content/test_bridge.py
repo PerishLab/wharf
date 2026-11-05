@@ -69,7 +69,7 @@ class Isolated(unittest.TestCase):
         self.world = {"profile": runtime.POLICY, "image": {"requested": runtime.POLICY["image"], "resolved": runtime.POLICY["image"].removesuffix(":stable") + "@sha256:" + "a" * 64, "id": "sha256:" + "a" * 64},
                       "client": {"path": "/usr/bin/docker", "sha256": "b" * 64},
                       "engine": {"ServerVersion": "fixture", "KernelVersion": "fixture", "Architecture": "x86_64", "SecurityOptions": ["name=seccomp,profile=builtin"]},
-                      "implementation": implementation.resourced(["lib.content.static.runtime"], ["build.json"])}
+                      "implementation": implementation.resourced(["lib.content.static.runtime"], ["build/config.json"])}
 
     def execute(self, guest):
         phase = guest.command[-2]

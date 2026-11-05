@@ -72,6 +72,9 @@ def environment(request, channel):
     env = dict(os.environ, RUSTUP_TOOLCHAIN=channel)
     env[f"{prefix}_BUILD_TARGET"] = request.target
     env[f"{prefix}_BUILD_CHANNEL"] = "unbound"
+    if request.target == "aarch64-unknown-linux-musl":
+        env["CARGO_TARGET_AARCH64_UNKNOWN_LINUX_MUSL_LINKER"] = "musl-gcc"
+        env["CC_aarch64_unknown_linux_musl"] = "musl-gcc"
     if request.target.endswith("-windows-msvc"):
         env["_LINK_"] = (env.get("_LINK_", "") + " /Brepro").strip()
         if NATIVE_PERL.is_file():

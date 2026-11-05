@@ -7,6 +7,7 @@ from pathlib import Path
 
 from lib.content import canonical, declaration, fill, implementation, marker, resources
 from lib.media import archive
+from lib.package.openwrt import feed
 from lib.media.release.managers import lead
 from lib.refusal import Conflict, Refusal
 
@@ -288,6 +289,7 @@ def point(release, managers, bucket):
     rooted = scripts(Path(managers) / CANONICAL, authority, True) if stable else {}
     if stable and not (rooted and set(rooted) == set(held["managers"])):
         raise Refusal("a stable channel carries canonical manager scripts for the platforms its seal pins")
+    apk = feed.point(bucket, authority, held, fetch)
     committed = Release(release.repository, release.marker, held["commit"], release.wharf)
     moved = advance(bucket, *pointer(committed, name, remote(authority, key, body, JSON), rooted), release.marker)
-    return {"seal": key, "pointer": lead(bucket, rooted, moved, release.marker)}
+    return {"seal": key, "pointer": lead(bucket, rooted, moved, release.marker), **({"apk": apk} if apk is not None else {})}
