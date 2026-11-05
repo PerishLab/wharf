@@ -37,7 +37,7 @@ class Reader:
         paths = self._paths()
         if not isinstance(key, str) or key not in paths:
             raise Refusal("cfworker base reader admits only fixed exact identity endpoints")
-        url = resources.read_json("build.json")["cfworker"]["api"] + paths[key]
+        url = resources.read_json("build/config.json")["cfworker"]["api"] + paths[key]
         headers = {"Authorization": "Bearer " + self._token, "Accept": "application/json", "Accept-Encoding": "identity", "User-Agent": "wharf-lane"}
         request = urllib.request.Request(url, headers=headers, method="GET")
         try:

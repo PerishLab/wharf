@@ -20,7 +20,7 @@ FILES = {"result.json", "verification.json"}
 
 
 def code():
-    return implementation.resourced(["lib.process.association.candidate"], ["manager/association.json", "identity/format.json", "releases.json", "build.json", "manager/unix.sh.in", "manager/windows.ps1.in"])
+    return implementation.resourced(["lib.process.association.candidate"], ["manager/association.json", "identity/format.json", "releases.json", "build/config.json", "manager/unix.sh.in", "manager/windows.ps1.in"])
 
 
 def assess(bucket, selected, observer):

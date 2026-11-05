@@ -16,6 +16,11 @@
       "name": "macos",
       "target": "aarch64-apple-darwin",
       "runner": "macos-15"
+    },
+    {
+      "name": "arm64",
+      "target": "aarch64-unknown-linux-musl",
+      "runner": "ubuntu-24.04-arm"
     }
   ],
   "preview": {
@@ -47,5 +52,9 @@
   "snapshot": ".wharf-effective",
   "cfworker": {
     "api": "https://api.cloudflare.com/client/v4"
+  },
+  "apk": {
+    "builder": "docker.io/library/alpine:3.23@sha256:ff7f0c727dd796aa36787bfcd9a64bf35a6ce72a73451b3359fde849b6703d63",
+    "verifier": "docker.io/openwrt/rootfs:armsr-armv8-25.12.6@sha256:22f13387da208c0fb4150c41f3ec12e34cc5994a0717a49e50aa9f9ae6cb5e7b"
   }
 }

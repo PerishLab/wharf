@@ -12,12 +12,12 @@ from lib.store import plan, r2, workload
 
 SCHEMA = "wharf.ship.prepared/v1"
 MATERIAL = "wharf.ship.prepared.material/v1"
-BUILD = resources.read_json("build.json")
+BUILD = resources.read_json("build/config.json")
 FORBIDDEN = {"[record] distribution", "[prove] published binary", "[prove] native binary", "[windtun] prepare attempt", "[windtun] issue qualification", "[windtun] prepare promotion", "[windtun] published artifacts", "[publish] npm", "[publish] oci", "[publish] chart", "[publish] binaries", "[publish] cargo", "[point] channel", "[deploy] cfworker"}
 
 
 def code():
-    return implementation.resourced(["lib.process.promotion.prepared"], ["build.json", "identity/format.json", "manager/association.json", "releases.json", "validators.json", "manager/unix.sh.in", "manager/windows.ps1.in"])
+    return implementation.resourced(["lib.process.promotion.prepared"], ["build/config.json", "identity/format.json", "manager/association.json", "releases.json", "validators.json", "manager/unix.sh.in", "manager/windows.ps1.in"])
 
 
 def jobs(rows):

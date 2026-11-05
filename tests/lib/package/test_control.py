@@ -1,6 +1,6 @@
 import unittest
 
-from lib.debian import control
+from lib.package.debian import control
 from lib.refusal import Refusal
 
 TEMPLATE = """Package: santi-api

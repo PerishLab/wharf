@@ -29,7 +29,7 @@ class GitHub:
         suffix = r"(?:/actions/runs/[1-9][0-9]*(?:/attempts/[1-9][0-9]*/jobs)?|/git/commits/[0-9a-f]{40}|/collaborators/[A-Za-z0-9][A-Za-z0-9-]{0,38}(?:%5Bbot%5D)?/permission)?"
         if not isinstance(path, str) or not re.fullmatch(r"/repos/" + repository + suffix, path):
             raise Refusal("Preview GitHub endpoint is not a fixed read-only identity endpoint")
-        policy = resources.read_json("build.json")["admission"]
+        policy = resources.read_json("build/config.json")["admission"]
         headers = {"Authorization": "Bearer " + self._token, "Accept": "application/vnd.github+json", "User-Agent": "wharf-preview", "X-GitHub-Api-Version": policy["version"]}
         request = urllib.request.Request(policy["api"] + path, headers=headers, method="GET")
         try:
@@ -51,7 +51,7 @@ class GitHub:
     def run(self, identity):
         if type(identity) is not int or identity < 1:
             raise Refusal("Preview GitHub run identity must be positive")
-        return self.get(f"/repos/{resources.read_json('build.json')['admission']['repository']}/actions/runs/{identity}")
+        return self.get(f"/repos/{resources.read_json('build/config.json')['admission']['repository']}/actions/runs/{identity}")
 
     def permission(self, repository, login):
         preview.matches(repository, preview.REPOSITORY, "GitHub permission repository")
@@ -61,7 +61,7 @@ class GitHub:
     def jobs(self, identity, attempt):
         if any(type(value) is not int or value < 1 for value in (identity, attempt)):
             raise Refusal("lane native jobs require the exact positive run and attempt")
-        repository = resources.read_json("build.json")["admission"]["repository"]
+        repository = resources.read_json("build/config.json")["admission"]["repository"]
         return self.get(f"/repos/{repository}/actions/runs/{identity}/attempts/{attempt}/jobs")
 
     def commit(self, repository, identity):
@@ -82,7 +82,7 @@ class Routing:
             raise Refusal("Preview product identity read is outside its scoped repository")
 
     def repository(self, name):
-        if name == resources.read_json("build.json")["admission"]["repository"]:
+        if name == resources.read_json("build/config.json")["admission"]["repository"]:
             return self._control.repository(name)
         self.selected(name)
         return self._product.repository(name)

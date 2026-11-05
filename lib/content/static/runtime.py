@@ -16,7 +16,7 @@ from lib.content import implementation, resources
 from lib.content.static import evidence
 from lib.refusal import Refusal
 
-POLICY = resources.read_json("build.json")["preview"]
+POLICY = resources.read_json("build/config.json")["preview"]
 DAEMON = "unix:///var/run/docker.sock"
 LABEL = "perish.wharf.preview.owner"
 HEX = re.compile(r"[0-9a-f]{64}")
@@ -166,7 +166,7 @@ class Engine:
         return {"image": {"requested": POLICY["image"], "resolved": digests[0], "id": image[0]["Id"]}, "profile": POLICY,
                 "engine": {key: server.get(key) for key in ("ServerVersion", "KernelVersion", "Architecture", "SecurityOptions")},
                 "client": {"path": self.path, "sha256": hashlib.sha256(Path(self.path).read_bytes()).hexdigest()},
-                "implementation": implementation.resourced(["lib.content.static.runtime"], ["build.json"])}
+                "implementation": implementation.resourced(["lib.content.static.runtime"], ["build/config.json"])}
 
 
 def observed(engine, identity):

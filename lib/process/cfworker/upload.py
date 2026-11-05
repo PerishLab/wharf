@@ -110,7 +110,7 @@ class Uploader:
     def _post(self, suffix, material, credential):
         if suffix not in (f"/workers/scripts/{self._selected['parent']}/assets-upload-session", "/workers/assets/upload?base64=true"):
             raise Refusal("cfworker upload refuses any non-fixed transport endpoint")
-        policy = resources.read_json("build.json")["cfworker"]
+        policy = resources.read_json("build/config.json")["cfworker"]
         url = f"{policy['api']}/accounts/{self._selected['account']}{suffix}"
         headers, body = material
         headers = dict(headers, Authorization="Bearer " + credential, Accept="application/json", **{"Accept-Encoding": "identity", "User-Agent": "wharf-lane"})

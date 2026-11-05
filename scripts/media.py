@@ -16,7 +16,7 @@ from lib.store import plan, r2, workload
 RELEASE = ("repository", "marker", "commit", "tree")
 CONTEXT = ("repository", "marker", "wharf", "run", "attempt")
 PLANNED = (*CONTEXT, "planned")
-BUILD = resources.read_json("build.json")
+BUILD = resources.read_json("build/config.json")
 
 
 def identified(held):

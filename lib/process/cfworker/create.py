@@ -66,7 +66,7 @@ class Creator:
         self._client = urllib.request.build_opener(urllib.request.ProxyHandler({}), reader.Redirect())
 
     def _post(self, material):
-        policy = resources.read_json("build.json")["cfworker"]
+        policy = resources.read_json("build/config.json")["cfworker"]
         selected = self._selected
         url = f"{policy['api']}/accounts/{selected['account']}/workers/workers/{selected['parent']}/previews?ignore_base_config=true"
         headers = {"Authorization": "Bearer " + self._token, "Accept": "application/json", "Accept-Encoding": "identity", "User-Agent": "wharf-lane", "Content-Type": "application/json", "Content-Length": str(len(material))}

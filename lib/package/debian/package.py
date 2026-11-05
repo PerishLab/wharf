@@ -7,7 +7,7 @@ from dataclasses import dataclass
 from pathlib import Path, PurePosixPath
 
 from lib.content import declaration, resources
-from lib.debian import control
+from lib.package.debian import control
 from lib.process import git, run
 from lib.refusal import Refusal
 

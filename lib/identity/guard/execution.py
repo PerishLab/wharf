@@ -12,7 +12,7 @@ from lib.media import npm
 from lib.refusal import Refusal
 from lib.store import plan, r2, workload
 
-BUILDING = {"binary", "suite", "node-suite", "cfworker-deploy", "npm-pack"}
+BUILDING = {"apk", "apk-verify", "binary", "suite", "node-suite", "cfworker-deploy", "npm-pack"}
 PUBLISHING = {"npm-publish", "oci-publish", "cargo-publish", "chart-publish", "release", "cfworker-deploy"}
 CONTEXT = ("repository", "marker", "wharf", "run")
 IDENTITY = ("repository", "marker", "commit", "tree")

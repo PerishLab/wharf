@@ -1,5 +1,6 @@
 import hashlib
 import json
+import tempfile
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -72,3 +73,13 @@ def fetch(bucket, workload, destination):
             raise Refusal(f"{name} under {workload} does not match its record")
         (destination / name).write_bytes(body)
     return {"key": workload, "files": record["files"]}
+
+
+def place():
+    return Path(tempfile.mkdtemp()) / "produced"
+
+
+def staged(bucket, key):
+    directory = place()
+    fetch(bucket, key, str(directory))
+    return directory

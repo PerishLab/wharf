@@ -1,31 +1,32 @@
 import json
 import sys
-import tempfile
 from pathlib import Path
 
 from lib import parameters
 from lib.content import executables, implementation, resources
 from lib.cargo import basis, build, suite
-from lib.debian import package, verify
-from lib.debian.version import debian
+from lib.package.debian import package, verify
+from lib.package.debian.version import debian
 from lib.identity import bind, guard
 from lib.refusal import Refusal
 from lib.identity.smoke import configured, smoke
 from lib.media import cfworker, node, release as releasing
 from lib.identity.guard import execution
 from lib.store import plan, r2, workload
+from lib.store.workload import place, staged
+from lib.package.openwrt import operation
 
 DEPENDENCIES = "dependencies.tar.gz"
 RELEASE = ("repository", "marker", "commit", "tree")
 CONTEXT = ("repository", "marker", "wharf", "run", "attempt")
 PLANNED = (*CONTEXT, "planned")
-BUILD = resources.read_json("build.json")
+BUILD = resources.read_json("build/config.json")
 LAYERED = sorted({spec["action"] for spec in resources.read_json("units.json")["units"].values()})
 RUNNER = BUILD["runner"]
 PRIMARY = next(target for target in BUILD["targets"] if target["name"] == BUILD["primary"])
-CARGO = (["lib.cargo.basis", "lib.cargo.build"], ["build.json", "identity/format.json"])
-DEBIAN = (["lib.debian.package"], ["releases.json"])
-VERIFYING = (["lib.debian.verify"], ["build.json"])
+CARGO = (["lib.cargo.basis", "lib.cargo.build"], ["build/config.json", "identity/format.json"])
+DEBIAN = (["lib.package.debian.package"], ["releases.json"])
+VERIFYING = (["lib.package.debian.verify"], ["build/config.json"])
 
 
 def declared(source):
@@ -68,16 +69,6 @@ def bound(bucket, document, name):
     return staged(bucket, document["entries"][f"bind-{name}"]["key"])
 
 
-def place():
-    return Path(tempfile.mkdtemp()) / "produced"
-
-
-def staged(bucket, key):
-    directory = place()
-    workload.fetch(bucket, key, str(directory))
-    return directory
-
-
 def inherited(bucket, document, held, target):
     entry = document["entries"].get(f"dependencies-{target['name']}")
     if entry is None or entry["decision"] != "skip":
@@ -113,7 +104,7 @@ def run_suite(held):
     target = targeted(held["target"])
     bucket, _, entry = opened(held, f"suite-{target['name']}")
     held_basis = basis.suite(held["source"], target["runner"], target["target"])
-    resolved(entry, held_basis, (["lib.cargo.basis", "lib.cargo.suite"], ["build.json"]))
+    resolved(entry, held_basis, (["lib.cargo.basis", "lib.cargo.suite"], ["build/config.json"]))
     output = place()
     suite.suite(suite.Suite(Path(held["source"]), output, target["target"]))
     return execution.publish(held, bucket, entry["key"], workload.Produced(output, held_basis, carried(held)))
@@ -222,14 +213,15 @@ def run_verify(held):
 def placements(bucket, document, source):
     context = document["context"]
     held_deb = debianized(source, plan.product(context), False)
+    apk = operation.placed(bucket, document, source)
     if held_deb is None:
-        return {}
+        return apk
     entries = document["entries"]
     if "deb" not in entries or "verify-deb" not in entries:
         raise Refusal("plumb.toml declares a deb this run's plan did not build and verify")
     if not workload.reusable(bucket, entries["verify-deb"]["key"]):
         raise Refusal("the deb this release carries has no recorded verification")
-    return {"deb": staged(bucket, entries["deb"]["key"]) / package.named(held_deb.binary, debian(context["marker"]))}
+    return {"deb": staged(bucket, entries["deb"]["key"]) / package.named(held_deb.binary, debian(context["marker"])), **apk}
 
 
 def run_release(held):
@@ -275,6 +267,8 @@ ACTIONS = {
     "npm-pack": (execution.pack, ["source", *PLANNED]),
     "deb": (run_deb, ["source", *PLANNED]),
     "deb-verify": (run_verify, ["source", *PLANNED]),
+    "apk": (operation.packed, ["source", *PLANNED]),
+    "apk-verify": (operation.verified, ["source", *PLANNED]),
     "release": (run_release, ["source", *PLANNED]),
     "cfworker-deploy": (cfworker_deploy, ["source", *PLANNED]),
     "step": (step, ["unit"]),

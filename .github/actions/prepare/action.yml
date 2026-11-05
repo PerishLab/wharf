@@ -36,6 +36,13 @@ runs:
         sudo apt-get update -o Acquire::Retries=0 -o Acquire::http::Timeout=30 -o Acquire::https::Timeout=30
         sudo apt-get install -y --no-install-recommends openssh-server
 
+    - name: Prepare native ARM64 musl tools
+      if: contains(inputs.prepare, 'musl') && runner.os == 'Linux' && runner.arch == 'ARM64'
+      shell: bash
+      run: |
+        sudo apt-get update -o Acquire::Retries=0 -o Acquire::http::Timeout=30 -o Acquire::https::Timeout=30
+        sudo apt-get install -y --no-install-recommends musl-tools
+
     - name: Prepare latest stable Windows controls
       if: contains(inputs.prepare, 'snapshot') && runner.os == 'Windows'
       shell: pwsh

@@ -66,6 +66,13 @@ class Build(unittest.TestCase):
         self.assertEqual(build.Tools().stream, process.stream)
         self.assertEqual(build.Tools().run, process.run)
 
+    def test_arm64_musl_builds_with_the_native_musl_compiler(self):
+        cargo = Cargo([("dynet-cli", ["dynet"])])
+        receipt = self.build(cargo, "aarch64-unknown-linux-musl", ("dynet", ("dynet",)))
+        self.assertEqual(receipt["target"], "aarch64-unknown-linux-musl")
+        self.assertEqual(cargo.build_env()["CARGO_TARGET_AARCH64_UNKNOWN_LINUX_MUSL_LINKER"], "musl-gcc")
+        self.assertEqual(cargo.build_env()["CC_aarch64_unknown_linux_musl"], "musl-gcc")
+
     def test_every_phase_reports_what_it_took(self):
         self.build(Cargo([("plumb-cli", ["plumb"])]))
         self.assertEqual([line.split()[0] for line in self.reported.getvalue().splitlines()], ["toolchain", "metadata", "fetch", "build"])
