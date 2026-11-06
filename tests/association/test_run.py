@@ -1,5 +1,6 @@
 import copy
 import json
+
 import os
 import subprocess
 import unittest
@@ -10,6 +11,7 @@ from lib.identity.bind import comparison, control, storage
 from lib.identity.bind import producer as legacy
 from lib.store import distribution, plan, workload
 from tests.scripts.test_distribution.binary_world import AUTHORITY
+
 from lib.process.association import control as native
 from lib.process.association import producer, public
 from lib.refusal import Refusal
@@ -159,6 +161,8 @@ def api(world, path):
 class Retained(unittest.TestCase):
     def test_legacy_linux_public_read_adds_no_native_api_dependency(self):
         world = World()
+        del world.distribution["plan"]
+        world.documents[AUTHORITY + "/" + world.root + "/distribution.json"] = canonical.encode(world.distribution)
         world.role = "build-proof"
         with world.wired():
             legacy.produce(world.held)

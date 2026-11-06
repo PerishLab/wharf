@@ -5,9 +5,10 @@ from unittest import mock
 
 from lib.content import canonical, implementation
 from lib.identity.bind import control as identity
+from lib.identity.bind import inventory
 from lib.identity.bind.spec import BIND, CARGO, entry
 from lib.media import archive, release
-from lib.process.association import chain, control, managers, producer, public, signature, spec
+from lib.process.association import control, managers, producer, public, signature, spec
 from lib.store import plan, workload
 from tests.association.fixtures import executable, sign
 from tests.scripts.test_distribution.binary_world import AUTHORITY, World as Linux
@@ -24,9 +25,10 @@ class World(Linux):
     def __init__(self, version="v1.2.3-rc.1", shared=None):
         super().__init__(version, shared)
         self.role = "native-proof"
-        self.model = chain.model(MANIFEST)
+        self.model = inventory.model(MANIFEST)
         self.declaration["manifest"] = self.model["manifest"]
         self.plan["context"]["binary_declaration"] = self.declaration
+        self.plan["context"]["native_declaration"] = {"schema": "wharf.binary.declaration/v1", "source": dict(self.source), "model": self.model}
         self.native = {}
         for selected, specification in spec.TARGETS.items():
             self.extend(selected, specification, shared)
@@ -38,6 +40,7 @@ class World(Linux):
         self.seal["generator"] = release.generator(release.Release(self.source["repository"], version, self.source["commit"], self.publisher["wharf"]))
         self.seal_ref = self.reference(self.root + "/seal.json", canonical.encode(self.seal), release.JSON)
         self.distribution["schema"] = 1
+        self.distribution["plan"] = plan.reference(self.plan)
         self.documents[AUTHORITY + "/" + self.root + "/distribution.json"] = canonical.encode(self.distribution)
         self.documents[f"https://raw.githubusercontent.com/PerishLab/demo/{self.source['commit']}/plumb.toml"] = MANIFEST
         self.blob.objects[plan.location(self.plan["context"])] = canonical.encode(self.plan)
@@ -80,13 +83,16 @@ class World(Linux):
             return {"name": "main", "protected": True}
         run = path.split("/")[2]
         if "/jobs?" in path:
-            return {"total_count": 1, "jobs": [{"id": 30, "name": (control.ROLES | identity.ROLES)[self.role], "run_id": int(run), "run_attempt": 1, "head_sha": "a" * 40, "head_branch": "main", "status": "in_progress", "conclusion": None, "started_at": self.started}]}
+            current = run == self.observer["run"]
+            name = (control.ROLES | identity.ROLES)[self.role] if current else "[prove] native binary" if run in ("20", "21") else "[plan] entries"
+            step = "[record] plan" if name == "[plan] entries" else name
+            return {"total_count": 1, "jobs": [{"id": 30, "name": name, "run_id": int(run), "run_attempt": 1, "head_sha": "a" * 40, "head_branch": "main", "status": "in_progress" if current else "completed", "conclusion": None if current else "success", "started_at": self.started, "steps": [{"name": step, "status": "completed", "conclusion": "success", "started_at": self.started}]}]}
         return {"id": int(run), "run_attempt": 1, "head_sha": "a" * 40, "repository": repository, "head_repository": repository, "path": ".github/workflows/ship.yml", "event": "workflow_dispatch", "head_branch": "main", "status": "in_progress" if run == self.observer["run"] else "completed", "conclusion": None if run == self.observer["run"] else "success"}
 
     @contextlib.contextmanager
     def wired(self):
         with super().wired(), contextlib.ExitStack() as stack:
-            for module in (spec, public, chain, managers):
+            for module in (spec, public, managers):
                 stack.enter_context(mock.patch.object(module, "fetch", side_effect=lambda url, limit=1048576: self.fetch(url)))
             stack.enter_context(mock.patch.object(signature, "sign", side_effect=sign))
             stack.enter_context(mock.patch.dict(os.environ, {"GITHUB_JOB": self.role}))

@@ -1617,13 +1617,26 @@ requires a fresh exact real publication replay and independent public readback.
 
 ## Native installation association
 
-The separate `wharf.binary.native.association/v2` and discovery v2 contracts
+The separate `wharf.binary.native.association/v3` and discovery v3 contracts
 cover the declared macOS arm64 and Windows x86_64 installation archives. They do
 not reinterpret the strict Linux v1 decoder. The frozen native plan's manifest
 hash qualifies the complete source declaration, target-specific built and installed
 inventories and Windows manager scope. Actual build/bind keys, complete receipts,
 producer plans and effective resolution must agree before any proof is published.
 Every built executable is checked, including those absent from installation archives.
+
+Planning freezes one source-bound `wharf.binary.declaration/v1` with the manifest
+digest, every target inventory and Windows scope. The Linux selection is projected
+from that same interpretation. Native proof requires the exact authenticated
+retained planner reference, including its immutable body digest, and publishes
+that reference with the structured declaration. Its fixed trusted issuance role
+converts private source into these public facts; raw manifests and credentials
+stay private. Independent readers authenticate the planner and successful native
+proof step, verify the complete sealed target set and declaration consistency,
+and independently recheck archives, bindings and managers. They do not reparse
+undisclosed private source. Missing historical capture or provenance refuses
+without conversion, anonymous source fallback or rewriting old material. A
+declaration alone grants no association, qualification or promotion permission.
 
 Windows admits only the existing unsigned reproducible x86-64 PE transformation:
 restore the identity payload and reproduce binding exactly, with no checksum mask.

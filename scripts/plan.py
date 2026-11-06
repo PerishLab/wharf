@@ -238,7 +238,8 @@ def record(held):
         if suite is not None:
             context["trial"] = suite
         if release.carried(root):
-            context["binary_declaration"] = inventory.capture(root)
+            context["native_declaration"] = inventory.native(root, identity)
+            context["binary_declaration"] = inventory.linux(context["native_declaration"]["model"])
         parameters.answer({"binaryproof": str(bool(context.get("binary_declaration", {}).get("installed"))).lower()})
         confirm()
         if preparing:

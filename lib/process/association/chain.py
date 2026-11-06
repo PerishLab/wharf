@@ -1,32 +1,18 @@
 import json
 import re
-import tempfile
-from pathlib import Path
 
 from lib.cargo.basis import WIDENED
-from lib.content import canonical, declaration, executables, implementation
+from lib.content import canonical, implementation
 from lib.identity.bind import inventory, storage
 from lib.identity.bind.spec import BIND, CARGO
-from lib.media import release
 from lib.process.association import binary
-from lib.process.association.spec import entry, fetch, filename, require, sha, target
+from lib.process.association.spec import entry, filename, require, target
 from lib.store import plan
-
-
-def model(raw):
-    require(isinstance(raw, bytes) and 0 < len(raw) <= 1048576, "native manifest is outside bounds")
-    with tempfile.TemporaryDirectory() as directory:
-        (Path(directory) / "plumb.toml").write_bytes(raw)
-        targets = release.targets(directory)
-        listed = executables.declared(directory, targets)
-        scope = declaration.windows(directory)
-    return {"manifest": sha(raw), "targets": {name: {"built": executables.built(listed, name), "installed": executables.installed(listed, name)} for name in targets}, "windows": scope}
 
 
 def frozen(document, source):
     held = inventory.validate(document["context"].get("binary_declaration"))
-    raw = fetch(f"https://raw.githubusercontent.com/{source['repository']}/{source['commit']}/plumb.toml")
-    result = model(raw)
+    result = inventory.frozen(document["context"].get("native_declaration"), source)
     require(result["manifest"] == held["manifest"] and result["targets"].get(held["target"]) == {name: held[name] for name in ("built", "installed")}, "native manifest differs from the frozen declaration")
     return result
 

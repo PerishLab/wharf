@@ -10,8 +10,8 @@ from lib.identity.bind.spec import entry, require, sha
 
 POLICY = resources.read_json("manager/association.json")
 TARGETS = POLICY["targets"]
-SCHEMA = "wharf.binary.native.association/v2"
-DISCOVERY = "wharf.binary.native.discovery/v2"
+SCHEMA = "wharf.binary.native.association/v3"
+DISCOVERY = "wharf.binary.native.discovery/v3"
 LIMIT = 256 * 1024 * 1024
 
 
