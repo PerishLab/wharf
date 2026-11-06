@@ -33,7 +33,9 @@ def record(held):
         if query["attempt"] != outputs.get("planned"):
             raise Refusal("distribution reference differs from the actual planner attempt")
         plan.referenced(r2.configured(), context, reference)
-    result = distribution.record(r2.writer(bucket, "RELEASES"), context, needs, lambda key: release.fetch(f"{authority}/{key}"))
+    publisher = r2.writer(bucket, "RELEASES")
+    print(json.dumps(r2.reference(publisher), sort_keys=True), file=sys.stderr, flush=True)
+    result = distribution.record(publisher, context, needs, lambda key: release.fetch(f"{authority}/{key}"))
     parameters.answer({"state": result["state"]})
     return result
 

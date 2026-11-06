@@ -236,7 +236,9 @@ def run_release(held):
     releasing.render(published, str(managers), installed, held["source"])
     contents = releasing.Contents(directories, managers, installed, placed, lambda: guard.reported(published, directories))
     execution.ready(held)
-    return releasing.publish(published, contents, r2.writer(releasing.place(published)[1], "RELEASES"))
+    publisher = r2.writer(releasing.place(published)[1], "RELEASES")
+    print(json.dumps(r2.reference(publisher), sort_keys=True), file=sys.stderr, flush=True)
+    return releasing.publish(published, contents, publisher)
 
 
 def cfworker_deploy(held):

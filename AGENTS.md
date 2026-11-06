@@ -87,6 +87,12 @@ secret key or reports the raw access ID. This is an observation of the existing
 workload role, not authorization or complete permission evidence. It adds no
 request and changes no stored plan, workload or runner decision.
 
+Binary publication and distribution recording report the same bounded reference
+for their actual RELEASES store before its first read or write. This diagnostic
+survives a refused operation and carries no secret-key read, provider request,
+permission or completion claim. Native run/job/source context identifies the
+role; the reference alone proves no publisher authority or credential pairing.
+
 The plan job decides, for every entry a run could hold, the workload key and
 whether it runs, and records that as one document at
 `plan/<owner>/<repository>/<marker>/<run>-<attempt>.json`, with a `latest.json`

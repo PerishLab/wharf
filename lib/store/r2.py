@@ -1,4 +1,5 @@
 import datetime
+import hashlib
 import http.client
 import os
 import re
@@ -13,6 +14,19 @@ from lib.content.lane import preview
 from lib.store.sigv4 import Credentials, Request, sign
 
 VARIABLES = ("WHARF_R2_ENDPOINT", "WHARF_R2_BUCKET", "WHARF_R2_ACCESS_KEY_ID", "WHARF_R2_SECRET_ACCESS_KEY")
+
+
+def reference(bucket):
+    host = getattr(bucket, "host", None)
+    name = getattr(bucket, "name", None)
+    key = getattr(getattr(bucket, "credentials", None), "access_key", None)
+    if not isinstance(host, str) or not re.fullmatch(r"[a-f0-9]{32}\.r2\.cloudflarestorage\.com", host):
+        return {"schema": "wharf.store.reference/v1", "state": "unavailable"}
+    if not isinstance(name, str) or not re.fullmatch(r"[a-z0-9][a-z0-9-]{1,61}[a-z0-9]", name):
+        return {"schema": "wharf.store.reference/v1", "state": "unavailable"}
+    if not isinstance(key, str) or not re.fullmatch(r"[a-f0-9]{32}", key):
+        return {"schema": "wharf.store.reference/v1", "state": "unavailable"}
+    return {"schema": "wharf.store.reference/v1", "state": "observed", "host": host, "bucket": name, "access_sha256": hashlib.sha256(key.encode()).hexdigest()}
 
 
 @dataclass(frozen=True)
