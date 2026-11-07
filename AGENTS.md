@@ -93,6 +93,10 @@ survives a refused operation and carries no secret-key read, provider request,
 permission or completion claim. Native run/job/source context identifies the
 role; the reference alone proves no publisher authority or credential pairing.
 
+Depot lodging reports that same reference for its actual DEPOT yard reader and
+target store before each store's first request. The bucket distinguishes these
+two observations; failed reads retain their original error and ordering.
+
 The plan job decides, for every entry a run could hold, the workload key and
 whether it runs, and records that as one document at
 `plan/<owner>/<repository>/<marker>/<run>-<attempt>.json`, with a `latest.json`

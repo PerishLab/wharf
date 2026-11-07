@@ -1,5 +1,7 @@
 import os
 import json
+import hashlib
+import io
 import unittest
 from unittest import mock
 
@@ -12,6 +14,14 @@ from tests.lib.store.memory import Memory
 from tests.lib.store.test_yard import consign, entry
 
 
+class Credentials:
+    access_key = "a" * 32
+
+    @property
+    def secret_key(self):
+        raise AssertionError("secret must not be read")
+
+
 class Lodge(unittest.TestCase):
     def setUp(self):
         self.buckets = {}
@@ -19,8 +29,63 @@ class Lodge(unittest.TestCase):
         for marker in ("v1.0.0", "v1.1.0"):
             self.repository.git("tag", "-a", marker, "-m", marker)
         patcher = mock.patch.object(depot.r2, "writer", side_effect=lambda name, role: self.buckets.setdefault(name, Memory()))
+        self.writer = patcher.start()
+        self.addCleanup(patcher.stop)
+
+    def references(self):
+        def writer(name, role):
+            self.assertEqual(role, "DEPOT")
+            store = self.buckets.setdefault(name, Memory())
+            store.host = "b" * 32 + ".r2.cloudflarestorage.com"
+            store.name = name
+            store.credentials = Credentials()
+            return store
+        self.writer.side_effect = writer
+        output = io.StringIO()
+        patcher = mock.patch.object(depot.sys, "stderr", output)
         patcher.start()
         self.addCleanup(patcher.stop)
+        return output
+
+    def observed(self, output, names):
+        records = [json.loads(line) for line in output.getvalue().splitlines()]
+        self.assertEqual([item["bucket"] for item in records], names)
+        for item in records:
+            self.assertEqual(item, {"schema": "wharf.store.reference/v1", "state": "observed", "host": "b" * 32 + ".r2.cloudflarestorage.com", "bucket": item["bucket"], "access_sha256": hashlib.sha256(Credentials.access_key.encode()).hexdigest()})
+        self.assertNotIn(Credentials.access_key, output.getvalue())
+
+    def test_actual_yard_reference_precedes_the_original_read_failure(self):
+        output = self.references()
+        failure = Refusal("controlled yard failure")
+        def read(store, held):
+            self.observed(output, ["perish-wharf-yard"])
+            self.assertIs(store, self.buckets["perish-wharf-yard"])
+            raise failure
+        with mock.patch.object(depot.yard, "read", side_effect=read):
+            with self.assertRaises(Refusal) as caught:
+                self.lodged("v1.0.0", "skill", [entry("SKILL.md", b"# demo\n")])
+        self.assertIs(caught.exception, failure)
+        self.assertNotIn("perish-demo-depot", self.buckets)
+
+    def test_actual_target_reference_precedes_the_original_parent_failure(self):
+        output = self.references()
+        failure = Refusal("controlled parent failure")
+        def parent(store, selected):
+            self.observed(output, ["perish-wharf-yard", "perish-demo-depot"])
+            self.assertIs(store, self.buckets["perish-demo-depot"])
+            self.assertEqual(selected, ("stable", "v1.0.0", "skill"))
+            self.assertEqual(store.writes, [])
+            raise failure
+        with mock.patch.object(depot.lineage, "parent", side_effect=parent):
+            with self.assertRaises(Refusal) as caught:
+                self.lodged("v1.0.0", "skill", [entry("SKILL.md", b"# demo\n")])
+        self.assertIs(caught.exception, failure)
+
+    def test_successful_lodging_preserves_result_and_bounded_references(self):
+        output = self.references()
+        result = self.lodged("v1.0.0", "skill", [entry("SKILL.md", b"# demo\n")])
+        self.assertEqual(result["state"], "published")
+        self.observed(output, ["perish-wharf-yard", "perish-demo-depot"])
 
     def lodged(self, marker, kind, objects):
         yard = self.buckets.setdefault("perish-wharf-yard", Memory())
