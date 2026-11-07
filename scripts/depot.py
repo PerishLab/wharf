@@ -46,11 +46,14 @@ def vetted(held, release_held, directory):
 
 def lodge(held):
     release_held = release(held)
-    document = yard.read(r2.writer(depot.LAYOUT["yard"], "DEPOT"), held)
+    store = r2.writer(depot.LAYOUT["yard"], "DEPOT")
+    print(json.dumps(r2.reference(store), sort_keys=True), file=sys.stderr, flush=True)
+    document = yard.read(store, held)
     with tempfile.TemporaryDirectory() as scratch:
         directory = yard.unpack(document, scratch)
         verdict = vetted(held, release_held, directory)
         store = bucket(release_held)
+        print(json.dumps(r2.reference(store), sort_keys=True), file=sys.stderr, flush=True)
         base = lineage.parent(store, target(release_held, held["kind"]))
         result = edit.stage(store, edit.Change(release_held, held["kind"], edit.directory(directory), base, now()))
         if held["kind"] == "scene":
