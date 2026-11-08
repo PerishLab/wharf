@@ -6,7 +6,7 @@ from lib.content import canonical
 from lib.identity.bind.spec import entry, require
 from lib.media import release
 from lib.process.promotion import capture, preflight, reader
-from lib.refusal import Conflict
+from lib.refusal import Conflict, Refusal
 from lib.store import r2
 
 
@@ -33,7 +33,12 @@ def retain(bucket, product, raw):
 
 def facts(arguments):
     status, report = reader.capture(arguments)
-    require(status == 0 and isinstance(report, dict) and set(report) == {"state", "facts", "publication"}, "shared semantic reader did not return bounded facts")
+    require(isinstance(report, dict) and report.get("publication") is False, "shared semantic reader did not return bounded facts")
+    if status != 0 or report.get("state") != "observed":
+        reason = report.get("reason")
+        require(report.get("state") in ("unknown", "refused") and isinstance(reason, str) and 0 < len(reason) <= 4096, "shared semantic reader failure has no bounded diagnosis")
+        raise Refusal(f"shared semantic {arguments[1]} returned {report['state']} (exit {status}): {reason}")
+    require(set(report) == {"state", "facts", "publication"}, "shared semantic fact fields differ")
     require(report.get("state") == "observed" and report.get("publication") is False and isinstance(report.get("facts"), dict), "shared semantic reader did not observe the required facts")
     return report["facts"]
 
