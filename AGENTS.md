@@ -1537,6 +1537,13 @@ successful supplied inspection or artifact is no substitute. The fourteen-day
 artifact is an observation copy; the public objects retain the referenced data.
 Initial adoption does not re-prove historical execution or compliance, decide
 Y/Z or X, qualify publication, run publication canaries or activate any scope.
+The issuer obtains a read-only token from the existing Wharf App for control,
+Seatrial and the selected pilot product. Product collaborator-permission reads
+must use this cross-repository reader; the workflow's repository-bound token
+does not establish that access. Only the official token action receives the App
+key. Product code never runs in that role, and shared Plumb children receive
+the reader token without either R2 credential. Refused or unknown shared facts
+retain their bounded native diagnosis; no reader failure authorizes issuance.
 
 ## Release identity
 

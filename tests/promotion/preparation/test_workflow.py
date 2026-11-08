@@ -43,8 +43,13 @@ class Workflow(unittest.TestCase):
         self.assertIn('name: "[issue] version semantics"', source)
         self.assertIn('name: "[issue] semantics ${{ steps.adoption.outputs.digest }}"', source)
         self.assertIn("semantics-confirm", source)
-        for forbidden in ("packages: write", "WHARF_APP_PRIVATE_KEY", "uses: ./wharf/.github/actions/product", "scripts.ship"):
+        for forbidden in ("packages: write", "uses: ./wharf/.github/actions/product", "scripts.ship"):
             self.assertNotIn(forbidden, source)
+        self.assertIn("permission-actions: read", source)
+        self.assertIn("permission-contents: read", source)
+        issue = source.split('      - name: "[issue] adoption record"', 1)[1]
+        self.assertIn("GH_TOKEN: ${{ steps.metadata.outputs.token }}", issue)
+        self.assertNotIn("WHARF_APP_PRIVATE_KEY", issue)
         confirmation = source.split('      - name: "[issue] semantics ', 1)[1]
         for forbidden in ("WHARF_RELEASES_ACCESS_KEY_ID", "WHARF_R2_ACCESS_KEY_ID", "WHARF_RELEASES_SECRET_ACCESS_KEY", "WHARF_R2_SECRET_ACCESS_KEY"):
             self.assertNotIn(forbidden, confirmation)

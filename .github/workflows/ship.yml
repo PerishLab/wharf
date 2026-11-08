@@ -169,10 +169,24 @@ jobs:
           env PLUMB_CHANNEL=stable PLUMB_VERSION= sh "$RUNNER_TEMP/manage-plumb.sh" install
           echo "$HOME/.local/bin" >> "$GITHUB_PATH"
 
+      - name: "[prepare] semantic metadata reader"
+        id: metadata
+        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1
+        with:
+          client-id: ${{ vars.WHARF_APP_CLIENT_ID }}
+          private-key: ${{ secrets.WHARF_APP_PRIVATE_KEY }}
+          owner: PerishLab
+          repositories: |
+            wharf
+            seatrial
+            ${{ inputs.repository == 'PerishLab/plumb' && 'plumb' || 'concord' }}
+          permission-actions: read
+          permission-contents: read
+
       - name: "[issue] adoption record"
         id: adoption
         env:
-          GH_TOKEN: ${{ github.token }}
+          GH_TOKEN: ${{ steps.metadata.outputs.token }}
           WHARF_REPOSITORY: ${{ inputs.repository }}
           WHARF_MARKER: ${{ inputs.marker }}
           WHARF_OBSERVER: '{"run":"${{ github.run_id }}","attempt":"${{ github.run_attempt }}","wharf":"${{ github.sha }}"}'
@@ -185,7 +199,7 @@ jobs:
 
       - name: "[issue] semantics ${{ steps.adoption.outputs.digest }}"
         env:
-          GH_TOKEN: ${{ github.token }}
+          GH_TOKEN: ${{ steps.metadata.outputs.token }}
           WHARF_REPOSITORY: ${{ inputs.repository }}
           WHARF_MARKER: ${{ inputs.marker }}
           WHARF_OBSERVER: '{"run":"${{ github.run_id }}","attempt":"${{ github.run_attempt }}","wharf":"${{ github.sha }}"}'

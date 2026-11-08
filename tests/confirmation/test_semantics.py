@@ -110,10 +110,20 @@ class Semantics(unittest.TestCase):
         self.distribution["plan"] = {}
         protocol = self.protocol
         def unknown(arguments):
-            return (3, {"state": "unknown", "publication": False}) if arguments[:2] == ["release", "inspect"] else protocol(arguments)
-        with tempfile.TemporaryDirectory() as directory, self.patches(), mock.patch.object(semantics.reader, "capture", side_effect=unknown), self.assertRaises(Refusal):
+            return (3, {"state": "unknown", "publication": False, "reason": "review permission unavailable"}) if arguments[:2] == ["release", "inspect"] else protocol(arguments)
+        with tempfile.TemporaryDirectory() as directory, self.patches(), mock.patch.object(semantics.reader, "capture", side_effect=unknown), self.assertRaisesRegex(Refusal, "inspect returned unknown.*review permission unavailable"):
             semantics.issue(self.held(directory))
         self.assertEqual(len(self.store.values), 1)
+
+    def test_reader_failure_retains_bounded_cause_without_accepting_invalid_reports(self):
+        for state, status in (("unknown", 3), ("refused", 1)):
+            report = {"state": state, "publication": False, "reason": "native permission unavailable"}
+            with self.subTest(state=state), mock.patch.object(semantics.reader, "capture", return_value=(status, report)), self.assertRaisesRegex(Refusal, f"review returned {state}.*native permission unavailable"):
+                semantics.facts(["release", "review"])
+        for changes in ({"reason": None}, {"reason": ""}, {"reason": "x" * 4097}, {"publication": True}, {"state": "observed"}):
+            report = {"state": "unknown", "publication": False, "reason": "bounded"} | changes
+            with self.subTest(changes=tuple(changes)), mock.patch.object(semantics.reader, "capture", return_value=(3, report)), self.assertRaises(Refusal):
+                semantics.facts(["release", "review"])
 
     def test_same_address_requires_identical_bytes_and_unknown_writes_never_replay(self):
         self.fixture()
