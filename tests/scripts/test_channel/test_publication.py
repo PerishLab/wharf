@@ -1,4 +1,5 @@
 import copy
+import subprocess
 import unittest
 from unittest import mock
 
@@ -32,14 +33,17 @@ class Publication(unittest.TestCase):
             self.assertEqual(channel.point(world.held)["pointer"]["state"], "advanced")
         checked.assert_called_once()
 
-    def rejected(self, world):
+    def rejected(self, world, reason=None):
         before = dict(world.bucket.objects)
         private = dict(world.workload.objects)
-        with self.assertRaises(Refusal):
+        with self.assertRaises(Refusal) as caught:
             channel.point(world.held)
         self.assertEqual(world.bucket.objects, before)
         self.assertEqual(world.bucket.writes, [])
         self.assertEqual(world.workload.objects, private)
+        if reason is not None:
+            self.assertEqual(str(caught.exception), reason)
+        return str(caught.exception)
 
     def test_complete_context_advances_pointer_and_managers(self):
         world = World(self)
@@ -73,12 +77,45 @@ class Publication(unittest.TestCase):
     def test_missing_inactive_ambiguous_and_foreign_channel_jobs_refuse(self):
         world = World(self)
         original = copy.deepcopy(world.jobs["1"])
-        variants = [original[:1], original + [dict(original[-1], id=3)], original + [original[-1]]]
-        variants += [original[:1] + [dict(original[-1], **{key: value})] for key, value in (("status", "completed"), ("conclusion", "failure"), ("run_id", 8), ("run_attempt", 2), ("head_sha", "b" * 40), ("head_branch", "other"), ("started_at", None))]
-        for jobs in variants:
+        role = "channel native role is missing or ambiguous: job-role '[point] channel' matched {} of {} in job inventory"
+        foreign = "channel jobs belong to another source or attempt"
+        variants = [(original[:1], role.format(0, 1)), (original + [dict(original[-1], id=3)], role.format(2, 3)), (original + [original[-1]], "channel jobs have duplicate identities")]
+        variants += [(original[:1] + [dict(original[-1], name=name)], role.format(0, 2)) for name in ("", "[point] other", None)]
+        fields = (("status", "completed", "channel native role is not active"), ("conclusion", "failure", "channel native role is not active"), ("run_id", 8, foreign), ("run_attempt", 2, foreign), ("head_sha", "b" * 40, foreign), ("head_branch", "other", foreign), ("started_at", None, "binary proof native start is missing"))
+        variants += [(original[:1] + [dict(original[-1], **{key: value})], reason) for key, value, reason in fields]
+        for jobs, reason in variants:
             with self.subTest(jobs=jobs):
                 world.jobs["1"] = jobs
-                self.rejected(world)
+                self.rejected(world, reason)
+
+    def test_delayed_channel_job_refuses_its_read_without_retry(self):
+        world = World(self)
+        held = world.jobs["1"]
+        world.jobs["1"] = held[:1]
+        self.rejected(world, "channel native role is missing or ambiguous: job-role '[point] channel' matched 0 of 1 in job inventory")
+        self.assertEqual(world.calls.count("actions/runs/7/attempts/1/jobs?per_page=100"), 1)
+        world.jobs["1"] = held
+        self.assertEqual(channel.point(world.held)["pointer"]["state"], "advanced")
+
+    def test_missing_and_ambiguous_plan_job_refuse_by_job_role(self):
+        world = World(self)
+        original = copy.deepcopy(world.jobs["1"])
+        role = "channel native role is missing or ambiguous: job-role '[plan] entries' matched {} of {} in job inventory"
+        for jobs, reason in ((original[1:], role.format(0, 1)), ([dict(original[0], name="[plan] other")] + original[1:], role.format(0, 2)), ([original[0], dict(original[0], id=3)] + original[1:], role.format(2, 3))):
+            with self.subTest(jobs=jobs):
+                world.jobs["1"] = jobs
+                self.rejected(world, reason)
+
+    def test_unavailable_job_inventory_refuses_as_unavailable(self):
+        world = World(self)
+        def api(path):
+            if path.endswith("/jobs?per_page=100"):
+                raise subprocess.CalledProcessError(1, ["gh", "api"])
+            return world.api(path)
+        with mock.patch.object(publication.control, "api", side_effect=api):
+            reason = self.rejected(world)
+        self.assertTrue(reason.startswith("channel publication context is unavailable or malformed: "))
+        self.assertNotIn("missing or ambiguous", reason)
 
     def test_incomplete_job_inventory_and_wrong_runtime_role_refuse(self):
         world = World(self)
@@ -94,10 +131,13 @@ class Publication(unittest.TestCase):
         self.rejected(world)
         world.held["planned"] = "1"
         original = copy.deepcopy(world.jobs["1"][0])
-        for update in ({"conclusion": "failure"}, {"status": "in_progress"}, {"steps": []}, {"steps": [dict(original["steps"][0], conclusion="skipped")]}, {"steps": original["steps"] * 2}):
+        role = "channel native role is missing or ambiguous: step-role '[record] plan' matched {} of {} in plan steps"
+        unsuccessful = "channel plan job did not succeed"
+        updates = (({"conclusion": "failure"}, unsuccessful), ({"status": "in_progress"}, unsuccessful), ({"steps": []}, role.format(0, 0)), ({"steps": [dict(original["steps"][0], name="[record] other")]}, role.format(0, 1)), ({"steps": original["steps"] * 2}, role.format(2, 2)), ({"steps": None}, "channel plan steps are missing"), ({"steps": [dict(original["steps"][0], conclusion="skipped")]}, "channel plan was not recorded"))
+        for update, reason in updates:
             with self.subTest(update=update):
                 world.jobs["1"][0] = dict(original, **update)
-                self.rejected(world)
+                self.rejected(world, reason)
 
     def test_plan_context_snapshot_and_decision_must_agree(self):
         world = World(self)

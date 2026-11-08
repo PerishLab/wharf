@@ -29,11 +29,11 @@ def planner(context, reference):
     query = plan.provenance(context, reference)
     identity = {name: query[name] for name in ("run", "attempt", "wharf")}
     control.trusted(identity)
-    job = publication.selected(publication.jobs(identity), "[plan] entries")
+    job = publication.selected(publication.jobs(identity), "[plan] entries", "job")
     require(job.get("status") == "completed" and job.get("conclusion") == "success", "referenced planner did not succeed")
     steps = job.get("steps")
     require(isinstance(steps, list), "referenced planner steps are missing")
-    step = publication.selected(steps, "[record] plan")
+    step = publication.selected(steps, "[record] plan", "step")
     require(step.get("status") == "completed" and step.get("conclusion") == "success", "referenced plan was not recorded")
     return query
 

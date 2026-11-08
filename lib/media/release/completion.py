@@ -78,7 +78,7 @@ def native(bucket, document):
     require(run.get("status") == "completed", "original run is not quiescent")
     jobs = publication.jobs(identity)
     require(all(job.get("status") == "completed" for job in jobs), "original jobs are still active")
-    require(publication.selected(jobs, "[plan] entries").get("conclusion") == "success", "original planner did not succeed")
+    require(publication.selected(jobs, "[plan] entries", "job").get("conclusion") == "success", "original planner did not succeed")
     for name, entry in entries.items():
         if name in plan.PUBLISHED:
             continue
@@ -90,7 +90,7 @@ def native(bucket, document):
             continue
         role = f"[{unit['verb']}] {unit['object']}" + (f" {target}" if unit.get("per") == "target" else "")
         if entry.get("decision") == "run":
-            require(publication.selected(jobs, role).get("conclusion") == "success", "original native verification did not succeed")
+            require(publication.selected(jobs, role, "job").get("conclusion") == "success", "original native verification did not succeed")
 
 
 def original(bucket, held, checkpoint):
