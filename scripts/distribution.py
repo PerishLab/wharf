@@ -43,6 +43,8 @@ def record(held):
 
 
 ACTIONS = {
+    "semantics-history": (semantics.checkpoint, ["observer", "repository", "marker", "source"]),
+    "semantics-history-confirm": (semantics.confirmed, ["observer", "repository", "marker", "source", "digest"]),
     "semantics-retain": (retention.produce, ["observer", "repository", "marker", "artifact"]),
     "semantics-retain-confirm": (retention.confirm, ["observer", "repository", "marker", "artifact", "digest"]),
     "semantics-source": (world.source, ["observer", "repository", "marker", "artifact"]),

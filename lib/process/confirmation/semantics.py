@@ -126,3 +126,91 @@ def confirm(held):
     result = {"schema": "wharf.release.semantics.confirmation/v1", "reference": reference, "native": native, "publication": False}
     (root / "confirmation.json").write_bytes(canonical.encode(result))
     return result
+
+
+HEAD = "v1/semantics/history/latest.json"
+
+
+def baseline(held, root):
+    report = facts(["release", "inspect", "--input", str(root / "root.json"), "--purpose", "baseline", "--product", held["repository"].split("/")[1]])
+    require(report.get("schema") == "plumb.release.baseline/v1" and report.get("authentication") is True and report.get("publication") is False, "history needs an authenticated original baseline")
+    data = report.get("data")
+    require(isinstance(data, dict) and data.get("origin", {}).get("reference") == capture.decode((root / "root.json").read_bytes()), "history baseline names another adoption")
+    require(data.get("origin", {}).get("record", {}).get("release", {}).get("marker") == held["marker"], "history selector differs from its original stable")
+    return report
+
+
+def history(held, root, native):
+    request = capture.decode((root / "request.json").read_bytes())
+    selected = preflight.semantics(preflight.event()["semantics"])
+    require(selected["kind"] == "history" and all(request.get(name) == selected[name] for name in ("root", "previous")) and request.get("native") == native, "history preparation differs from its exact native request")
+    product = held["repository"].split("/")[1]
+    report = facts(["release", "inspect", "--input", str(root / "request.json"), "--purpose", "retention", "--product", product])
+    require(set(report) == {"schema", "data", "authentication", "publication"} and report["schema"] == "plumb.release.history.materials/v1", "shared history preparation protocol differs")
+    require(report["authentication"] is False and report["publication"] is False, "history preparation claims issuer or publication authority")
+    record = report["data"]
+    require(isinstance(record, dict) and record.get("schema") == "wharf.release.semantics.history/v1" and record.get("product") == product, "shared history checkpoint names another product or schema")
+    require(record.get("native") == native and all(record.get(name) == request[name] for name in ("root", "previous")), "shared checkpoint differs from exact native preparation")
+    return report
+
+
+def checkpoint(held):
+    root = destination(held, False)
+    native = capture.active(held, "semantics-history")
+    selected = preflight.semantics(preflight.event()["semantics"])
+    require(selected["kind"] == "history", "history issuance needs its fixed request")
+    request = {"schema": "wharf.release.semantics.history.request/v1", "root": selected["root"], "previous": selected["previous"], "native": native}
+    root.mkdir(parents=True)
+    (root / "root.json").write_bytes(canonical.encode(request["root"]))
+    (root / "request.json").write_bytes(canonical.encode(request))
+    authority = reader.identity()
+    adopted = baseline(held, root)
+    report = history(held, root, native)
+    record = report["data"]
+    raw = canonical.encode(record)
+    product = held["repository"].split("/")[1]
+    reference = object_reference(product, raw)
+    head = {"schema": "wharf.release.semantics.history.head/v1", "reference": reference}
+    expected = None if request["previous"] is None else canonical.encode(dict(head, reference=request["previous"]))
+    source = adopted["data"]["materials"]["world"]["source"]
+    _, bucket, _ = release.place(release.Release(held["repository"], held["marker"], source["commit"], native["commit"]))
+    publisher = r2.writer(bucket, "RELEASES")
+    prior, etag = publisher.snapshot(HEAD)
+    require(prior == expected and (prior is None) == (etag is None), "protected history differs from exact public predecessor")
+    intent = {"schema": "wharf.release.semantics.history.intent/v1", "native": native, "root": request["root"], "previous": request["previous"], "reference": reference, "head": head, "etag": etag, "reader": authority, "authentication": False, "publication": False}
+    for name, value in {"baseline": adopted, "preparation": report, "intent": intent, "record": record, "reference": reference}.items():
+        (root / f"{name}.json").write_bytes(canonical.encode(value))
+    require(history(held, root, native) == report and reader.identity() == authority, "shared history preparation moved before retention")
+    require(retain(publisher, product, raw) == reference, "retained checkpoint reference differs")
+    require(capture.active(held, "semantics-history") == native and reader.identity() == authority, "history native context or formal reader moved before head update")
+    publisher.swap(HEAD, canonical.encode(head), etag)
+    require(publisher.snapshot(HEAD)[0] == canonical.encode(head), "protected history head readback differs")
+    require(release.fetch(f"https://releases.{product}.perish.uk/{HEAD}") == canonical.encode(head), "public history head readback differs")
+    parameters.answer({"digest": reference["sha256"]})
+    return intent
+
+
+def confirmed(held):
+    root = destination(held, True)
+    native = capture.active(held, "semantics-history")
+    names = {"root.json", "request.json", "baseline.json", "preparation.json", "intent.json", "record.json", "reference.json"}
+    require({path.name for path in root.iterdir()} == names and all((root / name).is_file() and not (root / name).is_symlink() for name in names), "history confirmation receipt file set differs")
+    require(isinstance(held["digest"], str) and re.fullmatch(r"[0-9a-f]{64}", held["digest"]), "history confirmation needs its exact digest")
+    intent = capture.decode((root / "intent.json").read_bytes())
+    request = capture.decode((root / "request.json").read_bytes())
+    selected = preflight.semantics(preflight.event()["semantics"])
+    require(selected["kind"] == "history" and all(selected[name] == request[name] == intent[name] for name in ("root", "previous")), "history confirmation names another actual request")
+    raw = (root / "record.json").read_bytes()
+    record = capture.decode(raw)
+    product = held["repository"].split("/")[1]
+    reference = object_reference(product, raw)
+    require(reference == intent["reference"] == capture.decode((root / "reference.json").read_bytes()) and reference["sha256"] == held["digest"], "history confirmation reference differs")
+    require(record.get("native") == request.get("native") == intent.get("native") == native and record.get("product") == product, "history confirmation names another native issuer or product")
+    authority, inspection = capture.inspect(record, raw)
+    require(authority == intent["reader"], "history data inspection or formal reader moved")
+    baseline(held, root)
+    require(release.fetch(reference["url"]) == raw and release.fetch(f"https://releases.{product}.perish.uk/{HEAD}") == canonical.encode(intent["head"]), "public history checkpoint or head moved before confirmation")
+    require(intent.get("head") == {"schema": "wharf.release.semantics.history.head/v1", "reference": reference} and all(intent.get(name) is False for name in ("authentication", "publication")), "history receipt exceeds its retention role")
+    result = {"schema": "wharf.release.semantics.history.confirmation/v1", "native": native, "reference": reference, "authentication": False, "publication": False}
+    (root / "confirmation.json").write_bytes(canonical.encode(result))
+    return result

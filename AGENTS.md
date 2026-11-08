@@ -71,6 +71,17 @@ other; `lib` has no import cycles. Only `lib/content/resources.py` knows where f
 
 ## Workloads
 
+The dedicated semantic-history role consumes formal Plumb baseline and retention
+facts, binds its actual native identity and preserves its exact intent before
+the first store mutation. It retains create-only checkpoints and conditionally
+updates the fixed history head against the observed predecessor bytes and ETag.
+Disagreement, conflict or an unknown acknowledgement stops without replay or
+rollback. Confirmation has no store credentials and checks the immutable object,
+public head, original adoption and formal reader before its digest step.
+This retains metadata observations, not complete pre-inception history, family
+transitions, semantic equality, qualification or publication permission. Existing
+publication roles remain excluded, and activation still requires its own canaries.
+
 A workload key is `sha256` over the canonical JSON of the hash version, the basis
 and the implementation. The basis is the effective content an entry resolves to,
 recorded item by item, widened rather than narrowed where resolution is imprecise.

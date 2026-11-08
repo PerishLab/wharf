@@ -14,6 +14,22 @@ OBSERVER = {"run": "7", "attempt": "1", "wharf": "c" * 40}
 
 
 class Request(unittest.TestCase):
+    def test_history_is_closed_stable_and_cannot_claim_its_native_issuer(self):
+        value = {"schema": "wharf.release.semantics.request/v1", "kind": "history", "root": {"fixture": "shared-reader-validates"}, "previous": None}
+        raw = json.dumps(value, sort_keys=True, separators=(",", ":"))
+        selected = {"repository": "PerishLab/plumb", "marker": "v0.140.0", "semantics": raw}
+        self.assertEqual(preflight.semantics(raw), value)
+        held = {"observer": OBSERVER, "selection": json.dumps({"schema": preflight.SCHEMA, "inputs": selected})}
+        with mock.patch.object(preflight, "active", return_value=(OBSERVER, [])), mock.patch.object(preflight, "event", return_value=preflight.selection(selected)), mock.patch.object(preflight.parameters, "answer") as answer:
+            self.assertFalse(preflight.request(held)["publication"])
+            answer.assert_called_once_with({"mode": "history", "preparation": "null"})
+        for changed in ({"native": {}}, {"authentication": True}, {"root": {}}, {"previous": "latest"}):
+            with self.subTest(changed=changed), self.assertRaises(Refusal):
+                preflight.semantics(json.dumps(value | changed, sort_keys=True, separators=(",", ":")))
+        for changed in ({"marker": "v0.141.0-rc.1"}, {"prepare": True}, {"run": "7"}, {"proof": True}):
+            with self.subTest(changed=changed), self.assertRaises(Refusal):
+                preflight.selection(selected | changed)
+
     def test_retention_binds_original_native_and_two_digests_without_publication(self):
         value = {"schema": "wharf.release.semantics.request/v1", "kind": "retain", "native": {"run": 7, "attempt": 2, "commit": "a" * 40, "job": 11}, "world": "b" * 64, "material": "c" * 64}
         raw = json.dumps(value, sort_keys=True, separators=(",", ":"))
