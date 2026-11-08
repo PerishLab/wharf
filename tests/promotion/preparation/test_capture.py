@@ -25,6 +25,20 @@ def world():
 
 
 class Capture(unittest.TestCase):
+    def test_history_uses_actual_role_kind_lineage_and_excludes_other_execution(self):
+        held = {"observer": OBSERVER, "repository": SOURCE["repository"], "marker": SOURCE["marker"]}
+        value = {"kind": "history", "schema": "wharf.release.semantics.request/v1", "root": {"fixture": "shared validates"}, "previous": None}
+        selected = REQUEST | {"semantics": canonical.encode(value).decode()}
+        job = {"id": 19, "name": preflight.ROLES["semantics-history"]}
+        jobs = [job]
+        with mock.patch.object(preflight, "active", return_value=(OBSERVER, jobs)), mock.patch.object(preflight, "event", return_value=preflight.selection(selected)), mock.patch.object(capture.control, "api", side_effect=self.api):
+            self.assertEqual(capture.active(held, "semantics-history"), {"run": 9, "attempt": 1, "commit": OBSERVER["wharf"], "job": 19})
+            jobs.append({"id": 20, "name": "[publish] cargo", "started_at": "now", "conclusion": None})
+            with self.assertRaises(Refusal):
+                capture.active(held, "semantics-history")
+        with mock.patch.object(preflight, "active", return_value=(OBSERVER, [job])), mock.patch.object(preflight, "event", return_value=preflight.selection(REQUEST)), self.assertRaises(Refusal):
+            capture.active(held, "semantics-history")
+
     def test_capture_and_issue_roles_require_their_actual_request_kind(self):
         job = {"id": 19, "name": preflight.ROLES["semantics-issue"]}
         held = {"observer": OBSERVER, "repository": SOURCE["repository"], "marker": SOURCE["marker"]}
