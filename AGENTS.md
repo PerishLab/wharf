@@ -1545,6 +1545,25 @@ key. Product code never runs in that role, and shared Plumb children receive
 the reader token without either R2 credential. Refused or unknown shared facts
 retain their bounded native diagnosis; no reader failure authorizes issuance.
 
+The separate `kind: "world"` request selects a proposed marker, an exact commit
+held by protected product main and an exact immutable Scene. Its fixed preparation
+job has only contents/actions/package read permission and no R2 or publication
+credential. It reuses the actual release snapshot and full/head Guard carrier,
+including actual first-party resolution, domain and control observations. Product
+execution receives only the existing package reader and isolated snapshot
+environment; metadata issuers still never execute product source. The selected Scene is an observation at source
+selection, not a claim that its integration cases executed or stayed latest.
+
+Preparation retains the actual world and every regular blob of its effective Git
+tree, with mode, Git identity, SHA256 and bytes in a bounded compressed source
+payload. Git export attributes cannot omit files. A final read-only step binds both
+world and source payload SHA256 in its successful native name. Its artifact lasts
+fourteen days; later durable consumers must retain exact content-addressed data.
+This is prospective execution material, never an original historical publication,
+initial adoption, qualified version, X decision, publication action or activated
+scope. It creates no release marker and publishes no package, release object,
+workload record or channel.
+
 ## Release identity
 
 Sources declare version `0.0.0`. A distributable binary is built unbound and receives
