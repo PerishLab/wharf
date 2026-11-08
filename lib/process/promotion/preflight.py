@@ -15,7 +15,7 @@ from lib.process.promotion import reader, subject
 SCHEMA = "wharf.ship.request/v1"
 INTENT = "wharf.ship.preparation.intent/v1"
 DEFAULTS = {"run": "", "case": "declared", "reference": "", "candidate": False, "prepare": False, "proof": False, "attempt": "1", "semantics": ""}
-ROLES = {"request": "[verify] request", "prepared": "[read] prepared plan", "plan": "[plan] entries", "semantics": "[read] original semantics materials", "semantics-issue": "[issue] version semantics", "semantics-world": "[prepare] semantic world"}
+ROLES = {"request": "[verify] request", "prepared": "[read] prepared plan", "plan": "[plan] entries", "semantics": "[read] original semantics materials", "semantics-issue": "[issue] version semantics", "semantics-world": "[prepare] semantic world", "semantics-retain": "[retain] semantic world"}
 
 
 def semantics(raw):
@@ -25,13 +25,20 @@ def semantics(raw):
     except (ValueError, RecursionError) as error:
         raise Refusal("semantics request is not valid JSON") from error
     require(isinstance(value, dict) and value.get("schema") == "wharf.release.semantics.request/v1", "semantics request schema differs")
-    require(value.get("kind") in ("capture", "adoption", "world"), "semantics request is unsupported")
-    fields = {"schema", "kind"} | ({"scenes", "review"} if value["kind"] == "adoption" else {"commit", "scenes"} if value["kind"] == "world" else set())
+    choices = {"capture": set(), "adoption": {"scenes", "review"}, "world": {"commit", "scenes"}, "retain": {"native", "world", "material"}}
+    require(value.get("kind") in choices, "semantics request is unsupported")
+    fields = {"schema", "kind"} | choices[value["kind"]]
     require(set(value) == fields, "semantics request fields differ")
     if value["kind"] == "adoption":
         require(isinstance(value["scenes"], dict) and value["scenes"] and isinstance(value["review"], str) and 0 < len(value["review"]) <= 8192, "adoption needs exact Scene and review selections")
     if value["kind"] == "world":
         require(isinstance(value["commit"], str) and re.fullmatch(r"[0-9a-f]{40}", value["commit"]) and isinstance(value["scenes"], dict) and value["scenes"], "world preparation needs an exact commit and Scene selection")
+    if value["kind"] == "retain":
+        native = value["native"]
+        require(isinstance(native, dict) and set(native) == {"run", "attempt", "commit", "job"}, "world retention needs its exact native preparation")
+        require(all(type(native[name]) is int and 0 < native[name] < 2 ** 64 for name in ("run", "attempt", "job")), "world retention native numbers differ")
+        require(isinstance(native["commit"], str) and re.fullmatch(r"[0-9a-f]{40}", native["commit"]), "world retention control source differs")
+        require(all(isinstance(value[name], str) and re.fullmatch(r"[0-9a-f]{64}", value[name]) for name in ("world", "material")), "world retention needs both exact native digests")
     require(canonical.encode(value).decode() == raw, "semantics request must be canonical")
     return value
 
@@ -48,7 +55,7 @@ def selection(value):
     if result["semantics"]:
         requested = semantics(result["semantics"])
         require(result["repository"] in ("PerishLab/plumb", "PerishLab/concord"), "semantics materials support exact Plumb or Concord only")
-        require(requested["kind"] == "world" or marker.channel(result["marker"]) == "stable", "historical semantics materials need an exact stable marker")
+        require(requested["kind"] in ("world", "retain") or marker.channel(result["marker"]) == "stable", "historical semantics materials need an exact stable marker")
         require(not any(result[name] for name in ("prepare", "candidate", "proof", "run", "reference")) and result["case"] == "declared" and result["attempt"] == "1", "semantics materials conflict with publication, replay or diagnostics")
     if result["proof"]:
         require(not result["prepare"] and not result["candidate"] and result["run"] != "" and result["case"] == "declared" and result["attempt"] == "1", "proof replay needs a publication run without preparation, candidate or diagnostic selection")
@@ -128,7 +135,7 @@ def request(held):
     chosen = qualify(selected) if selected["prepare"] else None
     mode = "semantics" if selected["semantics"] else "prepare" if selected["prepare"] else "ordinary"
     if selected["semantics"]:
-        mode = {"capture": "semantics", "adoption": "adoption", "world": "world"}[semantics(selected["semantics"])["kind"]]
+        mode = {"capture": "semantics", "adoption": "adoption", "world": "world", "retain": "retention"}[semantics(selected["semantics"])["kind"]]
     parameters.answer({"mode": mode, "preparation": canonical.encode(chosen).decode()})
     return {"schema": SCHEMA, "observer": identity, "preparation": chosen, "publication": False, "promotion": False}
 

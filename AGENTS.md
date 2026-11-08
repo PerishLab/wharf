@@ -1564,6 +1564,26 @@ initial adoption, qualified version, X decision, publication action or activated
 scope. It creates no release marker and publishes no package, release object,
 workload record or channel.
 
+The separate `kind: "retain"` request binds an original preparation's exact
+native run/attempt/control/job and both confirmed SHA256 values. Its fixed metadata
+role independently verifies protected-main provenance, the successful original
+preparation job and unique dual-digest step, complete artifact inventory, provider
+archive digest/size and all seven bounded regular files. It preserves raw bytes;
+expired, failed, ambiguous or moved producers cannot initialize its writer.
+Only this metadata role receives the existing workload-read and RELEASES writer.
+It never checks out or executes a product. Current formal Plumb checks world data;
+complete source interpretation remains the shared SDK's responsibility.
+
+Retention creates the exact world, source payload and strict
+`wharf.release.semantics.world/v1` descriptor at immutable semantic object
+addresses. The descriptor names the original preparation, never the retainer as
+its producer. Intent is retained before writes; unknown writes stop for observation.
+An existing address must reproduce its bytes. The final step has no storage writer
+and rechecks original native facts, reader and public bytes before its digest-bearing
+name succeeds. Partial intent artifacts stay partial. Retention grants no
+authentication verdict, semantic equality, adoption, qualification, activation or
+publication; actual formal prepared-world consumption is separately required.
+
 ## Release identity
 
 Sources declare version `0.0.0`. A distributable binary is built unbound and receives
