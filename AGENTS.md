@@ -1510,6 +1510,18 @@ baseline adoption, publication gate or consumer canary. Wharf#354 retains
 those obligations; future activation requires its own verified implementation
 and actual positive and negative publication evidence.
 
+The optional `ship.yml` semantics selector accepts the canonical material request
+`{"kind":"capture","schema":"wharf.release.semantics.request/v1"}` for exact
+Plumb or Concord stable markers. Its fixed metadata role reads complete original
+distribution, verifies the referenced immutable private plan and original native
+planner, and copies that plan's frozen world without resolving or running old
+source. Current formal Plumb validates the supplied data with no authentication
+or publication grant. The job has workload read access and no product checkout
+or release writer; ordinary jobs exclude this mode. Its fourteen-day artifact
+retains world bytes, original references and inspection; missing history refuses.
+Capture does not adopt a baseline, decide a version, qualify content or activate
+semantics enforcement.
+
 ## Release identity
 
 Sources declare version `0.0.0`. A distributable binary is built unbound and receives

@@ -1,5 +1,5 @@
 name: ship
-run-name: "${{ inputs.prepare && '[prepare]' || inputs.candidate && '[candidate]' || (inputs.run != '' && (inputs.reference != '' && '[compare]' || inputs.proof && '[prove]' || '[windtun]') || '[ship]') }} ${{ inputs.repository }} ${{ inputs.marker }}"
+run-name: "${{ inputs.semantics != '' && '[semantics]' || inputs.prepare && '[prepare]' || inputs.candidate && '[candidate]' || (inputs.run != '' && (inputs.reference != '' && '[compare]' || inputs.proof && '[prove]' || '[windtun]') || '[ship]') }} ${{ inputs.repository }} ${{ inputs.marker }}"
 
 on:
   workflow_dispatch:
@@ -40,6 +40,11 @@ on:
         required: false
         type: boolean
         default: false
+      semantics:
+        description: Canonical semantics material request; empty uses normal ship
+        required: false
+        type: string
+        default: ""
       attempt:
         description: Exact plan attempt for candidate inspection
         required: false
@@ -97,9 +102,52 @@ jobs:
           WHARF_SELECTION: '{"schema":"wharf.ship.request/v1","inputs":${{ toJSON(inputs) }}}'
         run: python3 -B -m scripts.distribution request
 
+  semantics:
+    name: "[read] original semantics materials"
+    needs: [request]
+    if: needs.request.result == 'success' && needs.request.outputs.mode == 'semantics'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      actions: read
+    steps:
+      - name: "[checkout] trusted wharf"
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: ${{ github.sha }}
+          path: wharf
+          persist-credentials: false
+
+      - name: "[prepare] shared material reader"
+        working-directory: .
+        run: |
+          curl -fsSL https://releases.plumb.perish.uk/manage.sh -o "$RUNNER_TEMP/manage-plumb.sh"
+          env PLUMB_CHANNEL=stable PLUMB_VERSION= sh "$RUNNER_TEMP/manage-plumb.sh" install
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+
+      - name: "[read] original semantics materials"
+        env:
+          GH_TOKEN: ${{ github.token }}
+          WHARF_REPOSITORY: ${{ inputs.repository }}
+          WHARF_MARKER: ${{ inputs.marker }}
+          WHARF_OBSERVER: '{"run":"${{ github.run_id }}","attempt":"${{ github.run_attempt }}","wharf":"${{ github.sha }}"}'
+          WHARF_SOURCE: ${{ runner.temp }}/semantics-materials
+          WHARF_R2_ACCESS_KEY_ID: ${{ secrets.WHARF_R2_ACCESS_KEY_ID }}
+          WHARF_R2_SECRET_ACCESS_KEY: ${{ secrets.WHARF_R2_SECRET_ACCESS_KEY }}
+        run: python3 -B -m scripts.distribution semantics-capture
+
+      - name: "[preserve] original semantics materials"
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
+        with:
+          name: semantics-materials-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/semantics-materials
+          if-no-files-found: error
+          retention-days: 14
+
   plan:
     needs: [request]
-    if: needs.request.result == 'success' && inputs.run == '' && !inputs.candidate
+    if: ${{ (needs.request.result == 'success' && inputs.run == '' && !inputs.candidate) && inputs.semantics == '' }}
     name: "[plan] entries"
     runs-on: ubuntu-24.04
     permissions:
@@ -295,7 +343,7 @@ jobs:
 
   layer-1:
     needs: [plan]
-    if: always() && needs.plan.result == 'success' && needs.plan.outputs.layer-1 != '[]' && !contains(needs.*.result, 'failure') && !contains(needs.*.result, 'cancelled')
+    if: ${{ (always() && needs.plan.result == 'success' && needs.plan.outputs.layer-1 != '[]' && !contains(needs.*.result, 'failure') && !contains(needs.*.result, 'cancelled')) && inputs.semantics == '' }}
     strategy:
       fail-fast: false
       matrix:
@@ -357,7 +405,7 @@ jobs:
 
   layer-2:
     needs: [plan, layer-1]
-    if: always() && needs.plan.result == 'success' && needs.plan.outputs.layer-2 != '[]' && !contains(needs.*.result, 'failure') && !contains(needs.*.result, 'cancelled')
+    if: ${{ (always() && needs.plan.result == 'success' && needs.plan.outputs.layer-2 != '[]' && !contains(needs.*.result, 'failure') && !contains(needs.*.result, 'cancelled')) && inputs.semantics == '' }}
     strategy:
       fail-fast: false
       matrix:
@@ -419,7 +467,7 @@ jobs:
 
   layer-3:
     needs: [plan, layer-1, layer-2]
-    if: always() && needs.plan.result == 'success' && needs.plan.outputs.layer-3 != '[]' && !contains(needs.*.result, 'failure') && !contains(needs.*.result, 'cancelled')
+    if: ${{ (always() && needs.plan.result == 'success' && needs.plan.outputs.layer-3 != '[]' && !contains(needs.*.result, 'failure') && !contains(needs.*.result, 'cancelled')) && inputs.semantics == '' }}
     strategy:
       fail-fast: false
       matrix:
@@ -481,7 +529,7 @@ jobs:
 
   layer-4:
     needs: [plan, layer-1, layer-2, layer-3]
-    if: always() && needs.plan.result == 'success' && needs.plan.outputs.layer-4 != '[]' && !contains(needs.*.result, 'failure') && !contains(needs.*.result, 'cancelled')
+    if: ${{ (always() && needs.plan.result == 'success' && needs.plan.outputs.layer-4 != '[]' && !contains(needs.*.result, 'failure') && !contains(needs.*.result, 'cancelled')) && inputs.semantics == '' }}
     strategy:
       fail-fast: false
       matrix:
@@ -544,7 +592,7 @@ jobs:
   promotion-prepare:
     name: "[windtun] prepare promotion"
     needs: [plan, layer-1, layer-2, layer-3, layer-4]
-    if: always() && !cancelled() && needs.plan.result == 'success' && inputs.repository == 'PerishLab/plumb' && !contains(inputs.marker, '-') && !contains(needs.*.result, 'failure') && !contains(needs.*.result, 'cancelled') && !inputs.prepare
+    if: ${{ (always() && !cancelled() && needs.plan.result == 'success' && inputs.repository == 'PerishLab/plumb' && !contains(inputs.marker, '-') && !contains(needs.*.result, 'failure') && !contains(needs.*.result, 'cancelled') && !inputs.prepare) && inputs.semantics == '' }}
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     permissions:
@@ -606,7 +654,7 @@ jobs:
   npm:
     name: "[publish] npm"
     needs: [plan, layer-1, layer-2, layer-3, layer-4, promotion-prepare]
-    if: always() && !cancelled() && needs.plan.result == 'success' && needs.plan.outputs.npm == 'run' && !contains(format('{0} {1} {2} {3}', needs.layer-1.result, needs.layer-2.result, needs.layer-3.result, needs.layer-4.result), 'failure') && !contains(format('{0} {1} {2} {3}', needs.layer-1.result, needs.layer-2.result, needs.layer-3.result, needs.layer-4.result), 'cancelled') && !inputs.prepare
+    if: ${{ (always() && !cancelled() && needs.plan.result == 'success' && needs.plan.outputs.npm == 'run' && !contains(format('{0} {1} {2} {3}', needs.layer-1.result, needs.layer-2.result, needs.layer-3.result, needs.layer-4.result), 'failure') && !contains(format('{0} {1} {2} {3}', needs.layer-1.result, needs.layer-2.result, needs.layer-3.result, needs.layer-4.result), 'cancelled') && !inputs.prepare) && inputs.semantics == '' }}
     runs-on: ubuntu-24.04
     permissions:
       contents: read
@@ -655,7 +703,7 @@ jobs:
   oci:
     name: "[publish] oci"
     needs: [plan, layer-1, layer-2, layer-3, layer-4, promotion-prepare]
-    if: always() && !cancelled() && needs.plan.result == 'success' && needs.plan.outputs.oci == 'run' && !contains(format('{0} {1} {2} {3}', needs.layer-1.result, needs.layer-2.result, needs.layer-3.result, needs.layer-4.result), 'failure') && !contains(format('{0} {1} {2} {3}', needs.layer-1.result, needs.layer-2.result, needs.layer-3.result, needs.layer-4.result), 'cancelled') && !inputs.prepare
+    if: ${{ (always() && !cancelled() && needs.plan.result == 'success' && needs.plan.outputs.oci == 'run' && !contains(format('{0} {1} {2} {3}', needs.layer-1.result, needs.layer-2.result, needs.layer-3.result, needs.layer-4.result), 'failure') && !contains(format('{0} {1} {2} {3}', needs.layer-1.result, needs.layer-2.result, needs.layer-3.result, needs.layer-4.result), 'cancelled') && !inputs.prepare) && inputs.semantics == '' }}
     runs-on: ubuntu-24.04
     permissions:
       contents: read
@@ -712,7 +760,7 @@ jobs:
   chart:
     name: "[publish] chart"
     needs: [plan, layer-1, layer-2, layer-3, layer-4, promotion-prepare]
-    if: always() && !cancelled() && needs.plan.result == 'success' && needs.plan.outputs.chart == 'run' && !contains(format('{0} {1} {2} {3}', needs.layer-1.result, needs.layer-2.result, needs.layer-3.result, needs.layer-4.result), 'failure') && !contains(format('{0} {1} {2} {3}', needs.layer-1.result, needs.layer-2.result, needs.layer-3.result, needs.layer-4.result), 'cancelled') && !inputs.prepare
+    if: ${{ (always() && !cancelled() && needs.plan.result == 'success' && needs.plan.outputs.chart == 'run' && !contains(format('{0} {1} {2} {3}', needs.layer-1.result, needs.layer-2.result, needs.layer-3.result, needs.layer-4.result), 'failure') && !contains(format('{0} {1} {2} {3}', needs.layer-1.result, needs.layer-2.result, needs.layer-3.result, needs.layer-4.result), 'cancelled') && !inputs.prepare) && inputs.semantics == '' }}
     runs-on: ubuntu-24.04
     permissions:
       contents: read
@@ -769,7 +817,7 @@ jobs:
   release:
     name: "[publish] binaries"
     needs: [plan, layer-1, layer-2, layer-3, layer-4, promotion-prepare]
-    if: always() && !cancelled() && needs.plan.result == 'success' && needs.plan.outputs.release == 'run' && !contains(format('{0} {1} {2} {3}', needs.layer-1.result, needs.layer-2.result, needs.layer-3.result, needs.layer-4.result), 'failure') && !contains(format('{0} {1} {2} {3}', needs.layer-1.result, needs.layer-2.result, needs.layer-3.result, needs.layer-4.result), 'cancelled') && !inputs.prepare
+    if: ${{ (always() && !cancelled() && needs.plan.result == 'success' && needs.plan.outputs.release == 'run' && !contains(format('{0} {1} {2} {3}', needs.layer-1.result, needs.layer-2.result, needs.layer-3.result, needs.layer-4.result), 'failure') && !contains(format('{0} {1} {2} {3}', needs.layer-1.result, needs.layer-2.result, needs.layer-3.result, needs.layer-4.result), 'cancelled') && !inputs.prepare) && inputs.semantics == '' }}
     runs-on: ubuntu-24.04
     outputs:
       snapshot: ${{ steps.published.outputs.snapshot }}
@@ -817,7 +865,7 @@ jobs:
   channel:
     name: "[point] channel"
     needs: [plan, layer-1, layer-2, layer-3, layer-4, npm, oci, chart, cargo, cfworker, release]
-    if: always() && !cancelled() && needs.plan.result == 'success' && needs.plan.outputs.channel == 'run' && !contains(needs.*.result, 'failure') && !contains(needs.*.result, 'cancelled') && !inputs.prepare
+    if: ${{ (always() && !cancelled() && needs.plan.result == 'success' && needs.plan.outputs.channel == 'run' && !contains(needs.*.result, 'failure') && !contains(needs.*.result, 'cancelled') && !inputs.prepare) && inputs.semantics == '' }}
     runs-on: ubuntu-24.04
     permissions:
       contents: read
@@ -856,7 +904,7 @@ jobs:
   cfworker:
     name: "[deploy] cfworker"
     needs: [plan, layer-1, layer-2, layer-3, layer-4, promotion-prepare]
-    if: always() && !cancelled() && needs.plan.result == 'success' && needs.plan.outputs.cfworker == 'run' && !contains(format('{0} {1} {2} {3}', needs.layer-1.result, needs.layer-2.result, needs.layer-3.result, needs.layer-4.result), 'failure') && !contains(format('{0} {1} {2} {3}', needs.layer-1.result, needs.layer-2.result, needs.layer-3.result, needs.layer-4.result), 'cancelled') && !inputs.prepare
+    if: ${{ (always() && !cancelled() && needs.plan.result == 'success' && needs.plan.outputs.cfworker == 'run' && !contains(format('{0} {1} {2} {3}', needs.layer-1.result, needs.layer-2.result, needs.layer-3.result, needs.layer-4.result), 'failure') && !contains(format('{0} {1} {2} {3}', needs.layer-1.result, needs.layer-2.result, needs.layer-3.result, needs.layer-4.result), 'cancelled') && !inputs.prepare) && inputs.semantics == '' }}
     runs-on: ubuntu-24.04
     permissions:
       contents: read
@@ -905,7 +953,7 @@ jobs:
   cargo:
     name: "[publish] cargo"
     needs: [plan, layer-1, layer-2, layer-3, layer-4, promotion-prepare]
-    if: always() && !cancelled() && needs.plan.result == 'success' && needs.plan.outputs.cargo == 'run' && !contains(format('{0} {1} {2} {3}', needs.layer-1.result, needs.layer-2.result, needs.layer-3.result, needs.layer-4.result), 'failure') && !contains(format('{0} {1} {2} {3}', needs.layer-1.result, needs.layer-2.result, needs.layer-3.result, needs.layer-4.result), 'cancelled') && !inputs.prepare
+    if: ${{ (always() && !cancelled() && needs.plan.result == 'success' && needs.plan.outputs.cargo == 'run' && !contains(format('{0} {1} {2} {3}', needs.layer-1.result, needs.layer-2.result, needs.layer-3.result, needs.layer-4.result), 'failure') && !contains(format('{0} {1} {2} {3}', needs.layer-1.result, needs.layer-2.result, needs.layer-3.result, needs.layer-4.result), 'cancelled') && !inputs.prepare) && inputs.semantics == '' }}
     runs-on: ubuntu-24.04
     outputs:
       snapshot: ${{ steps.published.outputs.snapshot }}
@@ -954,7 +1002,7 @@ jobs:
   distribution:
     name: "[record] distribution"
     needs: [plan, layer-1, layer-2, layer-3, layer-4, npm, oci, chart, release, channel, cfworker, cargo]
-    if: always() && needs.plan.result == 'success' && !inputs.prepare
+    if: ${{ (always() && needs.plan.result == 'success' && !inputs.prepare) && inputs.semantics == '' }}
     runs-on: ubuntu-24.04
     outputs:
       state: ${{ steps.distribution.outputs.state }}
@@ -986,7 +1034,7 @@ jobs:
   prepared:
     name: "[read] prepared plan"
     needs: [request, plan, layer-1, layer-2, layer-3, layer-4, promotion-prepare, npm, oci, chart, release, channel, cfworker, cargo, distribution, build-proof, native-proof, windtun-prepare, windtun-issue]
-    if: always() && !cancelled() && inputs.prepare && needs.request.result == 'success' && needs.plan.result == 'success' && !contains(needs.*.result, 'failure') && !contains(needs.*.result, 'cancelled')
+    if: ${{ (always() && !cancelled() && inputs.prepare && needs.request.result == 'success' && needs.plan.result == 'success' && !contains(needs.*.result, 'failure') && !contains(needs.*.result, 'cancelled')) && inputs.semantics == '' }}
     runs-on: ubuntu-24.04
     timeout-minutes: 20
     permissions:
@@ -1055,7 +1103,7 @@ jobs:
   build-proof:
     name: "[prove] published binary"
     needs: [request, plan, distribution]
-    if: ${{ needs.request.result == 'success' && !inputs.prepare && !cancelled() && !inputs.candidate && ((inputs.run != '' && (inputs.proof || inputs.reference != '')) || (inputs.run == '' && needs.distribution.outputs.state == 'complete' && needs.plan.outputs.binaryproof == 'true')) }}
+    if: ${{ (needs.request.result == 'success' && !inputs.prepare && !cancelled() && !inputs.candidate && ((inputs.run != '' && (inputs.proof || inputs.reference != '')) || (inputs.run == '' && needs.distribution.outputs.state == 'complete' && needs.plan.outputs.binaryproof == 'true'))) && inputs.semantics == '' }}
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     permissions:
@@ -1105,7 +1153,7 @@ jobs:
   build-candidate:
     name: "[prove] candidate binary"
     needs: [request, plan, prepared]
-    if: always() && !cancelled() && needs.request.result == 'success' && (inputs.candidate || (inputs.prepare && needs.prepared.result == 'success'))
+    if: ${{ (always() && !cancelled() && needs.request.result == 'success' && (inputs.candidate || (inputs.prepare && needs.prepared.result == 'success'))) && inputs.semantics == '' }}
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     permissions:
@@ -1157,7 +1205,7 @@ jobs:
   native-proof:
     name: "[prove] native binary"
     needs: [request, plan, distribution]
-    if: ${{ needs.request.result == 'success' && !inputs.prepare && !cancelled() && !inputs.candidate && ((inputs.run != '' && (inputs.proof || inputs.reference != '')) || (inputs.run == '' && needs.distribution.outputs.state == 'complete' && needs.plan.outputs.binaryproof == 'true')) }}
+    if: ${{ (needs.request.result == 'success' && !inputs.prepare && !cancelled() && !inputs.candidate && ((inputs.run != '' && (inputs.proof || inputs.reference != '')) || (inputs.run == '' && needs.distribution.outputs.state == 'complete' && needs.plan.outputs.binaryproof == 'true'))) && inputs.semantics == '' }}
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     permissions:
@@ -1232,7 +1280,7 @@ jobs:
   native-candidate:
     name: "[prove] native candidate binary"
     needs: [request, plan, prepared, build-candidate]
-    if: always() && !cancelled() && needs.request.result == 'success' && (inputs.candidate || (inputs.prepare && needs.prepared.result == 'success')) && needs.build-candidate.result == 'success'
+    if: ${{ (always() && !cancelled() && needs.request.result == 'success' && (inputs.candidate || (inputs.prepare && needs.prepared.result == 'success')) && needs.build-candidate.result == 'success') && inputs.semantics == '' }}
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     permissions:
@@ -1292,7 +1340,7 @@ jobs:
     permissions:
       contents: read
       actions: read
-    if: needs.request.result == 'success' && !inputs.prepare && !inputs.proof && always() && !inputs.candidate && (inputs.run == '' || inputs.reference == '') && (inputs.run != '' || (needs.distribution.outputs.state == 'complete' && needs.plan.outputs.windtun == 'true'))
+    if: ${{ (needs.request.result == 'success' && !inputs.prepare && !inputs.proof && always() && !inputs.candidate && (inputs.run == '' || inputs.reference == '') && (inputs.run != '' || (needs.distribution.outputs.state == 'complete' && needs.plan.outputs.windtun == 'true'))) && inputs.semantics == '' }}
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     outputs:
@@ -1336,7 +1384,7 @@ jobs:
     permissions:
       contents: read
       actions: read
-    if: ${{ !cancelled() && needs.windtun-prepare.result == 'success' && needs.windtun-prepare.outputs.ready == 'true' }}
+    if: ${{ (!cancelled() && needs.windtun-prepare.result == 'success' && needs.windtun-prepare.outputs.ready == 'true') && inputs.semantics == '' }}
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     outputs:
@@ -1400,7 +1448,7 @@ jobs:
     permissions:
       contents: read
       actions: read
-    if: always() && needs.request.result == 'success' && needs.windtun-prepare.outputs.ready == 'true' && !inputs.prepare && !inputs.proof
+    if: ${{ (always() && needs.request.result == 'success' && needs.windtun-prepare.outputs.ready == 'true' && !inputs.prepare && !inputs.proof) && inputs.semantics == '' }}
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     steps:

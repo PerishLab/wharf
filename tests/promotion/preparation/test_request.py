@@ -14,6 +14,17 @@ OBSERVER = {"run": "7", "attempt": "1", "wharf": "c" * 40}
 
 
 class Request(unittest.TestCase):
+    def test_semantics_capture_is_canonical_stable_and_separate(self):
+        request = '{"kind":"capture","schema":"wharf.release.semantics.request/v1"}'
+        selected = {"repository": "PerishLab/plumb", "marker": "v1.2.3", "semantics": request}
+        self.assertEqual(preflight.selection(selected)["semantics"], request)
+        for changed in ({"repository": "PerishLab/keel"}, {"marker": "v1.2.3-rc.1"}, {"run": "7"}, {"prepare": True}, {"candidate": True}, {"proof": True}, {"reference": "v1.2.3-rc.1"}, {"case": "diagnostic"}, {"attempt": "2"}):
+            with self.subTest(changed=changed), self.assertRaises(Refusal):
+                preflight.selection(selected | changed)
+        for value in (request + " ", request.replace('"capture"', '"adopt"'), request.replace('"kind":"capture"', '"kind":"capture","kind":"capture"'), '{"kind":"capture"}', "{}", "x" * 65537):
+            with self.subTest(value=value[:80]), self.assertRaises(Refusal):
+                preflight.selection(selected | {"semantics": value})
+
     def test_ordinary_defaults_and_native_boolean_transport(self):
         ordinary = preflight.selection({"repository": "PerishLab/concord", "marker": "v0.58.0-rc.1"})
         self.assertFalse(ordinary["prepare"])

@@ -10,7 +10,7 @@ def jobs():
     source = (Path(git('.', 'rev-parse', '--show-toplevel')) / '.github/workflows/ship.yml').read_text()
     found = {}
     current = None
-    for line in source.splitlines():
+    for line in source.split('jobs:\n', 1)[1].splitlines():
         if re.fullmatch(r'  [a-z0-9-]+:', line):
             current = line.strip().rstrip(':')
             found[current] = []
