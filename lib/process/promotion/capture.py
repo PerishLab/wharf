@@ -34,15 +34,18 @@ def lineage(commit):
     require(compared.get("base_commit", {}).get("sha") == commit and compared.get("merge_base_commit", {}).get("sha") == commit and compared.get("status") in ("ahead", "identical"), "semantics source is outside protected main history")
 
 
-def active(held):
-    observer, jobs = preflight.active(held["observer"], "semantics")
+def active(held, role="semantics"):
+    require(role in ("semantics", "semantics-issue"), "semantics role is unsupported")
+    observer, jobs = preflight.active(held["observer"], role)
     selected = preflight.event()
     require(selected["semantics"] and all(selected[name] == held[name] for name in ("repository", "marker")), "semantics capture differs from its native request")
+    kind = "capture" if role == "semantics" else "adoption"
+    require(preflight.semantics(selected["semantics"])["kind"] == kind, "semantics role differs from actual request kind")
     lineage(observer["wharf"])
-    names = {preflight.ROLES["request"], preflight.ROLES["semantics"]}
+    names = {preflight.ROLES["request"], preflight.ROLES[role]}
     for job in jobs:
         require(job.get("name") in names or job.get("started_at") is None or job.get("conclusion") == "skipped", "semantics capture overlaps another executing role")
-    selected = [job for job in jobs if job.get("name") == preflight.ROLES["semantics"]]
+    selected = [job for job in jobs if job.get("name") == preflight.ROLES[role]]
     return {"run": int(observer["run"]), "attempt": int(observer["attempt"]), "commit": observer["wharf"], "job": selected[0]["id"]}
 
 

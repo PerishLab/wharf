@@ -25,6 +25,12 @@ def world():
 
 
 class Capture(unittest.TestCase):
+    def test_capture_and_issue_roles_require_their_actual_request_kind(self):
+        job = {"id": 19, "name": preflight.ROLES["semantics-issue"]}
+        held = {"observer": OBSERVER, "repository": SOURCE["repository"], "marker": SOURCE["marker"]}
+        with mock.patch.object(preflight, "active", return_value=(OBSERVER, [job])), mock.patch.object(preflight, "event", return_value=preflight.selection(REQUEST)), self.assertRaises(Refusal):
+            capture.active(held, "semantics-issue")
+
     def fixture(self):
         context = SOURCE | {"wharf": "c" * 40, "run": "7", "attempt": "1", "snapshot": world()}
         document = {"schema": 1, "context": context, "entries": {}, "engines": {}, "shape": {}}

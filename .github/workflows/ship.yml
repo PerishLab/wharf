@@ -41,7 +41,7 @@ on:
         type: boolean
         default: false
       semantics:
-        description: Canonical semantics material request; empty uses normal ship
+        description: Canonical material capture or initial adoption request; empty uses normal ship
         required: false
         type: string
         default: ""
@@ -142,6 +142,62 @@ jobs:
         with:
           name: semantics-materials-${{ github.run_attempt }}
           path: ${{ runner.temp }}/semantics-materials
+          if-no-files-found: error
+          retention-days: 14
+
+  semantics-issue:
+    name: "[issue] version semantics"
+    needs: [request]
+    if: needs.request.result == 'success' && needs.request.outputs.mode == 'adoption'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    permissions:
+      contents: read
+      actions: read
+    steps:
+      - name: "[checkout] trusted wharf"
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: ${{ github.sha }}
+          path: wharf
+          persist-credentials: false
+
+      - name: "[prepare] shared material reader"
+        working-directory: .
+        run: |
+          curl -fsSL https://releases.plumb.perish.uk/manage.sh -o "$RUNNER_TEMP/manage-plumb.sh"
+          env PLUMB_CHANNEL=stable PLUMB_VERSION= sh "$RUNNER_TEMP/manage-plumb.sh" install
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+
+      - name: "[issue] adoption record"
+        id: adoption
+        env:
+          GH_TOKEN: ${{ github.token }}
+          WHARF_REPOSITORY: ${{ inputs.repository }}
+          WHARF_MARKER: ${{ inputs.marker }}
+          WHARF_OBSERVER: '{"run":"${{ github.run_id }}","attempt":"${{ github.run_attempt }}","wharf":"${{ github.sha }}"}'
+          WHARF_SOURCE: ${{ runner.temp }}/semantics-adoption
+          WHARF_R2_ACCESS_KEY_ID: ${{ secrets.WHARF_R2_ACCESS_KEY_ID }}
+          WHARF_R2_SECRET_ACCESS_KEY: ${{ secrets.WHARF_R2_SECRET_ACCESS_KEY }}
+          WHARF_RELEASES_ACCESS_KEY_ID: ${{ secrets.WHARF_RELEASES_ACCESS_KEY_ID }}
+          WHARF_RELEASES_SECRET_ACCESS_KEY: ${{ secrets.WHARF_RELEASES_SECRET_ACCESS_KEY }}
+        run: python3 -B -m scripts.distribution semantics-issue
+
+      - name: "[issue] semantics ${{ steps.adoption.outputs.digest }}"
+        env:
+          GH_TOKEN: ${{ github.token }}
+          WHARF_REPOSITORY: ${{ inputs.repository }}
+          WHARF_MARKER: ${{ inputs.marker }}
+          WHARF_OBSERVER: '{"run":"${{ github.run_id }}","attempt":"${{ github.run_attempt }}","wharf":"${{ github.sha }}"}'
+          WHARF_SOURCE: ${{ runner.temp }}/semantics-adoption
+          WHARF_DIGEST: ${{ steps.adoption.outputs.digest }}
+        run: python3 -B -m scripts.distribution semantics-confirm
+
+      - name: "[preserve] adoption record"
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
+        with:
+          name: semantics-adoption-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/semantics-adoption
           if-no-files-found: error
           retention-days: 14
 
