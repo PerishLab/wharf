@@ -1499,6 +1499,17 @@ A collector Job success alone proves neither a prepared verdict nor permission.
 A source merge does not settle Wharf#305's promised fresh ordinary Plumb ship
 observation. Historical replays and empty releases cannot replace that canary.
 
+## Version semantics bootstrap
+
+`resources/check/semantics.json` on protected `main` explicitly declares no
+activated version-semantics scopes. The native source gate requires the exact
+canonical inactive descriptor until the shared Plumb verifier is adopted.
+Missing, changed or nonempty bootstrap data fails that source gate. This is
+an authenticated source for observing nonactivation, not a release judgment,
+baseline adoption, publication gate or consumer canary. Wharf#354 retains
+those obligations; future activation requires its own verified implementation
+and actual positive and negative publication evidence.
+
 ## Release identity
 
 Sources declare version `0.0.0`. A distributable binary is built unbound and receives
