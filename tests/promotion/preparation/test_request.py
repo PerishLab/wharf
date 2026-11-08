@@ -14,6 +14,22 @@ OBSERVER = {"run": "7", "attempt": "1", "wharf": "c" * 40}
 
 
 class Request(unittest.TestCase):
+    def test_world_is_prospective_closed_and_not_a_publishing_or_replay_request(self):
+        value = {"kind": "world", "schema": "wharf.release.semantics.request/v1", "commit": "a" * 40, "scenes": {"fixture": "selected"}}
+        selected = {"repository": "PerishLab/plumb", "marker": "v0.141.0-rc.1", "semantics": json.dumps(value, sort_keys=True, separators=(",", ":"))}
+        self.assertEqual(preflight.semantics(selected["semantics"]), value)
+        held = {"observer": OBSERVER, "selection": json.dumps({"schema": preflight.SCHEMA, "inputs": selected})}
+        with mock.patch.object(preflight, "active", return_value=(OBSERVER, [])), mock.patch.object(preflight, "event", return_value=preflight.selection(selected)), mock.patch.object(preflight, "qualify") as qualify, mock.patch.object(preflight.parameters, "answer") as answer:
+            self.assertFalse(preflight.request(held)["publication"])
+            answer.assert_called_once_with({"mode": "world", "preparation": "null"})
+            qualify.assert_not_called()
+        for changed in ({"commit": "main"}, {"commit": ""}, {"scenes": {}}, {"authorized": True}, {"review": "caller"}, {"same": True}):
+            with self.subTest(changed=changed), self.assertRaises(Refusal):
+                preflight.semantics(json.dumps(value | changed, sort_keys=True, separators=(",", ":")))
+        for changed in ({"prepare": True}, {"candidate": True}, {"run": "9"}, {"reference": "v0.141.0-rc.1"}, {"case": "writer"}, {"repository": "PerishLab/keel"}):
+            with self.subTest(changed=changed), self.assertRaises(Refusal):
+                preflight.selection(selected | changed)
+
     def test_adoption_is_an_exact_closed_request_with_its_own_mode(self):
         request = {"kind": "adoption", "schema": "wharf.release.semantics.request/v1", "scenes": {"fixture": "selected"}, "review": "https://github.com/PerishLab/seatrial/issues/75#issuecomment-7"}
         selected = {"repository": "PerishLab/plumb", "marker": "v1.2.3", "semantics": json.dumps(request, sort_keys=True, separators=(",", ":"))}

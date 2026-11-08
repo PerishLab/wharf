@@ -30,6 +30,13 @@ class Capture(unittest.TestCase):
         held = {"observer": OBSERVER, "repository": SOURCE["repository"], "marker": SOURCE["marker"]}
         with mock.patch.object(preflight, "active", return_value=(OBSERVER, [job])), mock.patch.object(preflight, "event", return_value=preflight.selection(REQUEST)), self.assertRaises(Refusal):
             capture.active(held, "semantics-issue")
+        with mock.patch.object(preflight, "active", return_value=(OBSERVER, [job])), mock.patch.object(preflight, "event", return_value=preflight.selection(REQUEST)), self.assertRaises(Refusal):
+            capture.active(held, "semantics-world")
+        value = {"kind": "world", "schema": "wharf.release.semantics.request/v1", "commit": SOURCE["commit"], "scenes": {"fixture": "selected"}}
+        selected = REQUEST | {"semantics": canonical.encode(value).decode()}
+        job = {"id": 19, "name": preflight.ROLES["semantics-world"]}
+        with mock.patch.object(preflight, "active", return_value=(OBSERVER, [job])), mock.patch.object(preflight, "event", return_value=preflight.selection(selected)), mock.patch.object(capture.control, "api", side_effect=self.api):
+            self.assertEqual(capture.active(held, "semantics-world")["job"], 19)
 
     def fixture(self):
         context = SOURCE | {"wharf": "c" * 40, "run": "7", "attempt": "1", "snapshot": world()}

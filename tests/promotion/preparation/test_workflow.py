@@ -20,8 +20,8 @@ def condition(source, selected, outcomes):
     text = re.sub(r"needs\.plan\.outputs\.([a-z0-9-]+)", lambda match: repr("complete" if match[1] == "state" else "true" if match[1] in ("binaryproof", "windtun") else "[{}]" if match[1].startswith("layer-") else "run"), text)
     text = text.replace("needs.distribution.outputs.state", repr("complete"))
     mode = "semantics" if selected.get("semantics") else "prepare" if selected.get("prepare") else "ordinary"
-    if selected.get("semantics") and json.loads(selected["semantics"])["kind"] == "adoption":
-        mode = "adoption"
+    if selected.get("semantics"):
+        mode = {"capture": "semantics", "adoption": "adoption", "world": "world"}[json.loads(selected["semantics"])["kind"]]
     text = text.replace("needs.request.outputs.mode", repr(mode))
     text = re.sub(r"needs\.windtun-prepare\.outputs\.ready", repr("true"), text)
     text = text.replace("&&", " and ").replace("||", " or ")
@@ -30,6 +30,23 @@ def condition(source, selected, outcomes):
 
 
 class Workflow(unittest.TestCase):
+    def test_prospective_world_has_no_writer_or_ordinary_publication_role(self):
+        document = jobs()
+        outcomes = {name: "success" for name in document}
+        requested = {"kind": "world", "schema": "wharf.release.semantics.request/v1", "commit": "a" * 40, "scenes": {"fixture": "selected"}}
+        selected = {"semantics": json.dumps(requested), "prepare": False, "candidate": False, "proof": False, "run": "", "reference": "", "repository": "PerishLab/plumb", "marker": "v1.2.3-rc.1"}
+        self.assertTrue(condition(document["semantics-world"], selected, outcomes))
+        for name in document.keys() - {"request", "semantics-world"}:
+            with self.subTest(name=name):
+                self.assertFalse(condition(document[name], selected, outcomes))
+        source = document["semantics-world"]
+        for forbidden in ("RELEASES", "WHARF_R2_", "packages: write", "WHARF_APP_PRIVATE_KEY", "scripts.ship", "docker login"):
+            self.assertNotIn(forbidden, source)
+        self.assertIn("packages: read", source)
+        self.assertIn("ref: ${{ steps.selected.outputs.commit }}", source)
+        self.assertIn('name: "[prepare] world ${{ steps.world.outputs.digest }} ${{ steps.world.outputs.payload }}"', source)
+        self.assertIn("semantics-world-confirm", source)
+
     def test_adoption_can_only_issue_metadata_and_confirmation_has_no_writer(self):
         document = jobs()
         outcomes = {name: "success" for name in document}
