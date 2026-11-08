@@ -101,13 +101,16 @@ class Retention(unittest.TestCase):
             self.assertFalse(any(confirmed[name] for name in ("authentication", "qualification", "activation", "publication")))
 
     def test_failed_wrong_or_incomplete_original_job_cannot_initialize_a_writer(self):
-        for field, value in [("conclusion", "failure"), ("id", 20), ("run_attempt", 2), ("head_branch", "feature"), ("name", "[issue] version semantics"), ("steps", [])]:
+        for field, value, reason in [("conclusion", "failure", "original semantic world job did not succeed"), ("id", 20, "original semantic world role differs or is ambiguous"), ("run_attempt", 2, "original world jobs name another attempt"), ("head_branch", "feature", "original world jobs name another attempt"), ("name", "[issue] version semantics", "original semantic world role differs or is ambiguous"), ("steps", [], "original world step did not confirm both exact digests")]:
             self.fixture()
             self.jobs["jobs"][0][field] = value
             with self.subTest(field=field), tempfile.TemporaryDirectory() as directory, self.patches():
-                with self.assertRaises(Refusal):
-                    retention.produce(self.held(directory))
+                held = self.held(directory)
+                with self.assertRaisesRegex(Refusal, "^" + reason + "$"):
+                    retention.produce(held)
                 retention.r2.writer.assert_not_called()
+                self.actions.archive.assert_not_called()
+                self.assertFalse(Path(held["artifact"]).exists())
 
     def test_wrong_digest_and_ambiguous_job_confirmation_refuse(self):
         for changed in ("world", "material", "duplicate"):

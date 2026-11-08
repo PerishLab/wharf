@@ -103,6 +103,8 @@ def captured(requested):
     require(requested["kind"] == "retain", "world retention needs its fixed request")
     try:
         return read(requested)
+    except Refusal:
+        raise
     except pull.FAILURES as error:
         raise Refusal(f"original world observation is unreadable: {type(error).__name__}") from error
 
