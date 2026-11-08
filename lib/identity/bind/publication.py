@@ -18,9 +18,12 @@ def jobs(identity):
     return held
 
 
-def selected(held, name):
-    found = [job for job in held if job.get("name") == name]
-    require(len(found) == 1, "channel native role is missing or ambiguous")
+COLLECTIONS = {"job": "job inventory", "step": "plan steps"}
+
+
+def selected(held, name, role):
+    found = [item for item in held if item.get("name") == name]
+    require(len(found) == 1, f"channel native role is missing or ambiguous: {role}-role {name!r} matched {len(found)} of {len(held)} in {COLLECTIONS[role]}")
     return found[0]
 
 
@@ -34,7 +37,7 @@ def active(identity):
     require(branch.get("name") == "main" and branch.get("protected") is True, "channel requires protected main")
     require(run.get("status") == "in_progress" and run.get("conclusion") is None, "channel observer is not active")
     held = jobs(identity)
-    job = selected(held, "[point] channel")
+    job = selected(held, "[point] channel", "job")
     require(job.get("status") == "in_progress" and job.get("conclusion") is None, "channel native role is not active")
     control.started(job.get("started_at"))
     return held
@@ -48,11 +51,11 @@ def planned(held):
     if original != identity:
         control.trusted(original)
         current = jobs(original)
-    job = selected(current, "[plan] entries")
+    job = selected(current, "[plan] entries", "job")
     require(job.get("status") == "completed" and job.get("conclusion") == "success", "channel plan job did not succeed")
     steps = job.get("steps")
     require(isinstance(steps, list), "channel plan steps are missing")
-    recorded = selected(steps, "[record] plan")
+    recorded = selected(steps, "[record] plan", "step")
     require(recorded.get("status") == "completed" and recorded.get("conclusion") == "success", "channel plan was not recorded")
     return {name: held[name] for name in ("repository", "marker", "wharf", "run")} | {"attempt": original["attempt"]}
 
