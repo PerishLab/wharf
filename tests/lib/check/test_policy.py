@@ -26,14 +26,15 @@ def world(commit="1" * 40, requirements=None):
 class Requirements(unittest.TestCase):
     def test_gate_uses_the_actual_validator_without_fingerprinting_itself(self):
         actual = context.fingerprint()
+        read = policy.resources.read_bytes
         self.assertNotIn("lib.process.trial.policy", actual)
         self.assertNotIn("lib.check.source", actual)
         self.assertNotIn("resource:" + policy.RESOURCE, actual)
         self.assertEqual(policy.expected(), {"schema": "wharf.windtun.requirements/v1", "policy": context.POLICY, "implementation": canonical.digest(actual)})
         with mock.patch.object(context, "fingerprint", return_value={"changed": "actual validator"}):
-            with mock.patch.object(policy.resources, "read_bytes", return_value=canonical.encode(policy.expected())):
+            with mock.patch.object(policy.resources, "read_bytes", side_effect=lambda name: canonical.encode(policy.expected()) if name == policy.RESOURCE else read(name)):
                 self.assertEqual(source.check(".", []), [])
-            with mock.patch.object(policy.resources, "read_bytes", return_value=canonical.encode(dict(policy.expected(), implementation="0" * 64))):
+            with mock.patch.object(policy.resources, "read_bytes", side_effect=lambda name: canonical.encode(dict(policy.expected(), implementation="0" * 64)) if name == policy.RESOURCE else read(name)):
                 self.assertTrue(source.check(".", []))
 
     def test_gate_refuses_missing_malformed_or_stale_derived_metadata(self):

@@ -5,7 +5,9 @@ import tokenize
 from pathlib import Path
 
 from lib.check.structure import RULES
+from lib.content import canonical, resources
 from lib.process.trial import policy
+from lib.refusal import Refusal
 
 NESTING = (ast.If, ast.For, ast.AsyncFor, ast.While, ast.With, ast.AsyncWith, ast.Try, ast.Match)
 FUNCTIONS = (ast.FunctionDef, ast.AsyncFunctionDef, ast.Lambda)
@@ -64,8 +66,18 @@ def yaml(root, path):
     return [f"{path}:{number}: comments are not allowed" for number, line in enumerate(lines, 1) if re.search(r"(^|\s)#(\s|$)", line)]
 
 
+def semantics():
+    expected = canonical.encode({"schema": "wharf.release.semantics.requirements/v1", "scopes": []})
+    try:
+        if resources.read_bytes("check/semantics.json") == expected:
+            return []
+    except (Refusal, OSError):
+        pass
+    return ["Release semantics bootstrap requires the canonical inactive descriptor; adopt the shared verifier before activation"]
+
+
 def check(root, paths):
-    findings = policy.findings()
+    findings = policy.findings() + semantics()
     for path in paths:
         if path.suffix == ".py":
             findings += python(root, path)
