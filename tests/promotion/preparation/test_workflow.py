@@ -1,4 +1,5 @@
 import re
+import json
 import unittest
 from types import SimpleNamespace
 
@@ -19,6 +20,8 @@ def condition(source, selected, outcomes):
     text = re.sub(r"needs\.plan\.outputs\.([a-z0-9-]+)", lambda match: repr("complete" if match[1] == "state" else "true" if match[1] in ("binaryproof", "windtun") else "[{}]" if match[1].startswith("layer-") else "run"), text)
     text = text.replace("needs.distribution.outputs.state", repr("complete"))
     mode = "semantics" if selected.get("semantics") else "prepare" if selected.get("prepare") else "ordinary"
+    if selected.get("semantics") and json.loads(selected["semantics"])["kind"] == "adoption":
+        mode = "adoption"
     text = text.replace("needs.request.outputs.mode", repr(mode))
     text = re.sub(r"needs\.windtun-prepare\.outputs\.ready", repr("true"), text)
     text = text.replace("&&", " and ").replace("||", " or ")
@@ -27,6 +30,25 @@ def condition(source, selected, outcomes):
 
 
 class Workflow(unittest.TestCase):
+    def test_adoption_can_only_issue_metadata_and_confirmation_has_no_writer(self):
+        document = jobs()
+        outcomes = {name: "success" for name in document}
+        requested = {"kind": "adoption", "schema": "wharf.release.semantics.request/v1", "scenes": {"fixture": "selected"}, "review": "native-review"}
+        selected = {"semantics": json.dumps(requested), "prepare": False, "candidate": False, "proof": False, "run": "", "reference": "", "repository": "PerishLab/plumb", "marker": "v1.2.3"}
+        self.assertTrue(condition(document["semantics-issue"], selected, outcomes))
+        for name in document.keys() - {"request", "semantics-issue"}:
+            with self.subTest(name=name):
+                self.assertFalse(condition(document[name], selected, outcomes))
+        source = document["semantics-issue"]
+        self.assertIn('name: "[issue] version semantics"', source)
+        self.assertIn('name: "[issue] semantics ${{ steps.adoption.outputs.digest }}"', source)
+        self.assertIn("semantics-confirm", source)
+        for forbidden in ("packages: write", "WHARF_APP_PRIVATE_KEY", "uses: ./wharf/.github/actions/product", "scripts.ship"):
+            self.assertNotIn(forbidden, source)
+        confirmation = source.split('      - name: "[issue] semantics ', 1)[1]
+        for forbidden in ("WHARF_RELEASES_ACCESS_KEY_ID", "WHARF_R2_ACCESS_KEY_ID", "WHARF_RELEASES_SECRET_ACCESS_KEY", "WHARF_R2_SECRET_ACCESS_KEY"):
+            self.assertNotIn(forbidden, confirmation)
+
     def test_semantics_material_capture_cannot_start_other_roles(self):
         document = jobs()
         outcomes = {name: "success" for name in document}

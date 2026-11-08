@@ -1522,6 +1522,22 @@ retains world bytes, original references and inspection; missing history refuses
 Capture does not adopt a baseline, decide a version, qualify content or activate
 semantics enforcement.
 
+The separate canonical adoption request adds `kind: "adoption"`, an exact `scenes`
+pointer and native `review` URL. Its fixed issuer supports only Plumb or Concord
+stable. It captures the original world, observes the selected current full
+source/Scene and authorized adoption review through formal Plumb, and shares
+Plumb's material verifier before issuing. World and adoption bytes are stored
+create-only at their semantic SHA256 object addresses; existing different bytes
+refuse. This metadata role has workload read and product RELEASES access, no
+product checkout, product execution, release artifact or channel-pointer action.
+The final read-only confirmation rechecks exact public bytes, current material
+selection and reader, with the object digest in its native successful step name.
+Shared Plumb authenticates that record only after the issuer job succeeds; a
+successful supplied inspection or artifact is no substitute. The fourteen-day
+artifact is an observation copy; the public objects retain the referenced data.
+Initial adoption does not re-prove historical execution or compliance, decide
+Y/Z or X, qualify publication, run publication canaries or activate any scope.
+
 ## Release identity
 
 Sources declare version `0.0.0`. A distributable binary is built unbound and receives

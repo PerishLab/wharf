@@ -14,6 +14,22 @@ OBSERVER = {"run": "7", "attempt": "1", "wharf": "c" * 40}
 
 
 class Request(unittest.TestCase):
+    def test_adoption_is_an_exact_closed_request_with_its_own_mode(self):
+        request = {"kind": "adoption", "schema": "wharf.release.semantics.request/v1", "scenes": {"fixture": "selected"}, "review": "https://github.com/PerishLab/seatrial/issues/75#issuecomment-7"}
+        selected = {"repository": "PerishLab/plumb", "marker": "v1.2.3", "semantics": json.dumps(request, sort_keys=True, separators=(",", ":"))}
+        self.assertEqual(preflight.semantics(selected["semantics"]), request)
+        held = {"observer": OBSERVER, "selection": json.dumps({"schema": preflight.SCHEMA, "inputs": selected})}
+        with mock.patch.object(preflight, "active", return_value=(OBSERVER, [])), mock.patch.object(preflight, "event", return_value=preflight.selection(selected)), mock.patch.object(preflight.parameters, "answer") as answer:
+            self.assertFalse(preflight.request(held)["publication"])
+            answer.assert_called_once_with({"mode": "adoption", "preparation": "null"})
+        for changed in ({"review": ""}, {"scenes": {}}, {"authorized": True}, {"world": {}}):
+            value = request | changed
+            with self.subTest(changed=changed), self.assertRaises(Refusal):
+                preflight.semantics(json.dumps(value, sort_keys=True, separators=(",", ":")))
+        for malformed in ("{", "[]", "null"):
+            with self.subTest(malformed=malformed), self.assertRaises(Refusal):
+                preflight.semantics(malformed)
+
     def test_semantics_capture_is_canonical_stable_and_separate(self):
         request = '{"kind":"capture","schema":"wharf.release.semantics.request/v1"}'
         selected = {"repository": "PerishLab/plumb", "marker": "v1.2.3", "semantics": request}

@@ -8,13 +8,14 @@ from lib import parameters
 from lib.content import canonical, marker
 from lib.identity.bind import control
 from lib.identity.bind.spec import require
+from lib.refusal import Refusal
 from lib.process.association import public
 from lib.process.promotion import reader, subject
 
 SCHEMA = "wharf.ship.request/v1"
 INTENT = "wharf.ship.preparation.intent/v1"
 DEFAULTS = {"run": "", "case": "declared", "reference": "", "candidate": False, "prepare": False, "proof": False, "attempt": "1", "semantics": ""}
-ROLES = {"request": "[verify] request", "prepared": "[read] prepared plan", "plan": "[plan] entries", "semantics": "[read] original semantics materials"}
+ROLES = {"request": "[verify] request", "prepared": "[read] prepared plan", "plan": "[plan] entries", "semantics": "[read] original semantics materials", "semantics-issue": "[issue] version semantics"}
 
 
 def semantics(raw):
@@ -23,8 +24,12 @@ def semantics(raw):
         value = json.loads(raw)
     except (ValueError, RecursionError) as error:
         raise Refusal("semantics request is not valid JSON") from error
-    require(isinstance(value, dict) and set(value) == {"schema", "kind"}, "semantics request fields differ")
-    require(value == {"schema": "wharf.release.semantics.request/v1", "kind": "capture"}, "semantics request is unsupported")
+    require(isinstance(value, dict) and value.get("schema") == "wharf.release.semantics.request/v1", "semantics request schema differs")
+    require(value.get("kind") in ("capture", "adoption"), "semantics request is unsupported")
+    fields = {"schema", "kind"} | ({"scenes", "review"} if value["kind"] == "adoption" else set())
+    require(set(value) == fields, "semantics request fields differ")
+    if value["kind"] == "adoption":
+        require(isinstance(value["scenes"], dict) and value["scenes"] and isinstance(value["review"], str) and 0 < len(value["review"]) <= 8192, "adoption needs exact Scene and review selections")
     require(canonical.encode(value).decode() == raw, "semantics request must be canonical")
     return value
 
@@ -40,8 +45,8 @@ def selection(value):
     marker.channel(result["marker"])
     if result["semantics"]:
         semantics(result["semantics"])
-        require(result["repository"] in ("PerishLab/plumb", "PerishLab/concord") and marker.channel(result["marker"]) == "stable", "semantics capture supports exact Plumb or Concord stable materials only")
-        require(not any(result[name] for name in ("prepare", "candidate", "proof", "run", "reference")) and result["case"] == "declared" and result["attempt"] == "1", "semantics capture conflicts with publication, replay or diagnostics")
+        require(result["repository"] in ("PerishLab/plumb", "PerishLab/concord") and marker.channel(result["marker"]) == "stable", "semantics materials support exact Plumb or Concord stable only")
+        require(not any(result[name] for name in ("prepare", "candidate", "proof", "run", "reference")) and result["case"] == "declared" and result["attempt"] == "1", "semantics materials conflict with publication, replay or diagnostics")
     if result["proof"]:
         require(not result["prepare"] and not result["candidate"] and result["run"] != "" and result["case"] == "declared" and result["attempt"] == "1", "proof replay needs a publication run without preparation, candidate or diagnostic selection")
     if result["prepare"]:
@@ -119,6 +124,8 @@ def request(held):
     require(event() == selected, "dispatch projection differs from its actual native event")
     chosen = qualify(selected) if selected["prepare"] else None
     mode = "semantics" if selected["semantics"] else "prepare" if selected["prepare"] else "ordinary"
+    if selected["semantics"] and semantics(selected["semantics"])["kind"] == "adoption":
+        mode = "adoption"
     parameters.answer({"mode": mode, "preparation": canonical.encode(chosen).decode()})
     return {"schema": SCHEMA, "observer": identity, "preparation": chosen, "publication": False, "promotion": False}
 
