@@ -18,13 +18,27 @@ def condition(source, selected, outcomes):
     text = re.sub(r"needs\.([a-z0-9-]+)\.result", lambda match: repr(outcomes[match[1]]), text)
     text = re.sub(r"needs\.plan\.outputs\.([a-z0-9-]+)", lambda match: repr("complete" if match[1] == "state" else "true" if match[1] in ("binaryproof", "windtun") else "[{}]" if match[1].startswith("layer-") else "run"), text)
     text = text.replace("needs.distribution.outputs.state", repr("complete"))
+    mode = "semantics" if selected.get("semantics") else "prepare" if selected.get("prepare") else "ordinary"
+    text = text.replace("needs.request.outputs.mode", repr(mode))
     text = re.sub(r"needs\.windtun-prepare\.outputs\.ready", repr("true"), text)
     text = text.replace("&&", " and ").replace("||", " or ")
     text = re.sub(r"!(?!=)", "not ", text)
-    return bool(eval(text, {"__builtins__": {}}, {"inputs": SimpleNamespace(**({"proof": False} | selected)), "always": lambda: True, "cancelled": lambda: False, "contains": lambda held, value: value in held, "format": lambda pattern, *values: pattern.format(*values)}))
+    return bool(eval(text, {"__builtins__": {}}, {"inputs": SimpleNamespace(**({"proof": False, "semantics": ""} | selected)), "always": lambda: True, "cancelled": lambda: False, "contains": lambda held, value: value in held, "format": lambda pattern, *values: pattern.format(*values)}))
 
 
 class Workflow(unittest.TestCase):
+    def test_semantics_material_capture_cannot_start_other_roles(self):
+        document = jobs()
+        outcomes = {name: "success" for name in document}
+        selected = {"semantics": '{"kind":"capture","schema":"wharf.release.semantics.request/v1"}', "prepare": False, "candidate": False, "proof": False, "run": "", "reference": "", "repository": "PerishLab/plumb", "marker": "v1.2.3"}
+        self.assertTrue(condition(document["semantics"], selected, outcomes))
+        for name in document.keys() - {"request", "semantics"}:
+            with self.subTest(name=name):
+                self.assertFalse(condition(document[name], selected, outcomes))
+        for forbidden in ("RELEASES", "packages: write", "WHARF_APP_PRIVATE_KEY", "uses: ./wharf/.github/actions/product", "scripts.ship"):
+            self.assertNotIn(forbidden, document["semantics"])
+        self.assertIn("semantics-capture", document["semantics"])
+
     def test_preparation_excludes_every_writer_even_with_publication_outputs(self):
         document = jobs()
         outcomes = {name: "success" for name in document}

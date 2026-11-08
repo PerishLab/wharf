@@ -13,19 +13,35 @@ from lib.process.promotion import reader, subject
 
 SCHEMA = "wharf.ship.request/v1"
 INTENT = "wharf.ship.preparation.intent/v1"
-DEFAULTS = {"run": "", "case": "declared", "reference": "", "candidate": False, "prepare": False, "proof": False, "attempt": "1"}
-ROLES = {"request": "[verify] request", "prepared": "[read] prepared plan", "plan": "[plan] entries"}
+DEFAULTS = {"run": "", "case": "declared", "reference": "", "candidate": False, "prepare": False, "proof": False, "attempt": "1", "semantics": ""}
+ROLES = {"request": "[verify] request", "prepared": "[read] prepared plan", "plan": "[plan] entries", "semantics": "[read] original semantics materials"}
+
+
+def semantics(raw):
+    require(isinstance(raw, str) and 0 < len(raw) <= 65536, "semantics request is absent or unbounded")
+    try:
+        value = json.loads(raw)
+    except (ValueError, RecursionError) as error:
+        raise Refusal("semantics request is not valid JSON") from error
+    require(isinstance(value, dict) and set(value) == {"schema", "kind"}, "semantics request fields differ")
+    require(value == {"schema": "wharf.release.semantics.request/v1", "kind": "capture"}, "semantics request is unsupported")
+    require(canonical.encode(value).decode() == raw, "semantics request must be canonical")
+    return value
 
 
 def selection(value):
     require(isinstance(value, dict) and set(value) <= set(DEFAULTS) | {"repository", "marker"}, "dispatch fields differ")
     result = DEFAULTS | value
-    require(all(isinstance(result.get(name), str) for name in ("repository", "marker", "run", "case", "reference", "attempt")), "dispatch text fields differ")
+    require(all(isinstance(result.get(name), str) for name in ("repository", "marker", "run", "case", "reference", "attempt", "semantics")), "dispatch text fields differ")
     for name in ("prepare", "candidate", "proof"):
         if result[name] in ("true", "false"):
             result[name] = result[name] == "true"
         require(type(result[name]) is bool, "dispatch modes must be boolean")
     marker.channel(result["marker"])
+    if result["semantics"]:
+        semantics(result["semantics"])
+        require(result["repository"] in ("PerishLab/plumb", "PerishLab/concord") and marker.channel(result["marker"]) == "stable", "semantics capture supports exact Plumb or Concord stable materials only")
+        require(not any(result[name] for name in ("prepare", "candidate", "proof", "run", "reference")) and result["case"] == "declared" and result["attempt"] == "1", "semantics capture conflicts with publication, replay or diagnostics")
     if result["proof"]:
         require(not result["prepare"] and not result["candidate"] and result["run"] != "" and result["case"] == "declared" and result["attempt"] == "1", "proof replay needs a publication run without preparation, candidate or diagnostic selection")
     if result["prepare"]:
@@ -102,7 +118,8 @@ def request(held):
     selected = selection(raw["inputs"])
     require(event() == selected, "dispatch projection differs from its actual native event")
     chosen = qualify(selected) if selected["prepare"] else None
-    parameters.answer({"mode": "prepare" if selected["prepare"] else "ordinary", "preparation": canonical.encode(chosen).decode()})
+    mode = "semantics" if selected["semantics"] else "prepare" if selected["prepare"] else "ordinary"
+    parameters.answer({"mode": mode, "preparation": canonical.encode(chosen).decode()})
     return {"schema": SCHEMA, "observer": identity, "preparation": chosen, "publication": False, "promotion": False}
 
 

@@ -9,6 +9,7 @@ from lib.process.trial import admission, consumer, judgment, declaration
 from lib.process.trial import credential, transport
 from lib.process.promotion import operation as promotion
 from lib.process.promotion import preflight, prepared
+from lib.process.promotion import capture
 from lib.store import distribution, plan, r2
 from lib.process.association import producer as native, public as native_public, candidate as native_candidate
 
@@ -41,6 +42,7 @@ def record(held):
 
 
 ACTIONS = {
+    "semantics-capture": (capture.produce, ["observer", "repository", "marker", "source"]),
     "request": (preflight.request, ["observer", "selection"]),
     "prepared": (prepared.produce, ["observer", "repository", "marker", "run", "planned", "preparation", "source"]),
     "prepared-read": (prepared.consume, ["observer", "repository", "marker", "run", "planned", "preparation", "source", "digest"]),
