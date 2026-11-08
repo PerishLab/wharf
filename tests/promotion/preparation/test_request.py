@@ -14,6 +14,19 @@ OBSERVER = {"run": "7", "attempt": "1", "wharf": "c" * 40}
 
 
 class Request(unittest.TestCase):
+    def test_retention_binds_original_native_and_two_digests_without_publication(self):
+        value = {"schema": "wharf.release.semantics.request/v1", "kind": "retain", "native": {"run": 7, "attempt": 2, "commit": "a" * 40, "job": 11}, "world": "b" * 64, "material": "c" * 64}
+        raw = json.dumps(value, sort_keys=True, separators=(",", ":"))
+        selected = {"repository": "PerishLab/plumb", "marker": "v0.141.0-rc.1", "semantics": raw}
+        self.assertEqual(preflight.semantics(raw), value)
+        preflight.selection(selected)
+        for changed in ({"authentication": True}, {"native": value["native"] | {"run": True}}, {"native": value["native"] | {"attempt": 0}}, {"native": value["native"] | {"commit": "foreign"}}, {"world": "bad"}, {"material": None}):
+            with self.subTest(changed=changed), self.assertRaises(Refusal):
+                preflight.semantics(json.dumps(value | changed, sort_keys=True, separators=(",", ":")))
+        for changed in ({"prepare": True}, {"candidate": True}, {"run": "7"}, {"proof": True}, {"repository": "PerishLab/keel"}):
+            with self.subTest(changed=changed), self.assertRaises(Refusal):
+                preflight.selection(selected | changed)
+
     def test_world_is_prospective_closed_and_not_a_publishing_or_replay_request(self):
         value = {"kind": "world", "schema": "wharf.release.semantics.request/v1", "commit": "a" * 40, "scenes": {"fixture": "selected"}}
         selected = {"repository": "PerishLab/plumb", "marker": "v0.141.0-rc.1", "semantics": json.dumps(value, sort_keys=True, separators=(",", ":"))}

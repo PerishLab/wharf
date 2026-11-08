@@ -21,7 +21,7 @@ def condition(source, selected, outcomes):
     text = text.replace("needs.distribution.outputs.state", repr("complete"))
     mode = "semantics" if selected.get("semantics") else "prepare" if selected.get("prepare") else "ordinary"
     if selected.get("semantics"):
-        mode = {"capture": "semantics", "adoption": "adoption", "world": "world"}[json.loads(selected["semantics"])["kind"]]
+        mode = {"capture": "semantics", "adoption": "adoption", "world": "world", "retain": "retention"}[json.loads(selected["semantics"])["kind"]]
     text = text.replace("needs.request.outputs.mode", repr(mode))
     text = re.sub(r"needs\.windtun-prepare\.outputs\.ready", repr("true"), text)
     text = text.replace("&&", " and ").replace("||", " or ")
@@ -30,6 +30,22 @@ def condition(source, selected, outcomes):
 
 
 class Workflow(unittest.TestCase):
+    def test_retention_has_only_metadata_writer_and_no_product_execution(self):
+        document = jobs()
+        outcomes = {name: "success" for name in document}
+        selected = {"semantics": '{"kind":"retain"}', "prepare": False, "candidate": False, "proof": False, "run": "", "reference": "", "repository": "PerishLab/plumb", "marker": "v1.2.3-rc.1"}
+        self.assertTrue(condition(document["semantics-retain"], selected, outcomes))
+        for name in document.keys() - {"request", "semantics-retain"}:
+            with self.subTest(name=name):
+                self.assertFalse(condition(document[name], selected, outcomes))
+        source = document["semantics-retain"]
+        for forbidden in ("packages: write", "packages: read", "WHARF_APP_PRIVATE_KEY", "steps.selected.outputs.commit", "scripts.ship", "prepare: rust", "prepare: snapshot", "cargo ", "engines"):
+            self.assertNotIn(forbidden, source)
+        self.assertIn("semantics-retain-confirm", source)
+        confirmation = source.split('      - name: "[retain] world ', 1)[1]
+        for forbidden in ("WHARF_R2_", "WHARF_RELEASES_"):
+            self.assertNotIn(forbidden, confirmation)
+
     def test_prospective_world_has_no_writer_or_ordinary_publication_role(self):
         document = jobs()
         outcomes = {name: "success" for name in document}
