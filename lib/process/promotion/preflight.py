@@ -15,7 +15,7 @@ from lib.process.promotion import reader, subject
 SCHEMA = "wharf.ship.request/v1"
 INTENT = "wharf.ship.preparation.intent/v1"
 DEFAULTS = {"run": "", "case": "declared", "reference": "", "candidate": False, "prepare": False, "proof": False, "attempt": "1", "semantics": ""}
-ROLES = {"request": "[verify] request", "prepared": "[read] prepared plan", "plan": "[plan] entries", "semantics": "[read] original semantics materials", "semantics-issue": "[issue] version semantics", "semantics-world": "[prepare] semantic world", "semantics-retain": "[retain] semantic world"}
+ROLES = {"request": "[verify] request", "prepared": "[read] prepared plan", "plan": "[plan] entries", "semantics": "[read] original semantics materials", "semantics-issue": "[issue] version semantics", "semantics-world": "[prepare] semantic world", "semantics-retain": "[retain] semantic world", "semantics-history": "[retain] semantic history"}
 
 
 def semantics(raw):
@@ -25,10 +25,12 @@ def semantics(raw):
     except (ValueError, RecursionError) as error:
         raise Refusal("semantics request is not valid JSON") from error
     require(isinstance(value, dict) and value.get("schema") == "wharf.release.semantics.request/v1", "semantics request schema differs")
-    choices = {"capture": set(), "adoption": {"scenes", "review"}, "world": {"commit", "scenes"}, "retain": {"native", "world", "material"}}
+    choices = {"capture": set(), "adoption": {"scenes", "review"}, "world": {"commit", "scenes"}, "retain": {"native", "world", "material"}, "history": {"root", "previous"}}
     require(value.get("kind") in choices, "semantics request is unsupported")
     fields = {"schema", "kind"} | choices[value["kind"]]
     require(set(value) == fields, "semantics request fields differ")
+    if value["kind"] == "history":
+        require(isinstance(value["root"], dict) and value["root"] and (value["previous"] is None or isinstance(value["previous"], dict) and value["previous"]), "history needs an exact adoption and optional predecessor")
     if value["kind"] == "adoption":
         require(isinstance(value["scenes"], dict) and value["scenes"] and isinstance(value["review"], str) and 0 < len(value["review"]) <= 8192, "adoption needs exact Scene and review selections")
     if value["kind"] == "world":
@@ -135,7 +137,7 @@ def request(held):
     chosen = qualify(selected) if selected["prepare"] else None
     mode = "semantics" if selected["semantics"] else "prepare" if selected["prepare"] else "ordinary"
     if selected["semantics"]:
-        mode = {"capture": "semantics", "adoption": "adoption", "world": "world", "retain": "retention"}[semantics(selected["semantics"])["kind"]]
+        mode = {"capture": "semantics", "adoption": "adoption", "world": "world", "retain": "retention", "history": "history"}[semantics(selected["semantics"])["kind"]]
     parameters.answer({"mode": mode, "preparation": canonical.encode(chosen).decode()})
     return {"schema": SCHEMA, "observer": identity, "preparation": chosen, "publication": False, "promotion": False}
 

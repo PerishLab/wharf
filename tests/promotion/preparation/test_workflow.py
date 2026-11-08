@@ -21,7 +21,7 @@ def condition(source, selected, outcomes):
     text = text.replace("needs.distribution.outputs.state", repr("complete"))
     mode = "semantics" if selected.get("semantics") else "prepare" if selected.get("prepare") else "ordinary"
     if selected.get("semantics"):
-        mode = {"capture": "semantics", "adoption": "adoption", "world": "world", "retain": "retention"}[json.loads(selected["semantics"])["kind"]]
+        mode = {"capture": "semantics", "adoption": "adoption", "world": "world", "retain": "retention", "history": "history"}[json.loads(selected["semantics"])["kind"]]
     text = text.replace("needs.request.outputs.mode", repr(mode))
     text = re.sub(r"needs\.windtun-prepare\.outputs\.ready", repr("true"), text)
     text = text.replace("&&", " and ").replace("||", " or ")
@@ -30,6 +30,24 @@ def condition(source, selected, outcomes):
 
 
 class Workflow(unittest.TestCase):
+    def test_history_can_only_write_metadata_and_confirmation_has_no_writer(self):
+        document = jobs()
+        selected = {"semantics": '{"kind":"history"}', "prepare": False, "candidate": False, "proof": False, "run": "", "reference": "", "repository": "PerishLab/plumb", "marker": "v0.140.0"}
+        outcomes = {name: "success" for name in document}
+        self.assertTrue(condition(document["semantics-history"], selected, outcomes))
+        for name in document.keys() - {"request", "semantics-history"}:
+            with self.subTest(name=name):
+                self.assertFalse(condition(document[name], selected, outcomes))
+        source = document["semantics-history"]
+        for forbidden in ("packages: write", "uses: ./wharf/.github/actions/product", "scripts.ship", "WHARF_R2_ACCESS_KEY_ID", "prepare: rust"):
+            self.assertNotIn(forbidden, source)
+        self.assertIn("permission-actions: read", source)
+        self.assertIn("permission-contents: read", source)
+        self.assertIn('name: "[retain] history ${{ steps.checkpoint.outputs.digest }}"', source)
+        confirmation = source.split('      - name: "[retain] history ', 1)[1]
+        for forbidden in ("WHARF_R2_", "WHARF_RELEASES_", "WHARF_APP_PRIVATE_KEY"):
+            self.assertNotIn(forbidden, confirmation)
+
     def test_retention_has_only_metadata_writer_and_no_product_execution(self):
         document = jobs()
         outcomes = {name: "success" for name in document}

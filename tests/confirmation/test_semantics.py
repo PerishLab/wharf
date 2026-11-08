@@ -10,6 +10,7 @@ from lib.content import canonical
 from lib.identity.bind.spec import entry
 from lib.process.confirmation import semantics
 from lib.refusal import Conflict, Refusal
+from tests.confirmation.fixtures import Ledger
 from tests.promotion.preparation.test_capture import SOURCE, world
 
 NATIVE = {"run": 9, "attempt": 1, "commit": "e" * 40, "job": 19}
@@ -175,3 +176,100 @@ class Semantics(unittest.TestCase):
             with mock.patch.object(semantics.reader, "identity", return_value={}):
                 with self.assertRaises(Refusal):
                     semantics.confirm(held | {"digest": digest})
+
+
+class History(unittest.TestCase):
+    def test_changed_shared_preparation_cannot_write_a_checkpoint_or_head(self):
+        fixture = Ledger(SOURCE, NATIVE, AUTHORITY)
+        calls = []
+        def moving(arguments):
+            status, report = fixture.protocol(arguments)
+            if "retention" in arguments:
+                calls.append(arguments)
+                if len(calls) > 1:
+                    report["facts"]["data"]["sequence"] = 2
+            return status, report
+        with tempfile.TemporaryDirectory() as directory, fixture.patches(), mock.patch.object(semantics.reader, "capture", side_effect=moving):
+            with self.assertRaises(Refusal):
+                semantics.checkpoint(fixture.held(directory))
+            fixture.store.create.assert_not_called()
+            fixture.store.swap.assert_not_called()
+
+    def test_exact_checkpoint_and_head_are_retained_before_native_confirmation(self):
+        fixture = Ledger(SOURCE, NATIVE, AUTHORITY)
+        with tempfile.TemporaryDirectory() as directory, fixture.patches():
+            held = fixture.held(directory)
+            intent = semantics.checkpoint(held)
+            fixture.store.swap.assert_called_once_with(semantics.HEAD, canonical.encode(intent["head"]), None)
+            self.assertEqual(len(fixture.values), 2)
+            self.assertFalse(intent["authentication"] or intent["publication"])
+            confirmed = semantics.confirmed(held | {"digest": intent["reference"]["sha256"]})
+            self.assertEqual(confirmed["reference"], intent["reference"])
+            semantics.r2.writer.assert_called_once()
+
+    def test_unknown_shared_preparation_cannot_initialize_a_writer(self):
+        fixture = Ledger(SOURCE, NATIVE, AUTHORITY)
+        def unknown(arguments):
+            if "retention" in arguments:
+                return 3, {"state": "unknown", "reason": "earlier checkpoint unavailable", "publication": False}
+            return fixture.protocol(arguments)
+        with tempfile.TemporaryDirectory() as directory, fixture.patches(), mock.patch.object(semantics.reader, "capture", side_effect=unknown):
+            held = fixture.held(directory)
+            with self.assertRaisesRegex(Refusal, "earlier checkpoint unavailable"):
+                semantics.checkpoint(held)
+            semantics.r2.writer.assert_not_called()
+            self.assertFalse((Path(held["source"]) / "intent.json").exists())
+
+    def test_wrong_native_or_excessive_preparer_authority_is_refused_before_writer(self):
+        for changed in ("authentication", "native"):
+            fixture = Ledger(SOURCE, NATIVE, AUTHORITY)
+            def invalid(arguments):
+                status, report = fixture.protocol(arguments)
+                if "retention" in arguments:
+                    if changed == "authentication":
+                        report["facts"][changed] = True
+                    else:
+                        report["facts"]["data"]["native"] = {}
+                return status, report
+            with self.subTest(changed=changed), tempfile.TemporaryDirectory() as directory, fixture.patches(), mock.patch.object(semantics.reader, "capture", side_effect=invalid):
+                with self.assertRaises(Refusal):
+                    semantics.checkpoint(fixture.held(directory))
+                semantics.r2.writer.assert_not_called()
+
+    def test_public_private_disagreement_and_cas_conflict_never_overwrite_a_head(self):
+        fixture = Ledger(SOURCE, NATIVE, AUTHORITY)
+        fixture.values[semantics.HEAD] = b"foreign"
+        with tempfile.TemporaryDirectory() as directory, fixture.patches(), self.assertRaises(Refusal):
+            semantics.checkpoint(fixture.held(directory))
+        fixture.store.create.assert_not_called()
+        fixture.store.swap.assert_not_called()
+        fixture = Ledger(SOURCE, NATIVE, AUTHORITY)
+        fixture.store.swap.side_effect = Conflict("competing version")
+        with tempfile.TemporaryDirectory() as directory, fixture.patches(), self.assertRaises(Conflict):
+            semantics.checkpoint(fixture.held(directory))
+        fixture.store.swap.assert_called_once()
+
+    def test_unknown_applied_write_keeps_original_intent_and_never_replays(self):
+        fixture = Ledger(SOURCE, NATIVE, AUTHORITY)
+        def uncertain(key, raw, etag):
+            fixture.swap(key, raw, etag)
+            raise OSError("unknown head acknowledgement")
+        fixture.store.swap.side_effect = uncertain
+        with tempfile.TemporaryDirectory() as directory, fixture.patches():
+            held = fixture.held(directory)
+            with self.assertRaises(OSError):
+                semantics.checkpoint(held)
+            self.assertTrue((Path(held["source"]) / "intent.json").is_file())
+            self.assertIn(semantics.HEAD, fixture.values)
+            with self.assertRaises(Refusal):
+                semantics.checkpoint(held)
+            fixture.store.swap.assert_called_once()
+
+    def test_moved_public_head_cannot_receive_a_digest_confirmation(self):
+        fixture = Ledger(SOURCE, NATIVE, AUTHORITY)
+        with tempfile.TemporaryDirectory() as directory, fixture.patches():
+            held = fixture.held(directory)
+            intent = semantics.checkpoint(held)
+            fixture.values[semantics.HEAD] = b"moved"
+            with self.assertRaises(Refusal):
+                semantics.confirmed(held | {"digest": intent["reference"]["sha256"]})
