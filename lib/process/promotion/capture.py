@@ -35,7 +35,7 @@ def lineage(commit):
 
 
 def active(held, role="semantics"):
-    kinds = {"semantics": "capture", "semantics-issue": ("adoption", "transition"), "semantics-world": "world", "semantics-retain": "retain", "semantics-history": "history"}
+    kinds = {"semantics": "capture", "semantics-issue": ("adoption", "transition"), "semantics-world": "world", "semantics-retain": "retain", "semantics-history": "history", "semantics-select": "selection"}
     require(role in kinds, "semantics role is unsupported")
     observer, jobs = preflight.active(held["observer"], role)
     selected = preflight.event()

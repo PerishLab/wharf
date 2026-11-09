@@ -33,6 +33,10 @@ def retain(bucket, product, raw):
 
 def facts(arguments, budget=180):
     status, report = reader.capture(arguments) if budget == 180 else reader.capture(arguments, budget)
+    return observed(status, report, arguments)
+
+
+def observed(status, report, arguments):
     require(isinstance(report, dict) and report.get("publication") is False, "shared semantic reader did not return bounded facts")
     if status != 0 or report.get("state") != "observed":
         reason = report.get("reason")

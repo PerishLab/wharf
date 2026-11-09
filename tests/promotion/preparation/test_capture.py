@@ -25,6 +25,18 @@ def world():
 
 
 class Capture(unittest.TestCase):
+    def test_selection_uses_actual_native_role_and_refuses_peer_execution(self):
+        record = {"schema": "wharf.release.semantics.family.selection/v1", "product": "plumb", "marker": SOURCE["marker"], "root": {}, "family": {}, "history": {}, "previous": None, "sequence": 1}
+        request = {"schema": "wharf.release.semantics.request/v1", "kind": "selection", "record": record}
+        selected = REQUEST | {"semantics": canonical.encode(request).decode()}
+        held = {"observer": OBSERVER, "repository": SOURCE["repository"], "marker": SOURCE["marker"]}
+        jobs = [{"id": 19, "name": preflight.ROLES["semantics-select"]}]
+        with mock.patch.object(preflight, "active", return_value=(OBSERVER, jobs)), mock.patch.object(preflight, "event", return_value=preflight.selection(selected)), mock.patch.object(capture.control, "api", side_effect=self.api):
+            self.assertEqual(capture.active(held, "semantics-select")["job"], 19)
+            jobs.append({"id": 20, "name": "[publish] cargo", "started_at": "now", "conclusion": None})
+            with self.assertRaises(Refusal):
+                capture.active(held, "semantics-select")
+
     def test_transition_uses_the_real_issuer_role_and_excludes_peer_execution(self):
         intent = {name: None for name in ("product", "marker", "root", "previous", "anchor", "request", "scenes", "world", "review", "direct")}
         request = {"schema": "wharf.release.semantics.request/v1", "kind": "transition", "mode": "historical", "record": {"schema": "wharf.release.semantics.transition/v1", "intent": intent, "history": {}, "source": None}}

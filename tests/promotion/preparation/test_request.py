@@ -14,6 +14,20 @@ OBSERVER = {"run": "7", "attempt": "1", "wharf": "c" * 40}
 
 
 class Request(unittest.TestCase):
+    def test_selection_is_strict_stable_and_routes_only_to_its_metadata_role(self):
+        record = {"schema": "wharf.release.semantics.family.selection/v1", "product": "plumb", "marker": "v0.143.0", "root": {}, "family": {}, "history": {}, "previous": None, "sequence": 1}
+        value = {"schema": "wharf.release.semantics.request/v1", "kind": "selection", "record": record}
+        raw = json.dumps(value, sort_keys=True, separators=(",", ":"))
+        selected = {"repository": "PerishLab/plumb", "marker": record["marker"], "semantics": raw}
+        self.assertEqual(preflight.semantics(raw), value)
+        held = {"observer": OBSERVER, "selection": json.dumps({"schema": preflight.SCHEMA, "inputs": selected})}
+        with mock.patch.object(preflight, "active", return_value=(OBSERVER, [])), mock.patch.object(preflight, "event", return_value=preflight.selection(selected)), mock.patch.object(preflight.parameters, "answer") as answer:
+            self.assertFalse(preflight.request(held)["publication"])
+            answer.assert_called_once_with({"mode": "selection", "preparation": "null"})
+        for changed in ({"marker": "v0.143.0-rc.1"}, {"prepare": True}, {"candidate": True}, {"proof": True}, {"run": "7"}, {"repository": "PerishLab/keel"}):
+            with self.subTest(changed=changed), self.assertRaises(Refusal):
+                preflight.selection(selected | changed)
+
     def test_transition_is_closed_and_cannot_supply_native_identity(self):
         intent = {name: None for name in ("product", "marker", "root", "previous", "anchor", "request", "scenes", "world", "review", "direct")}
         value = {"schema": "wharf.release.semantics.request/v1", "kind": "transition", "mode": "historical", "record": {"schema": "wharf.release.semantics.transition/v1", "intent": intent, "history": {}, "source": None}}

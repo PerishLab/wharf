@@ -14,6 +14,18 @@ class Reader(unittest.TestCase):
     def report(self):
         return {"schema": "plumb.windtun.qualification/v1", "subject": {"repository": "PerishLab/plumb", "marker": "v1.2.3-rc.1"}, "state": "qualified", "qualified": True, "platform": "linux-x86_64", "association": None, "promotion": False, "evidence": {}, "reason": None}
 
+    def test_selection_budget_is_explicit_and_does_not_expand_existing_callers(self):
+        with mock.patch.object(reader, "execute", return_value=(0, {})) as execute:
+            reader.select(["release", "inspect"])
+            execute.assert_called_once_with(["release", "inspect"], 2700, True)
+            execute.reset_mock()
+            for budget in (901, 2700, True, 0):
+                with self.subTest(budget=budget), self.assertRaises(Refusal):
+                    reader.capture([], budget)
+            execute.assert_not_called()
+            reader.capture([], 900)
+            execute.assert_called_once_with([], 900)
+
     def test_only_complete_qualified_subject_can_supply_public_facts(self):
         original = self.report()
         with mock.patch.object(reader, "identity", return_value={}), mock.patch.object(reader, "capture", return_value=(0, original)):

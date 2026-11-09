@@ -21,7 +21,7 @@ def condition(source, selected, outcomes):
     text = text.replace("needs.distribution.outputs.state", repr("complete"))
     mode = "semantics" if selected.get("semantics") else "prepare" if selected.get("prepare") else "ordinary"
     if selected.get("semantics"):
-        mode = {"capture": "semantics", "adoption": "adoption", "world": "world", "retain": "retention", "history": "history", "transition": "transition"}[json.loads(selected["semantics"])["kind"]]
+        mode = {"capture": "semantics", "adoption": "adoption", "world": "world", "retain": "retention", "history": "history", "transition": "transition", "selection": "selection"}[json.loads(selected["semantics"])["kind"]]
     text = text.replace("needs.request.outputs.mode", repr(mode))
     text = re.sub(r"needs\.windtun-prepare\.outputs\.ready", repr("true"), text)
     text = text.replace("&&", " and ").replace("||", " or ")
@@ -30,6 +30,31 @@ def condition(source, selected, outcomes):
 
 
 class Workflow(unittest.TestCase):
+    def test_selection_excludes_publication_roles_and_refreshes_each_read_phase(self):
+        document = jobs()
+        selected = {"semantics": '{"kind":"selection"}', "prepare": False, "candidate": False, "proof": False, "run": "", "reference": "", "repository": "PerishLab/plumb", "marker": "v0.143.0"}
+        outcomes = {name: "success" for name in document}
+        self.assertTrue(condition(document["semantics-select"], selected, outcomes))
+        for name in document.keys() - {"request", "semantics-select"}:
+            with self.subTest(name=name):
+                self.assertFalse(condition(document[name], selected, outcomes))
+        source = document["semantics-select"]
+        self.assertEqual(source.count("uses: actions/create-github-app-token@"), 3)
+        self.assertEqual(source.count("permission-actions: read"), 3)
+        self.assertEqual(source.count("permission-contents: read"), 3)
+        preparation = source.split('      - name: "[prepare] exact family materials"', 1)[1].split('      - name:', 1)[0]
+        publication = source.split('      - name: "[select] exact family"', 1)[1].split('      - name:', 1)[0]
+        confirmation = source.split('      - name: "[select] family ', 1)[1].split('      - name:', 1)[0]
+        for block in (preparation, confirmation):
+            for forbidden in ("WHARF_R2_", "WHARF_RELEASES_", "WHARF_APP_PRIVATE_KEY"):
+                self.assertNotIn(forbidden, block)
+        self.assertIn("steps.metadata.outputs.token", preparation)
+        self.assertIn("steps.publication.outputs.token", publication)
+        self.assertIn("steps.confirmation.outputs.token", confirmation)
+        self.assertIn("WHARF_RELEASES_SECRET_ACCESS_KEY", publication)
+        for forbidden in ("packages: write", "permission-contents: write", "WHARF_R2_", "scripts.ship", "prepare: rust"):
+            self.assertNotIn(forbidden, source)
+
     def test_transition_has_one_metadata_issuer_and_no_publication_role(self):
         document = jobs()
         selected = {"semantics": '{"kind":"transition"}', "prepare": False, "candidate": False, "proof": False, "run": "", "reference": "", "repository": "PerishLab/plumb", "marker": "v0.141.0"}
