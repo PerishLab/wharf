@@ -476,6 +476,7 @@ jobs:
       publisher: ${{ steps.plan.outputs.publisher }}
       windtun: ${{ steps.plan.outputs.windtun }}
       binaryproof: ${{ steps.plan.outputs.binaryproof }}
+      signer: ${{ steps.plan.outputs.signer }}
       commit: ${{ steps.source.outputs.commit }}
       tree: ${{ steps.source.outputs.tree }}
     steps:
@@ -1348,6 +1349,7 @@ jobs:
           persist-credentials: false
 
       - name: "[prepare] machine"
+        if: needs.plan.result != 'success' || needs.plan.outputs.signer == 'rcodesign'
         uses: ./wharf/.github/actions/prepare
         with:
           prepare: rcodesign
@@ -1519,6 +1521,7 @@ jobs:
           persist-credentials: false
 
       - name: "[prepare] machine"
+        if: needs.plan.result != 'success' || needs.plan.outputs.signer == 'rcodesign'
         uses: ./wharf/.github/actions/prepare
         with:
           prepare: rcodesign
@@ -1594,6 +1597,7 @@ jobs:
           persist-credentials: false
 
       - name: "[prepare] machine"
+        if: needs.plan.result != 'success' || needs.plan.outputs.signer == 'rcodesign'
         uses: ./wharf/.github/actions/prepare
         with:
           prepare: rcodesign

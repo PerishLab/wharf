@@ -82,7 +82,7 @@ class Answered(unittest.TestCase):
         self.assertEqual(named["cfworker"], "skip")
         self.assertIn("planned=3", written)
         self.assertEqual([line.split("=")[0] for line in written.splitlines() if line.startswith("layer-")], ["layer-1", "layer-2", "layer-3", "layer-4"])
-        self.assertEqual(len(written.splitlines()), len(plan.SINGLE) + plan.UNITS["layers"] + 2)
+        self.assertEqual(len(written.splitlines()), len(plan.SINGLE) + plan.UNITS["layers"] + 3)
 
     def test_a_product_with_no_worker_plans_nothing_for_it(self):
         named, _ = self.answered({"suite-linux": {"key": "a" * 64, "decision": "run"}})
