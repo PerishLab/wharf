@@ -1,4 +1,5 @@
 import unittest
+from types import SimpleNamespace
 
 from tests.promotion.preparation.test_workflow import condition
 from tests.promotion.test_workflow import jobs
@@ -102,3 +103,15 @@ class Workflow(unittest.TestCase):
         for name in ("build-proof", "native-proof"):
             self.assertTrue(condition(document[name], selected, outcomes))
         self.assertFalse(condition(document["windtun-prepare"], selected, outcomes))
+
+    def test_signer_preparation_uses_known_plan_and_preserves_unknown_replay(self):
+        source = jobs()
+        self.assertIn("signer: ${{ steps.plan.outputs.signer }}", source["plan"])
+        for name in ("prepared", "native-proof", "native-candidate"):
+            machine = source[name].split('- name: "[prepare] machine"', 1)[1].split('- name:', 1)[0]
+            with self.subTest(role=name):
+                predicate = machine.split("if:", 1)[1].splitlines()[0].strip().replace("||", "or")
+                for result, signer, expected in (("success", "", False), ("success", "rcodesign", True), ("skipped", "", True)):
+                    needs = SimpleNamespace(plan=SimpleNamespace(result=result, outputs=SimpleNamespace(signer=signer)))
+                    self.assertEqual(eval(predicate, {"__builtins__": {}}, {"needs": needs}), expected)
+                self.assertIn("prepare: rcodesign", machine)

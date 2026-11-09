@@ -127,16 +127,19 @@ def reported(text):
     return {name: {field: value for field, value in (step.get("outputs") or {}).items() if field in REPORTED} for name, step in held.items()}
 
 
-def unit(name):
+def unit(name, signing=True):
     kind, _, target = name.partition("-")
     spec = UNITS["units"].get(name) or UNITS["units"].get(kind)
     if spec is None:
         return None
+    prepared = spec.get("prepare", [])
+    if spec["action"] == "bind" and not signing:
+        prepared = [tool for tool in prepared if tool != "rcodesign"]
     named = f"[{spec['verb']}] {spec['object']}"
     if spec.get("per") != "target":
-        return {"name": named, "action": spec["action"], "target": "", "runner": spec.get("runner", RUNNER), "prepare": spec.get("prepare", [])}
+        return {"name": named, "action": spec["action"], "target": "", "runner": spec.get("runner", RUNNER), "prepare": prepared}
     known = next(item for item in BUILD["targets"] if item["name"] == target)
-    prepared = UNITS["prepare"].get(target, []) + spec.get("prepare", [])
+    prepared = UNITS["prepare"].get(target, []) + prepared
     return {"name": f"{named} {target}", "action": spec["action"], "target": known["target"], "runner": known["runner"], "prepare": prepared}
 
 
@@ -146,7 +149,7 @@ def units(entries):
         raise Refusal(f"the plan derived {len(layers)} layers, the workflow runs {UNITS['layers']}")
     held = {}
     for number in range(1, UNITS["layers"] + 1):
-        found = [unit(name) for name in (layers[number - 1] if number <= len(layers) else []) if entries[name]["decision"] == "run"]
+        found = [unit(name, "bind-macos" in entries) for name in (layers[number - 1] if number <= len(layers) else []) if entries[name]["decision"] == "run"]
         held[f"layer-{number}"] = list({item["name"]: item for item in found if item}.values())
     return held
 
@@ -161,6 +164,7 @@ def emit(entries, attempt, verified=None):
     answered.update({name: json.dumps(found, separators=(",", ":")) for name, found in units(entries).items()})
     answered["presence"] = json.dumps(present(entries), separators=(",", ":"), sort_keys=True)
     answered["planned"] = attempt
+    answered["signer"] = "rcodesign" if "bind-macos" in entries else ""
     if verified is not None:
         answered["snapshot"] = json.dumps(verified, separators=(",", ":"), sort_keys=True)
     parameters.answer(answered)
