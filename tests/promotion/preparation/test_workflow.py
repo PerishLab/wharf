@@ -21,7 +21,7 @@ def condition(source, selected, outcomes):
     text = text.replace("needs.distribution.outputs.state", repr("complete"))
     mode = "semantics" if selected.get("semantics") else "prepare" if selected.get("prepare") else "ordinary"
     if selected.get("semantics"):
-        mode = {"capture": "semantics", "adoption": "adoption", "world": "world", "retain": "retention", "history": "history"}[json.loads(selected["semantics"])["kind"]]
+        mode = {"capture": "semantics", "adoption": "adoption", "world": "world", "retain": "retention", "history": "history", "transition": "transition"}[json.loads(selected["semantics"])["kind"]]
     text = text.replace("needs.request.outputs.mode", repr(mode))
     text = re.sub(r"needs\.windtun-prepare\.outputs\.ready", repr("true"), text)
     text = text.replace("&&", " and ").replace("||", " or ")
@@ -30,6 +30,21 @@ def condition(source, selected, outcomes):
 
 
 class Workflow(unittest.TestCase):
+    def test_transition_has_one_metadata_issuer_and_no_publication_role(self):
+        document = jobs()
+        selected = {"semantics": '{"kind":"transition"}', "prepare": False, "candidate": False, "proof": False, "run": "", "reference": "", "repository": "PerishLab/plumb", "marker": "v0.141.0"}
+        outcomes = {name: "success" for name in document}
+        self.assertTrue(condition(document["semantics-issue"], selected, outcomes))
+        for name in document.keys() - {"request", "semantics-issue"}:
+            with self.subTest(name=name):
+                self.assertFalse(condition(document[name], selected, outcomes))
+        source = document["semantics-issue"]
+        self.assertIn("scripts.distribution semantics-transition", source)
+        self.assertIn("if: always()", source)
+        confirmation = source.split('      - name: "[issue] semantics ', 1)[1]
+        for forbidden in ("WHARF_R2_", "WHARF_RELEASES_", "WHARF_APP_PRIVATE_KEY"):
+            self.assertNotIn(forbidden, confirmation)
+
     def test_history_can_only_write_metadata_and_confirmation_has_no_writer(self):
         document = jobs()
         selected = {"semantics": '{"kind":"history"}', "prepare": False, "candidate": False, "proof": False, "run": "", "reference": "", "repository": "PerishLab/plumb", "marker": "v0.140.0"}
@@ -92,7 +107,7 @@ class Workflow(unittest.TestCase):
                 self.assertFalse(condition(document[name], selected, outcomes))
         source = document["semantics-issue"]
         self.assertIn('name: "[issue] version semantics"', source)
-        self.assertIn('name: "[issue] semantics ${{ steps.adoption.outputs.digest }}"', source)
+        self.assertIn('name: "[issue] semantics ${{ steps.adoption.outputs.digest || steps.transition.outputs.digest }}"', source)
         self.assertIn("semantics-confirm", source)
         for forbidden in ("packages: write", "uses: ./wharf/.github/actions/product", "scripts.ship"):
             self.assertNotIn(forbidden, source)

@@ -31,8 +31,8 @@ def retain(bucket, product, raw):
     return reference
 
 
-def facts(arguments):
-    status, report = reader.capture(arguments)
+def facts(arguments, budget=180):
+    status, report = reader.capture(arguments) if budget == 180 else reader.capture(arguments, budget)
     require(isinstance(report, dict) and report.get("publication") is False, "shared semantic reader did not return bounded facts")
     if status != 0 or report.get("state") != "observed":
         reason = report.get("reason")
@@ -107,6 +107,8 @@ def issue(held):
 
 
 def confirm(held):
+    if preflight.semantics(preflight.event()["semantics"])["kind"] == "transition":
+        return transition(held, True)
     root = destination(held, True)
     native = capture.active(held, "semantics-issue")
     requested = preflight.semantics(preflight.event()["semantics"])
@@ -214,3 +216,53 @@ def confirmed(held):
     result = {"schema": "wharf.release.semantics.history.confirmation/v1", "native": native, "reference": reference, "authentication": False, "publication": False}
     (root / "confirmation.json").write_bytes(canonical.encode(result))
     return result
+
+
+def transition(held, existing=False):
+    root = destination(held, existing)
+    native = capture.active(held, "semantics-issue")
+    requested = preflight.semantics(preflight.event()["semantics"])
+    require(requested["kind"] == "transition", "transition issuer needs its exact native request")
+    supplied = requested["record"]
+    record = dict(supplied, intent=dict(supplied["intent"], native=native))
+    product = held["repository"].split("/")[1]
+    require(record["intent"]["product"] == product and record["intent"]["marker"] == held["marker"], "transition names another actual product or marker")
+    if existing:
+        require({path.name for path in root.iterdir()} == {"world.json", "record.json", "intent.json", "materials.json", "reference.json"} and all(not path.is_symlink() and path.is_file() and path.stat().st_size <= capture.LIMIT for path in root.iterdir()), "transition confirmation receipt set differs")
+    distribution, original = capture.published(held)
+    world, raw = (capture.decode((root / "world.json").read_bytes()), (root / "world.json").read_bytes()) if existing else capture.snapshot(distribution, capture.original(distribution["plan"]))
+    require(record["intent"]["world"] == object_reference(product, raw), "transition world differs from original captured publication")
+    require(world["source"] == {name: distribution[name] for name in ("repository", "marker", "commit", "tree")}, "transition original world names another source")
+    encoded = canonical.encode(record)
+    reference = object_reference(product, encoded)
+    authority = reader.identity()
+    intent = {"schema": "wharf.release.semantics.transition.intent/v1", "native": native, "request": requested, "reference": reference, "reader": authority, "original": original, "authentication": False, "publication": False}
+    if existing:
+        require(capture.decode((root / "intent.json").read_bytes()) == intent and (root / "record.json").read_bytes() == encoded, "transition confirmation differs from exact request or issuer")
+        require(held["digest"] == reference["sha256"] and capture.decode((root / "reference.json").read_bytes()) == reference and release.fetch(reference["url"]) == encoded, "transition confirmation public bytes differ")
+    else:
+        root.mkdir(parents=True)
+        for name, value in {"world": world, "record": record, "intent": intent}.items():
+            (root / f"{name}.json").write_bytes(canonical.encode(value))
+        _, bucket, _ = release.place(release.Release(held["repository"], held["marker"], world["source"]["commit"], native["commit"]))
+        publisher = r2.writer(bucket, "RELEASES")
+        require(retain(publisher, product, raw) == record["intent"]["world"], "transition retained another original world")
+    purpose = "transition" if requested["mode"] == "current" else "historical"
+    report = facts(["release", "inspect", "--input", str(root / "record.json"), "--purpose", purpose, "--product", product], 900)
+    require(set(report) == {"schema", "freshness", "previous", "derived", "authentication", "publication"} and report["schema"] == "plumb.release.transition.materials/v1" and report["freshness"] == requested["mode"], "shared transition material protocol or freshness differs")
+    require(isinstance(report["previous"], dict) and isinstance(report["derived"], dict), "transition material families are absent")
+    require(report["authentication"] is False and report["publication"] is False and report["previous"].get("authentication") is True and report["previous"].get("publication") is False and report["derived"].get("authentication") is False and report["derived"].get("publication") is False, "transition preparation exceeds its data role")
+    require(report["previous"].get("reference") == record["intent"]["previous"] and report["derived"].get("reference") == reference, "shared transition derivation names another record or predecessor")
+    if existing:
+        require(capture.decode((root / "materials.json").read_bytes()) == report, "transition material facts moved after issuance")
+    else:
+        (root / "materials.json").write_bytes(canonical.encode(report))
+    require(capture.published(held) == (distribution, original) and reader.identity() == authority and capture.active(held, "semantics-issue") == native, "transition publication, reader or native context moved")
+    if existing:
+        result = {"schema": "wharf.release.semantics.transition.confirmation/v1", "reference": reference, "native": native, "authentication": False, "publication": False}
+        (root / "confirmation.json").write_bytes(canonical.encode(result))
+        return result
+    require(retain(publisher, product, encoded) == reference, "transition retained another record")
+    (root / "reference.json").write_bytes(canonical.encode(reference))
+    parameters.answer({"digest": reference["sha256"]})
+    return intent

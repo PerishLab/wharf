@@ -25,10 +25,15 @@ def semantics(raw):
     except (ValueError, RecursionError) as error:
         raise Refusal("semantics request is not valid JSON") from error
     require(isinstance(value, dict) and value.get("schema") == "wharf.release.semantics.request/v1", "semantics request schema differs")
-    choices = {"capture": set(), "adoption": {"scenes", "review"}, "world": {"commit", "scenes"}, "retain": {"native", "world", "material"}, "history": {"root", "previous"}}
+    choices = {"capture": set(), "adoption": {"scenes", "review"}, "world": {"commit", "scenes"}, "retain": {"native", "world", "material"}, "history": {"root", "previous"}, "transition": {"mode", "record"}}
     require(value.get("kind") in choices, "semantics request is unsupported")
     fields = {"schema", "kind"} | choices[value["kind"]]
     require(set(value) == fields, "semantics request fields differ")
+    if value["kind"] == "transition":
+        require(value["mode"] in ("current", "historical"), "transition needs an explicit material mode")
+        record = value["record"]
+        require(isinstance(record, dict) and set(record) == {"schema", "intent", "history", "source"} and record["schema"] == "wharf.release.semantics.transition/v1", "transition record fields differ")
+        require(isinstance(record["intent"], dict) and set(record["intent"]) == {"product", "marker", "root", "previous", "anchor", "request", "scenes", "world", "review", "direct"}, "transition request must omit native issuer fields")
     if value["kind"] == "history":
         require(isinstance(value["root"], dict) and value["root"] and (value["previous"] is None or isinstance(value["previous"], dict) and value["previous"]), "history needs an exact adoption and optional predecessor")
     if value["kind"] == "adoption":
@@ -137,7 +142,7 @@ def request(held):
     chosen = qualify(selected) if selected["prepare"] else None
     mode = "semantics" if selected["semantics"] else "prepare" if selected["prepare"] else "ordinary"
     if selected["semantics"]:
-        mode = {"capture": "semantics", "adoption": "adoption", "world": "world", "retain": "retention", "history": "history"}[semantics(selected["semantics"])["kind"]]
+        mode = {"capture": "semantics", "adoption": "adoption", "world": "world", "retain": "retention", "history": "history", "transition": "transition"}[semantics(selected["semantics"])["kind"]]
     parameters.answer({"mode": mode, "preparation": canonical.encode(chosen).decode()})
     return {"schema": SCHEMA, "observer": identity, "preparation": chosen, "publication": False, "promotion": False}
 

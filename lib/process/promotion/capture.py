@@ -35,13 +35,13 @@ def lineage(commit):
 
 
 def active(held, role="semantics"):
-    kinds = {"semantics": "capture", "semantics-issue": "adoption", "semantics-world": "world", "semantics-retain": "retain", "semantics-history": "history"}
+    kinds = {"semantics": "capture", "semantics-issue": ("adoption", "transition"), "semantics-world": "world", "semantics-retain": "retain", "semantics-history": "history"}
     require(role in kinds, "semantics role is unsupported")
     observer, jobs = preflight.active(held["observer"], role)
     selected = preflight.event()
     require(selected["semantics"] and all(selected[name] == held[name] for name in ("repository", "marker")), "semantics capture differs from its native request")
     kind = kinds[role]
-    require(preflight.semantics(selected["semantics"])["kind"] == kind, "semantics role differs from actual request kind")
+    require(preflight.semantics(selected["semantics"])["kind"] in (kind if isinstance(kind, tuple) else (kind,)), "semantics role differs from actual request kind")
     lineage(observer["wharf"])
     names = {preflight.ROLES["request"], preflight.ROLES[role]}
     for job in jobs:
