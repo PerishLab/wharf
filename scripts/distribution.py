@@ -10,7 +10,9 @@ from lib.process.trial import credential, transport
 from lib.process.promotion import operation as promotion
 from lib.process.promotion import preflight, prepared
 from lib.process.promotion import capture
-from lib.process.confirmation import semantics, world, retention
+from lib.process.confirmation import world, retention
+from lib.process.confirmation import semantics
+from lib.process.promotion import selection
 from lib.store import distribution, plan, r2
 from lib.process.association import producer as native, public as native_public, candidate as native_candidate
 
@@ -43,6 +45,9 @@ def record(held):
 
 
 ACTIONS = {
+    "semantics-select-prepare": (selection.prepare, ["observer", "repository", "marker", "source"]),
+    "semantics-select": (selection.produce, ["observer", "repository", "marker", "source"]),
+    "semantics-select-confirm": (selection.confirm, ["observer", "repository", "marker", "source", "digest"]),
     "semantics-history": (semantics.checkpoint, ["observer", "repository", "marker", "source"]),
     "semantics-history-confirm": (semantics.confirmed, ["observer", "repository", "marker", "source", "digest"]),
     "semantics-retain": (retention.produce, ["observer", "repository", "marker", "artifact"]),

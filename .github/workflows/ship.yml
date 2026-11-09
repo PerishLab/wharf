@@ -232,6 +232,112 @@ jobs:
           if-no-files-found: ignore
           retention-days: 14
 
+  semantics-select:
+    name: "[select] stable family"
+    needs: [request]
+    if: needs.request.result == 'success' && needs.request.outputs.mode == 'selection'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 150
+    permissions:
+      contents: read
+      actions: read
+    steps:
+      - name: "[checkout] trusted wharf"
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: ${{ github.sha }}
+          path: wharf
+          persist-credentials: false
+
+      - name: "[prepare] shared material reader"
+        working-directory: .
+        run: |
+          curl -fsSL https://releases.plumb.perish.uk/manage.sh -o "$RUNNER_TEMP/manage-plumb.sh"
+          env PLUMB_CHANNEL=stable PLUMB_VERSION= sh "$RUNNER_TEMP/manage-plumb.sh" install
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+
+      - name: "[prepare] semantic metadata reader"
+        id: metadata
+        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1
+        with:
+          client-id: ${{ vars.WHARF_APP_CLIENT_ID }}
+          private-key: ${{ secrets.WHARF_APP_PRIVATE_KEY }}
+          owner: PerishLab
+          repositories: |
+            wharf
+            seatrial
+            ${{ inputs.repository == 'PerishLab/plumb' && 'plumb' || 'concord' }}
+          permission-actions: read
+          permission-contents: read
+
+      - name: "[prepare] exact family materials"
+        env:
+          GH_TOKEN: ${{ steps.metadata.outputs.token }}
+          WHARF_REPOSITORY: ${{ inputs.repository }}
+          WHARF_MARKER: ${{ inputs.marker }}
+          WHARF_OBSERVER: '{"run":"${{ github.run_id }}","attempt":"${{ github.run_attempt }}","wharf":"${{ github.sha }}"}'
+          WHARF_SOURCE: ${{ runner.temp }}/semantics-selection
+        run: python3 -B -m scripts.distribution semantics-select-prepare
+
+      - name: "[prepare] family publication reader"
+        id: publication
+        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1
+        with:
+          client-id: ${{ vars.WHARF_APP_CLIENT_ID }}
+          private-key: ${{ secrets.WHARF_APP_PRIVATE_KEY }}
+          owner: PerishLab
+          repositories: |
+            wharf
+            seatrial
+            ${{ inputs.repository == 'PerishLab/plumb' && 'plumb' || 'concord' }}
+          permission-actions: read
+          permission-contents: read
+
+      - name: "[select] exact family"
+        id: family
+        env:
+          GH_TOKEN: ${{ steps.publication.outputs.token }}
+          WHARF_REPOSITORY: ${{ inputs.repository }}
+          WHARF_MARKER: ${{ inputs.marker }}
+          WHARF_OBSERVER: '{"run":"${{ github.run_id }}","attempt":"${{ github.run_attempt }}","wharf":"${{ github.sha }}"}'
+          WHARF_SOURCE: ${{ runner.temp }}/semantics-selection
+          WHARF_RELEASES_ACCESS_KEY_ID: ${{ secrets.WHARF_RELEASES_ACCESS_KEY_ID }}
+          WHARF_RELEASES_SECRET_ACCESS_KEY: ${{ secrets.WHARF_RELEASES_SECRET_ACCESS_KEY }}
+        run: python3 -B -m scripts.distribution semantics-select
+
+      - name: "[prepare] family confirmation reader"
+        id: confirmation
+        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1
+        with:
+          client-id: ${{ vars.WHARF_APP_CLIENT_ID }}
+          private-key: ${{ secrets.WHARF_APP_PRIVATE_KEY }}
+          owner: PerishLab
+          repositories: |
+            wharf
+            seatrial
+            ${{ inputs.repository == 'PerishLab/plumb' && 'plumb' || 'concord' }}
+          permission-actions: read
+          permission-contents: read
+
+      - name: "[select] family ${{ steps.family.outputs.digest }}"
+        env:
+          GH_TOKEN: ${{ steps.confirmation.outputs.token }}
+          WHARF_REPOSITORY: ${{ inputs.repository }}
+          WHARF_MARKER: ${{ inputs.marker }}
+          WHARF_OBSERVER: '{"run":"${{ github.run_id }}","attempt":"${{ github.run_attempt }}","wharf":"${{ github.sha }}"}'
+          WHARF_SOURCE: ${{ runner.temp }}/semantics-selection
+          WHARF_DIGEST: ${{ steps.family.outputs.digest }}
+        run: python3 -B -m scripts.distribution semantics-select-confirm
+
+      - name: "[preserve] family selection"
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
+        with:
+          name: semantics-selection-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/semantics-selection
+          if-no-files-found: ignore
+          retention-days: 14
+
   semantics-world:
     name: "[prepare] semantic world"
     needs: [request]

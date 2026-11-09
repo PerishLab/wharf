@@ -15,7 +15,7 @@ from lib.process.promotion import reader, subject
 SCHEMA = "wharf.ship.request/v1"
 INTENT = "wharf.ship.preparation.intent/v1"
 DEFAULTS = {"run": "", "case": "declared", "reference": "", "candidate": False, "prepare": False, "proof": False, "attempt": "1", "semantics": ""}
-ROLES = {"request": "[verify] request", "prepared": "[read] prepared plan", "plan": "[plan] entries", "semantics": "[read] original semantics materials", "semantics-issue": "[issue] version semantics", "semantics-world": "[prepare] semantic world", "semantics-retain": "[retain] semantic world", "semantics-history": "[retain] semantic history"}
+ROLES = {"request": "[verify] request", "prepared": "[read] prepared plan", "plan": "[plan] entries", "semantics": "[read] original semantics materials", "semantics-issue": "[issue] version semantics", "semantics-world": "[prepare] semantic world", "semantics-retain": "[retain] semantic world", "semantics-history": "[retain] semantic history", "semantics-select": "[select] stable family"}
 
 
 def semantics(raw):
@@ -25,10 +25,13 @@ def semantics(raw):
     except (ValueError, RecursionError) as error:
         raise Refusal("semantics request is not valid JSON") from error
     require(isinstance(value, dict) and value.get("schema") == "wharf.release.semantics.request/v1", "semantics request schema differs")
-    choices = {"capture": set(), "adoption": {"scenes", "review"}, "world": {"commit", "scenes"}, "retain": {"native", "world", "material"}, "history": {"root", "previous"}, "transition": {"mode", "record"}}
+    choices = {"capture": set(), "adoption": {"scenes", "review"}, "world": {"commit", "scenes"}, "retain": {"native", "world", "material"}, "history": {"root", "previous"}, "transition": {"mode", "record"}, "selection": {"record"}}
     require(value.get("kind") in choices, "semantics request is unsupported")
     fields = {"schema", "kind"} | choices[value["kind"]]
     require(set(value) == fields, "semantics request fields differ")
+    if value["kind"] == "selection":
+        record = value["record"]
+        require(isinstance(record, dict) and set(record) == {"schema", "product", "marker", "root", "family", "history", "previous", "sequence"} and record["schema"] == "wharf.release.semantics.family.selection/v1", "family selection must omit native fields and use its strict record")
     if value["kind"] == "transition":
         require(value["mode"] in ("current", "historical"), "transition needs an explicit material mode")
         record = value["record"]
@@ -142,7 +145,7 @@ def request(held):
     chosen = qualify(selected) if selected["prepare"] else None
     mode = "semantics" if selected["semantics"] else "prepare" if selected["prepare"] else "ordinary"
     if selected["semantics"]:
-        mode = {"capture": "semantics", "adoption": "adoption", "world": "world", "retain": "retention", "history": "history", "transition": "transition"}[semantics(selected["semantics"])["kind"]]
+        mode = {"capture": "semantics", "adoption": "adoption", "world": "world", "retain": "retention", "history": "history", "transition": "transition", "selection": "selection"}[semantics(selected["semantics"])["kind"]]
     parameters.answer({"mode": mode, "preparation": canonical.encode(chosen).decode()})
     return {"schema": SCHEMA, "observer": identity, "preparation": chosen, "publication": False, "promotion": False}
 

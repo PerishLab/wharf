@@ -2,6 +2,7 @@ import json
 import os
 import signal
 import subprocess
+import sys
 import tempfile
 import time
 
@@ -14,13 +15,26 @@ LIMIT = 4194304
 
 def capture(arguments, budget=180):
     require(type(budget) is int and 0 < budget <= 900, "shared reader time budget is unsupported")
+    return execute(arguments, budget)
+
+
+def select(arguments):
+    return execute(arguments, 2700, True)
+
+
+def execute(arguments, budget, observe=False):
     environment = {name: os.environ[name] for name in ("PATH", "HOME", "LANG", "GH_TOKEN") if name in os.environ}
     with tempfile.TemporaryFile() as output:
         child = subprocess.Popen(["plumb", *arguments], stdin=subprocess.DEVNULL, stdout=output, stderr=subprocess.DEVNULL, env=environment, start_new_session=True)
         try:
-            deadline = time.monotonic() + budget
+            started = time.monotonic()
+            deadline = started + budget
+            report = started + 30
             while child.poll() is None:
                 require(time.monotonic() < deadline and os.fstat(output.fileno()).st_size <= LIMIT, "qualification reader exceeded its time or output budget")
+                if observe and time.monotonic() >= report:
+                    print(f"shared selection reader active elapsed={int(time.monotonic() - started)}s bytes={os.fstat(output.fileno()).st_size}", file=sys.stderr, flush=True)
+                    report = time.monotonic() + 30
                 time.sleep(0.02)
             require(os.fstat(output.fileno()).st_size <= LIMIT, "qualification reader output exceeds bounds")
             output.seek(0)

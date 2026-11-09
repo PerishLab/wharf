@@ -1570,6 +1570,28 @@ Failure artifacts retain partial intent. Unknown acknowledgements are not replay
 This writes metadata only: no family discovery pointer, product execution, marker,
 publication, qualification or semantics activation is supplied by this role.
 
+The canonical `kind: "selection"` request contains strict
+`wharf.release.semantics.family.selection/v1` data without native fields. Its fixed metadata role inserts its actual native identity and
+uses formal Plumb nomination to verify the complete current family, exact root,
+predecessor branch, current stable and retained reservations. It neither executes
+a product nor receives workload access. Source data cannot authorize a writer.
+A read-only preparation saves the exact shared report and actual context. A
+separate publication step repeats the complete shared report, checks protected
+latest and inception bytes, retains intent before mutation, then retains the
+immutable selection create-only. First
+selection requires both protected slots absent and creates inception once;
+missing discovery never permits replacing an existing inception. Later movement
+uses the exact protected predecessor ETag and preserves inception. Unknown or
+partial writes stop without replay or rollback. A lost/partial inception requires
+explicit recovery rather than ordinary reinitialization.
+Confirmation has no store credential and repeats current shared facts, actual
+request/reader and exact public object, latest and inception bytes before the
+digest step. This role alone has three fixed 2700-second reader budgets inside a
+150-minute job; each phase explicitly obtains a fresh read-only token from the
+existing App before its reader runs. Preparation and confirmation hold no store
+credentials. It streams bounded progress. Existing reader limits stay intact.
+Selection authenticates no prospective release, qualification or activated scope.
+
 The separate `kind: "world"` request selects a proposed marker, an exact commit
 held by protected product main and an exact immutable Scene. Its fixed preparation
 job has only contents/actions/package read permission and no R2 or publication
