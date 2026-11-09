@@ -2,6 +2,7 @@ import json
 import sys
 
 from lib import parameters
+from lib.package.source import original
 from lib.media import release
 from lib.identity.bind import producer, comparison, candidate
 from lib.refusal import Refusal
@@ -45,6 +46,9 @@ def record(held):
 
 
 ACTIONS = {
+    "semantics-original-prepare": (original.prepare, ["observer", "repository", "marker", "source"]),
+    "semantics-original": (original.produce, ["observer", "repository", "marker", "source"]),
+    "semantics-original-confirm": (original.confirm, ["observer", "repository", "marker", "source", "digest"]),
     "semantics-select-prepare": (selection.prepare, ["observer", "repository", "marker", "source"]),
     "semantics-select": (selection.produce, ["observer", "repository", "marker", "source"]),
     "semantics-select-confirm": (selection.confirm, ["observer", "repository", "marker", "source", "digest"]),
