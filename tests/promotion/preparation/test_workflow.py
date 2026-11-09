@@ -21,7 +21,7 @@ def condition(source, selected, outcomes):
     text = text.replace("needs.distribution.outputs.state", repr("complete"))
     mode = "semantics" if selected.get("semantics") else "prepare" if selected.get("prepare") else "ordinary"
     if selected.get("semantics"):
-        mode = {"capture": "semantics", "adoption": "adoption", "world": "world", "retain": "retention", "history": "history", "transition": "transition", "selection": "selection"}[json.loads(selected["semantics"])["kind"]]
+        mode = {"capture": "semantics", "adoption": "adoption", "world": "world", "retain": "retention", "history": "history", "transition": "transition", "selection": "selection", "original": "original"}[json.loads(selected["semantics"])["kind"]]
     text = text.replace("needs.request.outputs.mode", repr(mode))
     text = re.sub(r"needs\.windtun-prepare\.outputs\.ready", repr("true"), text)
     text = text.replace("&&", " and ").replace("||", " or ")
@@ -30,6 +30,27 @@ def condition(source, selected, outcomes):
 
 
 class Workflow(unittest.TestCase):
+    def test_original_source_has_only_its_metadata_role_and_separate_credentials(self):
+        document = jobs()
+        selected = {"semantics": '{"kind":"original"}', "prepare": False, "candidate": False, "proof": False, "run": "", "reference": "", "repository": "PerishLab/plumb", "marker": "v0.143.0"}
+        outcomes = {name: "success" for name in document}
+        self.assertTrue(condition(document["semantics-original"], selected, outcomes))
+        for name in document.keys() - {"request", "semantics-original"}:
+            with self.subTest(name=name):
+                self.assertFalse(condition(document[name], selected, outcomes))
+        source = document["semantics-original"]
+        prepare = source.split('      - name: "[read] original source closure"', 1)[1].split('      - name:', 1)[0]
+        publish = source.split('      - name: "[retain] original source closure"', 1)[1].split('      - name:', 1)[0]
+        confirm = source.split('      - name: "[retain] original $', 1)[1].split('      - name:', 1)[0]
+        self.assertIn("WHARF_R2_SECRET_ACCESS_KEY", prepare)
+        self.assertNotIn("WHARF_RELEASES_", prepare)
+        self.assertIn("WHARF_RELEASES_SECRET_ACCESS_KEY", publish)
+        self.assertNotIn("WHARF_R2_", publish)
+        self.assertNotIn("WHARF_R2_", confirm)
+        self.assertNotIn("WHARF_RELEASES_", confirm)
+        for forbidden in ("[checkout] product", "packages: write", "scripts.ship", "prepare: rust", "prepare: snapshot"):
+            self.assertNotIn(forbidden, source)
+
     def test_selection_excludes_publication_roles_and_refreshes_each_read_phase(self):
         document = jobs()
         selected = {"semantics": '{"kind":"selection"}', "prepare": False, "candidate": False, "proof": False, "run": "", "reference": "", "repository": "PerishLab/plumb", "marker": "v0.143.0"}

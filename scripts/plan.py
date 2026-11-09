@@ -237,7 +237,7 @@ def record(held):
         engines = node.expected(root) if node.carried(root) else {}
         taken = attributed(offers, verified["guard"])
         context = dict({field: held[field] for field in CONTEXT}, snapshot=verified, **({"recalled": recalled} if recalled else {}), **({"pulled": taken} if taken is not None else {}))
-        if "binary-arm64" in entries:
+        if "binary-arm64" in entries or identity["repository"] in ("PerishLab/plumb", "PerishLab/concord"):
             context["material"] = material.capture(root, verified)
         if suite is not None:
             context["trial"] = suite

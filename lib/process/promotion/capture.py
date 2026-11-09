@@ -35,7 +35,7 @@ def lineage(commit):
 
 
 def active(held, role="semantics"):
-    kinds = {"semantics": "capture", "semantics-issue": ("adoption", "transition"), "semantics-world": "world", "semantics-retain": "retain", "semantics-history": "history", "semantics-select": "selection"}
+    kinds = {"semantics": "capture", "semantics-issue": ("adoption", "transition"), "semantics-world": "world", "semantics-retain": "retain", "semantics-history": "history", "semantics-select": "selection", "semantics-original": "original"}
     require(role in kinds, "semantics role is unsupported")
     observer, jobs = preflight.active(held["observer"], role)
     selected = preflight.event()
@@ -65,7 +65,7 @@ def published(held):
     return document, {"url": url, **entry(raw)}
 
 
-def original(reference):
+def original_native(reference):
     lineage(reference["wharf"])
     observer = {name: reference[name] for name in ("run", "attempt", "wharf")}
     run = control.api(f"actions/runs/{observer['run']}/attempts/{observer['attempt']}")
@@ -81,6 +81,10 @@ def original(reference):
     require(len(chosen) == 1 and chosen[0].get("status") == "completed" and chosen[0].get("conclusion") == "success", "original native planner did not complete successfully")
     job = chosen[0]
     require(str(job.get("run_id")) == observer["run"] and str(job.get("run_attempt")) == observer["attempt"] and job.get("head_sha") == observer["wharf"] and job.get("head_branch") == "main", "original planner identity differs")
+
+
+def original(reference):
+    original_native(reference)
     return plan.referenced(r2.configured(), reference, reference)
 
 

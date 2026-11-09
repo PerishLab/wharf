@@ -25,6 +25,17 @@ def world():
 
 
 class Capture(unittest.TestCase):
+    def test_original_material_uses_its_actual_role_and_excludes_peer_execution(self):
+        request = {"schema": "wharf.release.semantics.request/v1", "kind": "original", "recovery": []}
+        selected = REQUEST | {"semantics": canonical.encode(request).decode()}
+        held = {"observer": OBSERVER, "repository": SOURCE["repository"], "marker": SOURCE["marker"]}
+        jobs = [{"id": 19, "name": preflight.ROLES["semantics-original"]}]
+        with mock.patch.object(preflight, "active", return_value=(OBSERVER, jobs)), mock.patch.object(preflight, "event", return_value=preflight.selection(selected)), mock.patch.object(capture.control, "api", side_effect=self.api):
+            self.assertEqual(capture.active(held, "semantics-original")["job"], 19)
+            jobs.append({"id": 20, "name": "[publish] cargo", "started_at": "now", "conclusion": None})
+            with self.assertRaises(Refusal):
+                capture.active(held, "semantics-original")
+
     def test_selection_uses_actual_native_role_and_refuses_peer_execution(self):
         record = {"schema": "wharf.release.semantics.family.selection/v1", "product": "plumb", "marker": SOURCE["marker"], "root": {}, "family": {}, "history": {}, "previous": None, "sequence": 1}
         request = {"schema": "wharf.release.semantics.request/v1", "kind": "selection", "record": record}

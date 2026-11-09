@@ -1533,6 +1533,23 @@ retains world bytes, original references and inspection; missing history refuses
 Capture does not adopt a baseline, decide a version, qualify content or activate
 semantics enforcement.
 
+The separate `kind: "original"` request retains an actual original publication
+world and its complete effective source. A read-only workload phase authenticates
+the exact original plan and native planner. All later phases verify the saved
+plan's full canonical hash against the current public distribution reference,
+without workload credentials. The source is reconstructed in a temporary bare
+Git object database; no product checkout, package resolution, build or test runs.
+Recorded dependency material takes precedence and cannot be overridden. When old
+material is absent, bounded literal dependency-file edits must name exact archived
+blobs and reconstruct the entire original frozen Git tree. Hashes alone do not
+substitute for the complete file bytes. New pilot plans retain dependency material
+also without an ARM64 target. The record distinguishes recovery from old execution.
+Intent precedes create-only RELEASES metadata writes. Unknown or conflicting
+acknowledgements stop. The final step has no R2 credential and independently
+rechecks original native provenance, public plan binding, full reconstructed source,
+reader identity and exact public bytes. Formal Plumb Frame consumption remains
+separate; these observations grant no baseline, qualification or publication.
+
 The separate canonical adoption request adds `kind: "adoption"`, an exact `scenes`
 pointer and native `review` URL. Its fixed issuer supports only Plumb or Concord
 stable. It captures the original world, observes the selected current full
