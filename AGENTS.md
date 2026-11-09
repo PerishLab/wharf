@@ -1556,6 +1556,20 @@ key. Product code never runs in that role, and shared Plumb children receive
 the reader token without either R2 credential. Refused or unknown shared facts
 retain their bounded native diagnosis; no reader failure authorizes issuance.
 
+The canonical `kind: "transition"` request selects current or historical material
+verification and a strict transition record without native fields. The shared
+issuer inserts only its actual native identity, captures the original frozen
+publication world and requires that exact reference. Intent precedes the first
+create-only metadata write. Formal Plumb independently derives the preceding
+family, original anchor, complete formal frame, retained history and exact review.
+Current facts cannot stand in for historical facts or the reverse. Both supplied
+identity and derived family remain unauthenticated until the native issuer job
+and its exact digest confirmation succeed. Confirmation has no store credentials
+and repeats public bytes, material facts, actual request, reader and publication.
+Failure artifacts retain partial intent. Unknown acknowledgements are not replayed.
+This writes metadata only: no family discovery pointer, product execution, marker,
+publication, qualification or semantics activation is supplied by this role.
+
 The separate `kind: "world"` request selects a proposed marker, an exact commit
 held by protected product main and an exact immutable Scene. Its fixed preparation
 job has only contents/actions/package read permission and no R2 or publication

@@ -14,6 +14,23 @@ OBSERVER = {"run": "7", "attempt": "1", "wharf": "c" * 40}
 
 
 class Request(unittest.TestCase):
+    def test_transition_is_closed_and_cannot_supply_native_identity(self):
+        intent = {name: None for name in ("product", "marker", "root", "previous", "anchor", "request", "scenes", "world", "review", "direct")}
+        value = {"schema": "wharf.release.semantics.request/v1", "kind": "transition", "mode": "historical", "record": {"schema": "wharf.release.semantics.transition/v1", "intent": intent, "history": {}, "source": None}}
+        raw = json.dumps(value, sort_keys=True, separators=(",", ":"))
+        selected = {"repository": "PerishLab/plumb", "marker": "v0.141.0", "semantics": raw}
+        self.assertEqual(preflight.semantics(raw), value)
+        held = {"observer": OBSERVER, "selection": json.dumps({"schema": preflight.SCHEMA, "inputs": selected})}
+        with mock.patch.object(preflight, "active", return_value=(OBSERVER, [])), mock.patch.object(preflight, "event", return_value=preflight.selection(selected)), mock.patch.object(preflight.parameters, "answer") as answer:
+            preflight.request(held)
+            answer.assert_called_once_with({"mode": "transition", "preparation": "null"})
+        for changed in (value | {"mode": "automatic"}, value | {"authentication": True}, value | {"record": value["record"] | {"intent": intent | {"native": {}}}}):
+            with self.assertRaises(Refusal):
+                preflight.semantics(json.dumps(changed, sort_keys=True, separators=(",", ":")))
+        for changed in ({"marker": "v0.142.0-rc.1"}, {"prepare": True}, {"run": "7"}, {"repository": "PerishLab/keel"}):
+            with self.assertRaises(Refusal):
+                preflight.selection(selected | changed)
+
     def test_history_is_closed_stable_and_cannot_claim_its_native_issuer(self):
         value = {"schema": "wharf.release.semantics.request/v1", "kind": "history", "root": {"fixture": "shared-reader-validates"}, "previous": None}
         raw = json.dumps(value, sort_keys=True, separators=(",", ":"))

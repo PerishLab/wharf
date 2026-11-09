@@ -51,6 +51,7 @@ ACTIONS = {
     "semantics-world": (world.produce, ["observer", "repository", "marker", "source", "artifact"]),
     "semantics-world-confirm": (world.confirm, ["observer", "repository", "marker", "artifact", "observation"]),
     "semantics-capture": (capture.produce, ["observer", "repository", "marker", "source"]),
+    "semantics-transition": (semantics.transition, ["observer", "repository", "marker", "source"]),
     "semantics-issue": (semantics.issue, ["observer", "repository", "marker", "source"]),
     "semantics-confirm": (semantics.confirm, ["observer", "repository", "marker", "source", "digest"]),
     "request": (preflight.request, ["observer", "selection"]),

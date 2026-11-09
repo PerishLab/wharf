@@ -12,12 +12,13 @@ AUTHORITY = "https://releases.plumb.perish.uk"
 LIMIT = 4194304
 
 
-def capture(arguments):
+def capture(arguments, budget=180):
+    require(type(budget) is int and 0 < budget <= 900, "shared reader time budget is unsupported")
     environment = {name: os.environ[name] for name in ("PATH", "HOME", "LANG", "GH_TOKEN") if name in os.environ}
     with tempfile.TemporaryFile() as output:
         child = subprocess.Popen(["plumb", *arguments], stdin=subprocess.DEVNULL, stdout=output, stderr=subprocess.DEVNULL, env=environment, start_new_session=True)
         try:
-            deadline = time.monotonic() + 180
+            deadline = time.monotonic() + budget
             while child.poll() is None:
                 require(time.monotonic() < deadline and os.fstat(output.fileno()).st_size <= LIMIT, "qualification reader exceeded its time or output budget")
                 time.sleep(0.02)
