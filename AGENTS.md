@@ -1446,6 +1446,12 @@ public configuration. All peers use the target's existing runtime image; the
 formal Scene selects that one image and owns actual service startup and assertions.
 No additional image or arbitrary peer authority is inferred.
 
+The authenticated load step repeats native service identities before execution.
+The credential-free consumer rechecks public pointers, seals, distributions and
+archive bytes against that loaded snapshot, without invoking native metadata
+readers. Qualification and current readback still independently reauthenticate
+native identities; consumer observations confer no identity or issuance authority.
+
 Qualification and current readback independently re-resolve the whole service
 world, require exact product identities and placements, complete required coverage
 and cleanup, and recheck unchanged inputs before returning. Empty services retain

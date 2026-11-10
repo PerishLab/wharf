@@ -58,6 +58,24 @@ class Frozen(unittest.TestCase):
 
 
 class Services(unittest.TestCase):
+    def test_executor_rechecks_public_service_material_without_native_identity(self):
+        world = World().service()
+        snapshot = world.prepared["services"]["locus"]
+        authority = snapshot["declaration"]["authority"]
+        pointer = authority + "/v1/channels/stable.json"
+        archive = snapshot["seal"]["artifacts"]["linux-x64-deb"]["url"]
+        with world.combined(), mock.patch.object(preparation, "native", side_effect=Refusal("no executor identity")):
+            preparation.execution(world.prepared)
+            with self.assertRaises(Refusal):
+                preparation.unchanged(world.prepared)
+        changes = [(pointer, canonical.encode(dict(snapshot["pointer"], commit="0" * 40))), (snapshot["pointer"]["seal"]["url"], canonical.encode(dict(snapshot["seal"], commit="0" * 40))), (authority + "/v1/releases/stable/v0.16.0/distribution.json", canonical.encode(dict(snapshot["distribution"], state="incomplete"))), (archive, b"corrupt")]
+        for address, body in changes:
+            original = world.documents[address]
+            world.documents[address] = body
+            with self.subTest(address=address), world.combined(), mock.patch.object(preparation, "native", side_effect=Refusal("no executor identity")), self.assertRaises(Refusal):
+                preparation.execution(world.prepared)
+            world.documents[address] = original
+
     def test_exact_service_world_and_package_are_frozen(self):
         world = World().service()
         with world.combined():
