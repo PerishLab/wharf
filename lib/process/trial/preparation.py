@@ -98,14 +98,26 @@ def validate_prepared(value):
     return value
 
 
-def unchanged(prepared):
+def materials(prepared):
     validate_prepared(prepared)
     checked(product(prepared["admission"]) == prepared["product"], "product world moved after preparation")
     checked(runner() == prepared["runner"], "runner stable moved after preparation")
     checked(scene(prepared["admission"]["trial"]["specification"]) == prepared["scene"], "scene channel moved after preparation")
     checked(image(prepared["admission"]) == prepared["image"], "runtime image moved after preparation")
+
+
+def unchanged(prepared):
+    materials(prepared)
     specification = prepared["admission"]["trial"]["specification"]
     checked(services(specification, prepared["admission"]["product"]) == prepared.get("services", {}), "service world moved after preparation")
+
+
+def execution(prepared):
+    materials(prepared)
+    for name, snapshot in prepared.get("services", {}).items():
+        resolved = {key: snapshot[key] for key in ("source", "tag", "repository")}
+        selection = snapshot["declaration"]
+        checked(service_material(name, selection, service_pointer(name, selection), resolved) == snapshot, "service material moved after authenticated load")
 
 
 def completed(prepared, report, execution, installed):
@@ -174,6 +186,12 @@ def distribution(record, expected):
 
 
 def service(name, selection):
+    pointer = service_pointer(name, selection)
+    resolved = source(f"PerishLab/{name}", pointer["releaseVersion"])
+    return service_material(name, selection, pointer, resolved)
+
+
+def service_pointer(name, selection):
     authority = selection["authority"]
     pointer = document(f"{authority}/v1/channels/stable.json")
     shape(pointer, ("schema", "product", "releaseVersion", "channel", "commit", "seal", "managers"), "service pointer")
@@ -181,7 +199,13 @@ def service(name, selection):
     checked(pointer.get("product") == name and pointer.get("channel") == "stable", "service is not canonical stable")
     version = pointer.get("releaseVersion")
     checked(isinstance(version, str) and marker.channel(version) == "stable" and version == "v" + ".".join(str(part) for part in marker.order(version)[:3]), "service marker is not formal stable")
-    resolved = source(f"PerishLab/{name}", version)
+    return pointer
+
+
+def service_material(name, selection, pointer, resolved):
+    authority = selection["authority"]
+    version = pointer["releaseVersion"]
+    checked(resolved["source"]["repository"] == f"PerishLab/{name}" and resolved["source"]["marker"] == version, "service native identity differs from material")
     checked(resolved["source"]["commit"] == pointer.get("commit"), "service tag differs from pointer")
     address = f"{authority}/v1/releases/stable/{version}/seal.json"
     checked(pointer["seal"].get("url") == address, "service pointer names another seal")

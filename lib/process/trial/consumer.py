@@ -48,7 +48,7 @@ def execute(held):
         return result
     prepared = preparation.validate_prepared(json.loads((root / "evidence" / "prepared.json").read_bytes()))
     checked(prepared["admission"] == admitted and current == prepared["product"]["pointer"], "execution differs from frozen admission")
-    preparation.unchanged(prepared)
+    preparation.execution(prepared)
     work = root / "work"
     work.mkdir()
     home = root / "home"

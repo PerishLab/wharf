@@ -1,11 +1,12 @@
 import json
 import tempfile
 from pathlib import Path
+from types import SimpleNamespace
 import unittest
 from unittest import mock
 
 from lib.content import canonical
-from lib.process.trial import context, credential, publication, transport
+from lib.process.trial import consumer, context, credential, preparation, publication, transport
 from lib.refusal import Refusal
 from tests.scripts.test_distribution.world import AUTHORITY, OBSERVER, STARTED, World, producer
 
@@ -110,6 +111,12 @@ class Qualification(unittest.TestCase):
             world.write(root / "prepare/evidence")
             transport.prepare(dict(held, source=str(root / "prepare")))
             transport.load(dict(held, source=str(root / "executor")))
+            evidence = root / "executor/evidence"
+            (evidence / "runner.json").write_bytes(canonical.encode(world.installed()))
+            with mock.patch.object(preparation, "native", side_effect=Refusal("no native identity in executor")), mock.patch.object(consumer, "install", return_value=root / "runner"), mock.patch.object(consumer.subprocess, "run", return_value=SimpleNamespace(returncode=0)) as invoke:
+                execution = consumer.execute(dict(held, source=str(root / "executor")))
+            self.assertEqual(execution, world.execution())
+            self.assertEqual(set(invoke.call_args.kwargs["env"]), {"PATH", "HOME", "LANG"})
             world.write(root / "executor/evidence")
             material = transport.store(dict(held, source=str(root / "executor")))
             result = credential.issue(dict(held, digest=material["digest"]))
