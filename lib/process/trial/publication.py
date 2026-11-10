@@ -1,6 +1,7 @@
 import hashlib
 import json
 import re
+import urllib.request
 
 from lib.content import canonical, marker
 from lib.media import release
@@ -98,3 +99,21 @@ def finish(bucket, authority, intent, assessment):
     entry = reference(authority, root + "/result.json", body)
     checked(release.fetch(entry["url"]) == body, "public qualification result readback differs")
     return dict(value, reference=entry)
+
+
+class Redirect(urllib.request.HTTPRedirectHandler):
+    def redirect_request(self, *arguments):
+        raise Refusal("service material redirects refuse")
+
+
+def material(entry, authority):
+    checked(isinstance(entry, dict) and context.digest(entry.get("sha256")) and type(entry.get("size")) is int and 0 < entry["size"] <= 64 * 1024 * 1024, "service archive bounds or identity differ")
+    prefix = f"{authority}/v1/objects/sha256/{entry['sha256']}/"
+    url = entry.get("url")
+    checked(isinstance(url, str) and url.startswith(prefix) and re.fullmatch(r"[A-Za-z0-9._-]+", url[len(prefix):]), "service archive has a foreign or noncanonical address")
+    client = urllib.request.build_opener(Redirect())
+    with client.open(urllib.request.Request(url, headers={"User-Agent": "wharf"}), timeout=30) as response:
+        checked(response.status == 200 and response.geturl() == url, "service archive response differs")
+        body = response.read(entry["size"] + 1)
+    checked(len(body) == entry["size"] and hashlib.sha256(body).hexdigest() == entry["sha256"], "service archive bytes differ")
+

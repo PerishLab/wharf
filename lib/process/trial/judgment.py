@@ -4,7 +4,7 @@ import math
 from pathlib import Path
 
 from lib.media.release import fetch
-from lib.process.trial import preparation
+from lib.process.trial import declaration, preparation
 from lib.process.trial.admission import checked
 
 STAGES = ("configuration", "scene", "selection", "lane", "artifacts", "preparation", "execution", "cleanup")
@@ -16,8 +16,13 @@ def positive(value):
 
 def identity(report, expected, seal):
     products = report.get("products")
-    checked(isinstance(products, list) and len(products) == 1, "product selection differs")
-    product = products[0]
+    peers = declaration.services(expected["trial"]["specification"] if "trial" in expected else {})
+    checked(isinstance(products, list) and len(products) == len(peers) + 1 and all(isinstance(product, dict) for product in products), "product selection differs")
+    checked({product.get("name") for product in products} == {expected["product"], *peers}, "product combination is missing, duplicated or widened")
+    found = [product for product in products if product.get("name") == expected["product"]]
+    checked(len(found) == 1, "published product is absent or duplicated")
+    product = found[0]
+    declaration.shape(product, ("name", "channel", "version", "commit", "seal", "archive"), "tested target")
     checked(product.get("name") == expected["product"] and product.get("channel") == expected["channel"], "tested product identity differs")
     checked(product.get("version") == expected["marker"] and product.get("commit") == expected["commit"], "tested product is not this publisher's release")
     checked(product.get("seal") == hashlib.sha256(seal).hexdigest(), "tested seal differs")
@@ -48,7 +53,7 @@ def complete(report, execution, runner):
     scene = report.get("scene")
     checked(isinstance(scene, dict) and scene.get("kind") == "scene" and all(scene.get(name) == value for name, value in execution["scenes"].items() if name != "authority") and str(scene.get("manifest", {}).get("url", "")).startswith(execution["scenes"]["authority"] + "/"), "Depot scene identity is missing")
     images = report.get("images")
-    checked(isinstance(images, list) and any(image.get("name") == report["products"][0]["name"] and "@sha256:" in str(image.get("digest")) for image in images), "runtime image digest is missing")
+    checked(isinstance(images, list) and any(image.get("name") in {product["name"] for product in report["products"]} and "@sha256:" in str(image.get("digest")) for image in images), "runtime image digest is missing")
 
 
 def judge(held):

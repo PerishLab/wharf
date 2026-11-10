@@ -1436,6 +1436,23 @@ provider environment. Qualification runs no business code and independently veri
 the native main ship run, exact attempt, fixed job and step outcomes, collector
 output digest, complete reports, required coverage and cleanup.
 
+Nonempty public `windtun.services` declarations use strict declaration/prepared/pass
+v2. Up to four canonical PerishLab stable peers select one explicit
+`linux-x64-deb` primary through an exact package-relative placement map. Preparation
+freezes each complete distribution, pointer/seal/archive identity, authenticated
+native repository and annotated tag/source, and verifies bounded archive bytes.
+The executor writes only that declared product set through the official runner's
+public configuration. All peers use the target's existing runtime image; the
+formal Scene selects that one image and owns actual service startup and assertions.
+No additional image or arbitrary peer authority is inferred.
+
+Qualification and current readback independently re-resolve the whole service
+world, require exact product identities and placements, complete required coverage
+and cleanup, and recheck unchanged inputs before returning. Empty services retain
+v1; old credentials are not rewritten. A deployed v2 reader/producer still needs
+an actual published Bagua/Locus combined canary; source tests and opaque archive
+fixtures do not prove service execution or compatibility.
+
 Both preparation and execution use existing `workload/1/<key>/` records. Their
 basis includes the exact observer attempt, prepared world and implementation;
 publication is create-only and record-last. Existing records never skip a test.

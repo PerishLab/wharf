@@ -26,7 +26,9 @@ def authority(value):
 
 
 def validate(value):
-    shape(value, ("scenes", "cases", "image"), "guard.seatrial")
+    checked(isinstance(value, dict), "Windtun declaration must be an object")
+    shape(value, ("scenes", "cases", "image", "services") if "services" in value else ("scenes", "cases", "image"), "guard.seatrial")
+    services(value)
     scenes = value["scenes"]
     shape(scenes, ("authority", "product", "channel"), "Seatrial scenes")
     authority(scenes["authority"])
@@ -61,7 +63,8 @@ def capture(source, identity):
     checked(isinstance(released, dict), "release must be a table")
     public = released.get("authority")
     authority(public)
-    return {"schema": SCHEMA, "source": {name: identity[name] for name in ("repository", "marker", "commit", "tree")}, "manifest": hashlib.sha256(raw).hexdigest(), "authority": public, "specification": specification}
+    checked(namespace["ns"] not in services(specification), "service repeats the published target")
+    return {"schema": SCHEMA[:-1] + str(version(specification)), "source": {name: identity[name] for name in ("repository", "marker", "commit", "tree")}, "manifest": hashlib.sha256(raw).hexdigest(), "authority": public, "specification": specification}
 
 
 def inspected(source, raw):
@@ -71,15 +74,40 @@ def inspected(source, raw):
     except (OSError, subprocess.SubprocessError, ValueError) as error:
         raise Refusal("cannot read the canonical Plumb Windtun declaration") from error
     shape(held, ("schema", "manifest", "windtun"), "Plumb Windtun inspection")
-    checked(held["schema"] == "plumb.windtun.declaration/v1", "unknown Plumb Windtun inspection schema")
+    checked(held["schema"] == "plumb.windtun.declaration/v" + str(version(held["windtun"] or {})), "unknown Plumb Windtun inspection schema")
     checked(held["manifest"] == hashlib.sha256(raw).hexdigest(), "Plumb Windtun inspection belongs to another manifest")
     return None if held["windtun"] is None else validate(held["windtun"])
 
 
 def bound(value, source):
     shape(value, ("schema", "source", "manifest", "authority", "specification"), "published Seatrial declaration")
-    checked(value["schema"] == SCHEMA and value["source"] == source, "Seatrial declaration belongs to another source")
+    checked(value["schema"] == SCHEMA[:-1] + str(version(value["specification"])) and value["source"] == source, "Seatrial declaration belongs to another source")
     checked(isinstance(value["manifest"], str) and re.fullmatch(r"[0-9a-f]{64}", value["manifest"]), "Seatrial declaration manifest digest is missing")
     authority(value["authority"])
     validate(value["specification"])
+    checked(source["repository"].split("/", 1)[1] not in services(value["specification"]), "service repeats the published target")
     return value
+
+
+def version(specification):
+    return 2 if specification.get("services") else 1
+
+
+def services(specification):
+    if "services" not in specification:
+        return {}
+    peers = specification["services"]
+    checked(isinstance(peers, dict) and 1 <= len(peers) <= 4, "services require one to four explicit declarations")
+    for name, service in peers.items():
+        checked(isinstance(name, str) and NAME.fullmatch(name), "service name is invalid")
+        shape(service, ("authority", "channel", "placement"), "service")
+        checked(service["authority"] == f"https://releases.{name}.perish.uk" and service["channel"] == "stable", "services require canonical first-party stable")
+        placement = service["placement"]
+        shape(placement, ("artifact", "entry", "paths"), "service placement")
+        entry = placement["entry"]
+        checked(placement["artifact"] == "linux-x64-deb" and isinstance(entry, str) and NAME.fullmatch(entry), "service requires an explicit Debian entry")
+        shape(placement["paths"], (entry,), "service paths")
+        path = placement["paths"][entry]
+        checked(isinstance(path, str) and 1 <= len(path) <= 256 and all(33 <= ord(char) <= 126 and char != "\\" for char in path), "service path exceeds canonical bounds")
+        checked(all(part not in ("", ".", "..") for part in path.split("/")), "service path is not canonical")
+    return peers
