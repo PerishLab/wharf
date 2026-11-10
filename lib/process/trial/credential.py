@@ -4,7 +4,7 @@ import tempfile
 from pathlib import Path
 
 from lib.content import canonical
-from lib.process.trial import admission, context, judgment, preparation, publication, transport
+from lib.process.trial import admission, context, declaration, judgment, preparation, publication, transport
 from lib.process.trial.admission import checked
 from lib.refusal import Refusal
 from lib.store import r2
@@ -45,7 +45,11 @@ def qualify(prepared, evidence, producer):
     judgment.identity(report, admitted, raw)
     judgment.complete(report, execution, runner)
     preparation.completed(prepared, report, execution, runner)
-    return {"schema": "wharf.windtun.pass/v1", "policy": context.POLICY, "implementation": canonical.digest(context.fingerprint()), "observer": prepared["observer"], "source": prepared["source"], "publisher": admitted["distribution"]["completed"], "distribution": canonical.digest(admitted["distribution"]), "declaration": admitted["trial"], "requirements": prepared["requirements"], "prepared": canonical.digest(prepared), "runner": runner_identity(runner), "scene": report["scene"], "groups": report["groups"], "products": report["products"], "images": report["images"], "controls": prepared["controls"], "cleanup": True}
+    passed = {"schema": "wharf.windtun.pass/v" + str(declaration.version(admitted["trial"]["specification"])), "policy": context.POLICY, "implementation": canonical.digest(context.fingerprint()), "observer": prepared["observer"], "source": prepared["source"], "publisher": admitted["distribution"]["completed"], "distribution": canonical.digest(admitted["distribution"]), "declaration": admitted["trial"], "requirements": prepared["requirements"], "prepared": canonical.digest(prepared), "runner": runner_identity(runner), "scene": report["scene"], "groups": report["groups"], "products": report["products"], "images": report["images"], "controls": prepared["controls"], "cleanup": True}
+    if "services" in prepared:
+        passed["services"] = prepared["services"]
+    preparation.unchanged(prepared)
+    return passed
 
 
 def current(prepared):
@@ -63,13 +67,16 @@ def current(prepared):
     checked(result.get("schema") == "wharf.windtun.result/v1" and result.get("ok") is True and result.get("state") == "passed" and result.get("observer") == observer and result.get("source") == source and result.get("intent") == canonical.digest(intent), "latest attempt has no current suite qualification")
     checked(result.get("credential", {}).get("url") == f"{authority}/{path}/pass.json", "qualification result points to another credential")
     passed = publication.verified(result["credential"], authority)
-    checked(passed.get("schema") == "wharf.windtun.pass/v1" and passed.get("observer") == observer and passed.get("intent") == canonical.digest(intent) and passed.get("source") == source, "qualification credential belongs to another attempt")
+    checked(passed.get("schema") == "wharf.windtun.pass/v" + str(declaration.version(prepared["admission"]["trial"]["specification"])) and passed.get("observer") == observer and passed.get("intent") == canonical.digest(intent) and passed.get("source") == source, "qualification credential belongs to another attempt")
     checked(passed.get("policy") == context.POLICY and passed.get("implementation") == canonical.digest(context.fingerprint()), "qualification policy or implementation is invalidated")
     checked(passed.get("requirements") == prepared["requirements"] and passed.get("declaration") == prepared["admission"]["trial"] and passed.get("distribution") == canonical.digest(prepared["admission"]["distribution"]), "qualification requirements or publication changed")
     runner = passed.get("runner", {})
     checked(runner.get("pointer") == canonical.digest(prepared["runner"]["pointer"]) and runner.get("seal") == prepared["runner"]["pointer"]["seal"] and context.digest(runner.get("sha256")), "qualification runner differs from current official stable")
     checked(passed.get("scene") == prepared["scene"] and passed.get("cleanup") is True and passed.get("evidence") == result.get("evidence"), "qualification world or evidence differs")
     checked(passed.get("images") == [prepared["image"]] and passed.get("controls") == prepared["controls"], "qualification runtime images differ from current requirements")
+    checked(passed.get("services", {}) == prepared.get("services", {}), "qualification service world differs")
+    preparation.combination(prepared, passed)
+    preparation.unchanged(prepared)
     checked(admission.document(f"{authority}/{root}/latest.json") == index, "qualification discovery changed during readback")
     return passed
 

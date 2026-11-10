@@ -6,7 +6,7 @@ from pathlib import Path
 from lib.media.release import fetch
 from lib.process.trial import preparation
 from lib.process.trial.admission import checked, document
-from lib.process.trial.declaration import validate, NAME
+from lib.process.trial.declaration import validate, NAME, services
 
 RUNNER = "https://releases.seatrial.perish.uk"
 PROBE = preparation.PROBE
@@ -63,7 +63,9 @@ def execute(held):
     installed = json.loads((root / "evidence" / "runner.json").read_bytes())
     checked(all(installed.get(name) == value for name, value in prepared["runner"].items()), "installed runner moved after preparation")
     configuration = {"images": {"probe": PROBE}, admitted["product"]: {"channel": admitted["channel"], "authority": admitted["authority"], "image": specification["image"]}, "scenes": specification["scenes"]}
-    config = "".join("[" + name + "]\n" + "".join(key + " = " + json.dumps(value) + "\n" for key, value in table.items()) for name, table in configuration.items())
+    config = configuration_text(configuration)
+    for name, service in sorted(services(specification).items()):
+        config += service_text(name, service, specification["image"])
     (work / "seatrial.toml").write_text(config)
     report = root / "evidence" / "report.json"
     with (root / "evidence" / "run.log").open("xb") as output:
@@ -74,3 +76,19 @@ def execute(held):
     result = {"state": "executed", "exit": completed.returncode, "cases": cases, "scope": "declared" if mode == "declared" else "diagnostic", "scenes": specification["scenes"], "product_pointer": current}
     (root / "evidence" / "execution.json").write_text(json.dumps(result, indent=2) + "\n")
     return result
+
+
+def configuration_text(configuration):
+    return "".join("[" + json.dumps(name) + "]\n" + "".join(json.dumps(key) + " = " + json.dumps(value) + "\n" for key, value in table.items()) for name, table in configuration.items())
+
+
+def service_text(name, service, image):
+    product = {key: service[key] for key in ("authority", "channel")}
+    product["image"] = image
+    placement = service["placement"]
+    text = configuration_text({name: product})
+    text += "[" + json.dumps(name) + ".placement]\n"
+    text += "".join(key + " = " + json.dumps(placement[key]) + "\n" for key in ("artifact", "entry"))
+    text += "[" + json.dumps(name) + ".placement.paths]\n"
+    text += "".join(json.dumps(key) + " = " + json.dumps(value) + "\n" for key, value in placement["paths"].items())
+    return text

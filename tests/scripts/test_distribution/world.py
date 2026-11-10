@@ -1,10 +1,11 @@
 import contextlib
+import hashlib
 from pathlib import Path
 from unittest import mock
 
 from lib.content import canonical
 from lib.media import release
-from lib.process.trial import admission, context, credential, preparation, transport
+from lib.process.trial import admission, context, credential, preparation, publication, transport
 from lib.refusal import Refusal
 from tests.lib.store.memory import Memory
 from tests.scripts.test_distribution import publisher, report
@@ -73,7 +74,7 @@ class World:
 
     def report(self):
         product = {"name": "plumb", "channel": "rc", "version": self.source["marker"], "commit": self.source["commit"], "seal": self.product["pointer"]["seal"]["sha256"], "archive": "b" * 64}
-        return dict(report(), products=[product], scene=self.scene, groups=[{"digest": "c" * 64, "cases": ["writer"]}], images=[{"name": "plumb", "reference": "ghcr.io/perishlab/plumb:1.2.3-rc.1", "digest": "ghcr.io/perishlab/plumb@sha256:" + "b" * 64}])
+        return dict(report(), products=[self.peer, product] if hasattr(self, "peer") else [product], scene=self.scene, groups=[{"digest": "c" * 64, "cases": ["writer"]}], images=[{"name": "plumb", "reference": "ghcr.io/perishlab/plumb:1.2.3-rc.1", "digest": "ghcr.io/perishlab/plumb@sha256:" + "b" * 64}])
 
     def installed(self):
         return dict(self.runner, sha256="a" * 64, version="seatrial v1.0.0")
@@ -86,6 +87,52 @@ class World:
             (evidence / f"{name}.json").write_bytes(canonical.encode(value))
         (evidence / "run.log").write_text("original assertion output\n")
         return evidence
+
+
+
+    def service(self):
+        name, authority = "locus", "https://releases.locus.perish.uk"
+        placement = {"artifact": "linux-x64-deb", "entry": "locus-api", "paths": {"locus-api": "usr/bin/locus-api"}}
+        selection = {"authority": authority, "channel": "stable", "placement": placement}
+        self.specification["services"] = {name: selection}
+        self.admitted["trial"]["schema"] = "wharf.trial.declaration/v2"
+        source = {"repository": "PerishLab/locus", "marker": "v0.16.0", "commit": "7" * 40, "tree": "8" * 40}
+        package = b"opaque service archive fixture; no executable compatibility claim"
+        digest = hashlib.sha256(package).hexdigest()
+        artifact = release.remote(authority, f"v1/objects/sha256/{digest}/locus.deb", package, "application/vnd.debian.binary-package")
+        self.documents[artifact["url"]] = package
+        seal = {"schema": 1, "product": name, "channel": "stable", "releaseVersion": source["marker"], "commit": source["commit"], "generator": {}, "managers": {}, "artifacts": {"linux-x64-deb": artifact}, "provenance": {}, "url": f"{authority}/v1/releases/stable/{source['marker']}/seal.json"}
+        pointer = {key: seal[key] for key in ("schema", "product", "releaseVersion", "channel", "commit", "managers")}
+        pointer["seal"] = self.entry(authority, f"v1/releases/stable/{source['marker']}/seal.json", seal)
+        self.documents[f"{authority}/v1/channels/stable.json"] = canonical.encode(pointer)
+        distribution = dict(source, schema=1, state="complete", media={key: "published" if key in ("binaries", "channel") else "unrequested" for key in ("binaries", "cargo", "oci", "npm", "chart", "cfworker", "channel")}, attempt=OBSERVER, completed=OBSERVER, resolution={}, trial=None)
+        self.documents[f"{authority}/v1/releases/stable/{source['marker']}/distribution.json"] = canonical.encode(distribution)
+        self.native = {"repos/PerishLab/locus": {"full_name": source["repository"], "visibility": "public", "archived": False, "disabled": False, "owner": {"id": 330236468, "node_id": "O_kgDOE68CNA", "login": "PerishLab"}, "id": 42, "node_id": "R_locus", "default_branch": "main"}, f"repos/PerishLab/locus/git/ref/tags/{source['marker']}": {"ref": "refs/tags/" + source["marker"], "object": {"type": "tag", "sha": "9" * 40}}, "repos/PerishLab/locus/git/tags/" + "9" * 40: {"sha": "9" * 40, "tag": source["marker"], "object": {"type": "commit", "sha": source["commit"]}}, "repos/PerishLab/locus/git/commits/" + source["commit"]: {"sha": source["commit"], "tree": {"sha": source["tree"]}}}
+        self.peer = {"name": name, "channel": "stable", "version": source["marker"], "commit": source["commit"], "seal": pointer["seal"]["sha256"], "archive": digest, "placement": placement}
+        self.documents[f"{AUTHORITY}/v1/releases/rc/{self.source['marker']}/distribution.json"] = canonical.encode(self.distribution)
+        with self.combined():
+            self.prepared = preparation.freeze(self.admitted, OBSERVER, "declared", STARTED)
+        return self
+
+    @contextlib.contextmanager
+    def combined(self):
+        class Response:
+            status = 200
+            def __enter__(self):
+                return self
+            def __exit__(self, *arguments):
+                return None
+            def geturl(self):
+                return self.url
+            def read(self, size):
+                return self.body[:size]
+        def opened(request, timeout):
+            response = Response()
+            response.url, response.body = request.full_url, self.fetch(request.full_url)
+            return response
+        with self.wired(), mock.patch.object(preparation, "native", side_effect=lambda path: self.native[path]), mock.patch.object(publication.urllib.request, "build_opener") as opener:
+            opener.return_value.open.side_effect = opened
+            yield
 
 
 def producer():

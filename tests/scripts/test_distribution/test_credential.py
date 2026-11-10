@@ -82,3 +82,42 @@ class Qualification(unittest.TestCase):
             result = credential.issue(dict(held, digest="null"))
         self.assertEqual(result["state"], "cancelled")
         self.assertIsNone(result["credential"])
+
+
+    def test_service_combination_issues_v2_and_rejects_missing_or_wrong_package(self):
+        world = World().service()
+        with tempfile.TemporaryDirectory() as directory, world.combined():
+            evidence = world.write(directory)
+            result, passed = credential.assessment(world.prepared, evidence, producer())
+            self.assertTrue(result["ok"])
+            self.assertEqual(passed["schema"], "wharf.windtun.pass/v2")
+            self.assertEqual(passed["services"], world.prepared["services"])
+            self.assertEqual(passed["products"], world.report()["products"])
+            self.assertEqual(passed["images"], world.report()["images"])
+            products = world.report()["products"]
+            for change in [{"products": products[1:]}, {"products": [dict(world.peer, archive="0" * 64), products[1]]}, {"products": products + [world.peer]}, {"cleanup": False}, {"images": world.report()["images"] * 2}]:
+                (evidence / "report.json").write_bytes(canonical.encode(dict(world.report(), **change)))
+                result, passed = credential.assessment(world.prepared, evidence, producer())
+                self.assertFalse(result["ok"])
+                self.assertIsNone(passed)
+
+    def test_service_workloads_issue_and_current_readback_require_same_world(self):
+        world = World().service()
+        roles = {context.NAMES["windtun-prepare"]: {"status": "completed", "conclusion": "success", "started_at": STARTED, "steps": [{"name": name, "status": "completed", "conclusion": "success"} for name in ("[windtun] admit publisher", "[windtun] prepare attempt")]}, context.NAMES["windtun"]: producer()}
+        held = {"observer": json.dumps(OBSERVER), "repository": "PerishLab/plumb", "marker": world.source["marker"], "trialcase": "declared"}
+        with tempfile.TemporaryDirectory() as directory, world.combined(), mock.patch.object(context, "observe", return_value=(OBSERVER, roles)):
+            root = Path(directory)
+            world.write(root / "prepare/evidence")
+            transport.prepare(dict(held, source=str(root / "prepare")))
+            transport.load(dict(held, source=str(root / "executor")))
+            world.write(root / "executor/evidence")
+            material = transport.store(dict(held, source=str(root / "executor")))
+            result = credential.issue(dict(held, digest=material["digest"]))
+            self.assertTrue(result["ok"])
+            passed = publication.verified(result["credential"], AUTHORITY)
+            self.assertEqual(passed["schema"], "wharf.windtun.pass/v2")
+            self.assertEqual(credential.current(world.prepared), passed)
+            pointer = world.prepared["services"]["locus"]["pointer"]
+            world.documents["https://releases.locus.perish.uk/v1/channels/stable.json"] = canonical.encode(dict(pointer, commit="0" * 40))
+            with self.assertRaises(Refusal):
+                credential.current(world.prepared)
