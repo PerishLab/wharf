@@ -80,3 +80,36 @@ class Workflow(unittest.TestCase):
         for name in ['promotion-prepare', 'npm', 'oci', 'chart', 'release', 'cfworker', 'cargo', 'channel']:
             condition = next(line for line in document[name].splitlines() if line.startswith('    if:'))
             self.assertIn('always() && !cancelled()', condition)
+
+
+class Artifacts(unittest.TestCase):
+    def test_independent_copies_have_bounded_best_effort_uploads(self):
+        found = 0
+        for name, source in jobs().items():
+            for step in source.split('      - name: ')[1:]:
+                if 'uses: actions/upload-artifact@' not in step or name == 'semantics-world':
+                    continue
+                with self.subTest(job=name, step=step.splitlines()[0]):
+                    self.assertIn('        continue-on-error: true', step)
+                    self.assertIn('        timeout-minutes: 1', step)
+                    found += 1
+        self.assertEqual(found, 14)
+
+    def test_world_handoff_upload_remains_required(self):
+        source = jobs()['semantics-world']
+        step = source.split('- name: "[preserve] prepared semantic world"', 1)[1]
+        self.assertIn('uses: actions/upload-artifact@', step)
+        self.assertNotIn('continue-on-error: true', step)
+        self.assertIn('if-no-files-found: error', step)
+        self.assertIn('name: semantics-world-${{ github.run_attempt }}', step)
+
+    def test_checks_and_authoritative_writers_remain_mandatory(self):
+        actions = {'native-proof', 'native-read', 'native-candidate', 'semantics-world', 'semantics-retain', 'record'}
+        found = set()
+        for source in jobs().values():
+            for step in source.split('      - name: ')[1:]:
+                matched = re.search(r'run: python3 -B -m scripts.distribution ([a-z-]+)', step)
+                if matched and matched[1] in actions:
+                    self.assertNotIn('continue-on-error: true', step)
+                    found.add(matched[1])
+        self.assertEqual(found, actions)
