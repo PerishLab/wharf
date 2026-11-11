@@ -91,6 +91,15 @@ and any resources it reads. Records live under `workload/<hash_version>/<key>/` 
 different bytes under an existing key refuse as non-determinism. Jobs hand work to
 each other only through recorded workloads, never through run artifacts.
 
+GitHub Artifact copies of independently retained material are best effort, with a
+one-minute upload limit. Missing copies do not change an actual check, required
+write or independent readback result. Frozen plans, workloads, public proof and
+release records retain their existing mandatory writes and verification.
+The semantic-world preparation artifact is the exception: its seven files are
+the actual handoff to the separate retention role, and the preparer has no R2
+writer. That upload remains required; a successful preparation without its
+complete native artifact cannot initialize retention.
+
 After successful plan storage and verification recall storage, the plan log reports
 `wharf.store.reference/v1`: the canonical R2 host, bucket and SHA256 of the
 access ID, or `unavailable` for unsupported metadata shapes. It never reads the
