@@ -109,17 +109,18 @@ class Sibling(unittest.TestCase):
     def cargo(self, held, argv):
         self.calls.append(argv)
         lock = self.root / "Cargo.lock"
+        own = OWN if ("demo", "0.9.0") in replay.locked(self.root) else OWN.replace("0.9.0", "1.0.0")
         text = re.sub(r'\n\[\[package\]\]\nname = "[^"]+"\nversion = "[^"]+"\nsource = "' + re.escape(replay.SOURCE) + r'"\n(checksum = "[^"]+"\n)?', "", lock.read_text())
         if argv[1] == "update":
             text = text.replace("getrandom 0.4.3", "getrandom 0.3.4")
-        lock.write_text(text + OWN + self.entries(self.published))
+        lock.write_text(text + own + self.entries(self.published))
 
     def resolve(self, execute):
         run = lambda held, *args: git(self.root, *args).strip()
-        with unittest.mock.patch.object(replay.registry, "fetch", index(demo=["0.9.0"], plumb=["0.103.7"], **{"plumb-macro": ["0.103.7"]})):
+        with unittest.mock.patch.object(replay.registry, "fetch", index(demo=["0.9.0", "1.0.0"], plumb=["0.103.7"], **{"plumb-macro": ["0.103.7"]})):
             return replay.resolved(self.held(self.expected), execute, run)
 
-    def test_one_move_that_also_moves_a_later_package_replays_without_touching_third_party_edges(self):
+    def test_foreign_moves_replay_the_reserved_own_lock_and_preserve_third_party_edges(self):
         result = self.resolve(self.cargo)
         self.assertEqual(self.calls, [["cargo", "metadata", "--format-version", "1"]])
         self.assertEqual(replay.moves(self.root, self.expected), [])
@@ -129,7 +130,7 @@ class Sibling(unittest.TestCase):
     def test_resolution_drops_only_first_party_entries(self):
         read = lambda: tomllib.loads((self.root / "Cargo.lock").read_text())
         before = read()
-        replay.dropped(self.root)
+        replay.dropped(self.root, {("demo", "0.8.0")})
         after = read()
         self.assertEqual(after["package"], [item for item in before["package"] if item.get("source") != replay.SOURCE])
         self.assertEqual(after["version"], before["version"])
