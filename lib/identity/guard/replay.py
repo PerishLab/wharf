@@ -43,12 +43,16 @@ def latest(name, reader):
 
 def current(root, expected, own, reader=None):
     members = set(manifest.members(root, manifest.read(root, "Cargo.toml")))
+    retained = set()
     for package in expected["packages"]:
         if package["ecosystem"] != "cargo":
             continue
         found = latest(package["name"], reader or registry.fetch)
-        if found != package["version"] and not (package["name"] in members and found == own):
-            raise Refusal(f"latest stable {package['name']} moved to {found}; prepare a fresh plan")
+        if found != package["version"]:
+            if package["name"] not in members or found != own:
+                raise Refusal(f"latest stable {package['name']} moved to {found}; prepare a fresh plan")
+            retained.add((package["name"], package["version"]))
+    return retained
 
 
 def moves(root, expected):
@@ -56,24 +60,31 @@ def moves(root, expected):
     return [(name, version) for name, version in locked(root) if name in wanted and version != wanted[name]]
 
 
-def dropped(root):
+def removable(section, retained):
+    if section[0].strip() != "[[package]]":
+        return False
+    package = tomllib.loads("".join(section[1:]))
+    return package.get("source") == SOURCE and (package["name"], package["version"]) not in retained
+
+
+def dropped(root, retained=()):
     path = Path(root) / "Cargo.lock"
     sections = []
     for line in path.read_text().splitlines(keepends=True):
         if line.startswith("[") or not sections:
             sections.append([])
         sections[-1].append(line)
-    kept = [section for section in sections if section[0].strip() != "[[package]]" or tomllib.loads("".join(section[1:])).get("source") != SOURCE]
+    kept = [section for section in sections if not removable(section, retained)]
     path.write_text("".join("".join(section) for section in kept))
 
 
 def resolved(held, execute, git):
     request = held["request"]
     root = held["root"]
-    current(root, request.expected, marker.version(request.identity["marker"]))
+    retained = current(root, request.expected, marker.version(request.identity["marker"]))
     node(held, git)
     if moves(root, request.expected):
-        dropped(root)
+        dropped(root, retained)
         execute(held, [held["tools"]["cargo"]["path"], "metadata", "--format-version", "1"])
         if pending := moves(root, request.expected):
             name, version = pending[0]
