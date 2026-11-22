@@ -7,7 +7,7 @@ from pathlib import Path
 from unittest import mock
 
 from lib.content import implementation
-from lib.cargo import basis, toolchain
+from lib.cargo import basis, lock, toolchain
 from lib.process import git
 from lib.refusal import Refusal
 from lib.store import workload
@@ -135,6 +135,38 @@ class Key(unittest.TestCase):
         self.assertEqual((held["entry"]["packages"], held["entry"]["binaries"]), (["demo-cli"], ["demo"]))
         self.assertEqual(sorted(held["members"]), ["crates/cli", "crates/lib"])
         self.assertEqual([entry[0] for entry in held["lock"]], ["demo", "demo-cli", "itoa"])
+
+    def test_workspace_root_with_same_name_registry_dependency(self):
+        first = "registry+https://first.example/index"
+        second = "git+https://second.example/demo?branch=main"
+        lockfile = self.repository.root / "Cargo.lock"
+        lockfile.write_text(lockfile.read_text().replace(
+            'dependencies = ["demo"]',
+            f'dependencies = ["demo 0.0.0", "demo 1.0.0 ({first})"]',
+        ) + f"""
+[[package]]
+name = "demo"
+version = "1.0.0"
+source = "{first}"
+checksum = "cccc"
+dependencies = ["ryu"]
+
+[[package]]
+name = "demo"
+version = "1.0.0"
+source = "{second}#0123456789"
+""")
+        self.repository.commit()
+        expected = [["demo", "0.0.0", "", ""], ["demo", "1.0.0", first, "cccc"]]
+        for operation in (basis.resolve, basis.dependencies):
+            held = operation(self.repository.root, ["demo"], "x86_64-unknown-linux-gnu", "ubuntu-24.04")
+            self.assertEqual([entry for entry in held["lock"] if entry[0] == "demo"], expected)
+            self.assertIn("ryu", [entry[0] for entry in held["lock"]])
+        entries = lock.index(self.repository.root)
+        self.assertEqual(lock.pick(entries, f"demo 1.0.0 ({second})")["source"], f"{second}#0123456789")
+        for reference in ("demo", "demo 1.0.0", "demo 2.0.0", f"demo 0.0.0 ({second})"):
+            with self.assertRaises(Refusal):
+                lock.pick(entries, reference)
 
     def test_key_is_stable(self):
         self.assertEqual(self.repository.key(), self.base)
