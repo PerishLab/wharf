@@ -1,4 +1,5 @@
 import os
+import subprocess
 import tempfile
 import unittest
 from pathlib import Path
@@ -69,7 +70,7 @@ class Qualification(unittest.TestCase):
     def test_guard_configuration_does_not_need_reader_environment_inheritance(self):
         with tempfile.TemporaryDirectory() as directory:
             home = Path(directory)
-            child = operation.environment(home, home / "owned", {"PATH": "/bin", "GH_TOKEN": "app", "WHARF_PACKAGES_TOKEN": "fixture-reader"})
+            child = operation.environment(home, home / "owned", SUMMARY["repository"], {"PATH": "/bin", "WHARF_FOLLOW_TOKEN": "app", "WHARF_PACKAGES_TOKEN": "fixture-reader"})
             child.pop("WHARF_PACKAGES_TOKEN")
             config = Path(child["NPM_CONFIG_USERCONFIG"])
             self.assertEqual(config.read_text(), "//npm.pkg.github.com/:_authToken=fixture-reader\n")
@@ -80,16 +81,31 @@ class Qualification(unittest.TestCase):
             home = Path(directory)
             for reader in ("private\nregistry=https://elsewhere/", "private\rnext"):
                 with self.assertRaises(Refusal) as refused:
-                    operation.environment(home, home / "owned", {"GH_TOKEN": "app", "WHARF_PACKAGES_TOKEN": reader})
+                    operation.environment(home, home / "owned", SUMMARY["repository"], {"WHARF_FOLLOW_TOKEN": "app", "WHARF_PACKAGES_TOKEN": reader})
                 self.assertNotIn("private", str(refused.exception))
                 self.assertFalse((home / "npmrc").exists())
 
     def test_absent_reader_creates_no_credential_file(self):
         with tempfile.TemporaryDirectory() as directory:
             home = Path(directory)
-            child = operation.environment(home, home / "owned", {"GH_TOKEN": "app"})
+            child = operation.environment(home, home / "owned", SUMMARY["repository"], {"WHARF_FOLLOW_TOKEN": "app"})
             self.assertNotIn("NPM_CONFIG_USERCONFIG", child)
             self.assertFalse((home / "npmrc").exists())
+
+    def test_git_header_is_scoped_to_the_qualified_origin(self):
+        with tempfile.TemporaryDirectory() as directory:
+            home = Path(directory)
+            held = {"PATH": os.environ["PATH"], "WHARF_FOLLOW_TOKEN": "app", "GIT_CONFIG_COUNT": "99"}
+            child = operation.environment(home, home / "owned", SUMMARY["repository"], held)
+            route = "https://github.com/PerishLab/example.git"
+            lookup = ["git", "config", "--get-urlmatch", "http.extraHeader"]
+            bound = subprocess.run([*lookup, route + "/info/refs"], cwd=home, env=child, check=True, capture_output=True, text=True)
+            self.assertEqual(bound.stdout.strip(), "Authorization: Basic eC1hY2Nlc3MtdG9rZW46YXBw")
+            for url in (route + "-neighbor", route.replace("https", "http"), route.replace("github.com", "elsewhere.example")):
+                foreign = subprocess.run([*lookup, url], cwd=home, env=child, capture_output=True, text=True)
+                self.assertEqual((foreign.returncode, foreign.stdout), (1, ""))
+            self.assertEqual(child["GIT_CONFIG_VALUE_1"], "false")
+            self.assertFalse((home / "gitconfig").exists())
 
     def test_missing_root_declaration_is_a_no_op(self):
         replies = iter([{"id": 17, "full_name": "PerishLab/example", "default_branch": "main", "archived": False}, None])
@@ -102,16 +118,16 @@ class Qualification(unittest.TestCase):
     def test_wrong_installation_runs_no_command_or_workspace_write(self):
         with mock.patch.object(operation.event, "qualified", return_value=SUMMARY), mock.patch.object(operation, "seat") as seat, mock.patch.object(operation, "command") as command:
             with self.assertRaisesRegex(Refusal, "another installation"):
-                operation.execute("fixture", {"GH_TOKEN": "fixture", "WHARF_FOLLOW_INSTALLATION_ID": "24"})
+                operation.execute("fixture", {"WHARF_FOLLOW_TOKEN": "fixture", "WHARF_FOLLOW_INSTALLATION_ID": "24"})
         seat.assert_not_called()
         command.assert_not_called()
 
     def test_child_holds_only_the_app_token_and_package_reader(self):
         with tempfile.TemporaryDirectory() as directory:
             home = Path(directory)
-            env = {"PATH": "/bin", "GH_TOKEN": "app", "WHARF_PACKAGES_TOKEN": "reader", "WHARF_FOLLOW_WEBHOOK_SECRET": "webhook", "WHARF_FOLLOW_DISPATCH_TOKEN": "dispatch", "WHARF_FOLLOW_APP_PRIVATE_KEY": "key", "GITHUB_TOKEN": "job", "WHARF_R2_SECRET_ACCESS_KEY": "writer"}
-            child = operation.environment(home, home / "owned", env)
-            self.assertEqual({name: value for name, value in child.items() if name.endswith(("TOKEN", "SECRET", "PRIVATE_KEY", "SECRET_ACCESS_KEY"))}, {"GH_TOKEN": "app", "WHARF_PACKAGES_TOKEN": "reader"})
+            env = {"PATH": "/bin", "WHARF_FOLLOW_TOKEN": "app", "WHARF_PACKAGES_TOKEN": "reader", "WHARF_FOLLOW_WEBHOOK_SECRET": "webhook", "WHARF_FOLLOW_DISPATCH_TOKEN": "dispatch", "WHARF_FOLLOW_APP_PRIVATE_KEY": "key", "GITHUB_TOKEN": "job", "WHARF_R2_SECRET_ACCESS_KEY": "writer"}
+            child = operation.environment(home, home / "owned", SUMMARY["repository"], env)
+            self.assertEqual({name: value for name, value in child.items() if name.endswith(("TOKEN", "SECRET", "PRIVATE_KEY", "SECRET_ACCESS_KEY"))}, {"GITHUB_TOKEN": "app", "WHARF_PACKAGES_TOKEN": "reader"})
             self.assertEqual(child["PLUMB_HOME"], str(home / "owned/plumb"))
             self.assertEqual(Path(child["NPM_CONFIG_USERCONFIG"]).stat().st_mode & 0o077, 0)
 
@@ -120,6 +136,7 @@ class Lifetime(unittest.TestCase):
     def test_each_invocation_uses_and_removes_independent_state(self):
         held = []
         def command(argv, cwd, env):
+            self.assertNotIn("gh", argv)
             if argv[0] == "plumb":
                 self.assertTrue(Path(cwd).is_dir())
                 root = Path(env["PLUMB_HOME"])
@@ -131,7 +148,7 @@ class Lifetime(unittest.TestCase):
                     self.assertTrue(root.is_dir())
                     (root / "state.json").write_text("owned invocation")
                     held.append((root, Path(cwd)))
-        env = {"GH_TOKEN": "fixture", "WHARF_FOLLOW_INSTALLATION_ID": "23", "PATH": "/bin"}
+        env = {"WHARF_FOLLOW_TOKEN": "fixture", "WHARF_FOLLOW_INSTALLATION_ID": "23", "PATH": "/bin"}
         with mock.patch.object(operation.event, "qualified", return_value=SUMMARY), mock.patch.object(operation, "governed", return_value=True), mock.patch.object(operation, "synchronize", side_effect=lambda source, *args: source.mkdir()), mock.patch.object(operation, "command", side_effect=command):
             for _ in range(2):
                 self.assertEqual(operation.execute("fixture", env)["state"], "executed")
@@ -143,7 +160,7 @@ class Lifetime(unittest.TestCase):
         def command(argv, cwd, env):
             held.append(Path(env["PLUMB_HOME"]).parent)
             raise Refusal("fixture stop")
-        env = {"GH_TOKEN": "fixture", "WHARF_FOLLOW_INSTALLATION_ID": "23", "PATH": "/bin"}
+        env = {"WHARF_FOLLOW_TOKEN": "fixture", "WHARF_FOLLOW_INSTALLATION_ID": "23", "PATH": "/bin"}
         with mock.patch.object(operation.event, "qualified", return_value=SUMMARY), mock.patch.object(operation, "governed", return_value=True), mock.patch.object(operation, "command", side_effect=command):
             with self.assertRaisesRegex(Refusal, "fixture stop"):
                 operation.execute("fixture", env)
