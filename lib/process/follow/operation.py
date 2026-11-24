@@ -78,26 +78,24 @@ def remote(repository):
     return f"https://github.com/{repository}.git"
 
 
-def authentication(repository, token):
+def authenticate(config, repository, token):
     header = base64.b64encode(f"x-access-token:{token}".encode()).decode("ascii")
-    return {
-        "GITHUB_TOKEN": token,
-        "GIT_CONFIG_COUNT": "2",
-        "GIT_CONFIG_KEY_0": f"http.{remote(repository)}.extraHeader",
-        "GIT_CONFIG_VALUE_0": f"Authorization: Basic {header}",
-        "GIT_CONFIG_KEY_1": "http.followRedirects",
-        "GIT_CONFIG_VALUE_1": "false",
-    }
+    descriptor = os.open(config, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+    with os.fdopen(descriptor, "w", encoding="ascii") as stream:
+        stream.write(f'[http]\n\tfollowRedirects = false\n[http "{remote(repository)}"]\n\textraHeader = Authorization: Basic {header}\n')
 
 
 def environment(home, root, repository, environ):
     names = ("PATH", "LANG", "LC_ALL", "CI", "TMPDIR", "TMP", "TEMP", "WHARF_DOMAIN", "SSL_CERT_FILE", "SSL_CERT_DIR", "RUNNER_TRACKING_ID")
     held = {name: environ[name] for name in names if name in environ}
-    held.update({"HOME": str(home), "GIT_CONFIG_GLOBAL": str(home / "gitconfig"), "GIT_CONFIG_NOSYSTEM": "1", "GIT_TERMINAL_PROMPT": "0", "GIT_NO_REPLACE_OBJECTS": "1", "PLUMB_HOME": str(root / "plumb"), "RUSTUP_HOME": environ.get("RUSTUP_HOME", str(Path.home() / ".rustup")), "CARGO_HOME": environ.get("CARGO_HOME", str(Path.home() / ".cargo"))})
-    held.update(authentication(repository, environ["WHARF_FOLLOW_TOKEN"]))
+    config = home / "gitconfig"
+    token = environ["WHARF_FOLLOW_TOKEN"]
+    held.update({"HOME": str(home), "GIT_CONFIG_GLOBAL": str(config), "GIT_CONFIG_NOSYSTEM": "1", "GIT_TERMINAL_PROMPT": "0", "GIT_NO_REPLACE_OBJECTS": "1", "GITHUB_TOKEN": token, "PLUMB_HOME": str(root / "plumb"), "RUSTUP_HOME": environ.get("RUSTUP_HOME", str(Path.home() / ".rustup")), "CARGO_HOME": environ.get("CARGO_HOME", str(Path.home() / ".cargo"))})
     if environ.get(node.READER):
         held[node.READER] = environ[node.READER]
-    return node.reading(home, held, literal=True)
+    held = node.reading(home, held, literal=True)
+    authenticate(config, repository, token)
+    return held
 
 
 def cancelled():

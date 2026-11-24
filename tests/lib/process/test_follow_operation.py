@@ -92,11 +92,12 @@ class Qualification(unittest.TestCase):
             self.assertNotIn("NPM_CONFIG_USERCONFIG", child)
             self.assertFalse((home / "npmrc").exists())
 
-    def test_git_header_is_scoped_to_the_qualified_origin(self):
+    def test_detached_git_retains_only_the_qualified_origin_header(self):
         with tempfile.TemporaryDirectory() as directory:
             home = Path(directory)
             held = {"PATH": os.environ["PATH"], "WHARF_FOLLOW_TOKEN": "app", "GIT_CONFIG_COUNT": "99"}
             child = operation.environment(home, home / "owned", SUMMARY["repository"], held)
+            child.pop("GIT_CONFIG_COUNT", None)
             route = "https://github.com/PerishLab/example.git"
             lookup = ["git", "config", "--get-urlmatch", "http.extraHeader"]
             bound = subprocess.run([*lookup, route + "/info/refs"], cwd=home, env=child, check=True, capture_output=True, text=True)
@@ -104,8 +105,9 @@ class Qualification(unittest.TestCase):
             for url in (route + "-neighbor", route.replace("https", "http"), route.replace("github.com", "elsewhere.example")):
                 foreign = subprocess.run([*lookup, url], cwd=home, env=child, capture_output=True, text=True)
                 self.assertEqual((foreign.returncode, foreign.stdout), (1, ""))
-            self.assertEqual(child["GIT_CONFIG_VALUE_1"], "false")
-            self.assertFalse((home / "gitconfig").exists())
+            redirects = subprocess.run(["git", "config", "--get", "http.followRedirects"], cwd=home, env=child, check=True, capture_output=True, text=True)
+            self.assertEqual(redirects.stdout.strip(), "false")
+            self.assertEqual(Path(child["GIT_CONFIG_GLOBAL"]).stat().st_mode & 0o777, 0o600)
 
     def test_missing_root_declaration_is_a_no_op(self):
         replies = iter([{"id": 17, "full_name": "PerishLab/example", "default_branch": "main", "archived": False}, None])
