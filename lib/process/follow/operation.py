@@ -1,3 +1,4 @@
+import base64
 import functools
 import json
 import os
@@ -73,10 +74,27 @@ def governed(summary, token, reader=api):
     return True
 
 
-def environment(home, root, environ):
+def remote(repository):
+    return f"https://github.com/{repository}.git"
+
+
+def authentication(repository, token):
+    header = base64.b64encode(f"x-access-token:{token}".encode()).decode("ascii")
+    return {
+        "GITHUB_TOKEN": token,
+        "GIT_CONFIG_COUNT": "2",
+        "GIT_CONFIG_KEY_0": f"http.{remote(repository)}.extraHeader",
+        "GIT_CONFIG_VALUE_0": f"Authorization: Basic {header}",
+        "GIT_CONFIG_KEY_1": "http.followRedirects",
+        "GIT_CONFIG_VALUE_1": "false",
+    }
+
+
+def environment(home, root, repository, environ):
     names = ("PATH", "LANG", "LC_ALL", "CI", "TMPDIR", "TMP", "TEMP", "WHARF_DOMAIN", "SSL_CERT_FILE", "SSL_CERT_DIR", "RUNNER_TRACKING_ID")
     held = {name: environ[name] for name in names if name in environ}
-    held.update({"HOME": str(home), "GH_CONFIG_DIR": str(home / "gh"), "GH_HOST": "github.com", "GH_TOKEN": environ["GH_TOKEN"], "GIT_CONFIG_GLOBAL": str(home / "gitconfig"), "GIT_CONFIG_NOSYSTEM": "1", "GIT_TERMINAL_PROMPT": "0", "GIT_NO_REPLACE_OBJECTS": "1", "PLUMB_HOME": str(root / "plumb"), "RUSTUP_HOME": environ.get("RUSTUP_HOME", str(Path.home() / ".rustup")), "CARGO_HOME": environ.get("CARGO_HOME", str(Path.home() / ".cargo"))})
+    held.update({"HOME": str(home), "GIT_CONFIG_GLOBAL": str(home / "gitconfig"), "GIT_CONFIG_NOSYSTEM": "1", "GIT_TERMINAL_PROMPT": "0", "GIT_NO_REPLACE_OBJECTS": "1", "PLUMB_HOME": str(root / "plumb"), "RUSTUP_HOME": environ.get("RUSTUP_HOME", str(Path.home() / ".rustup")), "CARGO_HOME": environ.get("CARGO_HOME", str(Path.home() / ".cargo"))})
+    held.update(authentication(repository, environ["WHARF_FOLLOW_TOKEN"]))
     if environ.get(node.READER):
         held[node.READER] = environ[node.READER]
     return node.reading(home, held, literal=True)
@@ -137,15 +155,15 @@ def command(argv, cwd, env):
 
 
 def synchronize(source, summary, env):
-    remote = f"https://github.com/{summary['repository']}.git"
+    upstream = remote(summary["repository"])
     if not source.exists():
-        command(["git", "clone", "--single-branch", "--branch", "main", "--no-tags", remote, str(source)], source.parent, env)
+        command(["git", "clone", "--single-branch", "--branch", "main", "--no-tags", upstream, str(source)], source.parent, env)
     if source.is_symlink() or git(source, "rev-parse", "--show-toplevel") != str(source):
         raise Refusal("follow canonical source is not its owned checkout")
     if git(source, "symbolic-ref", "--short", "HEAD") != "main" or git(source, "status", "--porcelain"):
         raise Refusal("follow canonical main has payload; preserve it and its Auto worktrees")
     for mode in ((), ("--push",)):
-        if git(source, "remote", "get-url", *mode, "--all", "origin") != remote:
+        if git(source, "remote", "get-url", *mode, "--all", "origin") != upstream:
             raise Refusal("follow canonical source has another remote")
     command(["git", "fetch", "--no-tags", "origin", "+refs/heads/main:refs/remotes/origin/main"], source, env)
     command(["git", "merge", "--ff-only", "origin/main"], source, env)
@@ -153,18 +171,17 @@ def synchronize(source, summary, env):
 
 def execute(path, environ=os.environ):
     summary = event.qualified(path, environ)
-    if str(summary["installation_id"]) != environ.get("WHARF_FOLLOW_INSTALLATION_ID") or not environ.get("GH_TOKEN"):
+    if str(summary["installation_id"]) != environ.get("WHARF_FOLLOW_INSTALLATION_ID") or not environ.get("WHARF_FOLLOW_TOKEN"):
         raise Refusal("follow token belongs to another installation or is absent")
-    if not governed(summary, environ["GH_TOKEN"]):
+    if not governed(summary, environ["WHARF_FOLLOW_TOKEN"]):
         return {"state": "not-governed", "repository": summary["repository"]}
     with tempfile.TemporaryDirectory(prefix="wharf-follow-") as temporary:
         root = Path(temporary).resolve()
         source = seat(root, summary)
         home = root / "home"
         home.mkdir()
-        env = environment(home, root, environ)
-        command(["gh", "auth", "setup-git", "--hostname", "github.com"], home, env)
+        env = environment(home, root, summary["repository"], environ)
         synchronize(source, summary, env)
         command(["plumb", "configuration", "install"], source, env)
-        command(["plumb", "follow", str(source), "--github-command", "gh", "--json"], source, env)
+        command(["plumb", "follow", str(source), "--json"], source, env)
     return {"state": "executed", "repository": summary["repository"], "delivery": summary["delivery"]}

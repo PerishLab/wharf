@@ -75,7 +75,7 @@ jobs:
           WHARF_FOLLOW_WEBHOOK_SECRET: ${{ secrets.WHARF_FOLLOW_WEBHOOK_SECRET }}
           WHARF_FOLLOW_SENDER_ID: ${{ vars.WHARF_FOLLOW_SENDER_ID }}
           WHARF_FOLLOW_INSTALLATION_ID: ${{ steps.token.outputs.installation-id }}
-          GH_TOKEN: ${{ steps.token.outputs.token }}
+          WHARF_FOLLOW_TOKEN: ${{ steps.token.outputs.token }}
           WHARF_PACKAGES_TOKEN: ${{ secrets.PERISHLAB_PACKAGES_READ }}
           WHARF_DOMAIN: ${{ steps.engines.outputs.domain }}
         run: python3 -B -m scripts.follow execute
