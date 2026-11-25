@@ -192,3 +192,76 @@ class AliasPublication(unittest.TestCase):
         self.assertIsInstance(result, Refusal)
         self.assertEqual(admission.call_count, 2)
         self.assertEqual(test_images.Channel().created(commands), [])
+
+
+class MultiOciMedia(unittest.TestCase):
+    def repo(self):
+        return test_images.web_repo()
+
+    def test_oci_plan_skips_only_when_all_components_exist_and_are_current(self):
+        repo = self.repo()
+        held = {"source": str(repo.root), "repository": "PerishLab/ensign", "marker": "v0.4.0"}
+        with mock.patch.object(media.oci, "exists", return_value=True), mock.patch.object(media.oci, "current", return_value=True), mock.patch.object(media.parameters, "answer", side_effect=lambda x: x):
+            skipped = media.oci_plan(held)
+        self.assertEqual(skipped["decision"], "skip")
+        self.assertEqual([c["name"] for c in skipped["components"]], ["api", "web"])
+        self.assertTrue(all(c["ready"] for c in skipped["components"]))
+        with mock.patch.object(media.oci, "exists", side_effect=[True, False]), mock.patch.object(media.oci, "current", return_value=True), mock.patch.object(media.parameters, "answer", side_effect=lambda x: x):
+            missing = media.oci_plan(held)
+        self.assertEqual(missing["decision"], "run")
+        self.assertEqual([c["ready"] for c in missing["components"]], [True, False])
+        with mock.patch.object(media.oci, "exists", return_value=True), mock.patch.object(media.oci, "current", side_effect=[True, False]), mock.patch.object(media.parameters, "answer", side_effect=lambda x: x):
+            stale = media.oci_plan(held)
+        self.assertEqual(stale["decision"], "run")
+        self.assertEqual([c["ready"] for c in stale["components"]], [True, False])
+
+    def test_oci_plan_runs_when_multi_component_contains_source_even_if_existing(self):
+        toml = (
+            '[release]\nbinaries = ["ensign-api"]\ntargets = ["x86_64-unknown-linux-gnu"]\n'
+            '[release.oci.components.api]\nimage = "perishlab/ensign"\nbinary = "ensign-api"\n'
+            '[release.oci.components.doc]\nimage = "perishlab/ensign-doc"\n'
+        )
+        repo = test_images.web_repo(toml)
+        held = {"source": str(repo.root), "repository": "PerishLab/ensign", "marker": "v0.4.0"}
+        with mock.patch.object(media.oci, "exists", return_value=True), mock.patch.object(media.oci, "current", return_value=True), mock.patch.object(media.parameters, "answer", side_effect=lambda x: x):
+            planned = media.oci_plan(held)
+        self.assertEqual(planned["decision"], "run")
+        self.assertEqual([(c["name"], c["kind"], c["ready"]) for c in planned["components"]], [("api", "binary", True), ("doc", "source", False)])
+
+    def test_oci_publish_publishes_api_and_web_components_and_advances_channels(self):
+        repo = self.repo()
+        bucket = Memory()
+        bound = Path(self.enterContext(tempfile.TemporaryDirectory())) / "bound"
+        bound.mkdir()
+        (bound / f"ensign-api-{LINUX}").write_bytes(b"api-bin")
+        workload.publish(bucket, "b" * 64, workload.Produced(bound, {}, {}))
+        plan.record(bucket, dict(CONTEXT, commit="a" * 40, tree="d" * 40), {"bind-linux": {"key": "b" * 64, "decision": "run"}, "oci": {"decision": "run"}}, {})
+        api_digest, web_digest = "sha256:" + "1" * 64, "sha256:" + "2" * 64
+        seen = []
+        def pub_bin(req, runner, confirm):
+            seen.append(("binary", req.name, req.reference, req.file))
+            return {"image": req.reference, "state": "published", "digests": [f"ghcr.io/perishlab/ensign@{api_digest}"]}
+        def pub_web(req, runner, confirm):
+            seen.append(("web", req.web, req.package, req.file, req.reference))
+            return {"image": req.reference, "digest": web_digest, "status": "published"}
+        def adv(image, runner, confirm):
+            return {"image": f"{image.rsplit(':', 1)[0]}:stable", "state": "advanced", "version": "0.4.0"}
+        with mock.patch.object(media.r2, "configured", return_value=bucket), mock.patch.object(media.oci, "publish", side_effect=pub_bin), mock.patch.object(media.oci, "publish_web", side_effect=pub_web), mock.patch.object(media.oci, "advance", side_effect=adv):
+            result = media.oci_publish(dict(CONTEXT, planned="1", source=str(repo.root), publication=mock.Mock()))
+        self.assertEqual(seen, [("binary", "ensign-api", "ghcr.io/perishlab/ensign:0.4.0", "Containerfile"), ("web", "apps/web", "@demo/web", "deploy/web.Dockerfile", "ghcr.io/perishlab/ensign-web:0.4.0")])
+        self.assertEqual([c["name"] for c in result["components"]], ["api", "web"])
+        self.assertEqual([c["digest"] for c in result["components"]], [api_digest, web_digest])
+        self.assertEqual([c["status"] for c in result["components"]], ["published", "published"])
+        self.assertEqual([c["channel"]["state"] for c in result["components"]], ["advanced", "advanced"])
+
+    def test_oci_publish_aborts_if_second_component_fails(self):
+        repo = self.repo()
+        bucket = Memory()
+        bound = Path(self.enterContext(tempfile.TemporaryDirectory())) / "bound"
+        bound.mkdir()
+        (bound / f"ensign-api-{LINUX}").write_bytes(b"api-bin")
+        workload.publish(bucket, "b" * 64, workload.Produced(bound, {}, {}))
+        plan.record(bucket, dict(CONTEXT, commit="a" * 40, tree="d" * 40), {"bind-linux": {"key": "b" * 64, "decision": "run"}, "oci": {"decision": "run"}}, {})
+        with mock.patch.object(media.r2, "configured", return_value=bucket), mock.patch.object(media.oci, "publish", return_value={"state": "published"}), mock.patch.object(media.oci, "advance", return_value=None), mock.patch.object(media.oci, "publish_web", side_effect=Refusal("web build failed")):
+            with self.assertRaisesRegex(Refusal, "web build failed"):
+                media.oci_publish(dict(CONTEXT, planned="1", source=str(repo.root), publication=mock.Mock()))

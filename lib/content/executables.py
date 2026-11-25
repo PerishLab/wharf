@@ -77,7 +77,33 @@ def placed(source, kind, executables, product):
     table = declaration.release(source).get(kind)
     if table is None:
         return None
+    if kind == "oci" and isinstance(table, dict) and ("web" in table or "components" in table):
+        return None
     name = table.get("binary", primary(executables, product)) if isinstance(table, dict) else None
     if name not in [executable.name for executable in executables]:
         raise Refusal(f"[release.{kind}] names the executable {name!r}, which [release].binaries does not list")
     return name
+
+
+def component_binaries(components, valid):
+    if not isinstance(components, dict) or not components:
+        raise Refusal("[release.oci.components] must be a non-empty table")
+    found = []
+    for name, entry in sorted(components.items()):
+        if not isinstance(entry, dict) or "binary" not in entry:
+            continue
+        binary = entry["binary"]
+        if not isinstance(binary, str) or binary not in valid:
+            raise Refusal(f"[release.oci.components.{name}] names the executable {binary!r}, which [release].binaries does not list")
+        found.append(binary)
+    return found
+
+
+def placed_names(source, kind, executables, product):
+    table = declaration.release(source).get(kind)
+    if table is None:
+        return []
+    if kind == "oci" and isinstance(table, dict) and "components" in table:
+        return component_binaries(table["components"], [executable.name for executable in executables])
+    one = placed(source, kind, executables, product)
+    return [one] if one is not None else []

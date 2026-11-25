@@ -1,4 +1,5 @@
 import json
+import shutil
 import sys
 import tempfile
 from pathlib import Path
@@ -17,6 +18,7 @@ RELEASE = ("repository", "marker", "commit", "tree")
 CONTEXT = ("repository", "marker", "wharf", "run", "attempt")
 PLANNED = (*CONTEXT, "planned")
 BUILD = resources.read_json("build/config.json")
+PRIMARY = next(target for target in BUILD["targets"] if target["name"] == BUILD["primary"])
 
 
 def identified(held):
@@ -54,28 +56,71 @@ def npm_publish(held):
 def oci_plan(held):
     if not oci.carried(held["source"]):
         return decided(True, {"image": None}, False)
-    image = oci.reference(held["repository"], version.marker(held["marker"]))
-    if not executables.declared(held["source"], release.targets(held["source"])):
-        return decided(False, {"image": image})
-    return decided(oci.exists(image) and oci.current(image), {"image": image})
+    items = oci.components(held["source"], held["repository"], version.marker(held["marker"]), verify=True)
+    if not items[0].multi:
+        item = items[0]
+        if item.kind == "source":
+            return decided(False, {"image": item.reference})
+        return decided(oci.exists(item.reference) and oci.current(item.reference), {"image": item.reference})
+    checked = [
+        {"name": item.name, "image": item.reference, "kind": item.kind, "ready": False if item.kind == "source" else (oci.exists(item.reference) and oci.current(item.reference))}
+        for item in items
+    ]
+    return decided(all(entry["ready"] for entry in checked), {"components": checked})
+
+
+def oci_entry(item, published, channel):
+    digest = published.get("digest")
+    if digest is None:
+        digests = published.get("digests") or []
+        digest = digests[0].rsplit("@", 1)[1] if digests and "@" in digests[0] else None
+    status = published.get("status") or published.get("state")
+    return {"name": item.name, "image": item.reference, "digest": digest, "status": status, "channel": channel}
+
+
+def oci_publish_one(held, item, bound, confirm):
+    if item.kind == "binary":
+        artifact = bind.Artifact(bound, item.binary, PRIMARY["target"])
+        request = oci.Image(Path(held["source"]), artifact.file, item.binary, item.reference, held["marker"], item.file)
+        published = oci.publish(request, run, confirm)
+    elif item.kind == "web":
+        request = oci.WebImage(Path(held["source"]), item.web, item.package, item.file, item.reference)
+        published = oci.publish_web(request, run, confirm)
+    else:
+        request = oci.SourceImage(Path(held["source"]), item.reference, item.file)
+        published = oci.publish_source(request, run, confirm)
+    return published, oci.advance(item.reference, run, confirm)
 
 
 def oci_publish(held):
     bucket = r2.configured()
     document = plan.read(bucket, dict({field: held[field] for field in CONTEXT}, attempt=held["planned"]))
     plan.planned(document, "oci")
+    items = oci.components(held["source"], held["repository"], version.marker(held["marker"]), verify=False)
+    if not items:
+        raise Refusal("the product declares no image")
     listed = executables.declared(held["source"], release.targets(held["source"]))
-    image = oci.reference(held["repository"], version.marker(held["marker"]))
-    if not listed:
-        return dict(oci.publish_source(oci.SourceImage(Path(held["source"]), image), run, lambda: execution.ready(held)), channel=oci.advance(image, run, lambda: execution.ready(held)))
-    primary = next(target for target in BUILD["targets"] if target["name"] == BUILD["primary"])
-    binary = executables.placed(held["source"], "oci", listed, plan.product(document["context"]))
-    if binary not in executables.built(listed, primary["target"]):
-        raise Refusal(f"[release.oci] carries {binary}, which is not built for {primary['target']}")
-    directory = Path(tempfile.mkdtemp()) / "bound"
-    workload.fetch(bucket, document["entries"][f"bind-{primary['name']}"]["key"], str(directory))
-    artifact = bind.Artifact(directory, binary, primary["target"])
-    return dict(oci.publish(oci.Image(Path(held["source"]), artifact.file, binary, image, held["marker"]), run, lambda: execution.ready(held)), channel=oci.advance(image, run, lambda: execution.ready(held)))
+    built = executables.built(listed, PRIMARY["target"])
+    for item in items:
+        if item.kind == "binary" and item.binary not in built:
+            raise Refusal(f"[release.oci] carries {item.binary}, which is not built for {PRIMARY['target']}")
+    directory = None
+    if any(item.kind == "binary" for item in items):
+        directory = Path(tempfile.mkdtemp()) / "bound"
+        workload.fetch(bucket, document["entries"][f"bind-{PRIMARY['name']}"]["key"], str(directory))
+    confirm = lambda: execution.ready(held)
+    try:
+        if not items[0].multi:
+            published, channel = oci_publish_one(held, items[0], directory, confirm)
+            return dict(published, channel=channel)
+        results = []
+        for item in items:
+            published, channel = oci_publish_one(held, item, directory, confirm)
+            results.append(oci_entry(item, published, channel))
+        return {"components": results}
+    finally:
+        if directory is not None:
+            shutil.rmtree(directory.parent, ignore_errors=True)
 
 
 def release_plan(held):
