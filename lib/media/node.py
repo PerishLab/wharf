@@ -67,6 +67,38 @@ def withheld(env):
     return {key: value for key, value in env.items() if key.upper() != "NPM_CONFIG_USERCONFIG" and key != READER}
 
 
+def patterns(rendered):
+    text = (rendered or "").strip()
+    if not text:
+        return []
+    try:
+        value = json.loads(text)
+    except json.JSONDecodeError as failure:
+        raise Refusal("cannot read effective npm release-age exclusions") from failure
+    if value is None:
+        return []
+    if isinstance(value, str):
+        return [value]
+    if isinstance(value, list) and all(isinstance(item, str) for item in value):
+        return list(value)
+    raise Refusal("unsupported effective npm release-age exclusions")
+
+
+def exclusions(source, runner=run):
+    argv = ["pnpm", "--config.ignore-pnpmfile=true", "config", "get", "minimumReleaseAgeExclude", "--json"]
+    try:
+        rendered = runner(argv, source)
+    except subprocess.CalledProcessError as failure:
+        detail = (failure.stderr or failure.stdout or "").strip()[:500]
+        raise Refusal(f"cannot read effective npm release-age exclusions: {detail}") from failure
+    held = patterns(rendered)
+    for scope in sorted(REGISTRIES):
+        pattern = f"{scope}/*"
+        if pattern not in held:
+            held.append(pattern)
+    return [f"--config.minimum-release-age-exclude={pattern}" for pattern in held]
+
+
 def reading(directory, env, literal=False):
     env = {key: value for key, value in env.items() if key.upper() != "NPM_CONFIG_USERCONFIG"}
     if not env.get(READER):
@@ -96,13 +128,14 @@ def suite(request, runner=run, execute=attempt):
     if request.output.exists():
         raise Refusal(f"output {request.output} already exists")
     held = prepared(request.source, runner)
+    install = ["pnpm", "install", "--frozen-lockfile", *exclusions(request.source, runner)]
     with tempfile.TemporaryDirectory() as home:
         env = dict(os.environ, HOME=home, CI="true")
         env.pop("NODE_AUTH_TOKEN", None)
-        execute(["pnpm", "install", "--frozen-lockfile"], request.source, reading(home, env))
+        execute(install, request.source, reading(home, env))
         execute(["pnpm", "-r", "test"], request.source, withheld(env))
     request.output.mkdir(parents=True)
-    receipt = {"action": "ship.node.suite", "toolchain": held, "commands": ["pnpm install --frozen-lockfile", "pnpm -r test"]}
+    receipt = {"action": "ship.node.suite", "toolchain": held, "commands": [" ".join(install), "pnpm -r test"]}
     (request.output / "receipt.json").write_text(json.dumps(receipt, indent=2, sort_keys=True) + "\n")
     return receipt
 

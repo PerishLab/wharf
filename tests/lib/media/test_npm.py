@@ -197,3 +197,5 @@ class Source(unittest.TestCase):
             self.assertNotIn("/caller/npmrc", env.values(), argv)
             if argv[:2] != ["pnpm", "install"]:
                 self.assertFalse({"NPM_CONFIG_USERCONFIG", "WHARF_PACKAGES_TOKEN", npm.TOKEN} & set(env), argv)
+        install = next(argv for argv, _ in registry.runs if argv[:2] == ["pnpm", "install"])
+        self.assertEqual(install, ["pnpm", "install", "--frozen-lockfile", "--config.minimum-release-age-exclude=@perishlab/*"])

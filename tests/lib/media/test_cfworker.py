@@ -28,7 +28,7 @@ class Worker(unittest.TestCase):
     def runner(self, argv, cwd, env=None):
         self.calls.append(argv)
         self.envs.append(env)
-        return {"node": "v24.18.0\n", "pnpm": "11.28.5\n"}.get(argv[0], "")
+        return {"node": "v24.18.0\n", "pnpm": "11.28.5\n"}.get(argv[0], "") if argv[1:2] == ["--version"] else ""
 
     def test_lists_workers_from_native_manifests(self):
         self.assertEqual(cfworker.workers(self.repository.root), [{"name": "demo", "directory": "apps/web", "package": "@demo/web", "domains": ["demo.example"]}])
@@ -141,7 +141,7 @@ class Worker(unittest.TestCase):
     def test_install_reads_the_registries_with_the_read_token_alone(self):
         with mock.patch.dict(os.environ, {cfworker.TOKEN: "t", "WHARF_PACKAGES_TOKEN": "r"}):
             cfworker.deploy(cfworker.Deploy(self.repository.root, self.repository.root / "out"), self.runner, lambda url: 200)
-        installed = self.envs[self.calls.index(["pnpm", "install", "--frozen-lockfile"])]
+        installed = self.envs[self.calls.index(["pnpm", "install", "--frozen-lockfile", "--config.minimum-release-age-exclude=@perishlab/*"])]
         self.assertIn("NPM_CONFIG_USERCONFIG", installed)
         for argv, env in zip(self.calls, self.envs):
             if argv[0] == "pnpm" and argv[1] not in ("install", "--version"):

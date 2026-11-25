@@ -12,7 +12,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from lib.content import declaration, resources
-from lib.media.node import expected, manifest, reading, withheld
+from lib.media.node import exclusions, expected, manifest, reading, withheld
 from lib.process import git, run
 from lib.refusal import Refusal
 
@@ -169,7 +169,8 @@ def prepare(source, version, output, runner=run):
     env = dict(os.environ)
     env.pop(TOKEN, None)
     with tempfile.TemporaryDirectory() as directory:
-        runner(["pnpm", "install", "--frozen-lockfile"], source, reading(directory, env))
+        flags = exclusions(source, lambda argv, cwd: runner(argv, cwd, withheld(env)))
+        runner(["pnpm", "install", "--frozen-lockfile", *flags], source, reading(directory, env))
         env = withheld(env)
         output.mkdir(parents=True)
         try:
