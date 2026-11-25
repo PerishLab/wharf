@@ -104,11 +104,10 @@ def build_web_bundle(request, runner):
     with tempfile.TemporaryDirectory() as home:
         clean = dict(node.withheld(base), HOME=home, CI="true")
         flags = node.exclusions(request.source, lambda argv, cwd: runner(argv, cwd, clean))
-    with tempfile.TemporaryDirectory() as auth:
-        invoke_node(["pnpm", "install", "--frozen-lockfile", *flags], request.source, node.reading(auth, base), runner)
-    with tempfile.TemporaryDirectory() as home:
-        build_env = dict(node.withheld(base), HOME=home, CI="true")
-        invoke_node(["pnpm", "--filter", request.package, "build"], request.source, build_env, runner)
+        with tempfile.TemporaryDirectory() as auth:
+            install_env = dict(node.reading(auth, base), HOME=home, CI="true")
+            invoke_node(["pnpm", "install", "--frozen-lockfile", *flags], request.source, install_env, runner)
+        invoke_node(["pnpm", "--filter", request.package, "build"], request.source, clean, runner)
 
 
 def smoked(request, directory, runner):

@@ -236,11 +236,11 @@ class PublishedWeb(unittest.TestCase):
                 return '["svelte@5.57.1"]\n'
             if argv[:2] == ["pnpm", "install"]:
                 cfg = Path(env["NPM_CONFIG_USERCONFIG"])
-                self.assertTrue(cfg.is_file() and "WHARF_R2_SECRET_ACCESS_KEY" not in env and not stale.exists())
-                auth_files.append(cfg)
+                self.assertTrue(cfg.is_file() and env.get("CI") == "true" and env.get("HOME") != "/ambient" and "WHARF_R2_SECRET_ACCESS_KEY" not in env and not stale.exists())
+                auth_files.append((cfg, env["HOME"]))
             elif argv[:3] == ["pnpm", "--filter", "@demo/web"]:
-                self.assertTrue(env.get("CI") == "true" and env.get("HOME") != "/ambient")
-                self.assertFalse(auth_files[0].exists() or any(k in env for k in ("NPM_CONFIG_USERCONFIG", "WHARF_PACKAGES_TOKEN", "WHARF_R2_SECRET_ACCESS_KEY")))
+                self.assertTrue(env.get("CI") == "true" and env.get("HOME") == auth_files[0][1])
+                self.assertFalse(auth_files[0][0].exists() or any(k in env for k in ("NPM_CONFIG_USERCONFIG", "WHARF_PACKAGES_TOKEN", "WHARF_R2_SECRET_ACCESS_KEY")))
                 server = repo.root / "apps/web/dist/.perish/server.mjs"
                 server.parent.mkdir(parents=True, exist_ok=True)
                 server.write_text("export default 1;\n")
