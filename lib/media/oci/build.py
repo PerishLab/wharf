@@ -101,8 +101,11 @@ def invoke_node(argv, cwd, env, runner):
 
 def build_web_bundle(request, runner):
     base = sanitized(request.env)
+    with tempfile.TemporaryDirectory() as home:
+        clean = dict(node.withheld(base), HOME=home, CI="true")
+        flags = node.exclusions(request.source, lambda argv, cwd: runner(argv, cwd, clean))
     with tempfile.TemporaryDirectory() as auth:
-        invoke_node(["pnpm", "install", "--frozen-lockfile"], request.source, node.reading(auth, base), runner)
+        invoke_node(["pnpm", "install", "--frozen-lockfile", *flags], request.source, node.reading(auth, base), runner)
     with tempfile.TemporaryDirectory() as home:
         build_env = dict(node.withheld(base), HOME=home, CI="true")
         invoke_node(["pnpm", "--filter", request.package, "build"], request.source, build_env, runner)

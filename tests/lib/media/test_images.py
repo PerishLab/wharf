@@ -231,6 +231,9 @@ class PublishedWeb(unittest.TestCase):
         seen, auth_files = [], []
         def runner(argv, cwd, env=None):
             seen.append((argv, env))
+            if argv[0] == "pnpm" and "config" in argv:
+                self.assertFalse(any(k in env for k in ("NPM_CONFIG_USERCONFIG", "WHARF_PACKAGES_TOKEN", "WHARF_R2_SECRET_ACCESS_KEY")))
+                return '["svelte@5.57.1"]\n'
             if argv[:2] == ["pnpm", "install"]:
                 cfg = Path(env["NPM_CONFIG_USERCONFIG"])
                 self.assertTrue(cfg.is_file() and "WHARF_R2_SECRET_ACCESS_KEY" not in env and not stale.exists())
@@ -249,8 +252,8 @@ class PublishedWeb(unittest.TestCase):
             return ""
         with mock.patch.object(oci, "exists", return_value=False), mock.patch.object(oci, "registry_digest", return_value=digest), mock.patch.object(oci, "public_digest", return_value=digest):
             result = oci.publish_web(request, runner, lambda: seen.append((["admit"], None)))
-        self.assertEqual((result, [argv[:2] for argv, _ in seen]), ({"image": ref, "digest": digest, "status": "published"}, [["pnpm", "install"], ["pnpm", "--filter"], ["docker", "build"], ["docker", "image"], ["docker", "run"], ["admit"], ["docker", "push"], ["docker", "image"]]))
-        self.assertEqual(seen[4][0][2:], ["--rm", "--platform", "linux/amd64", "--entrypoint", "node", ref, "--check", "dist/.perish/server.mjs"])
+        self.assertEqual((result, seen[1][0], [argv[:2] for argv, _ in seen[2:]]), ({"image": ref, "digest": digest, "status": "published"}, ["pnpm", "install", "--frozen-lockfile", "--config.minimum-release-age-exclude=svelte@5.57.1", "--config.minimum-release-age-exclude=@perishlab/*"], [["pnpm", "--filter"], ["docker", "build"], ["docker", "image"], ["docker", "run"], ["admit"], ["docker", "push"], ["docker", "image"]]))
+        self.assertEqual(seen[5][0][2:], ["--rm", "--platform", "linux/amd64", "--entrypoint", "node", ref, "--check", "dist/.perish/server.mjs"])
     def test_publish_web_refuses_symlink_or_tracked_dist_before_pnpm(self):
         ref = "ghcr.io/perishlab/ensign-web:0.4.0"
         repo, runner = web_repo(), mock.Mock(side_effect=AssertionError("pnpm ran"))

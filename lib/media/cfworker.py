@@ -120,8 +120,9 @@ def deploy(request, runner=run, probe=answer, sleep=time.sleep):
         raise Refusal(f"the product declares no {CONFIG}")
     env = environment(os.environ)
     held = node.prepared(request.source, lambda argv, cwd: runner(argv, cwd, node.withheld(env)))
+    flags = node.exclusions(request.source, lambda argv, cwd: runner(argv, cwd, node.withheld(env)))
     with tempfile.TemporaryDirectory() as directory:
-        runner(["pnpm", "install", "--frozen-lockfile"], request.source, node.reading(directory, env))
+        runner(["pnpm", "install", "--frozen-lockfile", *flags], request.source, node.reading(directory, env))
     for worker in listed:
         runner(["pnpm", "--filter", worker["package"], "build"], request.source, node.withheld(env))
     results = []

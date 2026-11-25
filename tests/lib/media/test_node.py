@@ -1,5 +1,6 @@
 import json
 import os
+import subprocess
 import tempfile
 import unittest
 from unittest import mock
@@ -42,26 +43,41 @@ class Carried(unittest.TestCase):
 
 
 class Suite(unittest.TestCase):
+    def runner(self, declared=""):
+        return lambda argv, cwd: declared if "config" in argv else {"node": "v24.18.0\n", "pnpm": "11.28.5\n"}[argv[0]]
+
     def test_requires_the_prepared_toolchain_and_runs_both_steps(self):
         repository = Repository()
         calls = []
-        runner = lambda argv, cwd: {"node": "v24.18.0\n", "pnpm": "11.28.5\n"}[argv[0]]
-        receipt = node.suite(node.Suite(repository.root, repository.root / "out"), runner, lambda argv, cwd, env: calls.append((argv, env["HOME"])))
+        receipt = node.suite(node.Suite(repository.root, repository.root / "out"), self.runner('["svelte@5.57.1"]\n'), lambda argv, cwd, env: calls.append((argv, env["HOME"])))
+        expected = ["pnpm", "install", "--frozen-lockfile", "--config.minimum-release-age-exclude=svelte@5.57.1", "--config.minimum-release-age-exclude=@perishlab/*"]
         self.assertEqual(receipt["toolchain"], {"node": "24.18.0", "pnpm": "11.28.5"})
-        self.assertEqual([argv for argv, _ in calls], [["pnpm", "install", "--frozen-lockfile"], ["pnpm", "-r", "test"]])
+        self.assertEqual(receipt["commands"], [" ".join(expected), "pnpm -r test"])
+        self.assertEqual([argv for argv, _ in calls], [expected, ["pnpm", "-r", "test"]])
         self.assertNotEqual(calls[0][1], str(Path.home()))
+
+    def test_exclusions_preserve_declared_patterns_and_refuse_malformed_config(self):
+        repository = Repository()
+        self.assertEqual(node.exclusions(repository.root, self.runner('"@perishlab/*"\n')), ["--config.minimum-release-age-exclude=@perishlab/*"])
+        self.assertEqual(node.exclusions(repository.root, self.runner("null\n")), ["--config.minimum-release-age-exclude=@perishlab/*"])
+        for invalid in ("{bad", "123", "[1]", '{"a":1}'):
+            with self.subTest(invalid=invalid), self.assertRaises(Refusal):
+                node.exclusions(repository.root, self.runner(invalid))
+        def failed(argv, cwd):
+            raise subprocess.CalledProcessError(1, argv, stderr="boom")
+        with self.assertRaisesRegex(Refusal, "boom"):
+            node.exclusions(repository.root, failed)
 
     def observed(self, ambient):
         repository = Repository()
         calls = []
-        runner = lambda argv, cwd: {"node": "v24.18.0\n", "pnpm": "11.28.5\n"}[argv[0]]
         def execute(argv, cwd, env):
             configs = [value for key, value in env.items() if key.upper() == "NPM_CONFIG_USERCONFIG"]
             calls.append((argv, env, [Path(config).read_text() for config in configs]))
         with mock.patch.dict(os.environ, ambient):
             for key in [key for key in os.environ if key.upper() == "NPM_CONFIG_USERCONFIG" and key not in ambient]:
                 del os.environ[key]
-            node.suite(node.Suite(repository.root, repository.root / "out"), runner, execute)
+            node.suite(node.Suite(repository.root, repository.root / "out"), self.runner(), execute)
         return calls
 
     def test_install_alone_reads_the_registries_and_tests_hold_no_token(self):
