@@ -1,14 +1,16 @@
 import json
 import os
+import subprocess
 import sys
-import urllib.error
-import urllib.request
+import tempfile
+from pathlib import Path
 
+from lib import process
 from lib.content import canonical
 from lib.process.follow import deadline, event
 from lib.refusal import Refusal
 
-ENDPOINT = "https://api.github.com/repos/PerishLab/wharf/dispatches"
+TARGET = ("PerishLab", "wharf")
 TOKEN = "WHARF_FOLLOW_DISPATCH_TOKEN"
 TIMEOUT = 5
 
@@ -23,17 +25,19 @@ def arrival(environ):
     record("received-unverified", {"delivery": value if valid else None})
 
 
-def dispatch(payload, environ=os.environ):
+def dispatch(payload, environ=os.environ, invoke=None):
     token = environ.get(TOKEN)
     if not token:
         raise deadline.Unverified("follow receiver needs its Wharf-only dispatch credential")
-    body = canonical.encode({"event_type": "follow-push", "client_payload": payload})
-    request = urllib.request.Request(ENDPOINT, data=body, method="POST", headers={"Authorization": f"Bearer {token}", "Accept": "application/vnd.github+json", "Content-Type": "application/json", "User-Agent": "wharf-follow"})
+    send = invoke or process.github
     try:
-        with urllib.request.urlopen(request, timeout=TIMEOUT) as response:
-            if response.status != 204:
-                raise deadline.Unverified("GitHub did not confirm acceptance of the follow dispatch")
-    except (OSError, urllib.error.HTTPError) as error:
+        with tempfile.TemporaryDirectory(prefix="wharf-follow-dispatch-") as directory:
+            body = Path(directory) / "payload.json"
+            body.write_bytes(canonical.encode(payload))
+            send(["trigger", TARGET[0], TARGET[1], "--event", "follow-push", "--payload-file", str(body)], timeout=TIMEOUT, token=token)
+    except deadline.Unverified:
+        raise
+    except (OSError, ValueError, Refusal, subprocess.SubprocessError) as error:
         raise deadline.Unverified("GitHub follow dispatch acceptance is unknown; read back before bounded recovery") from error
 
 

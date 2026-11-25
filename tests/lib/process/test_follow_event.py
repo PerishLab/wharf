@@ -109,13 +109,26 @@ class Receiver(unittest.TestCase):
             return json.loads(b"".join(receiver.application(self.environ, self.status)))
 
     def test_accepted_dispatch_records_only_authenticated_identity(self):
-        response = mock.MagicMock()
-        response.__enter__.return_value.status = 204
-        with mock.patch.object(receiver.urllib.request, "urlopen", return_value=response) as send:
+        captured = {}
+
+        def fake(arguments, timeout=None, token=None):
+            captured["arguments"] = arguments
+            captured["timeout"] = timeout
+            captured["token"] = token
+            payload_path = Path(arguments[arguments.index("--payload-file") + 1])
+            captured["payload"] = json.loads(payload_path.read_text(encoding="utf-8"))
+            captured["path"] = payload_path
+            return {"event": "follow-push"}
+
+        with mock.patch.object(receiver.process, "github", side_effect=fake):
             result = self.invoke()
         self.assertEqual(result["state"], "dispatched")
         self.assertEqual(self.status.call_args.args[0], "202 Accepted")
-        self.assertEqual(send.call_args.kwargs["timeout"], 5)
+        self.assertEqual(captured["arguments"][:5], ["trigger", "PerishLab", "wharf", "--event", "follow-push"])
+        self.assertEqual(captured["timeout"], 5)
+        self.assertEqual(captured["token"], "fixture-dispatch-token")
+        self.assertEqual(set(captured["payload"]), {"repository", "summary", "signature"})
+        self.assertFalse(captured["path"].exists())
         records = [json.loads(line) for line in self.log.getvalue().splitlines()]
         self.assertEqual([r["state"] for r in records], ["received-unverified", "dispatching", "dispatched"])
         self.assertEqual(records[-1]["after"], PUSH["after"])
@@ -124,7 +137,7 @@ class Receiver(unittest.TestCase):
             self.assertNotIn(secret, self.log.getvalue())
 
     def test_lost_acknowledgement_is_unverified_and_retains_identity(self):
-        with mock.patch.object(receiver.urllib.request, "urlopen", side_effect=TimeoutError("fixture-dispatch-token private upstream detail")):
+        with mock.patch.object(receiver.process, "github", side_effect=TimeoutError("fixture-dispatch-token private upstream detail")):
             result = self.invoke()
         self.assertEqual(result["state"], "unverified")
         self.assertEqual(self.status.call_args.args[0], "503 Service Unavailable")
@@ -137,7 +150,7 @@ class Receiver(unittest.TestCase):
         self.environ["wsgi.input"] = mock.Mock(read=mock.Mock(side_effect=lambda length: time.sleep(0.5)))
         previous = signal.getsignal(signal.SIGALRM)
         began = time.monotonic()
-        with mock.patch.object(deadline, "TIMEOUT", 0.03), mock.patch.object(receiver.urllib.request, "urlopen") as send:
+        with mock.patch.object(deadline, "TIMEOUT", 0.03), mock.patch.object(receiver.process, "github") as send:
             result = self.invoke()
         self.assertEqual(result["state"], "unverified")
         self.assertLess(time.monotonic() - began, 0.3)
@@ -147,7 +160,7 @@ class Receiver(unittest.TestCase):
 
     def test_dispatch_wait_is_inside_the_wall_clock_budget(self):
         began = time.monotonic()
-        with mock.patch.object(deadline, "TIMEOUT", 0.03), mock.patch.object(receiver.urllib.request, "urlopen", side_effect=lambda *args, **kwargs: time.sleep(0.5)) as send:
+        with mock.patch.object(deadline, "TIMEOUT", 0.03), mock.patch.object(receiver.process, "github", side_effect=lambda *args, **kwargs: time.sleep(0.5)) as send:
             result = self.invoke()
         self.assertEqual(result["state"], "unverified")
         self.assertLess(time.monotonic() - began, 0.3)
@@ -157,7 +170,7 @@ class Receiver(unittest.TestCase):
 
     def test_bad_signature_never_dispatches_or_logs_payload(self):
         self.environ["HTTP_X_HUB_SIGNATURE_256"] = "invalid"
-        with mock.patch.object(receiver.urllib.request, "urlopen") as send:
+        with mock.patch.object(receiver.process, "github") as send:
             result = self.invoke()
         self.assertEqual(result["state"], "refused")
         self.assertEqual(self.status.call_args.args[0], "400 Bad Request")
@@ -174,7 +187,7 @@ class Receiver(unittest.TestCase):
     def test_existing_timer_is_preserved_without_dispatch(self):
         signal.setitimer(signal.ITIMER_REAL, 10)
         try:
-            with mock.patch.object(receiver.urllib.request, "urlopen") as send:
+            with mock.patch.object(receiver.process, "github") as send:
                 result = self.invoke()
             self.assertEqual(result["state"], "unverified")
             self.assertGreater(signal.getitimer(signal.ITIMER_REAL)[0], 5)
@@ -183,7 +196,7 @@ class Receiver(unittest.TestCase):
             signal.setitimer(signal.ITIMER_REAL, 0)
 
     def test_threaded_worker_refuses_before_dispatch(self):
-        with mock.patch.object(threading, "current_thread", return_value=object()), mock.patch.object(receiver.urllib.request, "urlopen") as send:
+        with mock.patch.object(threading, "current_thread", return_value=object()), mock.patch.object(receiver.process, "github") as send:
             result = self.invoke()
         self.assertEqual(result["state"], "unverified")
         send.assert_not_called()

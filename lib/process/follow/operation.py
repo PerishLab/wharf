@@ -6,11 +6,10 @@ import signal
 import subprocess
 import sys
 import tempfile
-import urllib.error
-import urllib.request
 from contextlib import contextmanager
 from pathlib import Path
 
+from lib import process
 from lib.content import canonical
 from lib.media import node
 from lib.process import git
@@ -48,25 +47,44 @@ def seat(root, summary):
     return source
 
 
-def api(path, token):
-    request = urllib.request.Request("https://api.github.com/" + path, headers={"Authorization": f"Bearer {token}", "Accept": "application/vnd.github+json", "User-Agent": "wharf-follow"})
+def fault(raw):
     try:
-        with urllib.request.urlopen(request, timeout=30) as response:
-            return event.decode(response.read(event.LIMIT + 1))
-    except urllib.error.HTTPError as error:
-        if error.code == 404:
+        held = json.loads(raw)
+    except (ValueError, UnicodeError):
+        return None, None
+    error = held.get("error") if isinstance(held, dict) else None
+    if not isinstance(error, dict):
+        return None, None
+    evidence = error.get("evidence")
+    status = evidence.get("status") if isinstance(evidence, dict) else None
+    return error.get("outcome"), status
+
+
+def api(arguments, token, optional=False):
+    try:
+        return process.github(arguments, timeout=30, limit=event.LIMIT, token=token)
+    except subprocess.CalledProcessError as error:
+        outcome, status = fault(error.output or b"")
+        if optional and outcome == "refused" and status == 404:
             return None
-        raise Refusal("follow repository qualification was refused by GitHub") from error
-    except (OSError, ValueError) as error:
+        if outcome == "refused":
+            raise Refusal("follow repository qualification was refused by GitHub") from error
+        raise Refusal("follow repository qualification is unknown") from error
+    except (OSError, ValueError, subprocess.SubprocessError) as error:
         raise Refusal("follow repository qualification is unknown") from error
 
 
 def governed(summary, token, reader=api):
     repository = summary["repository"]
-    held = reader(f"repos/{repository}", token)
+    owner, name = repository.split("/", 1)
+    held = reader(["repository", owner, name], token)
     if not isinstance(held, dict) or (held.get("id"), held.get("full_name"), held.get("default_branch")) != (summary["repository_id"], repository, "main") or held.get("archived") is not False:
         raise Refusal("follow repository identity or main differs from the signed push")
-    declared = reader(f"repos/{repository}/contents/plumb.toml?ref=main", token)
+    pointer = reader(["ref", owner, name, "branch", "main"], token)
+    commit = pointer.get("object", {}).get("sha") if isinstance(pointer, dict) and isinstance(pointer.get("object"), dict) else None
+    if not isinstance(commit, str) or not event.OBJECT.fullmatch(commit):
+        raise Refusal("follow repository identity or main differs from the signed push")
+    declared = reader(["contents", owner, name, commit, "plumb.toml"], token, True)
     if declared is None:
         return False
     if declared.get("type") != "file" or declared.get("path") != "plumb.toml":
