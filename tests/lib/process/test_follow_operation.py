@@ -1,3 +1,4 @@
+import json
 import os
 import subprocess
 import tempfile
@@ -7,6 +8,7 @@ from unittest import mock
 
 from lib.process.follow import operation
 from lib.refusal import Refusal
+from tests.lib import process as fixtures
 
 SUMMARY = {"repository": "PerishLab/example", "repository_id": 17, "installation_id": 23, "after": "a" * 40, "delivery": "fixture"}
 
@@ -110,23 +112,18 @@ class Qualification(unittest.TestCase):
             self.assertEqual(Path(child["GIT_CONFIG_GLOBAL"]).stat().st_mode & 0o777, 0o600)
 
     def test_missing_root_declaration_is_a_no_op(self):
-        replies = iter([
-            {"id": 17, "full_name": "PerishLab/example", "default_branch": "main", "archived": False},
-            {"object": {"sha": "a" * 40}},
-            None,
-        ])
+        repo = fixtures.repository("PerishLab/example", 17)
+        pointer = fixtures.ref("branch", "main", "a" * 40, repo="PerishLab/example")
+        declared = fixtures.contents("plumb.toml", b"test", "a" * 40)
+        replies = iter([repo, pointer, None])
         self.assertFalse(operation.governed(SUMMARY, "fixture", lambda *args: next(replies)))
-        present = iter([
-            {"id": 17, "full_name": "PerishLab/example", "default_branch": "main", "archived": False},
-            {"object": {"sha": "a" * 40}},
-            {"commit": "a" * 40, "path": "plumb.toml", "sha": "b" * 40, "size": 4, "base64": "dGVzdA=="},
-        ])
+        present = iter([repo, pointer, declared])
         self.assertTrue(operation.governed(SUMMARY, "fixture", lambda *args: next(present)))
 
     def test_api_maps_404_optional_refusal_and_unknown_failures(self):
-        not_found = subprocess.CalledProcessError(1, ["runseal"], output=b'{"error":{"outcome":"refused","evidence":{"status":404}}}')
-        forbidden = subprocess.CalledProcessError(1, ["runseal"], output=b'{"error":{"outcome":"refused","evidence":{"status":403}}}')
-        unknown = subprocess.CalledProcessError(1, ["runseal"], output=b'{"error":{"outcome":"unknown","evidence":{"status":null}}}')
+        not_found = subprocess.CalledProcessError(1, ["runseal"], output=json.dumps(fixtures.error("refused", "http", 404)).encode())
+        forbidden = subprocess.CalledProcessError(1, ["runseal"], output=json.dumps(fixtures.error("refused", "http", 403)).encode())
+        unknown = subprocess.CalledProcessError(1, ["runseal"], output=json.dumps(fixtures.error("unknown", "network", None)).encode())
         with mock.patch.object(operation.process, "github", side_effect=not_found):
             self.assertIsNone(operation.api(["contents", "PerishLab", "example", "a" * 40, "plumb.toml"], "t", True))
         with mock.patch.object(operation.process, "github", side_effect=forbidden), self.assertRaisesRegex(Refusal, "refused by GitHub"):
@@ -134,9 +131,31 @@ class Qualification(unittest.TestCase):
         with mock.patch.object(operation.process, "github", side_effect=unknown), self.assertRaisesRegex(Refusal, "is unknown"):
             operation.api(["repository", "PerishLab", "example"], "t")
 
-    def test_other_repository_identity_refuses(self):
-        with self.assertRaisesRegex(Refusal, "repository identity"):
-            operation.governed(SUMMARY, "fixture", lambda *args: {"id": 18})
+    def test_other_repository_identity_or_malformed_receipt_refuses(self):
+        repo = fixtures.repository("PerishLab/example", 17)
+        pointer = fixtures.ref("branch", "main", "a" * 40, repo="PerishLab/example")
+        declared = fixtures.contents("plumb.toml", b"test", "a" * 40)
+        bad_identity = (
+            [dict(repo, id=18)],
+            [dict(repo, archived=True)],
+            [{k: v for k, v in repo.items() if k != "default_branch"}],
+            [repo, {"ref": pointer["ref"], "url": pointer["url"]}],
+            [repo, dict(pointer, object={"type": "commit"})],
+        )
+        for sequence in bad_identity:
+            replies = iter(sequence)
+            with self.subTest(sequence=sequence), self.assertRaisesRegex(Refusal, "repository identity"):
+                operation.governed(SUMMARY, "fixture", lambda *args: next(replies))
+        bad_contents = (
+            {k: v for k, v in declared.items() if k != "base64"},
+            {k: v for k, v in declared.items() if k != "commit"},
+            dict(declared, path="other.toml"),
+            ["not-an-object"],
+        )
+        for item in bad_contents:
+            replies = iter([repo, pointer, item])
+            with self.subTest(item=item), self.assertRaisesRegex(Refusal, "tracked root Plumb declaration"):
+                operation.governed(SUMMARY, "fixture", lambda *args: next(replies))
 
     def test_wrong_installation_runs_no_command_or_workspace_write(self):
         with mock.patch.object(operation.event, "qualified", return_value=SUMMARY), mock.patch.object(operation, "seat") as seat, mock.patch.object(operation, "command") as command:

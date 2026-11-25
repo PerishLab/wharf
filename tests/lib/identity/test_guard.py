@@ -13,6 +13,7 @@ from lib.identity import guard
 from lib.identity.guard import coverage, pull, snapshot
 from lib.media import release
 from lib.refusal import Refusal
+from tests.lib import process as fixtures
 from tests.lib.store.memory import Memory
 
 LINUX = "x86_64-unknown-linux-gnu"
@@ -237,15 +238,15 @@ def offering(artifacts, trees, blobs):
     def invoke(arguments, timeout=30, limit=None, token=None):
         seen.append((arguments, token))
         if arguments[:3] == ["artifacts", "PerishLab", "example"]:
-            return {"artifacts": artifacts}
+            return fixtures.artifacts(artifacts)
         if arguments[:3] == ["commit", "PerishLab", "example"]:
-            return {"tree": {"sha": trees[arguments[3]]}}
+            return fixtures.commit(arguments[3], trees[arguments[3]], "PerishLab/example")
         if arguments[:3] == ["download", "PerishLab", "example"]:
             payload = blobs[int(arguments[3])]
             if isinstance(payload, Exception):
                 raise payload
             Path(arguments[arguments.index("--output") + 1]).write_bytes(payload)
-            return {"id": int(arguments[3]), "size": len(payload), "digest": digest(payload)}
+            return fixtures.download(int(arguments[3]), payload)
         raise AssertionError(arguments)
 
     return pull.Actions("reader", "PerishLab/example", invoke), seen
@@ -253,17 +254,7 @@ def offering(artifacts, trees, blobs):
 
 def artifact(identity, head, blob=None, **changed):
     data = blob if blob is not None else zipped({"guard-runtime.json": runtime()})
-    return dict(
-        {
-            "id": identity,
-            "name": "guard-runtime",
-            "expired": False,
-            "size_in_bytes": len(data),
-            "digest": digest(data),
-            "workflow_run": {"id": identity * 10, "head_sha": head},
-        },
-        **changed,
-    )
+    return fixtures.artifact(identity, head, data, **changed)
 
 
 class Offered(unittest.TestCase):
@@ -296,3 +287,6 @@ class Offered(unittest.TestCase):
             pull.offered("PerishLab/example", MARKER, {})
         with mock.patch.object(pull, "listed", side_effect=OSError("down")), self.assertRaisesRegex(Refusal, "unreadable: OSError"):
             pull.offered("PerishLab/example", MARKER, {"WHARF_GUARD_TOKEN": "reader"})
+        for bad in ({"total_count": 0}, fixtures.artifacts([{"id": 1, "name": "guard-runtime", "expired": False}])):
+            with self.subTest(bad=bad), mock.patch.object(pull.process, "github", return_value=bad), self.assertRaises(Refusal):
+                pull.offered("PerishLab/example", MARKER, {"WHARF_GUARD_TOKEN": "reader"})

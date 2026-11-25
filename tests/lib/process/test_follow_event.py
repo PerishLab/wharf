@@ -12,6 +12,7 @@ from unittest import mock
 from lib.content import canonical
 from lib.process.follow import deadline, event, receiver
 from lib.refusal import Refusal
+from tests.lib import process as fixtures
 
 SECRET = "fixture-webhook-secret"
 PUSH = {"ref": "refs/heads/main", "deleted": False, "after": "a" * 40, "repository": {"id": 17, "full_name": "PerishLab/example", "default_branch": "main"}, "installation": {"id": 23}}
@@ -118,7 +119,7 @@ class Receiver(unittest.TestCase):
             payload_path = Path(arguments[arguments.index("--payload-file") + 1])
             captured["payload"] = json.loads(payload_path.read_text(encoding="utf-8"))
             captured["path"] = payload_path
-            return {"event": "follow-push"}
+            return fixtures.trigger("follow-push")
 
         with mock.patch.object(receiver.process, "github", side_effect=fake):
             result = self.invoke()
@@ -145,6 +146,13 @@ class Receiver(unittest.TestCase):
         self.assertIn("fixture-delivery", self.log.getvalue())
         self.assertNotIn("fixture-dispatch-token", self.log.getvalue())
         self.assertNotIn("private upstream detail", json.dumps(result))
+
+    def test_malformed_trigger_envelope_is_unverified(self):
+        bad = json.dumps(fixtures.envelope(fixtures.trigger("follow-push"), outcome="refused", status=422)).encode()
+        with mock.patch.object(receiver.process.subprocess, "check_output", return_value=bad):
+            result = self.invoke()
+        self.assertEqual(result["state"], "unverified")
+        self.assertEqual(self.status.call_args.args[0], "503 Service Unavailable")
 
     def test_body_read_is_inside_the_wall_clock_budget(self):
         self.environ["wsgi.input"] = mock.Mock(read=mock.Mock(side_effect=lambda length: time.sleep(0.5)))

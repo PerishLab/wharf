@@ -8,6 +8,7 @@ from unittest import mock
 
 from lib.identity.bind import producer
 from lib.process.promotion import control, operation, reader, subject
+from tests.lib import process as fixtures
 from tests.scripts.test_distribution.binary_world import World as Binary
 
 
@@ -20,7 +21,7 @@ class World:
         self.world.observer = dict(self.world.publisher)
         self.native = "e" * 40
         self.message = "v1.2.3\n\npromotes v1.2.3-rc.1\n"
-        self.jobs = [{"id": 30, "name": control.JOB, "run_id": 8, "run_attempt": 1, "head_sha": "a" * 40, "head_branch": "main", "status": "in_progress", "conclusion": None, "started_at": self.world.started}]
+        self.jobs = [fixtures.job(control.JOB, 8, 30, started_at=self.world.started)]
         self.temporary = tempfile.TemporaryDirectory()
         self.held = dict(self.world.held, observer=json.dumps(self.world.observer), planned="1", source=str(Path(self.temporary.name) / "promotion"))
         self.passed = {"source": self.reference.source, "declaration": {"manifest": "d" * 64}, "products": [{"name": "demo", "version": "v1.2.3-rc.1", "commit": "b" * 40, "archive": self.reference.archive["sha256"], "seal": self.reference.seal_ref["sha256"]}]}
@@ -35,19 +36,13 @@ class World:
 
     def api(self, path):
         if "/jobs?" in path:
-            return {"total_count": len(self.jobs), "jobs": copy.deepcopy(self.jobs)}
-        answer = self.world.api(path)
-        if not path:
-            answer["id"] = 1374358737
-        else:
-            for name in ("repository", "head_repository"):
-                answer[name]["id"] = 1374358737
-        return answer
+            return fixtures.jobs(copy.deepcopy(self.jobs))
+        return self.world.api(path)
 
     def tag(self, path):
         if "/git/ref/tags/" in path:
-            return {"ref": "refs/tags/v1.2.3", "object": {"type": "tag", "sha": self.native}}
-        return {"sha": self.native, "tag": "v1.2.3", "message": self.message, "object": {"type": "commit", "sha": self.world.source["commit"], "url": "https://api.github.com/repos/PerishLab/demo/git/commits/" + self.world.source["commit"]}}
+            return fixtures.ref("tag", "v1.2.3", self.native, repo="PerishLab/demo")
+        return fixtures.annotation("v1.2.3", self.native, self.world.source["commit"], repo="PerishLab/demo", message=self.message)
 
     @contextlib.contextmanager
     def wired(self):
