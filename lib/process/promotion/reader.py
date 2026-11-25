@@ -1,5 +1,6 @@
 import json
 import os
+import re
 import signal
 import subprocess
 import sys
@@ -11,6 +12,8 @@ from lib.media import release
 
 AUTHORITY = "https://releases.plumb.perish.uk"
 LIMIT = 4194304
+SHAPES = (frozenset({"producer"}), frozenset({"producer", "depot"}))
+DEPOT = re.compile(r"[0-9a-f]{64}")
 
 
 def capture(arguments, budget=180):
@@ -47,6 +50,12 @@ def execute(arguments, budget, observe=False):
             child.wait()
 
 
+def authority_checked(held, reason):
+    require(isinstance(held, dict) and frozenset(held) in SHAPES and all(isinstance(value, str) for value in held.values()), reason)
+    require("depot" not in held or DEPOT.fullmatch(held["depot"]) is not None, reason)
+    return held
+
+
 def identity():
     pointer = json.loads(release.fetch(AUTHORITY + "/v1/channels/stable.json"))
     require(pointer.get("product") == "plumb" and pointer.get("channel") == "stable", "qualification reader stable identity differs")
@@ -56,9 +65,16 @@ def identity():
     require(entry(body) == {name: ref[name] for name in ("size", "sha256")}, "qualification reader seal bytes differ")
     seal = json.loads(body)
     require(all(seal[name] == pointer[name] for name in ("product", "channel", "releaseVersion", "commit")), "qualification reader pointer and seal disagree")
+    guard = authority_checked(seal.get("guard"), "qualification reader seal guard differs")
     status, actual = capture(["release", "authority", "--json"])
-    require(status == 0 and actual == seal["guard"] and actual["producer"] == f"{pointer['releaseVersion']}@{pointer['commit']}", "qualification reader is not current formal stable")
-    return actual
+    require(status == 0, "qualification reader is not current formal stable")
+    authority_checked(actual, "qualification reader is not current formal stable")
+    expected = f"{pointer['releaseVersion']}@{pointer['commit']}"
+    require(actual["producer"] == guard["producer"] == expected, "qualification reader is not current formal stable")
+    if "depot" in guard:
+        require(actual.get("depot") == guard["depot"], "qualification reader is not current formal stable")
+        return {"producer": actual["producer"], "depot": actual["depot"]}
+    return {"producer": actual["producer"]}
 
 
 def check(repository, reference):

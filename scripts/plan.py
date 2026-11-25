@@ -4,7 +4,7 @@ from pathlib import Path
 
 from lib import parameters
 from lib.cargo import basis, manifest, toolchain
-from lib.content import declaration, executables, implementation, marker, resources
+from lib.content import canonical, declaration, executables, implementation, marker, resources
 from lib.package.debian import package
 from lib.package.debian.version import debian
 from lib.media import cfworker, node, npm, release
@@ -160,12 +160,13 @@ def present(entries):
     return dict(held, cfworker="present" if "cfworker" in entries else "none")
 
 
-def emit(entries, attempt, verified=None):
+def emit(entries, attempt, verified=None, pinned=None):
     answered = {name: entries[name]["decision"] if name in entries else "skip" for name in SINGLE}
     answered.update({name: json.dumps(found, separators=(",", ":")) for name, found in units(entries).items()})
     answered["presence"] = json.dumps(present(entries), separators=(",", ":"), sort_keys=True)
     answered["planned"] = attempt
     answered["signer"] = "rcodesign" if "bind-macos" in entries else ""
+    answered["configuration"] = "null" if pinned is None else canonical.encode(pinned).decode()
     if verified is not None:
         answered["snapshot"] = json.dumps(verified, separators=(",", ":"), sort_keys=True)
     parameters.answer(answered)
@@ -209,14 +210,14 @@ def record(held):
         preflight.planning(held, identity)
         if bucket.exists(plan.publication(held)):
             raise Refusal("preparation has an existing publication reservation")
-    recalled, offers = {}, {}
+    recalled, offers, captured = {}, {}, {}
     expected = plan.reserved(bucket, held, recalled)
     completed = None if preparing else completion.prepare(held, bucket, expected)
     if completed is not None:
         context, entries = completed
         recorded = completion.recorded(bucket, context, entries)
         return dict(recorded, storage=storage(bucket), decided=emit(entries, held["attempt"], context["snapshot"]), entry={name: entry["decision"] for name, entry in entries.items()})
-    request = snapshot.Request(Path(held["source"]), identity, toolchain.versions(), expected, destination=snapshot.destination(held["source"]), recall=lambda observed: plan.recall(bucket, observed, recalled), pull=lambda: pulled(identity, offers))
+    request = snapshot.Request(Path(held["source"]), identity, toolchain.versions(), expected, destination=snapshot.destination(held["source"]), recall=lambda observed: plan.recall(bucket, observed, recalled), pull=lambda: pulled(identity, offers), captured=captured)
     with snapshot.prepared(request) as (root, verified, confirm):
         plan.matching(bucket, held, verified)
         suite = trial.capture(root, identity)
@@ -237,7 +238,8 @@ def record(held):
             plan.legacy(bucket, held, entries, observed)
         engines = node.expected(root) if node.carried(root) else {}
         taken = attributed(offers, verified["guard"])
-        context = dict({field: held[field] for field in CONTEXT}, snapshot=verified, **({"recalled": recalled} if recalled else {}), **({"pulled": taken} if taken is not None else {}))
+        pinned = captured.get("configuration")
+        context = dict({field: held[field] for field in CONTEXT}, snapshot=verified, **({"configuration": pinned} if pinned is not None else {}), **({"recalled": recalled} if recalled else {}), **({"pulled": taken} if taken is not None else {}))
         if "binary-arm64" in entries or identity["repository"] in ("PerishLab/plumb", "PerishLab/concord"):
             context["material"] = material.capture(root, verified)
         if suite is not None:
@@ -253,7 +255,7 @@ def record(held):
         recorded = plan.record(bucket, context, entries, engines)
         parameters.answer({"plan-reference": json.dumps(plan.reference(plan.read(bucket, context)), sort_keys=True, separators=(",", ":"))})
         remembered = False if recalled else plan.remember(bucket, context)
-        return dict(recorded, storage=storage(bucket), recalled=recalled or None, pulled=taken, remembered=remembered, decided=emit(entries, held["attempt"], verified), entry={name: entries[name]["decision"] for name in sorted(entries)})
+        return dict(recorded, storage=storage(bucket), recalled=recalled or None, pulled=taken, remembered=remembered, decided=emit(entries, held["attempt"], verified, pinned), entry={name: entries[name]["decision"] for name in sorted(entries)})
 
 
 def named(held):

@@ -10,7 +10,7 @@ from lib.process import run
 from lib.refusal import Refusal
 
 GUARD = resources.read_json("releases.json")["guard"]
-FIELDS = {"producer", "depot"}
+SHAPES = (frozenset({"producer"}), frozenset({"producer", "depot"}))
 DEPOT = re.compile(r"[0-9a-f]{64}")
 
 
@@ -46,13 +46,16 @@ def asked(artifact, runner):
 
 
 def checked(release, held):
-    if not isinstance(held, dict) or set(held) != FIELDS or not all(isinstance(value, str) for value in held.values()):
-        raise Refusal(f"a guard authority holds exactly {', '.join(sorted(FIELDS))} as strings, not {held!r}")
+    if not isinstance(held, dict) or frozenset(held) not in SHAPES or not all(isinstance(value, str) for value in held.values()):
+        raise Refusal(f"a guard authority holds producer and optionally depot as strings, not {held!r}")
     version, _, commit = held["producer"].partition("@")
     if not marker.holds(version) or version != release.marker:
         raise Refusal(f"the bound binary reports producer version {version!r}, this release is {release.marker}")
     if not commit or commit != release.commit:
         raise Refusal(f"the bound binary reports producer commit {commit!r}, this release is {release.commit}")
-    if not DEPOT.fullmatch(held["depot"]):
-        raise Refusal(f"the bound binary reports depot {held['depot']!r}, not 64 lowercase hex")
-    return {"producer": held["producer"], "depot": held["depot"]}
+    result = {"producer": held["producer"]}
+    if "depot" in held:
+        if not DEPOT.fullmatch(held["depot"]):
+            raise Refusal(f"the bound binary reports depot {held['depot']!r}, not 64 lowercase hex")
+        result["depot"] = held["depot"]
+    return result

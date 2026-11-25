@@ -81,6 +81,13 @@ class Workflow(unittest.TestCase):
             condition = next(line for line in document[name].splitlines() if line.startswith('    if:'))
             self.assertIn('always() && !cancelled()', condition)
 
+    def test_plan_exposes_configuration_and_passes_it_to_all_downstream_build_and_publish_jobs(self):
+        document = jobs()
+        self.assertIn('configuration: ${{ steps.plan.outputs.configuration }}', document['plan'])
+        for name in ['layer-1', 'layer-2', 'layer-3', 'layer-4', 'npm', 'oci', 'chart', 'release', 'cfworker', 'cargo']:
+            with self.subTest(job=name):
+                self.assertIn('WHARF_CONFIGURATION: ${{ needs.plan.outputs.configuration }}', document[name])
+
 
 class Artifacts(unittest.TestCase):
     def test_independent_copies_have_bounded_best_effort_uploads(self):

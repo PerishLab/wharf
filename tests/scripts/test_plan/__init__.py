@@ -69,11 +69,11 @@ class Answered(unittest.TestCase):
         "cfworker": {"key": "d" * 64, "decision": "skip"},
     }
 
-    def answered(self, entries):
+    def answered(self, entries, pinned=None):
         path = Path(tempfile.mkdtemp()) / "output"
         path.write_text("")
         with mock.patch.dict(os.environ, {parameters.OUTPUT: str(path)}):
-            named = plan.emit(entries, "3")
+            named = plan.emit(entries, "3", pinned=pinned)
         return named, path.read_text()
 
     def test_the_layers_and_single_jobs_are_written_where_the_runner_reads_them(self):
@@ -81,8 +81,14 @@ class Answered(unittest.TestCase):
         self.assertEqual([unit["name"] for unit in json.loads(named["layer-1"])], ["[build] binary linux", "[test] suite linux"])
         self.assertEqual(named["cfworker"], "skip")
         self.assertIn("planned=3", written)
+        self.assertEqual(named["configuration"], "null")
+        self.assertIn("configuration=null", written)
         self.assertEqual([line.split("=")[0] for line in written.splitlines() if line.startswith("layer-")], ["layer-1", "layer-2", "layer-3", "layer-4"])
-        self.assertEqual(len(written.splitlines()), len(plan.SINGLE) + plan.UNITS["layers"] + 3)
+        self.assertEqual(len(written.splitlines()), len(plan.SINGLE) + plan.UNITS["layers"] + 4)
+        pinned = {"channel": "stable", "version": "v0.90.0", "generation": "a" * 64, "manifest": {"url": "https://depot.plumb.perish.uk/m", "sha256": "b" * 64, "size": 10}}
+        decoupled, text = self.answered(self.ENTRIES, pinned)
+        self.assertEqual(decoupled["configuration"], json.dumps(pinned, separators=(",", ":"), sort_keys=True))
+        self.assertIn("configuration=" + decoupled["configuration"], text)
 
     def test_a_product_with_no_worker_plans_nothing_for_it(self):
         named, _ = self.answered({"suite-linux": {"key": "a" * 64, "decision": "run"}})

@@ -131,3 +131,23 @@ class World(unittest.TestCase):
                 world.source(held)
                 with self.assertRaises(Refusal):
                     world.produce(held)
+
+    def test_decoupled_reader_matches_world_authority_by_producer_while_legacy_checks_depot(self):
+        self.fixture()
+        producer = self.authority["producer"]
+        self.authority = {"producer": producer}
+        with tempfile.TemporaryDirectory() as directory, self.patches():
+            held = self.held(directory)
+            world.source(held)
+            result = world.produce(held)
+            self.assertEqual(result["reader"], {"producer": producer})
+        self.fixture()
+        self.world["controls"]["authority"] = {"producer": self.authority["producer"], "depot": "0" * 64}
+        with tempfile.TemporaryDirectory() as directory, self.patches():
+            held = self.held(directory)
+            world.source(held)
+            with self.assertRaises(Refusal):
+                world.produce(held)
+        self.assertFalse(world.authority_matches({"producer": producer, "depot": "1" * 64}, {"producer": producer, "extra": "x"}))
+        self.assertFalse(world.authority_matches({"producer": producer, "depot": "1" * 64, "extra": "x"}, {"producer": producer}))
+        self.assertFalse(world.authority_matches({"producer": producer, "depot": 123}, {"producer": producer}))
