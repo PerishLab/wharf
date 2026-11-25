@@ -1,7 +1,6 @@
 import hashlib
 import json
 import urllib.error
-import urllib.request
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -9,6 +8,7 @@ from lib.content import canonical, declaration, fill, implementation, marker, re
 from lib.media import archive
 from lib.package.openwrt import feed
 from lib.media.release.managers import lead
+from lib.media.release.transport import fetch
 from lib.refusal import Conflict, Refusal
 
 LAYOUT = resources.read_json("releases.json")
@@ -216,11 +216,6 @@ def advance(bucket, key, body, held):
             return {"pointer": key, "state": "kept", "current": current}
     bucket.swap(key, body, etag)
     return {"pointer": key, "state": "advanced"}
-
-
-def fetch(url):
-    with urllib.request.urlopen(urllib.request.Request(url, headers={"User-Agent": "wharf"}), timeout=30) as response:
-        return response.read()
 
 
 def read(url, reader):
