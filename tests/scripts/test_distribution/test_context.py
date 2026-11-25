@@ -9,22 +9,24 @@ from unittest import mock
 
 from lib.process.trial import admission, context, declaration
 from lib.refusal import Refusal
+from tests.lib import process as fixtures
 from tests.scripts.test_distribution import publisher
 from tests.scripts.test_distribution.world import OBSERVER, producer
 
 
 class Native(unittest.TestCase):
     def test_repository_endpoint_has_no_trailing_slash(self):
-        with mock.patch.object(context, "github", return_value={"id": 1}) as request:
-            self.assertEqual(context.api(""), {"id": 1})
+        expected = fixtures.repository()
+        with mock.patch.object(context, "github", return_value=expected) as request:
+            self.assertEqual(context.api(""), expected)
         self.assertEqual(request.call_args.args[0], ["repository", "PerishLab", "wharf"])
 
     def inventory(self):
-        return {"total_count": 1, "jobs": [{"id": 30, "run_id": 20, "run_attempt": 1, "head_sha": "a" * 40, "head_branch": "main", "name": context.NAMES["windtun"], "status": "in_progress", "conclusion": None}]}
+        return fixtures.jobs([fixtures.job(context.NAMES["windtun"], 20, 30)])
 
     def test_active_main_native_attempt_is_required(self):
-        repository = {"id": 1, "full_name": "PerishLab/wharf", "default_branch": "main"}
-        run = dict(publisher(), id=20, repository=repository, head_repository=repository, status="in_progress", conclusion=None)
+        repository = fixtures.repository()
+        run = dict(publisher(), id=20, status="in_progress", conclusion=None)
 
         def api(path):
             if path == "":
@@ -33,7 +35,7 @@ class Native(unittest.TestCase):
 
         with mock.patch.object(context, "api", side_effect=api), mock.patch.dict(os.environ, {"GITHUB_JOB": "windtun"}):
             self.assertEqual(context.observe(json.dumps(OBSERVER), "windtun")[0], OBSERVER)
-            for change in ({"head_branch": "topic"}, {"event": "pull_request"}, {"path": "other.yml"}, {"run_attempt": 2}, {"status": "completed"}, {"head_repository": dict(repository, id=2)}):
+            for change in ({"head_branch": "topic"}, {"event": "pull_request"}, {"path": "other.yml"}, {"run_attempt": 2}, {"status": "completed"}, {"head_repository": fixtures.origin(identity=2)}):
                 with self.subTest(change=change), mock.patch.object(context, "api", side_effect=lambda path: repository if path == "" else dict(run, **change)), self.assertRaises(Refusal):
                     context.observe(OBSERVER, "windtun")
         with mock.patch.dict(os.environ, {"GITHUB_JOB": "other"}), self.assertRaises(Refusal):

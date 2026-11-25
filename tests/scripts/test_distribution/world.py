@@ -7,6 +7,7 @@ from lib.content import canonical
 from lib.media import release
 from lib.process.trial import admission, context, credential, preparation, publication, transport
 from lib.refusal import Refusal
+from tests.lib import process as fixtures
 from tests.lib.store.memory import Memory
 from tests.scripts.test_distribution import publisher, report
 
@@ -107,7 +108,12 @@ class World:
         self.documents[f"{authority}/v1/channels/stable.json"] = canonical.encode(pointer)
         distribution = dict(source, schema=1, state="complete", media={key: "published" if key in ("binaries", "channel") else "unrequested" for key in ("binaries", "cargo", "oci", "npm", "chart", "cfworker", "channel")}, attempt=OBSERVER, completed=OBSERVER, resolution={}, trial=None)
         self.documents[f"{authority}/v1/releases/stable/{source['marker']}/distribution.json"] = canonical.encode(distribution)
-        self.native = {"repos/PerishLab/locus": {"full_name": source["repository"], "visibility": "public", "archived": False, "disabled": False, "owner": {"id": 330236468, "node_id": "O_kgDOE68CNA", "login": "PerishLab"}, "id": 42, "node_id": "R_locus", "default_branch": "main"}, f"repos/PerishLab/locus/git/ref/tags/{source['marker']}": {"ref": "refs/tags/" + source["marker"], "object": {"type": "tag", "sha": "9" * 40}}, "repos/PerishLab/locus/git/tags/" + "9" * 40: {"sha": "9" * 40, "tag": source["marker"], "object": {"type": "commit", "sha": source["commit"]}}, "repos/PerishLab/locus/git/commits/" + source["commit"]: {"sha": source["commit"], "tree": {"sha": source["tree"]}}}
+        self.native = {
+            "repos/PerishLab/locus": fixtures.repository("PerishLab/locus", 42, node_id="R_locus"),
+            f"repos/PerishLab/locus/git/ref/tags/{source['marker']}": fixtures.ref("tag", source["marker"], "9" * 40, repo="PerishLab/locus"),
+            "repos/PerishLab/locus/git/tags/" + "9" * 40: fixtures.annotation(source["marker"], "9" * 40, source["commit"], repo="PerishLab/locus"),
+            "repos/PerishLab/locus/git/commits/" + source["commit"]: fixtures.commit(source["commit"], source["tree"], "PerishLab/locus"),
+        }
         self.peer = {"name": name, "channel": "stable", "version": source["marker"], "commit": source["commit"], "seal": pointer["seal"]["sha256"], "archive": digest, "placement": placement}
         self.documents[f"{AUTHORITY}/v1/releases/rc/{self.source['marker']}/distribution.json"] = canonical.encode(self.distribution)
         with self.combined():
@@ -136,4 +142,4 @@ class World:
 
 
 def producer():
-    return {"status": "completed", "conclusion": "success", "steps": [{"name": name, "status": "completed", "conclusion": "success"} for name in credential.STEPS]}
+    return fixtures.job(context.NAMES["windtun"], 20, 31, status="completed", steps=[fixtures.step(name, index + 1) for index, name in enumerate(credential.STEPS)])

@@ -10,16 +10,16 @@ from lib.check import source
 from lib.content import canonical
 from lib.process.trial import context, policy
 from lib.refusal import Refusal
+from tests.lib import process as fixtures
 
 
 def world(commit="1" * 40, requirements=None):
     raw = canonical.encode(requirements or policy.expected())
-    blob = hashlib.sha1(b"blob " + str(len(raw)).encode() + b"\0" + raw).hexdigest()
     return {
-        "": dict(policy.IDENTITY, owner=dict(policy.OWNER)),
-        "branches/main": {"name": "main", "protected": True, "commit": {"sha": commit}},
-        "git/commits/" + commit: {"sha": commit, "tree": {"sha": "2" * 40}},
-        policy.CONTENTS + "?ref=" + commit: {"commit": commit, "path": policy.CONTENTS.removeprefix("contents/"), "size": len(raw), "sha": blob, "base64": base64.encodebytes(raw).decode()},
+        "": fixtures.repository(),
+        "branches/main": fixtures.branch("main", commit),
+        "git/commits/" + commit: fixtures.commit(commit, "2" * 40),
+        policy.CONTENTS + "?ref=" + commit: fixtures.contents(policy.CONTENTS.removeprefix("contents/"), raw, commit),
     }
 
 
@@ -120,6 +120,15 @@ class Requirements(unittest.TestCase):
                 policy.current()
 
     def test_provider_hostname_and_repository_are_fixed(self):
-        with mock.patch.object(policy, "github", return_value={}) as call:
-            self.assertEqual(policy.api("branches/main"), {})
+        with mock.patch.object(policy, "github", return_value=fixtures.branch()) as call:
+            self.assertEqual(policy.api("branches/main"), fixtures.branch())
         self.assertEqual(call.call_args.args[0], ["branch", "PerishLab", "wharf", "main"])
+
+    def test_missing_contract_fields_refuse(self):
+        content_path = policy.CONTENTS + "?ref=" + "1" * 40
+        for path, field in (("", "owner"), ("branches/main", "protected"), ("git/commits/" + "1" * 40, "tree"), (content_path, "base64"), (content_path, "commit")):
+            with self.subTest(path=path, field=field):
+                values = world()
+                values[path].pop(field)
+                with mock.patch.object(policy, "api", side_effect=lambda item: values[item]), self.assertRaises(Refusal):
+                    policy.current()

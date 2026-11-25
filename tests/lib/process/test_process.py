@@ -8,6 +8,7 @@ from unittest import mock
 
 from lib import process
 from lib.refusal import Refusal
+from tests.lib import process as fixtures
 from tests.lib.cargo.test_basis import Repository as Workspace
 from tests.lib.media.repository import Repository
 
@@ -81,30 +82,61 @@ class Github(unittest.TestCase):
 
     def test_github_passes_token_on_stdin_with_explicit_timeout(self):
         seen = {}
+        expected = fixtures.repository()
 
         def fake(argv, input=None, stderr=None, timeout=None):
             seen["argv"] = argv
             seen["input"] = input
             seen["stderr"] = stderr
             seen["timeout"] = timeout
-            return json.dumps({"version": 1, "github": {"outcome": "observed", "value": {"id": 1}}}).encode()
+            return json.dumps(fixtures.envelope(expected)).encode()
 
         with mock.patch.dict(os.environ, {"GH_TOKEN": "ghs_secret"}, clear=True), mock.patch.object(process.subprocess, "check_output", side_effect=fake):
-            self.assertEqual(process.github(["repository", "PerishLab", "wharf"], timeout=15), {"id": 1})
+            self.assertEqual(process.github(["repository", "PerishLab", "wharf"], timeout=15), expected)
         self.assertEqual(seen["argv"], ["runseal", ":", "@github", "--token-stdin", "--timeout", "15", "--json", "repository", "PerishLab", "wharf"])
         self.assertEqual(seen["input"], b"ghs_secret")
         self.assertEqual(seen["stderr"], subprocess.PIPE)
         self.assertEqual(seen["timeout"], 15)
 
-        accepted = json.dumps({"version": 1, "github": {"outcome": "accepted", "value": {"event": "follow-push"}}}).encode()
+        dispatched = fixtures.trigger("follow-push")
+        accepted = json.dumps(fixtures.envelope(dispatched, outcome="accepted", status=204)).encode()
         with mock.patch.dict(os.environ, {}, clear=True), mock.patch.object(process.subprocess, "check_output", return_value=accepted) as called:
-            self.assertEqual(process.github(["trigger", "PerishLab", "wharf", "--event", "follow-push"], timeout=5, token="explicit"), {"event": "follow-push"})
+            self.assertEqual(process.github(["trigger", "PerishLab", "wharf", "--event", "follow-push"], timeout=5, token="explicit"), dispatched)
         self.assertEqual(called.call_args.kwargs["input"], b"explicit")
+
+    def test_github_contract_fixtures_cover_every_projected_receipt_shape(self):
+        cases = (
+            ("repository", fixtures.envelope(fixtures.repository()), {"id", "node_id", "full_name", "private", "owner", "visibility", "archived", "disabled", "default_branch"}),
+            ("branch", fixtures.envelope(fixtures.branch()), {"name", "protected", "commit"}),
+            ("ref", fixtures.envelope(fixtures.ref()), {"ref", "url", "object"}),
+            ("annotation", fixtures.envelope(fixtures.annotation()), {"sha", "tag", "url", "message", "object"}),
+            ("commit", fixtures.envelope(fixtures.commit()), {"sha", "tree", "parents", "url"}),
+            ("contents", fixtures.envelope(fixtures.contents()), {"path", "commit", "sha", "size", "base64"}),
+            ("artifacts", fixtures.envelope(fixtures.artifacts([fixtures.artifact()])), {"total_count", "artifacts"}),
+            ("download", fixtures.envelope(fixtures.download()), {"id", "size", "digest"}),
+            ("trigger", fixtures.envelope(fixtures.trigger(), outcome="accepted", status=204), {"event"}),
+            ("workflow", fixtures.envelope(fixtures.workflow()), {"id", "workflow_id", "run_attempt", "head_sha", "head_branch", "html_url", "event", "display_title", "actor", "triggering_actor", "path", "status", "conclusion", "repository", "head_repository"}),
+            ("jobs", fixtures.envelope(fixtures.jobs([fixtures.job("check", steps=[fixtures.step("run")])])), {"total_count", "jobs"}),
+            ("ancestry", fixtures.envelope(fixtures.ancestry()), {"url", "base_commit", "merge_base_commit", "status"}),
+        )
+        for name, reply, keys in cases:
+            with self.subTest(name=name), mock.patch.dict(os.environ, {"GITHUB_TOKEN": "t"}, clear=True), mock.patch.object(process.subprocess, "check_output", return_value=json.dumps(reply).encode()):
+                value = process.github([name, "PerishLab", "wharf"])
+            self.assertEqual(set(value), keys)
+        self.assertNotIn("type", fixtures.contents())
+        self.assertNotIn("started_at", fixtures.step("run"))
 
     def test_github_refuses_missing_token_oversized_or_malformed_envelopes(self):
         with mock.patch.dict(os.environ, {}, clear=True), self.assertRaises(Refusal):
             process.github(["repository", "PerishLab", "wharf"])
-        for payload in (b"{}", b'{"version":2,"github":{"outcome":"observed","value":{}}}', b'{"version":1,"github":{"outcome":"refused","value":{}}}'):
+        malformed = (
+            b"{}",
+            json.dumps(dict(fixtures.envelope(fixtures.repository()), version=2)).encode(),
+            json.dumps(fixtures.envelope(fixtures.repository(), outcome="refused")).encode(),
+            json.dumps(fixtures.error("refused", "http", 404)).encode(),
+            b'{"version":1,"github":{"outcome":"observed"}}',
+        )
+        for payload in malformed:
             with self.subTest(payload=payload), mock.patch.dict(os.environ, {"GITHUB_TOKEN": "t"}, clear=True), mock.patch.object(process.subprocess, "check_output", return_value=payload), self.assertRaises(ValueError):
                 process.github(["repository", "PerishLab", "wharf"])
         with mock.patch.dict(os.environ, {"GITHUB_TOKEN": "t"}, clear=True), mock.patch.object(process.subprocess, "check_output", return_value=b"x" * 10), self.assertRaises(Refusal):

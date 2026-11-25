@@ -11,6 +11,7 @@ from lib.content import canonical
 from scripts import distribution
 from lib.process.trial import admission, consumer, judgment, declaration
 from lib.refusal import Refusal
+from tests.lib import process as fixtures
 from tests.lib.store.memory import Memory
 
 HELD = {"repository": "PerishLab/plumb", "marker": "v0.42.0", "commit": "a" * 40, "tree": "b" * 40, "wharf": "c" * 40, "run": "7", "attempt": "1", "needs": json.dumps({"plan": {"result": "success"}})}
@@ -47,7 +48,7 @@ class Record(unittest.TestCase):
 
 
 def publisher():
-    return {"id": 7, "run_attempt": 1, "repository": {"full_name": "PerishLab/wharf"}, "head_repository": {"full_name": "PerishLab/wharf"}, "event": "workflow_dispatch", "path": ".github/workflows/ship.yml", "head_branch": "main", "head_sha": "a" * 40, "status": "completed", "display_title": "[ship] PerishLab/plumb v1.2.3-rc.1"}
+    return fixtures.workflow(7, "a" * 40, "completed")
 
 
 def report():

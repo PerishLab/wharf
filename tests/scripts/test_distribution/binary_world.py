@@ -11,6 +11,7 @@ from lib.identity.bind import control, producer
 from lib.identity.bind.spec import BIND, CARGO, TARGET, entry, sha
 from lib.media import archive, release
 from lib.store import plan, workload
+from tests.lib import process as fixtures
 from tests.lib.identity.test_bind import executable, region
 from tests.scripts.test_distribution.world import Bucket
 
@@ -85,13 +86,13 @@ class World:
         return self.documents[url]
 
     def api(self, path):
-        repository = {"id": 1, "full_name": "PerishLab/wharf", "default_branch": "main"}
         if not path:
-            return repository
+            return fixtures.repository()
         run = path.split("/")[2]
         if "/jobs?" in path:
-            return {"total_count": 1, "jobs": [{"id": 30, "name": control.ROLES[self.role], "run_id": int(run), "run_attempt": 1, "head_sha": "a" * 40, "head_branch": "main", "status": "in_progress", "conclusion": None, "started_at": self.started}]}
-        return {"id": int(run), "run_attempt": 1, "head_sha": "a" * 40, "repository": repository, "head_repository": repository, "path": ".github/workflows/ship.yml", "event": "workflow_dispatch", "head_branch": "main", "status": "in_progress" if run == self.observer["run"] else "completed", "conclusion": None if run == self.observer["run"] else "success"}
+            return fixtures.jobs([fixtures.job(control.ROLES[self.role], int(run), 30, started_at=self.started)])
+        status = "in_progress" if run == self.observer["run"] else "completed"
+        return fixtures.workflow(int(run), "a" * 40, status)
 
     @contextlib.contextmanager
     def wired(self):
