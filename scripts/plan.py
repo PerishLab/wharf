@@ -41,8 +41,9 @@ def declared(source, product):
         raise Refusal(f"a released binary is validated on {PRIMARY['target']}, which plumb.toml does not declare")
     listed = executables.declared(source, union)
     primary = executables.primary(listed, product)
-    for name in (primary, *(executables.placed(source, kind, listed, product) for kind in ("deb", "oci"))):
-        if name is not None and name not in executables.built(listed, PRIMARY["target"]):
+    checked = [primary] + executables.placed_names(source, "deb", listed, product) + executables.placed_names(source, "oci", listed, product)
+    for name in checked:
+        if name not in executables.built(listed, PRIMARY["target"]):
             raise Refusal(f"{name} is validated or placed on {PRIMARY['target']}, which its targets leave out")
     return listed
 

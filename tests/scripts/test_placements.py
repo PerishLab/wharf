@@ -87,3 +87,31 @@ class Placed(unittest.TestCase):
     def test_an_image_naming_an_undeclared_executable_refuses(self):
         with self.assertRaisesRegex(Refusal, "santi-worker"):
             self.entries(self.SANTI + '[release.oci]\nbinary = "santi-worker"\n')
+
+    def test_multi_component_oci_binary_missing_linux_target_refuses(self):
+        body = (
+            f'[release]\nbinaries = ["santi", "santi-api"]\ntargets = ["{LINUX}", "{DARWIN}"]\n'
+            f'[release.binary.santi-api]\ntargets = ["{DARWIN}"]\ninstall = false\n'
+            '[release.oci.components.api]\nimage = "perishlab/santi"\nbinary = "santi-api"\n'
+            '[release.oci.components.web]\nimage = "perishlab/santi-web"\nweb = "apps/web"\nfile = "deploy/web.Dockerfile"\n'
+        )
+        with self.assertRaisesRegex(Refusal, f"santi-api is validated or placed on {LINUX}"):
+            self.entries(body)
+
+    def test_multi_component_oci_undeclared_binary_refuses(self):
+        body = (
+            self.SANTI
+            + '[release.oci.components.api]\nimage = "perishlab/santi"\nbinary = "santi-ghost"\n'
+            + '[release.oci.components.web]\nimage = "perishlab/santi-web"\nweb = "apps/web"\nfile = "deploy/web.Dockerfile"\n'
+        )
+        with self.assertRaisesRegex(Refusal, "santi-ghost"):
+            self.entries(body)
+
+    def test_multi_component_oci_with_linux_binary_and_web_plans(self):
+        body = (
+            self.SANTI
+            + '[release.oci.components.api]\nimage = "perishlab/santi"\nbinary = "santi-api"\n'
+            + '[release.oci.components.web]\nimage = "perishlab/santi-web"\nweb = "apps/web"\nfile = "deploy/web.Dockerfile"\n'
+        )
+        entries = self.entries(body)
+        self.assertIn("binary-linux", entries)
