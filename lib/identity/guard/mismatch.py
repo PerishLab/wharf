@@ -1,12 +1,14 @@
 import hashlib
-import json
 import re
 
 from lib.content import resources
 from lib.content.static import evidence
+from lib.identity.guard import configuration
 from lib.refusal import Refusal
 
 HEX = re.compile(r"[0-9a-f]{40}")
+DEPOT = re.compile(r"[0-9a-f]{64}")
+SHAPES = (frozenset({"producer"}), frozenset({"producer", "depot"}))
 RELEASES = resources.read_json("releases.json")
 
 FIELDS = ("schema", "source", "head", "tree", "packages", "controls", "domain")
@@ -65,29 +67,67 @@ def object_id(value):
     return value
 
 
-def stable(controls, reader):
+def control_seal(name, version, reader):
+    authority = RELEASES["authority"].format(name=name)
+    pointer = evidence.decode(reader(f"{authority}/v1/channels/stable.json"))
+    if not isinstance(pointer, dict) or pointer.get("schema") != 1 or pointer.get("product") != name or pointer.get("channel") != "stable":
+        raise Refusal("release snapshot has no current stable control pointer")
+    if pointer.get("releaseVersion") != version.removeprefix(name + " "):
+        raise Refusal(f"latest stable {name} changed; prepare current tools and a fresh plan")
+    object_id(pointer.get("commit"))
+    location = f"{authority}/v1/releases/stable/{pointer['releaseVersion']}/seal.json"
+    sealed = pointer.get("seal", {})
+    if not isinstance(sealed, dict) or sealed.get("url") != location:
+        raise Refusal("release snapshot stable seal is not canonical")
+    body = reader(location)
+    if len(body) != sealed.get("size") or hashlib.sha256(body).hexdigest() != sealed.get("sha256"):
+        raise Refusal("release snapshot stable seal differs from its pointer")
+    seal = evidence.decode(body)
+    if not isinstance(seal, dict) or any(seal.get(field) != pointer[field] for field in ("product", "releaseVersion", "commit")):
+        raise Refusal("release snapshot stable seal identity disagrees")
+    return pointer, seal
+
+
+def seal_guard(seal, pointer):
+    held = seal.get("guard")
+    if not isinstance(held, dict) or frozenset(held) not in SHAPES or not all(isinstance(value, str) for value in held.values()):
+        raise Refusal("release snapshot Plumb seal guard is malformed")
+    if held["producer"] != f"{pointer['releaseVersion']}@{pointer['commit']}":
+        raise Refusal("release snapshot Plumb seal guard producer disagrees")
+    if "depot" in held and not DEPOT.fullmatch(held["depot"]):
+        raise Refusal("release snapshot Plumb seal guard depot is invalid")
+    return held
+
+
+def plumb_checked(seal, pointer, authority, pinned):
+    held = seal_guard(seal, pointer)
+    if not isinstance(authority, dict) or set(authority) != {"producer", "depot"} or not isinstance(authority["producer"], str) or not isinstance(authority["depot"], str) or not DEPOT.fullmatch(authority["depot"]):
+        raise Refusal("running Plumb authority is malformed")
+    if held["producer"] != authority["producer"]:
+        raise Refusal("running Plumb differs from its current stable seal authority")
+    if "depot" in held:
+        if pinned is not None:
+            raise Refusal("legacy Plumb seal cannot accept a pinned configuration")
+        if held["depot"] != authority["depot"]:
+            raise Refusal("running Plumb differs from its current stable seal authority")
+        return None
+    if pinned is None:
+        raise Refusal("decoupled Plumb seal requires a pinned configuration")
+    verified = configuration.checked(pinned)
+    if verified["generation"] != authority["depot"]:
+        raise Refusal("pinned configuration generation differs from Plumb authority")
+    return verified
+
+
+def stable(controls, reader, pinned=None):
     observed = {}
     for name in ("plumb", "ectropy"):
-        authority = RELEASES["authority"].format(name=name)
         try:
-            pointer = evidence.decode(reader(f"{authority}/v1/channels/stable.json"))
-            if not isinstance(pointer, dict) or pointer.get("schema") != 1 or pointer.get("product") != name or pointer.get("channel") != "stable":
-                raise Refusal("release snapshot has no current stable control pointer")
-            if pointer.get("releaseVersion") != controls[name].removeprefix(name + " "):
-                raise Refusal(f"latest stable {name} changed; prepare current tools and a fresh plan")
-            object_id(pointer.get("commit"))
-            location = f"{authority}/v1/releases/stable/{pointer['releaseVersion']}/seal.json"
-            sealed = pointer.get("seal", {})
-            if not isinstance(sealed, dict) or sealed.get("url") != location:
-                raise Refusal("release snapshot stable seal is not canonical")
-            body = reader(location)
-            if len(body) != sealed.get("size") or hashlib.sha256(body).hexdigest() != sealed.get("sha256"):
-                raise Refusal("release snapshot stable seal differs from its pointer")
-            seal = evidence.decode(body)
-            if not isinstance(seal, dict) or any(seal.get(field) != pointer[field] for field in ("product", "releaseVersion", "commit")):
-                raise Refusal("release snapshot stable seal identity disagrees")
-            if name == "plumb" and seal.get("guard") != controls["authority"]:
-                raise Refusal("running Plumb differs from its current stable seal authority")
+            pointer, seal = control_seal(name, controls[name], reader)
+            if name == "plumb":
+                verified = plumb_checked(seal, pointer, controls["authority"], pinned)
+                if verified is not None:
+                    configuration.verify(verified, reader)
             observed[name] = {field: pointer[field] for field in ("releaseVersion", "commit")}
         except (OSError, ValueError, KeyError, TypeError) as error:
             raise Refusal("latest stable control authority is unreadable") from error

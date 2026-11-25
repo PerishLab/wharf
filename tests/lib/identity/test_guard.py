@@ -70,10 +70,15 @@ class Reported(unittest.TestCase):
         held = guard.reported(plumb("v0.57.0-rc.1"), bound("plumb"), answering({"producer": f"v0.57.0-rc.1@{COMMIT}", "depot": DEPOT}))
         self.assertEqual(held["producer"], f"v0.57.0-rc.1@{COMMIT}")
 
+    def test_decoupled_binary_omitting_depot_is_accepted_and_emits_producer_only(self):
+        held = guard.reported(plumb(), bound("plumb"), answering({"producer": f"v0.57.0@{COMMIT}"}))
+        self.assertEqual(held, {"producer": f"v0.57.0@{COMMIT}"})
+
     def test_refuses_an_authority_that_does_not_match_the_release(self):
         cases = {
-            "exactly": {"producer": f"v0.57.0@{COMMIT}", "depot": DEPOT, "extra": "x"},
-            "as strings": {"producer": f"v0.57.0@{COMMIT}"},
+            "optionally depot": {"producer": f"v0.57.0@{COMMIT}", "depot": DEPOT, "extra": "x"},
+            "as strings": {"producer": 123},
+            "producer and optionally": {"depot": DEPOT},
             "producer version": {"producer": f"v0.56.9@{COMMIT}", "depot": DEPOT},
             "producer commit": {"producer": f"v0.57.0@{'c' * 40}", "depot": DEPOT},
             "producer commit ''": {"producer": "v0.57.0", "depot": DEPOT},

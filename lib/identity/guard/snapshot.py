@@ -1,6 +1,5 @@
 import json
 import os
-import re
 import hashlib
 import shutil
 import tempfile
@@ -9,9 +8,9 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from lib.cargo import toolchain
-from lib.content import resources
+from lib.content import canonical, resources
 from lib.content.static import evidence
-from lib.identity.guard import mismatch, replay
+from lib.identity.guard import configuration, mismatch, replay
 from lib.identity.guard.mismatch import object_id
 from lib.media import release
 from lib.refusal import Refusal
@@ -29,6 +28,8 @@ class Request:
     destination: object = None
     recall: object = None
     pull: object = None
+    configuration: object = None
+    captured: object = None
 
 
 def environment(home, domain):
@@ -88,7 +89,45 @@ def system(held):
         held["env"]["PATH"] = os.pathsep.join(dict.fromkeys(held["env"]["PATH"].split(os.pathsep) + ["/usr/sbin", "/sbin"]))
 
 
-def controls(held):
+def running_authority(held):
+    tools = held["tools"]
+    authority = evidence.decode(execute(held, [tools["plumb"]["path"], "release", "authority", "--json"]))
+    if not isinstance(authority, dict) or frozenset(authority) not in mismatch.SHAPES or not all(isinstance(value, str) for value in authority.values()):
+        raise Refusal("release snapshot needs the exact running Plumb authority")
+    version, separator, commit = authority["producer"].partition("@")
+    if separator != "@" or version != tools["plumb"]["version"].removeprefix("plumb "):
+        raise Refusal("release snapshot Plumb version and authority disagree")
+    object_id(commit)
+    if "depot" in authority and not mismatch.DEPOT.fullmatch(authority["depot"]):
+        raise Refusal("release snapshot needs the exact running Plumb authority")
+    return authority
+
+
+def resolve_authority(held, raw, reader=None):
+    fetch = release.fetch if reader is None else reader
+    try:
+        pointer, seal = mismatch.control_seal("plumb", held["tools"]["plumb"]["version"], fetch)
+    except (OSError, ValueError, KeyError, TypeError) as error:
+        raise Refusal("latest stable control authority is unreadable") from error
+    guard = mismatch.seal_guard(seal, pointer)
+    pinned = held["request"].configuration
+    if "depot" in guard:
+        if pinned is not None:
+            raise Refusal("legacy Plumb seal cannot accept a pinned configuration")
+        if "depot" not in raw or raw["depot"] != guard["depot"] or raw["producer"] != guard["producer"]:
+            raise Refusal("running Plumb differs from its current stable seal authority")
+        return {"producer": raw["producer"], "depot": raw["depot"]}, None
+    if raw["producer"] != guard["producer"]:
+        raise Refusal("running Plumb differs from its current stable seal authority")
+    if pinned is None and held["request"].expected is not None and held["request"].captured is None:
+        raise Refusal("decoupled Plumb seal requires a pinned configuration")
+    resolved = configuration.verify(pinned, fetch) if pinned is not None else configuration.discover(fetch)
+    if "depot" in raw and raw["depot"] != resolved["generation"]:
+        raise Refusal("running Plumb depot differs from the pinned configuration generation")
+    return {"producer": raw["producer"], "depot": resolved["generation"]}, resolved
+
+
+def controls(held, reader=None):
     tools = held["tools"]
     versions = toolchain.checked(evidence.decode(execute(held, [tools["plumb"]["path"], "metadata", "--json"])))
     if versions != held["request"].domain:
@@ -96,20 +135,19 @@ def controls(held):
     for name in ("node", "pnpm"):
         if name in tools and tools[name]["version"].lstrip("v") != versions[f"{name}.version"]:
             raise Refusal(f"release snapshot requires prepared domain {name}")
-    authority = evidence.decode(execute(held, [tools["plumb"]["path"], "release", "authority", "--json"]))
-    if not isinstance(authority, dict) or set(authority) != {"producer", "depot"} or not isinstance(authority["producer"], str) or not isinstance(authority["depot"], str) or not re.fullmatch(r"[0-9a-f]{64}", authority["depot"]):
-        raise Refusal("release snapshot needs the exact running Plumb authority")
-    version, separator, commit = authority["producer"].partition("@")
-    if separator != "@" or version != tools["plumb"]["version"].removeprefix("plumb "):
-        raise Refusal("release snapshot Plumb version and authority disagree")
-    object_id(commit)
+    authority, pinned = resolve_authority(held, running_authority(held), reader)
     held["authority"] = authority
-    return dict({name: tools[name]["version"] for name in ("plumb", "ectropy")}, authority=authority, stable=stable(held))
+    held["configuration"] = pinned
+    if pinned is not None:
+        held["env"]["PLUMB_CONFIGURATION"] = canonical.encode(pinned).decode()
+        if held["request"].captured is not None:
+            held["request"].captured["configuration"] = pinned
+    return dict({name: tools[name]["version"] for name in ("plumb", "ectropy")}, authority=authority, stable=stable(held, reader))
 
 
-def stable(held, reader=release.fetch):
+def stable(held, reader=None):
     controls = {name: held["tools"][name]["version"] for name in ("plumb", "ectropy")}
-    return mismatch.stable(dict(controls, authority=held["authority"]), reader)
+    return mismatch.stable(dict(controls, authority=held["authority"]), release.fetch if reader is None else reader, held.get("configuration"))
 
 
 def resolution(held):

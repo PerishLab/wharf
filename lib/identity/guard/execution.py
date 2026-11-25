@@ -1,4 +1,5 @@
 import json
+import os
 import tempfile
 from dataclasses import replace
 from pathlib import Path
@@ -7,7 +8,7 @@ from lib import parameters
 from lib.cargo import toolchain
 from lib.cargo.version import marker
 from lib.content import implementation
-from lib.identity.guard import material, snapshot
+from lib.identity.guard import configuration, material, snapshot
 from lib.media import npm
 from lib.refusal import Refusal
 from lib.store import plan, r2, workload
@@ -16,6 +17,19 @@ BUILDING = {"apk", "apk-verify", "binary", "suite", "node-suite", "cfworker-depl
 PUBLISHING = {"npm-publish", "oci-publish", "cargo-publish", "chart-publish", "release", "cfworker-deploy"}
 CONTEXT = ("repository", "marker", "wharf", "run")
 IDENTITY = ("repository", "marker", "commit", "tree")
+
+
+def pinned_configuration(document, expected):
+    pinned = document["context"].get("configuration")
+    if pinned is not None:
+        pinned = configuration.checked(pinned)
+        authority = expected.get("controls", {}).get("authority") if isinstance(expected, dict) else None
+        if not isinstance(authority, dict) or pinned["generation"] != authority.get("depot"):
+            raise Refusal("plan pinned configuration differs from the verified snapshot authority")
+    ambient = configuration.from_env()
+    if configuration.VARIABLE in os.environ and ambient != pinned:
+        raise Refusal("environment pinned configuration differs from the verified plan")
+    return pinned
 
 
 def perform(action, handler, held):
@@ -27,8 +41,9 @@ def perform(action, handler, held):
     expected = document["context"].get("snapshot")
     if expected is None:
         raise Refusal("this build needs a verified release snapshot in its plan")
+    pinned = pinned_configuration(document, expected)
     identity = {field: document["context"][field] for field in IDENTITY}
-    request = snapshot.Request(Path(held["source"]), identity, toolchain.versions(), expected, snapshot.destination(held["source"]))
+    request = snapshot.Request(Path(held["source"]), identity, toolchain.versions(), expected, snapshot.destination(held["source"]), configuration=pinned)
     native = action == "apk-verify" or action == "binary" and held.get("target") == "aarch64-unknown-linux-musl"
     prepared = material.prepared(request, document["context"].get("material"), action == "binary") if native else snapshot.prepared(request)
     with prepared as (root, record, confirm):
@@ -43,7 +58,8 @@ def perform(action, handler, held):
 
 def admit(bucket, document, request, confirm):
     confirm()
-    with snapshot.prepared(replace(request, destination=None)) as (_, _, current):
+    pinned = pinned_configuration(document, document["context"].get("snapshot"))
+    with snapshot.prepared(replace(request, destination=None, configuration=pinned)) as (_, _, current):
         current()
         confirm()
         plan.reserve(bucket, document)

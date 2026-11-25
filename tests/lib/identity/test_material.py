@@ -8,7 +8,8 @@ from pathlib import Path
 from unittest import mock
 
 from lib.content.static import evidence
-from lib.identity.guard import execution, material, mismatch, snapshot
+from lib.identity.guard import configuration, execution, material, mismatch, snapshot
+from lib.media import depot
 from lib.process import git
 from lib.refusal import Refusal
 from tests.lib.identity.test_guard import AUTHORITY, runtime
@@ -178,3 +179,37 @@ class Material(unittest.TestCase):
         self.assertEqual(unit["target"], "aarch64-unknown-linux-musl")
         self.assertEqual(set(unit["prepare"]), {"musl", "rust", "node", "pnpm"})
         self.assertIn("snapshot", planner.unit("apk")["prepare"])
+
+    def test_decoupled_material_verifies_pinned_configuration_despite_floating_latest_movement(self):
+        entry = {"path": "policy.toml", "sha256": depot.sha(b"level = 1\n"), "size": 10, "mediaType": "application/toml", "executable": False}
+        manifest = depot.manifest(depot.identity(depot.Release("PerishLab/plumb", "v0.87.0", "2" * 40, "4" * 40), "stable", "configuration"), [entry])
+        pointer = depot.pointer(manifest, configuration.BASE, None, "2026-11-25T00:00:00Z")
+        pinned = {"channel": "stable", "version": "v0.87.0", "generation": pointer["generation"], "manifest": pointer["manifest"]}
+        controls = copy.deepcopy(self.controls)
+        controls["authority"] = {"producer": AUTHORITY["producer"], "depot": pinned["generation"]}
+        expected = copy.deepcopy(self.expected)
+        expected["controls"] = controls
+        expected["guard"]["guard"]["depot"] = pinned["generation"]
+        payload = material.capture(self.repository.root, expected)
+        request = snapshot.Request(self.request.source, self.request.identity, DOMAIN, expected, self.request.destination, configuration=pinned)
+        self.assertEqual(material.qualify(request, payload), expected)
+        wrong = dict(pinned, generation="9" * 64, manifest=dict(pinned["manifest"], url=f"{configuration.BASE}/channels/stable/configurations/versions/v0.87.0/generations/{'9' * 64}/manifest.json"))
+        self.assertRaisesRegex(Refusal, "pinned configuration", material.qualify, snapshot.Request(self.request.source, self.request.identity, DOMAIN, expected, configuration=wrong), payload)
+        public = dict(self.public)
+        seal_url = "https://releases.plumb.perish.uk/v1/releases/stable/v0.87.0/seal.json"
+        seal = {"product": "plumb", "releaseVersion": "v0.87.0", "commit": "2" * 40, "guard": {"producer": AUTHORITY["producer"]}}
+        body = json.dumps(seal).encode()
+        public[seal_url] = body
+        public["https://releases.plumb.perish.uk/v1/channels/stable.json"] = json.dumps(dict(seal, schema=1, channel="stable", seal={"url": seal_url, "size": len(body), "sha256": hashlib.sha256(body).hexdigest()})).encode()
+        public[pinned["manifest"]["url"]] = depot.pretty(manifest)
+        public[f"{configuration.BASE}/channels/stable/configurations/latest.json"] = b"moved-and-unread"
+        with mock.patch.object(material.release, "fetch", side_effect=lambda url: public[url]):
+            material.current(controls, pinned)
+            with self.assertRaises(Refusal):
+                material.current(controls, None)
+            public[pinned["manifest"]["url"]] = b"tampered"
+            with self.assertRaises(Refusal):
+                material.current(controls, pinned)
+        with mock.patch.object(material.release, "fetch", side_effect=lambda url: self.public[url]):
+            with self.assertRaises(Refusal):
+                material.current(self.controls, pinned)

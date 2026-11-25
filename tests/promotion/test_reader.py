@@ -45,8 +45,22 @@ class Reader(unittest.TestCase):
         pointer = {**seal, "seal": {"url": reader.AUTHORITY + "/v1/releases/stable/v1.0.0/seal.json", **entry(raw)}}
         with mock.patch.object(reader.release, "fetch", side_effect=lambda url: raw if url.endswith("seal.json") else canonical.encode(pointer)), mock.patch.object(reader, "capture", return_value=(0, authority)):
             self.assertEqual(reader.identity(), authority)
-        with mock.patch.object(reader.release, "fetch", side_effect=lambda url: raw if url.endswith("seal.json") else canonical.encode(pointer)), mock.patch.object(reader, "capture", return_value=(0, dict(authority, producer="foreign"))), self.assertRaises(Refusal):
-            reader.identity()
+        for bad in (dict(authority, producer="foreign"), {"producer": authority["producer"]}, dict(authority, depot="c" * 64)):
+            with self.subTest(bad=bad), mock.patch.object(reader.release, "fetch", side_effect=lambda url: raw if url.endswith("seal.json") else canonical.encode(pointer)), mock.patch.object(reader, "capture", return_value=(0, bad)), self.assertRaises(Refusal):
+                reader.identity()
+
+    def test_decoupled_seal_accepts_producer_only_and_ignores_floating_depot_drift(self):
+        producer = "v1.0.0@" + "a" * 40
+        seal = {"product": "plumb", "channel": "stable", "releaseVersion": "v1.0.0", "commit": "a" * 40, "guard": {"producer": producer}}
+        raw = canonical.encode(seal)
+        pointer = {**seal, "seal": {"url": reader.AUTHORITY + "/v1/releases/stable/v1.0.0/seal.json", **entry(raw)}}
+        fetch = lambda url: raw if url.endswith("seal.json") else canonical.encode(pointer)
+        for reported in ({"producer": producer}, {"producer": producer, "depot": "c" * 64}):
+            with self.subTest(reported=reported), mock.patch.object(reader.release, "fetch", side_effect=fetch), mock.patch.object(reader, "capture", return_value=(0, reported)):
+                self.assertEqual(reader.identity(), {"producer": producer})
+        for bad in ({"producer": "v1.0.0@" + "b" * 40}, {"producer": producer, "depot": "bad"}, {"producer": producer, "extra": "x"}):
+            with self.subTest(bad=bad), mock.patch.object(reader.release, "fetch", side_effect=fetch), mock.patch.object(reader, "capture", return_value=(0, bad)), self.assertRaises(Refusal):
+                reader.identity()
 
     def test_subprocess_withholds_storage_credentials_and_reaps_its_process_group(self):
         child = mock.Mock(pid=999, returncode=0)

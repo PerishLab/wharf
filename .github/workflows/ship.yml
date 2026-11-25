@@ -705,6 +705,7 @@ jobs:
       plan-reference: ${{ steps.plan.outputs.plan-reference }}
       presence: ${{ steps.plan.outputs.presence }}
       snapshot: ${{ steps.plan.outputs.snapshot }}
+      configuration: ${{ steps.plan.outputs.configuration }}
       trial: ${{ steps.plan.outputs.trial }}
       publisher: ${{ steps.plan.outputs.publisher }}
       windtun: ${{ steps.plan.outputs.windtun }}
@@ -934,6 +935,7 @@ jobs:
           WHARF_R2_SECRET_ACCESS_KEY: ${{ secrets.WHARF_R2_SECRET_ACCESS_KEY }}
           WHARF_PACKAGES_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           WHARF_DOMAIN: ${{ needs.plan.outputs.domain }}
+          WHARF_CONFIGURATION: ${{ needs.plan.outputs.configuration }}
         run: python3 -B -m scripts.ship step
 
   layer-2:
@@ -996,6 +998,7 @@ jobs:
           WHARF_R2_SECRET_ACCESS_KEY: ${{ secrets.WHARF_R2_SECRET_ACCESS_KEY }}
           WHARF_PACKAGES_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           WHARF_DOMAIN: ${{ needs.plan.outputs.domain }}
+          WHARF_CONFIGURATION: ${{ needs.plan.outputs.configuration }}
         run: python3 -B -m scripts.ship step
 
   layer-3:
@@ -1058,6 +1061,7 @@ jobs:
           WHARF_R2_SECRET_ACCESS_KEY: ${{ secrets.WHARF_R2_SECRET_ACCESS_KEY }}
           WHARF_PACKAGES_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           WHARF_DOMAIN: ${{ needs.plan.outputs.domain }}
+          WHARF_CONFIGURATION: ${{ needs.plan.outputs.configuration }}
         run: python3 -B -m scripts.ship step
 
   layer-4:
@@ -1120,6 +1124,7 @@ jobs:
           WHARF_R2_SECRET_ACCESS_KEY: ${{ secrets.WHARF_R2_SECRET_ACCESS_KEY }}
           WHARF_PACKAGES_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           WHARF_DOMAIN: ${{ needs.plan.outputs.domain }}
+          WHARF_CONFIGURATION: ${{ needs.plan.outputs.configuration }}
         run: python3 -B -m scripts.ship step
 
   promotion-prepare:
@@ -1229,6 +1234,7 @@ jobs:
         env:
           WHARF_PACKAGES_TOKEN: ${{ secrets.PERISHLAB_PACKAGES_READ }}
           WHARF_DOMAIN: ${{ needs.plan.outputs.domain }}
+          WHARF_CONFIGURATION: ${{ needs.plan.outputs.configuration }}
           WHARF_SOURCE: ../product
           WHARF_MARKER: ${{ inputs.marker }}
           WHARF_REPOSITORY: ${{ inputs.repository }}
@@ -1287,6 +1293,7 @@ jobs:
         env:
           WHARF_PACKAGES_TOKEN: ${{ secrets.PERISHLAB_PACKAGES_READ }}
           WHARF_DOMAIN: ${{ needs.plan.outputs.domain }}
+          WHARF_CONFIGURATION: ${{ needs.plan.outputs.configuration }}
           WHARF_SOURCE: ../product
           WHARF_REPOSITORY: ${{ inputs.repository }}
           WHARF_MARKER: ${{ inputs.marker }}
@@ -1346,6 +1353,7 @@ jobs:
           WHARF_R2_ACCESS_KEY_ID: ${{ secrets.WHARF_R2_ACCESS_KEY_ID }}
           WHARF_PACKAGES_TOKEN: ${{ secrets.PERISHLAB_PACKAGES_READ }}
           WHARF_DOMAIN: ${{ needs.plan.outputs.domain }}
+          WHARF_CONFIGURATION: ${{ needs.plan.outputs.configuration }}
           WHARF_PLANNED: ${{ needs.plan.outputs.planned }}
           WHARF_ATTEMPT: ${{ github.run_attempt }}
           WHARF_RUN: ${{ github.run_id }}
@@ -1390,6 +1398,7 @@ jobs:
           WHARF_APK_SIGNING_KEY: ${{ secrets.WHARF_APK_SIGNING_KEY }}
           WHARF_PACKAGES_TOKEN: ${{ secrets.PERISHLAB_PACKAGES_READ }}
           WHARF_DOMAIN: ${{ needs.plan.outputs.domain }}
+          WHARF_CONFIGURATION: ${{ needs.plan.outputs.configuration }}
           WHARF_SOURCE: ../product
           WHARF_RELEASES_ACCESS_KEY_ID: ${{ secrets.WHARF_RELEASES_ACCESS_KEY_ID }}
           WHARF_RELEASES_SECRET_ACCESS_KEY: ${{ secrets.WHARF_RELEASES_SECRET_ACCESS_KEY }}
@@ -1494,6 +1503,7 @@ jobs:
           WHARF_R2_SECRET_ACCESS_KEY: ${{ secrets.WHARF_R2_SECRET_ACCESS_KEY }}
           WHARF_PACKAGES_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           WHARF_DOMAIN: ${{ needs.plan.outputs.domain }}
+          WHARF_CONFIGURATION: ${{ needs.plan.outputs.configuration }}
         run: python3 -B -m scripts.ship cfworker-deploy
   cargo:
     name: "[publish] cargo"
@@ -1543,6 +1553,7 @@ jobs:
           WHARF_CARGO_ACCESS_KEY_ID: ${{ secrets.WHARF_CARGO_ACCESS_KEY_ID }}
           WHARF_CARGO_SECRET_ACCESS_KEY: ${{ secrets.WHARF_CARGO_SECRET_ACCESS_KEY }}
           WHARF_DOMAIN: ${{ needs.plan.outputs.domain }}
+          WHARF_CONFIGURATION: ${{ needs.plan.outputs.configuration }}
         run: python3 -B -m scripts.media cargo-publish
   distribution:
     name: "[record] distribution"

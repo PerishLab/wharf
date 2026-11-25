@@ -65,6 +65,21 @@ def selected(held, root):
     return value
 
 
+SHAPES = (frozenset({"producer"}), frozenset({"producer", "depot"}))
+
+
+def authority_matches(observed, selected):
+    if not isinstance(observed, dict) or not isinstance(selected, dict):
+        return False
+    if frozenset(selected) not in SHAPES or not all(isinstance(value, str) for value in selected.values()):
+        return False
+    if frozenset(observed) not in SHAPES or not all(isinstance(value, str) for value in observed.values()):
+        return False
+    if observed["producer"] != selected["producer"]:
+        return False
+    return "depot" not in selected or observed.get("depot") == selected["depot"]
+
+
 def produce(held):
     root = destination(held, True)
     selection = selected(held, root)
@@ -76,7 +91,7 @@ def produce(held):
     request = snapshot.Request(Path(held["source"]), selection["source"], toolchain.versions())
     with snapshot.prepared(request) as (checkout, world, unchanged):
         require(world["source"] == selection["source"], "prepared world names another selected source")
-        require(world.get("controls", {}).get("authority") == selection["reader"], "prospective world did not use the selected formal control")
+        require(authority_matches(world.get("controls", {}).get("authority"), selection["reader"]), "prospective world did not use the selected formal control")
         payload = materials.capture(checkout, selection["source"], world)
         unchanged()
     raw = canonical.encode(world)

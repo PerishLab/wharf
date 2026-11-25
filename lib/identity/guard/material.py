@@ -9,7 +9,7 @@ from pathlib import Path, PurePosixPath
 from lib.cargo import toolchain
 from lib.content import canonical
 from lib.content.static import evidence
-from lib.identity.guard import mismatch, snapshot
+from lib.identity.guard import configuration, mismatch, snapshot
 from lib.media import release
 from lib.process import git
 from lib.refusal import Refusal
@@ -95,13 +95,17 @@ def qualify(request, payload):
     controls = expected["controls"]
     if not isinstance(controls, dict) or set(controls) != set(mismatch.GROUPS["controls"]) or any(not isinstance(controls[name], str) or not controls[name].startswith(name + " v") for name in ("plumb", "ectropy")):
         raise Refusal("release material control identities are malformed")
+    if request.configuration is not None:
+        pinned = configuration.checked(request.configuration)
+        if not isinstance(controls["authority"], dict) or pinned["generation"] != controls["authority"].get("depot"):
+            raise Refusal("release material pinned configuration differs from the verified authority")
     context = {"identity": request.identity, "plumb": controls["plumb"], "authority": controls["authority"]}
     mismatch.qualified(context, expected["head"], {"tree": expected["tree"], "packages": expected["packages"]}, json.dumps(expected["guard"]))
     return expected
 
 
-def current(controls):
-    if mismatch.stable(controls, release.fetch) != controls["stable"]:
+def current(controls, pinned=None):
+    if mismatch.stable(controls, release.fetch, pinned) != controls["stable"]:
         raise Refusal("release material control authorities changed; prepare a fresh plan")
 
 
@@ -135,7 +139,7 @@ def prepared(request, payload, compiling, inspect=evidence.inspect):
             raise Refusal("release material synthetic head differs from its verified plan")
         def confirm():
             snapshot.unchanged(held, head, expected["tree"])
-            current(expected["controls"])
+            current(expected["controls"], request.configuration)
         confirm()
         yield root, expected, confirm
         confirm()
