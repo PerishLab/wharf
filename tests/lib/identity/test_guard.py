@@ -4,7 +4,6 @@ import json
 import subprocess
 import tempfile
 import unittest
-import urllib.error
 import zipfile
 from pathlib import Path
 from unittest import mock
@@ -223,56 +222,72 @@ def zipped(members):
     return buffer.getvalue()
 
 
-class Client:
-    def __init__(self, replies):
-        self.replies = replies
-        self.seen = []
-
-    def open(self, request, timeout):
-        self.seen.append((request.full_url, request.get_header("Authorization")))
-        reply = self.replies[request.full_url]
-        if isinstance(reply, Exception):
-            raise reply
-        return io.BytesIO(reply)
+def digest(data):
+    return "sha256:" + hashlib.sha256(data).hexdigest()
 
 
-API = "https://api.github.com/repos/PerishLab/example"
-BLOB = "https://blob.example/guard?signature=s"
+def offering(artifacts, trees, blobs):
+    seen = []
+
+    def invoke(arguments, timeout=30, limit=None, token=None):
+        seen.append((arguments, token))
+        if arguments[:3] == ["artifacts", "PerishLab", "example"]:
+            return {"artifacts": artifacts}
+        if arguments[:3] == ["commit", "PerishLab", "example"]:
+            return {"tree": {"sha": trees[arguments[3]]}}
+        if arguments[:3] == ["download", "PerishLab", "example"]:
+            payload = blobs[int(arguments[3])]
+            if isinstance(payload, Exception):
+                raise payload
+            Path(arguments[arguments.index("--output") + 1]).write_bytes(payload)
+            return {"id": int(arguments[3]), "size": len(payload), "digest": digest(payload)}
+        raise AssertionError(arguments)
+
+    return pull.Actions("reader", "PerishLab/example", invoke), seen
 
 
-def offering(artifacts, trees, download):
-    replies = {f"{API}/actions/artifacts?name=guard-runtime&per_page=50": json.dumps({"artifacts": artifacts}).encode()}
-    replies.update({f"{API}/git/commits/{head}": json.dumps({"tree": {"sha": tree}}).encode() for head, tree in trees.items()})
-    replies.update({f"{API}/actions/artifacts/{artifact['id']}/zip": download for artifact in artifacts})
-    replies[BLOB] = zipped({"guard-runtime.json": runtime()})
-    actions = pull.Actions("reader", "PerishLab/example")
-    actions._client = Client(replies)
-    return actions
-
-
-def artifact(identity, head, **changed):
-    return dict({"id": identity, "name": "guard-runtime", "expired": False, "workflow_run": {"id": identity * 10, "head_sha": head}}, **changed)
+def artifact(identity, head, blob=None, **changed):
+    data = blob if blob is not None else zipped({"guard-runtime.json": runtime()})
+    return dict(
+        {
+            "id": identity,
+            "name": "guard-runtime",
+            "expired": False,
+            "size_in_bytes": len(data),
+            "digest": digest(data),
+            "workflow_run": {"id": identity * 10, "head_sha": head},
+        },
+        **changed,
+    )
 
 
 class Offered(unittest.TestCase):
-    def test_only_unexpired_verdicts_of_the_marker_tree_are_downloaded_without_the_token(self):
-        moved = urllib.error.HTTPError("", 302, "Found", {"Location": BLOB}, None)
-        actions = offering([artifact(1, "e" * 40), artifact(2, "f" * 40, expired=True), artifact(3, "a" * 40)], {"e" * 40: "0" * 40, "a" * 40: MARKER}, moved)
+    def test_only_unexpired_verdicts_of_the_marker_tree_are_downloaded_via_runseal(self):
+        archive = zipped({"guard-runtime.json": runtime()})
+        actions, seen = offering(
+            [artifact(1, "e" * 40, archive), artifact(2, "f" * 40, archive, expired=True), artifact(3, "a" * 40, archive)],
+            {"e" * 40: "0" * 40, "a" * 40: MARKER},
+            {3: archive},
+        )
         found = list(pull.listed(actions, MARKER))
         self.assertEqual(found, [({"run": 30, "artifact": 3, "head": "a" * 40}, "1" * 64, runtime())])
-        self.assertEqual(actions._client.seen[-1], (BLOB, None))
-        self.assertTrue(all(authorization == "Bearer reader" for url, authorization in actions._client.seen[:-1]))
+        self.assertEqual([args[0] for args, _ in seen], ["artifacts", "commit", "commit", "download"])
+        self.assertTrue(all(token == "reader" for _, token in seen))
 
-    def test_a_download_that_does_not_redirect_or_holds_more_than_the_document_refuses(self):
-        for download, blob in ((b"zip", None), (urllib.error.HTTPError("", 302, "Found", {"Location": BLOB}, None), {"guard-runtime.json": "{}", "other": "x"})):
-            actions = offering([artifact(3, "a" * 40)], {"a" * 40: MARKER}, download)
-            if blob:
-                actions._client.replies[BLOB] = zipped(blob)
-            with self.subTest(download=download), self.assertRaises(Refusal):
+    def test_missing_digest_download_failure_or_extra_archive_members_refuse(self):
+        bad_zip = zipped({"guard-runtime.json": "{}", "other": "x"})
+        cases = (
+            (artifact(3, "a" * 40, digest=None), {}),
+            (artifact(3, "a" * 40), {3: Refusal("download failed")}),
+            (artifact(3, "a" * 40, bad_zip), {3: bad_zip}),
+        )
+        for item, blobs in cases:
+            actions, _ = offering([item], {"a" * 40: MARKER}, blobs)
+            with self.subTest(item=item), self.assertRaises(Refusal):
                 list(pull.listed(actions, MARKER))
 
     def test_no_token_or_an_unreadable_listing_refuses_with_its_reason(self):
         with self.assertRaisesRegex(Refusal, "no pull request Guard reader token"):
             pull.offered("PerishLab/example", MARKER, {})
-        with mock.patch.object(pull, "listed", side_effect=urllib.error.URLError("down")), self.assertRaisesRegex(Refusal, "unreadable: URLError"):
+        with mock.patch.object(pull, "listed", side_effect=OSError("down")), self.assertRaisesRegex(Refusal, "unreadable: OSError"):
             pull.offered("PerishLab/example", MARKER, {"WHARF_GUARD_TOKEN": "reader"})

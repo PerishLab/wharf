@@ -110,8 +110,23 @@ class Qualification(unittest.TestCase):
             self.assertEqual(Path(child["GIT_CONFIG_GLOBAL"]).stat().st_mode & 0o777, 0o600)
 
     def test_missing_root_declaration_is_a_no_op(self):
-        replies = iter([{"id": 17, "full_name": "PerishLab/example", "default_branch": "main", "archived": False}, None])
+        replies = iter([
+            {"id": 17, "full_name": "PerishLab/example", "default_branch": "main", "archived": False},
+            {"object": {"sha": "a" * 40}},
+            None,
+        ])
         self.assertFalse(operation.governed(SUMMARY, "fixture", lambda *args: next(replies)))
+
+    def test_api_maps_404_optional_refusal_and_unknown_failures(self):
+        not_found = subprocess.CalledProcessError(1, ["runseal"], output=b'{"error":{"outcome":"refused","evidence":{"status":404}}}')
+        forbidden = subprocess.CalledProcessError(1, ["runseal"], output=b'{"error":{"outcome":"refused","evidence":{"status":403}}}')
+        unknown = subprocess.CalledProcessError(1, ["runseal"], output=b'{"error":{"outcome":"unknown","evidence":{"status":null}}}')
+        with mock.patch.object(operation.process, "github", side_effect=not_found):
+            self.assertIsNone(operation.api(["contents", "PerishLab", "example", "a" * 40, "plumb.toml"], "t", True))
+        with mock.patch.object(operation.process, "github", side_effect=forbidden), self.assertRaisesRegex(Refusal, "refused by GitHub"):
+            operation.api(["repository", "PerishLab", "example"], "t")
+        with mock.patch.object(operation.process, "github", side_effect=unknown), self.assertRaisesRegex(Refusal, "is unknown"):
+            operation.api(["repository", "PerishLab", "example"], "t")
 
     def test_other_repository_identity_refuses(self):
         with self.assertRaisesRegex(Refusal, "repository identity"):

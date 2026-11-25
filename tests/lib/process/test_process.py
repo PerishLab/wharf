@@ -1,6 +1,5 @@
 import json
 import os
-import stat
 import subprocess
 import tempfile
 import unittest
@@ -80,28 +79,27 @@ class Github(unittest.TestCase):
         with self.assertRaises(Refusal):
             process.endpoint("users/octocat")
 
-    def test_github_writes_private_token_file_and_cleans_up(self):
+    def test_github_passes_token_on_stdin_with_explicit_timeout(self):
         seen = {}
 
-        def fake(argv, stderr=None, timeout=None):
-            token_path = Path(argv[argv.index("--token-file") + 1])
+        def fake(argv, input=None, stderr=None, timeout=None):
             seen["argv"] = argv
-            seen["mode"] = stat.S_IMODE(token_path.stat().st_mode)
-            seen["token"] = token_path.read_text(encoding="utf-8")
-            seen["path"] = token_path
+            seen["input"] = input
             seen["stderr"] = stderr
             seen["timeout"] = timeout
             return json.dumps({"version": 1, "github": {"outcome": "observed", "value": {"id": 1}}}).encode()
 
         with mock.patch.dict(os.environ, {"GH_TOKEN": "ghs_secret"}, clear=True), mock.patch.object(process.subprocess, "check_output", side_effect=fake):
             self.assertEqual(process.github(["repository", "PerishLab", "wharf"], timeout=15), {"id": 1})
-        self.assertEqual(seen["argv"][:4], ["runseal", ":", "@github", "--token-file"])
-        self.assertEqual(seen["argv"][5:], ["--json", "repository", "PerishLab", "wharf"])
-        self.assertEqual(seen["mode"], 0o600)
-        self.assertEqual(seen["token"], "ghs_secret")
+        self.assertEqual(seen["argv"], ["runseal", ":", "@github", "--token-stdin", "--timeout", "15", "--json", "repository", "PerishLab", "wharf"])
+        self.assertEqual(seen["input"], b"ghs_secret")
         self.assertEqual(seen["stderr"], subprocess.PIPE)
         self.assertEqual(seen["timeout"], 15)
-        self.assertFalse(seen["path"].exists())
+
+        accepted = json.dumps({"version": 1, "github": {"outcome": "accepted", "value": {"event": "follow-push"}}}).encode()
+        with mock.patch.dict(os.environ, {}, clear=True), mock.patch.object(process.subprocess, "check_output", return_value=accepted) as called:
+            self.assertEqual(process.github(["trigger", "PerishLab", "wharf", "--event", "follow-push"], timeout=5, token="explicit"), {"event": "follow-push"})
+        self.assertEqual(called.call_args.kwargs["input"], b"explicit")
 
     def test_github_refuses_missing_token_oversized_or_malformed_envelopes(self):
         with mock.patch.dict(os.environ, {}, clear=True), self.assertRaises(Refusal):

@@ -1,6 +1,4 @@
 {
-  "api": "https://api.github.com",
-  "version": "2022-11-28",
   "artifact": "guard-runtime",
   "member": "guard-runtime.json",
   "candidates": 50,
