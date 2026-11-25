@@ -116,6 +116,12 @@ class Qualification(unittest.TestCase):
             None,
         ])
         self.assertFalse(operation.governed(SUMMARY, "fixture", lambda *args: next(replies)))
+        present = iter([
+            {"id": 17, "full_name": "PerishLab/example", "default_branch": "main", "archived": False},
+            {"object": {"sha": "a" * 40}},
+            {"commit": "a" * 40, "path": "plumb.toml", "sha": "b" * 40, "size": 4, "base64": "dGVzdA=="},
+        ])
+        self.assertTrue(operation.governed(SUMMARY, "fixture", lambda *args: next(present)))
 
     def test_api_maps_404_optional_refusal_and_unknown_failures(self):
         not_found = subprocess.CalledProcessError(1, ["runseal"], output=b'{"error":{"outcome":"refused","evidence":{"status":404}}}')

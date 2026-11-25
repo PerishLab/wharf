@@ -87,7 +87,7 @@ def governed(summary, token, reader=api):
     declared = reader(["contents", owner, name, commit, "plumb.toml"], token, True)
     if declared is None:
         return False
-    if declared.get("type") != "file" or declared.get("path") != "plumb.toml":
+    if not isinstance(declared, dict) or declared.get("commit") != commit or declared.get("path") != "plumb.toml" or not isinstance(declared.get("base64"), str):
         raise Refusal("follow needs the tracked root Plumb declaration")
     return True
 
