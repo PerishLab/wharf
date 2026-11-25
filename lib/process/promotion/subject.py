@@ -1,18 +1,15 @@
-import json
 import re
-import subprocess
 
 from lib.content import marker
 from lib.identity.bind import control, verification
 from lib.identity.bind.spec import FIELDS, require
+from lib.process import endpoint, github
 
 PILOT = "PerishLab/plumb"
 
 
 def api(path):
-    raw = subprocess.check_output(["gh", "api", "--hostname", "github.com", path], text=True, timeout=30)
-    require(len(raw.encode()) <= 1048576, "promotion source metadata exceeds bounds")
-    return json.loads(raw)
+    return github(endpoint(path), limit=1048576)
 
 
 def intent(source):

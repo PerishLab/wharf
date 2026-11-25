@@ -7,6 +7,7 @@ from pathlib import Path
 from lib import parameters
 from lib.content import marker
 from lib.media.release import fetch, LAYOUT
+from lib.process import github
 from lib.process.trial import declaration
 from lib.process.trial.declaration import checked
 from lib.refusal import Refusal
@@ -28,11 +29,11 @@ def read(requested, attempt=None, timeout=30):
     prefix = noted(requested, attempt)
     checked(re.fullmatch(r"[1-9][0-9]*", str(requested)), "publisher run identity is invalid")
     checked(attempt is None or re.fullmatch(r"[1-9][0-9]*", str(attempt)), prefix + "native attempt identity is invalid")
-    path = f"repos/{REPOSITORY}/actions/runs/{requested}" + (f"/attempts/{attempt}" if attempt is not None else "")
+    owner, name = REPOSITORY.split("/", 1)
+    arguments = ["workflow", owner, name, str(requested)] + (["--attempt", str(attempt)] if attempt is not None else [])
     try:
-        raw = subprocess.check_output(["gh", "api", path], text=True, stderr=subprocess.PIPE, timeout=timeout)
-        run = json.loads(raw)
-    except (OSError, subprocess.SubprocessError, ValueError) as failure:
+        run = github(arguments, timeout=timeout)
+    except (Refusal, OSError, subprocess.SubprocessError, ValueError) as failure:
         raise Refusal(prefix + "native metadata read is unavailable or malformed") from failure
     checked(isinstance(run, dict), prefix + "native metadata is not an object")
     return run

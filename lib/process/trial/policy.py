@@ -5,6 +5,7 @@ import re
 import subprocess
 
 from lib.content import canonical, resources
+from lib.process import github, route
 from lib.process.trial import context
 from lib.process.trial.admission import REPOSITORY, checked
 from lib.refusal import Refusal
@@ -38,8 +39,7 @@ def findings():
 
 
 def api(path):
-    raw = subprocess.check_output(["gh", "api", "--hostname", "github.com", f"repos/{REPOSITORY}" + ("/" + path if path else "")], timeout=30)
-    return json.loads(raw)
+    return github(route(REPOSITORY, path))
 
 
 def authority(value):
@@ -56,9 +56,9 @@ def head(value):
     return commit
 
 
-def content(value):
-    checked(isinstance(value, dict) and value.get("type") == "file" and value.get("path") == CONTENTS.removeprefix("contents/") and value.get("encoding") == "base64", "Windtun requirements source entry differs")
-    size, encoded, sha = value.get("size"), value.get("content"), value.get("sha")
+def content(value, source):
+    checked(isinstance(value, dict) and value.get("commit") == source and value.get("path") == CONTENTS.removeprefix("contents/"), "Windtun requirements source entry differs")
+    size, encoded, sha = value.get("size"), value.get("base64"), value.get("sha")
     checked(type(size) is int and 0 < size <= 4096 and isinstance(encoded, str) and len(encoded) <= 6000, "Windtun requirements source exceeds bounds")
     checked(isinstance(sha, str) and re.fullmatch(r"[0-9a-f]{40}", sha), "Windtun requirements blob identity is invalid")
     raw = base64.b64decode("".join(encoded.splitlines()), validate=True)
@@ -74,7 +74,7 @@ def current():
         checked(isinstance(commit, dict) and commit.get("sha") == source, "Windtun requirements commit differs from main")
         tree = commit.get("tree", {}).get("sha")
         checked(isinstance(tree, str) and re.fullmatch(r"[0-9a-f]{40}", tree), "Windtun requirements deployment tree is invalid")
-        raw, blob = content(api(CONTENTS + "?ref=" + source))
+        raw, blob = content(api(CONTENTS + "?ref=" + source), source)
         requirements = decode(raw)
         checked(head(api("branches/main")) == source and authority(api("")) == repository, "Windtun requirements deployment changed during readback")
         return {"schema": "wharf.windtun.requirements.readback/v1", "requirements": requirements, "deployment": {"repository": repository, "commit": source, "tree": tree, "path": CONTENTS.removeprefix("contents/"), "blob": blob}, "promotion": False}

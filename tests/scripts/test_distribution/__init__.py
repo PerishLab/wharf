@@ -241,9 +241,9 @@ class Declaration(unittest.TestCase):
 
     def test_replay_reads_exact_completed_publication_attempt(self):
         record = {"completed": {"run": "7", "attempt": "1", "wharf": "a" * 40}}
-        with mock.patch.object(admission.subprocess, "check_output", return_value=json.dumps(publisher())) as provider:
+        with mock.patch.object(admission, "github", return_value=publisher()) as provider:
             self.assertEqual(admission.completed("7", record)["run_attempt"], 1)
-            self.assertTrue(provider.call_args.args[0][-1].endswith("/runs/7/attempts/1"))
+            self.assertEqual(provider.call_args.args[0], ["workflow", "PerishLab", "wharf", "7", "--attempt", "1"])
         with self.assertRaises(Refusal):
             admission.completed("7", {"completed": {"run": "7", "attempt": "../2", "wharf": "a" * 40}})
 

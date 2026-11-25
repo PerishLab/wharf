@@ -2,12 +2,12 @@ import datetime
 import json
 import os
 import re
-import subprocess
 import time
 
 from lib.content import canonical, marker
 from lib.identity.bind.spec import FIELDS, require, sha
 from lib.media import release
+from lib.process import github, route
 from lib.refusal import Refusal
 
 REPOSITORY = "PerishLab/wharf"
@@ -17,8 +17,7 @@ ROLES = {ROLE: JOB, "build-candidate": "[prove] candidate binary"}
 
 
 def api(path):
-    endpoint = f"repos/{REPOSITORY}" + ("/" + path if path else "")
-    return json.loads(subprocess.check_output(["gh", "api", "--hostname", "github.com", endpoint], text=True, timeout=30))
+    return github(route(REPOSITORY, path))
 
 
 def source(value):
