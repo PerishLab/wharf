@@ -4,6 +4,7 @@ import subprocess
 
 from lib.content import canonical, marker
 from lib.media import oci
+from lib.process import endpoint, github
 from lib.process.trial import context, publication
 from lib.process.trial.admission import checked, document
 from lib.process.trial import declaration
@@ -140,10 +141,8 @@ def completed(prepared, report, execution, installed):
 
 def native(path):
     try:
-        raw = subprocess.check_output(["gh", "api", "--hostname", "github.com", path], stderr=subprocess.PIPE, timeout=30)
-        checked(0 < len(raw) <= 1048576, "service native metadata exceeds bounds")
-        return json.loads(raw)
-    except (OSError, subprocess.SubprocessError, ValueError) as failure:
+        return github(endpoint(path), limit=1048576)
+    except (Refusal, OSError, subprocess.SubprocessError, ValueError) as failure:
         raise Refusal("service native metadata is unavailable or malformed") from failure
 
 

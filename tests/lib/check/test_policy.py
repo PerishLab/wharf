@@ -19,7 +19,7 @@ def world(commit="1" * 40, requirements=None):
         "": dict(policy.IDENTITY, owner=dict(policy.OWNER)),
         "branches/main": {"name": "main", "protected": True, "commit": {"sha": commit}},
         "git/commits/" + commit: {"sha": commit, "tree": {"sha": "2" * 40}},
-        policy.CONTENTS + "?ref=" + commit: {"type": "file", "path": policy.CONTENTS.removeprefix("contents/"), "encoding": "base64", "size": len(raw), "sha": blob, "content": base64.encodebytes(raw).decode()},
+        policy.CONTENTS + "?ref=" + commit: {"commit": commit, "path": policy.CONTENTS.removeprefix("contents/"), "size": len(raw), "sha": blob, "base64": base64.encodebytes(raw).decode()},
     }
 
 
@@ -98,7 +98,7 @@ class Requirements(unittest.TestCase):
 
     def test_remote_content_identity_bounds_and_bytes_refuse(self):
         path = policy.CONTENTS + "?ref=" + "1" * 40
-        changes = [("path", "foreign.json"), ("type", "symlink"), ("encoding", "none"), ("size", True), ("size", 4097), ("content", "A" * 6001), ("content", "?"), ("sha", "0" * 40), ("content", base64.b64encode(b"{}").decode())]
+        changes = [("path", "foreign.json"), ("commit", "0" * 40), ("size", True), ("size", 4097), ("base64", "A" * 6001), ("base64", "?"), ("sha", "0" * 40), ("base64", base64.b64encode(b"{}").decode())]
         for name, value in changes:
             with self.subTest(name=name, value=value):
                 values = world()
@@ -115,11 +115,11 @@ class Requirements(unittest.TestCase):
                 policy.current()
 
     def test_unavailable_or_malformed_provider_is_not_a_fallback(self):
-        for error in (OSError(), subprocess.CalledProcessError(1, "gh"), ValueError()):
+        for error in (OSError(), subprocess.CalledProcessError(1, "runseal"), ValueError()):
             with self.subTest(error=type(error).__name__), mock.patch.object(policy, "api", side_effect=error), self.assertRaises(Refusal):
                 policy.current()
 
     def test_provider_hostname_and_repository_are_fixed(self):
-        with mock.patch.object(policy.subprocess, "check_output", return_value=b"{}") as call:
+        with mock.patch.object(policy, "github", return_value={}) as call:
             self.assertEqual(policy.api("branches/main"), {})
-        self.assertEqual(call.call_args.args[0], ["gh", "api", "--hostname", "github.com", "repos/PerishLab/wharf/branches/main"])
+        self.assertEqual(call.call_args.args[0], ["branch", "PerishLab", "wharf", "main"])

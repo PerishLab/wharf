@@ -2,10 +2,10 @@ import json
 import datetime
 import os
 import re
-import subprocess
 import time
 
 from lib.content import canonical, implementation
+from lib.process import github, route
 from lib.process.trial.admission import REPOSITORY, checked
 from lib.process.trial.declaration import shape
 from lib.refusal import Refusal
@@ -35,8 +35,7 @@ def decode(raw):
 
 
 def api(path):
-    endpoint = f"repos/{REPOSITORY}" + ("/" + path if path else "")
-    return json.loads(subprocess.check_output(["gh", "api", endpoint], text=True, timeout=30))
+    return github(route(REPOSITORY, path))
 
 
 def native_jobs(observer):

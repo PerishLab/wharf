@@ -15,9 +15,9 @@ from tests.scripts.test_distribution.world import OBSERVER, producer
 
 class Native(unittest.TestCase):
     def test_repository_endpoint_has_no_trailing_slash(self):
-        with mock.patch.object(context.subprocess, "check_output", return_value='{"id":1}') as request:
+        with mock.patch.object(context, "github", return_value={"id": 1}) as request:
             self.assertEqual(context.api(""), {"id": 1})
-        self.assertEqual(request.call_args.args[0], ["gh", "api", "repos/PerishLab/wharf"])
+        self.assertEqual(request.call_args.args[0], ["repository", "PerishLab", "wharf"])
 
     def inventory(self):
         return {"total_count": 1, "jobs": [{"id": 30, "run_id": 20, "run_attempt": 1, "head_sha": "a" * 40, "head_branch": "main", "name": context.NAMES["windtun"], "status": "in_progress", "conclusion": None}]}
@@ -76,11 +76,11 @@ class Publication(unittest.TestCase):
             with self.subTest(identity=identity), tempfile.TemporaryDirectory() as directory:
                 selected = {name: self.source()[name] for name in ("repository", "marker")}
                 held = {"source": directory, "run": "7", "publisher": json.dumps(identity), "selection": json.dumps(selected)}
-                with mock.patch.object(admission, "document", return_value=self.record()), mock.patch.object(admission.subprocess, "check_output", return_value=json.dumps(dict(publisher(), display_title="not an identity"))) as provider, mock.patch.object(admission.parameters, "answer"):
+                with mock.patch.object(admission, "document", return_value=self.record()), mock.patch.object(admission, "github", return_value=dict(publisher(), display_title="not an identity")) as provider, mock.patch.object(admission.parameters, "answer"):
                     result = admission.admit(held)
                 self.assertTrue(result["eligible"])
                 self.assertEqual(provider.call_count, 1)
-                self.assertTrue(provider.call_args.args[0][-1].endswith("/runs/7/attempts/1"))
+                self.assertEqual(provider.call_args.args[0], ["workflow", "PerishLab", "wharf", "7", "--attempt", "1"])
                 self.assertEqual(json.loads((Path(directory) / "evidence/admission.json").read_text())["publisher"]["run_attempt"], 1)
 
     def test_legacy_discovery_is_retained_but_does_not_choose_publication_attempt(self):
@@ -137,17 +137,16 @@ class Publication(unittest.TestCase):
                 pause.assert_not_called()
 
     def test_provider_errors_and_malformed_metadata_are_safe_and_not_retried(self):
-        failures = [OSError("SECRET"), subprocess.CalledProcessError(1, ["gh"], stderr="SECRET"), subprocess.TimeoutExpired(["gh"], 30)]
+        failures = [OSError("SECRET"), subprocess.CalledProcessError(1, ["runseal"], stderr="SECRET"), subprocess.TimeoutExpired(["runseal"], 30)]
         for failure in failures:
-            with self.subTest(failure=type(failure).__name__), mock.patch.object(admission.subprocess, "check_output", side_effect=failure) as provider, mock.patch.object(admission.time, "sleep") as pause:
+            with self.subTest(failure=type(failure).__name__), mock.patch.object(admission, "github", side_effect=failure) as provider, mock.patch.object(admission.time, "sleep") as pause:
                 with self.assertRaisesRegex(Refusal, "run 7 attempt 1: native metadata read") as caught:
                     admission.completed("7", self.record())
                 self.assertNotIn("SECRET", str(caught.exception))
                 provider.assert_called_once()
-                self.assertEqual(provider.call_args.kwargs["stderr"], subprocess.PIPE)
                 pause.assert_not_called()
-        for raw in ("SECRET", "[]", "null"):
-            with self.subTest(raw=raw), mock.patch.object(admission.subprocess, "check_output", return_value=raw), self.assertRaises(Refusal):
+        for value in ("SECRET", [], None):
+            with self.subTest(value=value), mock.patch.object(admission, "github", return_value=value), self.assertRaises(Refusal):
                 admission.read("7", "1")
 
     def test_foreign_or_malformed_record_refuses_before_native_read(self):

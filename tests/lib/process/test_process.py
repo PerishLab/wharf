@@ -1,4 +1,6 @@
+import json
 import os
+import stat
 import subprocess
 import tempfile
 import unittest
@@ -6,6 +8,7 @@ from pathlib import Path
 from unittest import mock
 
 from lib import process
+from lib.refusal import Refusal
 from tests.lib.cargo.test_basis import Repository as Workspace
 from tests.lib.media.repository import Repository
 
@@ -49,3 +52,62 @@ class Sentinel(unittest.TestCase):
         self.assertEqual(set(local) - set(process.REPOSITORY), set())
         with mock.patch.dict(os.environ, self.pointed):
             self.assertEqual(set(process.unanchored()) & set(process.REPOSITORY), set())
+
+
+class Github(unittest.TestCase):
+    def test_routes_map_known_endpoints_to_typed_runseal_commands(self):
+        sha = "a" * 40
+        other = "b" * 40
+        cases = [
+            ("", ["repository", "PerishLab", "wharf"]),
+            ("branches/main", ["branch", "PerishLab", "wharf", "main"]),
+            (f"compare/{sha}...{other}", ["lifecycle", "ancestry", "PerishLab", "wharf", sha, other]),
+            ("git/ref/tags/v1.0.0", ["ref", "PerishLab", "wharf", "tag", "v1.0.0"]),
+            (f"git/tags/{sha}", ["annotation", "PerishLab", "wharf", sha]),
+            (f"git/commits/{sha}", ["commit", "PerishLab", "wharf", sha]),
+            (f"contents/check/windtun.json?ref={sha}", ["contents", "PerishLab", "wharf", sha, "check/windtun.json"]),
+            ("actions/runs/42", ["workflow", "PerishLab", "wharf", "42"]),
+            ("actions/runs/42/attempts/2", ["workflow", "PerishLab", "wharf", "42", "--attempt", "2"]),
+            ("actions/runs/42/attempts/2/jobs?per_page=100", ["jobs", "PerishLab", "wharf", "42", "--attempt", "2", "--size", "100"]),
+        ]
+        for path, expected in cases:
+            with self.subTest(path=path):
+                self.assertEqual(process.route("PerishLab/wharf", path), expected)
+                suffix = "/" + path if path else ""
+                self.assertEqual(process.endpoint("repos/PerishLab/wharf" + suffix), expected)
+        with self.assertRaises(Refusal):
+            process.route("PerishLab/wharf", "pulls")
+        with self.assertRaises(Refusal):
+            process.endpoint("users/octocat")
+
+    def test_github_writes_private_token_file_and_cleans_up(self):
+        seen = {}
+
+        def fake(argv, stderr=None, timeout=None):
+            token_path = Path(argv[argv.index("--token-file") + 1])
+            seen["argv"] = argv
+            seen["mode"] = stat.S_IMODE(token_path.stat().st_mode)
+            seen["token"] = token_path.read_text(encoding="utf-8")
+            seen["path"] = token_path
+            seen["stderr"] = stderr
+            seen["timeout"] = timeout
+            return json.dumps({"version": 1, "github": {"outcome": "observed", "value": {"id": 1}}}).encode()
+
+        with mock.patch.dict(os.environ, {"GH_TOKEN": "ghs_secret"}, clear=True), mock.patch.object(process.subprocess, "check_output", side_effect=fake):
+            self.assertEqual(process.github(["repository", "PerishLab", "wharf"], timeout=15), {"id": 1})
+        self.assertEqual(seen["argv"][:4], ["runseal", ":", "@github", "--token-file"])
+        self.assertEqual(seen["argv"][5:], ["--json", "repository", "PerishLab", "wharf"])
+        self.assertEqual(seen["mode"], 0o600)
+        self.assertEqual(seen["token"], "ghs_secret")
+        self.assertEqual(seen["stderr"], subprocess.PIPE)
+        self.assertEqual(seen["timeout"], 15)
+        self.assertFalse(seen["path"].exists())
+
+    def test_github_refuses_missing_token_oversized_or_malformed_envelopes(self):
+        with mock.patch.dict(os.environ, {}, clear=True), self.assertRaises(Refusal):
+            process.github(["repository", "PerishLab", "wharf"])
+        for payload in (b"{}", b'{"version":2,"github":{"outcome":"observed","value":{}}}', b'{"version":1,"github":{"outcome":"refused","value":{}}}'):
+            with self.subTest(payload=payload), mock.patch.dict(os.environ, {"GITHUB_TOKEN": "t"}, clear=True), mock.patch.object(process.subprocess, "check_output", return_value=payload), self.assertRaises(ValueError):
+                process.github(["repository", "PerishLab", "wharf"])
+        with mock.patch.dict(os.environ, {"GITHUB_TOKEN": "t"}, clear=True), mock.patch.object(process.subprocess, "check_output", return_value=b"x" * 10), self.assertRaises(Refusal):
+            process.github(["repository", "PerishLab", "wharf"], limit=5)
