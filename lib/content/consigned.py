@@ -1,4 +1,5 @@
 import subprocess
+import tomllib
 
 from lib.refusal import Refusal
 
@@ -46,3 +47,46 @@ def scene(directory):
     if not files:
         raise Refusal("the consigned scene holds no files")
     return f"scene carries {files} regular files; execution semantics belong to Seatrial"
+
+
+def anchored(relative):
+    try:
+        relative.encode("utf-8", errors="strict")
+    except UnicodeEncodeError as error:
+        raise Refusal("the consigned configuration carries a non-UTF-8 path") from error
+    parts = relative.split("/")
+    if not relative or relative.startswith("/") or "\\" in relative or any(part in ("", ".", "..") for part in parts):
+        raise Refusal(f"the consigned configuration path {relative!r} is not anchored")
+
+
+def parse(path, relative):
+    try:
+        body = path.read_bytes()
+    except OSError as error:
+        raise Refusal(f"cannot read consigned configuration {relative!r}: {error}") from error
+    if not body.strip():
+        raise Refusal(f"the consigned configuration {relative!r} is empty")
+    try:
+        parsed = tomllib.loads(body.decode("utf-8"))
+    except (UnicodeDecodeError, tomllib.TOMLDecodeError) as error:
+        raise Refusal(f"the consigned configuration {relative!r} is not valid TOML: {error}") from error
+    if not parsed:
+        raise Refusal(f"the consigned configuration {relative!r} holds no TOML entries")
+
+
+def configuration(directory):
+    if directory.is_symlink() or not directory.is_dir():
+        raise Refusal("the consigned configuration is not a plain directory")
+    files = 0
+    for path in sorted(directory.rglob("*")):
+        if path.is_symlink() or not (path.is_file() or path.is_dir()):
+            raise Refusal("the consigned configuration carries a special object")
+        relative = path.relative_to(directory).as_posix()
+        anchored(relative)
+        if path.is_file():
+            if path.suffix.lower() == ".toml":
+                parse(path, relative)
+            files += 1
+    if not files:
+        raise Refusal("the consigned configuration holds no files")
+    return f"configuration carries {files} regular files"

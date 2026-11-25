@@ -61,7 +61,8 @@ class Yard(unittest.TestCase):
                 yard.unpack({"objects": objects}, tempfile.mkdtemp())
 
     def test_a_key_needs_a_digest_and_a_known_kind(self):
+        self.assertEqual(yard.key("PerishLab/concord", "v0.12.10", "configuration", "0" * 64), f"PerishLab/concord/v0.12.10/configuration/{'0' * 64}.json")
         with self.assertRaisesRegex(Refusal, "not a sha256"):
             yard.key("PerishLab/concord", "v0.12.10", "changelog", "abc")
         with self.assertRaisesRegex(Refusal, "not a depot kind"):
-            yard.key("PerishLab/concord", "v0.12.10", "configuration", "0" * 64)
+            yard.key("PerishLab/concord", "v0.12.10", "rules", "0" * 64)
