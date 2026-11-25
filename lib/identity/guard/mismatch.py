@@ -1,5 +1,6 @@
 import hashlib
 import re
+import urllib.error
 
 from lib.content import resources
 from lib.content.static import evidence
@@ -119,6 +120,12 @@ def plumb_checked(seal, pointer, authority, pinned):
     return verified
 
 
+def detail(error):
+    if isinstance(error, urllib.error.HTTPError):
+        return f"HTTP {error.code}"
+    return type(error).__name__
+
+
 def stable(controls, reader, pinned=None):
     observed = {}
     for name in ("plumb", "ectropy"):
@@ -129,8 +136,10 @@ def stable(controls, reader, pinned=None):
                 if verified is not None:
                     configuration.verify(verified, reader)
             observed[name] = {field: pointer[field] for field in ("releaseVersion", "commit")}
+        except Refusal:
+            raise
         except (OSError, ValueError, KeyError, TypeError) as error:
-            raise Refusal("latest stable control authority is unreadable") from error
+            raise Refusal(f"latest stable {name} control authority is unreadable ({detail(error)})") from error
     return observed
 
 

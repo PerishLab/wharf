@@ -1,15 +1,19 @@
 import copy
 import hashlib
+import http.client
+import io
 import json
 import shutil
 import tempfile
 import unittest
+import urllib.error
 from pathlib import Path
 from unittest import mock
 
 from lib.content.static import evidence
 from lib.identity.guard import configuration, execution, material, mismatch, snapshot
-from lib.media import depot
+from lib.media import depot, release
+from lib.media.release import transport
 from lib.process import git
 from lib.refusal import Refusal
 from tests.lib.identity.test_guard import AUTHORITY, runtime
@@ -106,14 +110,14 @@ class Material(unittest.TestCase):
     def test_changed_public_control_refuses_at_entry_and_at_exit(self):
         machine, public = self.patches()
         url = "https://releases.plumb.perish.uk/v1/channels/stable.json"
-        with machine, public, self.assertRaisesRegex(Refusal, "latest stable control"):
+        with machine, public, self.assertRaisesRegex(Refusal, "latest stable plumb changed"):
             with self.consume():
                 pointer = json.loads(self.public[url])
                 pointer["releaseVersion"] = "v0.88.0"
                 self.public[url] = json.dumps(pointer).encode()
         self.assertFalse(self.request.destination.exists())
         machine, public = self.patches()
-        with machine, public, self.assertRaisesRegex(Refusal, "latest stable control"):
+        with machine, public, self.assertRaisesRegex(Refusal, "latest stable plumb changed"):
             with self.consume():
                 self.fail("moved authority cannot enter")
 
@@ -213,3 +217,66 @@ class Material(unittest.TestCase):
         with mock.patch.object(material.release, "fetch", side_effect=lambda url: self.public[url]):
             with self.assertRaises(Refusal):
                 material.current(self.controls, pinned)
+
+    def test_stable_preserves_refusal_reasons_instead_of_masking_as_unreadable(self):
+        authority = mismatch.RELEASES["authority"].format(name="ectropy")
+        moved = json.loads(self.public[f"{authority}/v1/channels/stable.json"])
+        moved["releaseVersion"] = "v0.21.0"
+        self.public[f"{authority}/v1/channels/stable.json"] = json.dumps(moved).encode()
+        with self.assertRaisesRegex(Refusal, "latest stable ectropy changed; prepare current tools and a fresh plan"):
+            mismatch.stable(self.controls, self.public.__getitem__)
+
+    def test_stable_reports_tool_and_safe_cause_when_authority_read_fails(self):
+        authority = mismatch.RELEASES["authority"].format(name="ectropy")
+        target = f"{authority}/v1/channels/stable.json"
+        def reader(url):
+            if url == target:
+                raise urllib.error.HTTPError(url, 503, "Unavailable", {}, io.BytesIO(b"secret-body"))
+            return self.public[url]
+        with self.assertRaisesRegex(Refusal, r"latest stable ectropy control authority is unreadable \(HTTP 503\)") as caught:
+            mismatch.stable(self.controls, reader)
+        self.assertNotIn("secret-body", str(caught.exception))
+
+    def test_release_fetch_retries_transient_errors_and_never_retries_client_errors(self):
+        url = "https://releases.plumb.perish.uk/v1/channels/stable.json"
+        class Response:
+            def __init__(self, body, declared=None):
+                self.body = body
+                self.headers = {} if declared is None else {"Content-Length": str(declared)}
+            def __enter__(self):
+                return self
+            def __exit__(self, *args):
+                return False
+            def read(self):
+                return self.body
+        calls = []
+        sequence = [
+            urllib.error.URLError("eof"),
+            Response(b"short", 20),
+            Response(b'{"ok":true}', 11),
+        ]
+        def fake(request, timeout=30):
+            calls.append(request.full_url)
+            item = sequence.pop(0)
+            if isinstance(item, Exception):
+                raise item
+            return item
+        with mock.patch.object(transport.urllib.request, "urlopen", side_effect=fake), mock.patch.object(transport.time, "sleep") as sleep:
+            self.assertEqual(release.fetch(url), b'{"ok":true}')
+        self.assertEqual((len(calls), sleep.call_count), (3, 2))
+        calls.clear()
+        def forbidden(request, timeout=30):
+            calls.append(request.full_url)
+            raise urllib.error.HTTPError(url, 404, "Not Found", {}, None)
+        with mock.patch.object(transport.urllib.request, "urlopen", side_effect=forbidden), mock.patch.object(transport.time, "sleep") as sleep:
+            with self.assertRaises(urllib.error.HTTPError):
+                release.fetch(url)
+        self.assertEqual((len(calls), sleep.call_count), (1, 0))
+        calls.clear()
+        def broken(request, timeout=30):
+            calls.append(request.full_url)
+            raise http.client.IncompleteRead(b"part", 10)
+        with mock.patch.object(transport.urllib.request, "urlopen", side_effect=broken), mock.patch.object(transport.time, "sleep") as sleep:
+            with self.assertRaises(http.client.IncompleteRead):
+                release.fetch(url)
+        self.assertEqual((len(calls), sleep.call_count), (transport.ATTEMPTS, transport.ATTEMPTS - 1))
