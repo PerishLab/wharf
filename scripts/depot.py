@@ -38,7 +38,7 @@ def vetted(held, release_held, directory):
     kind = held["kind"]
     if kind == "changelog":
         return consigned.changelog(held["source"], held["marker"], directory)
-    validators = {"skill": consigned.skill, "scene": consigned.scene}
+    validators = {"skill": consigned.skill, "scene": consigned.scene, "configuration": consigned.configuration}
     if kind not in validators:
         raise Refusal(f"unknown depot kind {kind!r}")
     return validators[kind](Path(directory))
@@ -56,12 +56,24 @@ def lodge(held):
         print(json.dumps(r2.reference(store), sort_keys=True), file=sys.stderr, flush=True)
         base = lineage.parent(store, target(release_held, held["kind"]))
         result = edit.stage(store, edit.Change(release_held, held["kind"], edit.directory(directory), base, now()))
-        if held["kind"] == "scene":
-            result["discovery"] = lineage.discovery(store, release_held, result["generation"])
+        if held["kind"] in lineage.DISCOVERY:
+            result["discovery"] = lineage.discovery(store, release_held, held["kind"], result["generation"])
     return dict(result, base=base["generation"] if base else None, vetted=verdict, consigned=held["digest"])
 
 
-ACTIONS = {"lodge": (lodge, ["repository", "marker", "source", "kind", "digest"])}
+def rollback(held):
+    if held["kind"] != "configuration":
+        raise Refusal(f"rollback is only supported for configuration, not {held['kind']!r}")
+    release_held = release(held)
+    store = bucket(release_held)
+    print(json.dumps(r2.reference(store), sort_keys=True), file=sys.stderr, flush=True)
+    return lineage.rollback(store, release_held, held["digest"], now())
+
+
+ACTIONS = {
+    "lodge": (lodge, ["repository", "marker", "source", "kind", "digest"]),
+    "rollback": (rollback, ["repository", "marker", "source", "kind", "digest"]),
+}
 
 
 def main(argv=None):

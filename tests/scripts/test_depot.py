@@ -198,3 +198,85 @@ class Lodge(unittest.TestCase):
     def test_skill_does_not_publish_a_scene_discovery_pointer(self):
         self.lodged("v1.0.0", "skill", [entry("SKILL.md", b"# demo\n")])
         self.assertFalse(self.buckets["perish-demo-depot"].exists("channels/stable/scenes/latest.json"))
+
+    def rolled_back(self, marker, digest, kind="configuration"):
+        return depot.rollback({"repository": "PerishLab/demo", "marker": marker, "source": self.repository.root, "kind": kind, "digest": digest})
+
+    def test_configuration_lodges_monotonically_and_refuses_invalid_toml_before_writes(self):
+        with self.assertRaisesRegex(Refusal, "not valid TOML"):
+            self.lodged("v1.0.0", "configuration", [entry("policy.toml", b"broken = \n")])
+        self.assertEqual(self.buckets.get("perish-demo-depot", Memory()).writes, [])
+        first = self.lodged("v1.0.0", "configuration", [entry("policy.toml", b"version = 1\n")])
+        second = self.lodged("v1.1.0", "configuration", [entry("policy.toml", b"version = 2\n")])
+        store = self.buckets["perish-demo-depot"]
+        key = "channels/stable/configurations/latest.json"
+        self.assertEqual(store.get(key), store.get("channels/stable/configurations/versions/v1.1.0/latest.json"))
+        self.assertEqual(json.loads(store.get(key))["generation"], second["generation"])
+        self.assertFalse(store.exists("channels/stable/scenes/latest.json"))
+        older = self.lodged("v1.0.0", "configuration", [entry("policy.toml", b"version = 10\n")])
+        self.assertEqual(older["discovery"]["state"], "newer")
+        self.assertEqual(json.loads(store.get(key))["generation"], second["generation"])
+        self.assertEqual(json.loads(store.get("channels/stable/configurations/versions/v1.0.0/latest.json"))["generation"], older["generation"])
+        self.assertEqual(first["discovery"]["state"], "published")
+
+    def test_configuration_rollback_repoints_across_and_within_versions_without_mutating_immutable_objects(self):
+        first = self.lodged("v1.0.0", "configuration", [entry("policy.toml", b"rev = 1\n")])
+        second = self.lodged("v1.0.0", "configuration", [entry("policy.toml", b"rev = 2\n")])
+        third = self.lodged("v1.1.0", "configuration", [entry("policy.toml", b"rev = 3\n")])
+        store = self.buckets["perish-demo-depot"]
+        immutable = {key: body for key, body in store.objects.items() if "/generations/" in key}
+        key = "channels/stable/configurations/latest.json"
+
+        output = self.references()
+        cross = self.rolled_back("v1.0.0", second["generation"])
+        self.observed(output, ["perish-demo-depot"])
+        self.assertEqual(cross, {"state": "rolled-back", "version": "v1.0.0", "generation": second["generation"], "previous": third["generation"]})
+        self.assertEqual(json.loads(store.get(key))["previousGeneration"], third["generation"])
+
+        same = self.rolled_back("v1.0.0", first["generation"])
+        self.assertEqual(same, {"state": "rolled-back", "version": "v1.0.0", "generation": first["generation"], "previous": second["generation"]})
+        pointed = json.loads(store.get(key))
+        self.assertEqual((pointed["version"], pointed["generation"], pointed["previousGeneration"]), ("v1.0.0", first["generation"], second["generation"]))
+
+        writes_before = len(store.writes)
+        again = self.rolled_back("v1.0.0", first["generation"])
+        self.assertEqual(again, {"state": "already-published", "version": "v1.0.0", "generation": first["generation"], "previous": second["generation"]})
+        self.assertEqual(len(store.writes), writes_before)
+        self.assertEqual({k: v for k, v in store.objects.items() if "/generations/" in k}, immutable)
+
+        re_lodged = self.lodged("v1.1.0", "configuration", [entry("policy.toml", b"rev = 3\n")])
+        self.assertEqual(re_lodged["discovery"], {"state": "published", "generation": third["generation"]})
+        self.assertEqual(json.loads(store.get(key))["generation"], third["generation"])
+
+    def test_configuration_rollback_refuses_other_kinds_missing_and_corrupted_generations(self):
+        first = self.lodged("v1.0.0", "configuration", [entry("policy.toml", b"rev = 1\n")])
+        second = self.lodged("v1.1.0", "configuration", [entry("policy.toml", b"rev = 2\n")])
+        store = self.buckets["perish-demo-depot"]
+        key = "channels/stable/configurations/latest.json"
+        standing = store.get(key)
+        with self.assertRaisesRegex(Refusal, "only supported for configuration"):
+            self.rolled_back("v1.0.0", first["generation"], kind="scene")
+        with self.assertRaisesRegex(Refusal, "does not exist"):
+            self.rolled_back("v1.0.0", "0" * 64)
+        obj_key = f"channels/stable/configurations/versions/v1.0.0/generations/{first['generation']}/objects/policy.toml"
+        original_obj = store.get(obj_key)
+        store.put(obj_key, b"rev = 999\n")
+        with self.assertRaisesRegex(Refusal, "failed sha256 verification"):
+            self.rolled_back("v1.0.0", first["generation"])
+        store.put(obj_key, original_obj)
+        manifest_key = f"channels/stable/configurations/versions/v1.0.0/generations/{first['generation']}/manifest.json"
+        store.put(manifest_key, b"{}")
+        with self.assertRaisesRegex(Refusal, "does not hold the generation it names"):
+            self.rolled_back("v1.0.0", first["generation"])
+        self.assertEqual(store.get(key), standing)
+        self.assertEqual(json.loads(store.get(key))["generation"], second["generation"])
+
+    def test_depot_main_dispatches_rollback_with_configuration_parameter(self):
+        first = self.lodged("v1.0.0", "configuration", [entry("policy.toml", b"rev = 1\n")])
+        second = self.lodged("v1.1.0", "configuration", [entry("policy.toml", b"rev = 2\n")])
+        stdout, stderr = io.StringIO(), io.StringIO()
+        argv = ["rollback", "--repository", "PerishLab/demo", "--marker", "v1.0.0", "--source", str(self.repository.root), "--kind", "configuration", "--digest", first["generation"]]
+        with mock.patch.object(depot.sys, "stdout", stdout), mock.patch.object(depot.sys, "stderr", stderr):
+            code = depot.main(argv)
+        self.assertEqual(code, 0)
+        self.assertEqual(json.loads(stdout.getvalue()), {"state": "rolled-back", "version": "v1.0.0", "generation": first["generation"], "previous": second["generation"]})

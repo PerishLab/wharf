@@ -1,5 +1,5 @@
 name: lodge
-run-name: "[lodge] ${{ inputs.repository }} ${{ inputs.marker }} ${{ inputs.kind }}"
+run-name: "[${{ inputs.action || 'lodge' }}] ${{ inputs.repository }} ${{ inputs.marker }} ${{ inputs.kind }}"
 
 on:
   workflow_dispatch:
@@ -20,10 +20,19 @@ on:
           - changelog
           - skill
           - scene
+          - configuration
       digest:
-        description: sha256 of the consignment in the yard
+        description: sha256 of the yard consignment for lodge, or the target generation for rollback
         required: true
         type: string
+      action:
+        description: Depot action to execute
+        required: false
+        default: lodge
+        type: choice
+        options:
+          - lodge
+          - rollback
 
 permissions:
   contents: read
@@ -39,6 +48,7 @@ defaults:
 
 jobs:
   lodge:
+    if: ${{ (inputs.action || 'lodge') == 'lodge' }}
     name: "[lodge] ${{ inputs.kind }}"
     runs-on: ubuntu-24.04
     steps:
@@ -81,3 +91,41 @@ jobs:
           WHARF_DEPOT_ACCESS_KEY_ID: ${{ secrets.WHARF_DEPOT_ACCESS_KEY_ID }}
           WHARF_DEPOT_SECRET_ACCESS_KEY: ${{ secrets.WHARF_DEPOT_SECRET_ACCESS_KEY }}
         run: python3 -B -m scripts.depot lodge
+
+  rollback:
+    if: ${{ inputs.action == 'rollback' }}
+    name: "[rollback] ${{ inputs.kind }}"
+    runs-on: ubuntu-24.04
+    steps:
+      - name: "[checkout] wharf"
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          path: wharf
+          persist-credentials: false
+
+      - name: "[verify] request"
+        env:
+          WHARF_REPOSITORY: ${{ inputs.repository }}
+          WHARF_MARKER: ${{ inputs.marker }}
+        run: python3 -B -m scripts.plan check
+
+      - name: "[checkout] product"
+        uses: ./wharf/.github/actions/product
+        with:
+          repository: ${{ inputs.repository }}
+          marker: ${{ inputs.marker }}
+          client-id: ${{ vars.WHARF_APP_CLIENT_ID }}
+          private-key: ${{ secrets.WHARF_APP_PRIVATE_KEY }}
+          fetch-depth: 0
+
+      - name: "[rollback] ${{ inputs.kind }}"
+        env:
+          WHARF_SOURCE: ../product
+          WHARF_REPOSITORY: ${{ inputs.repository }}
+          WHARF_MARKER: ${{ inputs.marker }}
+          WHARF_KIND: ${{ inputs.kind }}
+          WHARF_DIGEST: ${{ inputs.digest }}
+          WHARF_R2_ENDPOINT: ${{ vars.WHARF_R2_ENDPOINT }}
+          WHARF_DEPOT_ACCESS_KEY_ID: ${{ secrets.WHARF_DEPOT_ACCESS_KEY_ID }}
+          WHARF_DEPOT_SECRET_ACCESS_KEY: ${{ secrets.WHARF_DEPOT_SECRET_ACCESS_KEY }}
+        run: python3 -B -m scripts.depot rollback

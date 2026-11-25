@@ -58,3 +58,50 @@ class Consigned(unittest.TestCase):
             self.assertEqual(consigned.changelog(self.repository.root, "v1.0.0", tempfile.mkdtemp()), "proved")
         with mock.patch.dict(os.environ, fake(1)), self.assertRaisesRegex(Refusal, "refused the consigned notes"):
             consigned.changelog(self.repository.root, "v1.0.0", tempfile.mkdtemp())
+
+    def bundle(self, files):
+        root = Path(tempfile.mkdtemp())
+        for relative, body in files.items():
+            path = root / relative
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_bytes(body)
+        return root
+
+    def test_configuration_accepts_valid_toml_bundle(self):
+        held = self.bundle({"config.toml": b'[service]\nname = "demo"\n', "rules/policy.toml": b"enabled = true\n", "README.txt": b"notes\n"})
+        self.assertEqual(consigned.configuration(held), "configuration carries 3 regular files")
+
+    def test_configuration_refuses_invalid_or_empty_toml(self):
+        cases = (
+            ("not valid TOML", {"bad.toml": b"broken = \n"}),
+            ("is empty", {"empty.toml": b""}),
+            ("is empty", {"blank.toml": b"   \n\t\n"}),
+            ("holds no TOML entries", {"comment.toml": b"# only comment\n"}),
+            ("not valid TOML", {"binary.toml": b"\xff\xfe"}),
+        )
+        for pattern, files in cases:
+            with self.subTest(files=files), self.assertRaisesRegex(Refusal, pattern):
+                consigned.configuration(self.bundle(files))
+
+    def test_configuration_refuses_empty_directory(self):
+        empty = self.bundle({})
+        with self.assertRaisesRegex(Refusal, "holds no files"):
+            consigned.configuration(empty)
+        (empty / "nested").mkdir()
+        with self.assertRaisesRegex(Refusal, "holds no files"):
+            consigned.configuration(empty)
+
+    def test_configuration_refuses_symlinks(self):
+        target_dir = self.bundle({"real.toml": b"enabled = true\n"})
+        file_link_root = self.bundle({})
+        (file_link_root / "config.toml").symlink_to(target_dir / "real.toml")
+        with self.assertRaisesRegex(Refusal, "special object"):
+            consigned.configuration(file_link_root)
+        dir_link_root = self.bundle({"valid.toml": b"enabled = true\n"})
+        (dir_link_root / "linked").symlink_to(target_dir, target_is_directory=True)
+        with self.assertRaisesRegex(Refusal, "special object"):
+            consigned.configuration(dir_link_root)
+        root_link = Path(tempfile.mkdtemp()) / "root"
+        root_link.symlink_to(target_dir, target_is_directory=True)
+        with self.assertRaisesRegex(Refusal, "not a plain directory"):
+            consigned.configuration(root_link)
