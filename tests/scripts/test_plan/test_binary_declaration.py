@@ -29,7 +29,7 @@ class Frozen(unittest.TestCase):
             def prepared(request):
                 yield source, {"schema": "wharf.release.snapshot/v1", "source": identity, "head": "d" * 40, "tree": held["tree"], "packages": [], "controls": {}, "domain": {}, "guard": {}}, lambda: None
 
-            with mock.patch.object(plan.snapshot, "prepared", prepared), mock.patch.object(plan.toolchain, "versions", return_value={}), mock.patch.object(plan.r2, "configured", return_value=bucket), mock.patch.object(plan.basis, "carried", return_value=False), mock.patch.object(plan.trial, "capture", return_value=None), mock.patch.object(plan, "suites"), mock.patch.object(plan, "binaries"), mock.patch.object(plan, "placements"), mock.patch.object(plan.node, "carried", return_value=False), mock.patch.object(plan.parameters, "answer") as answered:
+            with mock.patch.object(plan.snapshot, "prepared", prepared), mock.patch.object(plan.toolchain, "versions", return_value={}), mock.patch.object(plan.r2, "configured", return_value=bucket), mock.patch.object(plan.basis, "carried", return_value=False), mock.patch.object(plan.trial, "capture", return_value=None), mock.patch.object(plan.material, "capture", return_value={"schema": "wharf.release.material/v1", "snapshot": "0" * 64, "files": []}), mock.patch.object(plan, "suites"), mock.patch.object(plan, "binaries"), mock.patch.object(plan, "placements"), mock.patch.object(plan.node, "carried", return_value=False), mock.patch.object(plan.parameters, "answer") as answered:
                 result = plan.record(held)
             frozen = json.loads(bucket.get(result["plan"]))["context"]["binary_declaration"]
             self.assertEqual(frozen["built"], ["demo", "demo-api"])

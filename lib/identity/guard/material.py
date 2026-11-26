@@ -71,17 +71,27 @@ def capture(source, verified):
     return payload
 
 
-def restore(held, payload):
+def restore(held, payload, run=None):
+    run = snapshot.git if run is None else run
     root = held["root"]
     for row in rows(payload):
         target = path(root, row["path"])
-        original = snapshot.git(held, "ls-tree", "HEAD", "--", row["path"]).split()
+        original = run(held, "ls-tree", "HEAD", "--", row["path"]).split()
         if not original or original[0] != row["mode"]:
             raise Refusal("release material dependency mode differs from its marker")
         target.write_bytes(row["content"].encode("utf-8"))
-    snapshot.git(held, "add", "--update")
-    if snapshot.git(held, "write-tree") != held["request"].expected["tree"]:
+    run(held, "add", "--update")
+    if run(held, "write-tree") != held["request"].expected["tree"]:
         raise Refusal("release material complete tree differs from the verified plan")
+
+
+def restorer(payload):
+    if payload is None:
+        return None
+    def apply(held, run=None):
+        qualify(held["request"], payload)
+        restore(held, payload, run)
+    return apply
 
 
 def qualify(request, payload):

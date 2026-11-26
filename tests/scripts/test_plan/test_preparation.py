@@ -44,5 +44,24 @@ class Preparation(unittest.TestCase):
                 self.assertEqual(document["context"]["binary_declaration"]["installed"], ["demo"])
                 layers = plan.units(document["entries"])
                 self.assertTrue(all(unit["action"] in ("dependencies", "binary", "bind", "smoke", "validate") for layer in layers.values() for unit in layer))
-                self.assertEqual(captured.call_count, int(repository != "PerishLab/demo"))
-                self.assertEqual(document["context"].get("material"), None if repository == "PerishLab/demo" else {"fixture": "actual dependency material"})
+                self.assertEqual(captured.call_count, 1)
+                self.assertEqual(document["context"].get("material"), {"fixture": "actual dependency material"})
+
+    def test_standing_material_uses_only_matching_marker_combination_not_recalled_rc_lineage(self):
+        from lib.content import canonical
+        from lib.store import plan as store
+
+        bucket = Memory()
+        identity = {"repository": "PerishLab/demo", "marker": "v1.0.0", "commit": "a" * 40, "tree": "b" * 40}
+        expected = {"schema": "wharf.release.snapshot/v1", "source": identity, "head": "d" * 40, "tree": "e" * 40, "packages": [], "controls": {}, "domain": {}, "guard": {"proved": "v1.0.0-rc.1"}}
+        rc_expected = dict(expected, source=dict(identity, marker="v1.0.0-rc.1"))
+        rc_material = {"schema": "wharf.release.material/v1", "snapshot": canonical.digest(store.combination(rc_expected)), "files": []}
+        stable_material = {"schema": "wharf.release.material/v1", "snapshot": canonical.digest(store.combination(expected)), "files": []}
+        held = dict(identity, wharf="c" * 40, run="8", attempt="1")
+        bucket.put(store.standing(dict(held, marker="v1.0.0-rc.1")), canonical.encode({"context": {"material": rc_material}}))
+        self.assertIsNone(plan.standing_material(bucket, held, expected))
+        bucket.put(store.standing(held), canonical.encode({"context": {"material": rc_material}}))
+        self.assertIsNone(plan.standing_material(bucket, held, expected))
+        bucket.put(store.standing(held), canonical.encode({"context": {"material": stable_material}}))
+        self.assertEqual(plan.standing_material(bucket, held, expected), stable_material)
+        self.assertIsNone(plan.standing_material(bucket, held, None))

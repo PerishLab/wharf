@@ -30,6 +30,7 @@ class Request:
     pull: object = None
     configuration: object = None
     captured: object = None
+    material: object = None
 
 
 def environment(home, domain):

@@ -19,8 +19,12 @@ SOURCE = "sparse+" + INDEX
 def applies(held, git):
     expected = held["request"].expected
     packages = expected.get("packages") if isinstance(expected, dict) else None
+    if not isinstance(packages, list) or not all(isinstance(item, dict) and item.get("ecosystem") in {"cargo", "npm"} for item in packages):
+        return False
+    if getattr(held["request"], "material", None) is not None:
+        return True
     cargo = "cargo" in held["tools"] and (Path(held["root"]) / "Cargo.toml").is_file()
-    return cargo and isinstance(packages, list) and all(isinstance(item, dict) and item.get("ecosystem") in {"cargo", "npm"} for item in packages) and (not any(item["ecosystem"] == "npm" for item in packages) or "pnpm" in held["tools"] and git(held, "write-tree") == expected.get("tree"))
+    return cargo and (not any(item["ecosystem"] == "npm" for item in packages) or "pnpm" in held["tools"] and git(held, "write-tree") == expected.get("tree"))
 
 
 def locked(root):
@@ -41,15 +45,38 @@ def latest(name, reader):
     return max(found, key=lambda version: marker.order("v" + version))
 
 
+def declared_cargo(root):
+    if not manifest.tracked(root, "plumb.toml"):
+        return set()
+    attachment = manifest.read(root, "plumb.toml").get("release", {}).get("cargo")
+    if not isinstance(attachment, dict):
+        return set()
+    name = attachment.get("registry")
+    packages = attachment.get("packages", [])
+    if not isinstance(name, str) or not isinstance(packages, list):
+        return set()
+    workspace = manifest.members(root, manifest.read(root, "Cargo.toml"))
+    owned = set()
+    for package in packages:
+        if package not in workspace:
+            continue
+        target = manifest.read(root, f"{workspace[package]}/Cargo.toml")["package"].get("publish", True)
+        if target is True or (isinstance(target, list) and name in target):
+            owned.add(package)
+    return owned
+
+
 def current(root, expected, own, reader=None):
-    members = set(manifest.members(root, manifest.read(root, "Cargo.toml")))
+    if not any(package["ecosystem"] == "cargo" for package in expected["packages"]):
+        return set()
+    owned = declared_cargo(root)
     retained = set()
     for package in expected["packages"]:
         if package["ecosystem"] != "cargo":
             continue
         found = latest(package["name"], reader or registry.fetch)
         if found != package["version"]:
-            if package["name"] not in members or found != own:
+            if package["name"] not in owned or not stable(own) or found != own:
                 raise Refusal(f"latest stable {package['name']} moved to {found}; prepare a fresh plan")
             retained.add((package["name"], package["version"]))
     return retained
@@ -78,14 +105,32 @@ def dropped(root, retained=()):
     path.write_text("".join("".join(section) for section in kept))
 
 
+def pin(held, execute, retained):
+    wanted = dict(retained)
+    seen = set()
+    while pending := [(name, version) for name, version in moves(held["root"], held["request"].expected) if name in wanted]:
+        name, version = pending[0]
+        if (name, version) in seen:
+            raise Refusal(f"cargo update left {name} {version} unmoved; prepare a fresh plan")
+        seen.add((name, version))
+        execute(held, [held["tools"]["cargo"]["path"], "update", "--package", f"{SOURCE}#{name}@{version}", "--precise", wanted[name]])
+
+
 def resolved(held, execute, git):
     request = held["request"]
     root = held["root"]
-    retained = current(root, request.expected, marker.version(request.identity["marker"]))
+    own = marker.version(request.identity["marker"])
+    retained = current(root, request.expected, own)
     node(held, git)
+    restorer = getattr(request, "material", None)
+    if restorer is not None:
+        restorer(held, git)
+        return {"context": "lift", "tree": request.expected["tree"], "packages": request.expected["packages"]}
     if moves(root, request.expected):
-        dropped(root, retained)
-        execute(held, [held["tools"]["cargo"]["path"], "metadata", "--format-version", "1"])
+        pin(held, execute, retained)
+        if moves(root, request.expected):
+            dropped(root, retained)
+            execute(held, [held["tools"]["cargo"]["path"], "metadata", "--format-version", "1"])
         if pending := moves(root, request.expected):
             name, version = pending[0]
             raise Refusal(f"cargo resolved {name} {version} outside the plan; prepare a fresh plan")
@@ -98,8 +143,11 @@ def resolved(held, execute, git):
 
 def node(held, git):
     request = held["request"]
+    if not any(package["ecosystem"] == "npm" for package in request.expected["packages"]):
+        return
     registries = resources.read_json("registries.json")["npm"]
     owned = None
+    own = marker.version(request.identity["marker"])
     for package in request.expected["packages"]:
         if package["ecosystem"] != "npm":
             continue
@@ -118,7 +166,7 @@ def node(held, git):
         if owned is None:
             declaration = tomllib.loads(git(held, "show", "HEAD:plumb.toml"))
             owned = declaration.get("release", {}).get("npm", {}).get("packages", [])
-        if package["name"] not in owned or found != marker.version(request.identity["marker"]):
+        if package["name"] not in owned or not stable(own) or found != own:
             raise Refusal(f"latest stable {package['name']} moved; prepare a fresh plan")
 
 
