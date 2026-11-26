@@ -11,6 +11,7 @@ from lib.media import archive, release
 from lib.process.association import control, managers, producer, public, signature, spec
 from lib.store import plan, workload
 from tests.association.fixtures import executable, sign
+from tests.lib import process as fixtures
 from tests.scripts.test_distribution.binary_world import AUTHORITY, World as Linux
 
 MANIFEST = b"""[release]
@@ -76,18 +77,19 @@ class World(Linux):
         self.native[selected] = {"build": key, "binding": bound_key, "built": built, "bound": bound}
 
     def api(self, path):
-        repository = {"id": 1374358737, "node_id": "R_kgDOUesM0Q", "full_name": "PerishLab/wharf", "default_branch": "main"}
         if not path:
-            return repository
+            return fixtures.repository()
         if path == "branches/main":
-            return {"name": "main", "protected": True}
+            return fixtures.branch("main", "a" * 40)
         run = path.split("/")[2]
         if "/jobs?" in path:
             current = run == self.observer["run"]
             name = (control.ROLES | identity.ROLES)[self.role] if current else "[prove] native binary" if run in ("20", "21") else "[plan] entries"
             step = "[record] plan" if name == "[plan] entries" else name
-            return {"total_count": 1, "jobs": [{"id": 30, "name": name, "run_id": int(run), "run_attempt": 1, "head_sha": "a" * 40, "head_branch": "main", "status": "in_progress" if current else "completed", "conclusion": None if current else "success", "started_at": self.started, "steps": [{"name": step, "status": "completed", "conclusion": "success", "started_at": self.started}]}]}
-        return {"id": int(run), "run_attempt": 1, "head_sha": "a" * 40, "repository": repository, "head_repository": repository, "path": ".github/workflows/ship.yml", "event": "workflow_dispatch", "head_branch": "main", "status": "in_progress" if run == self.observer["run"] else "completed", "conclusion": None if run == self.observer["run"] else "success"}
+            status = "in_progress" if current else "completed"
+            return fixtures.jobs([fixtures.job(name, int(run), 30, status=status, started_at=self.started, steps=[fixtures.step(step)])])
+        status = "in_progress" if run == self.observer["run"] else "completed"
+        return fixtures.workflow(int(run), "a" * 40, status)
 
     @contextlib.contextmanager
     def wired(self):

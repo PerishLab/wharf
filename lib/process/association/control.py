@@ -47,5 +47,4 @@ def issued(raw):
     require(job.get("status") in ("in_progress", "completed"), "native declaration issuer job is not running or settled")
     step = selected(job.get("steps"), ROLES["native-proof"])
     require(step.get("status") == "completed" and step.get("conclusion") == "success", "native declaration proof step did not succeed")
-    control.started(step.get("started_at"))
     return identity, control.started(job.get("started_at"))
