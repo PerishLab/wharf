@@ -38,6 +38,7 @@ class Replay(unittest.TestCase):
         self.repository = Repository()
         self.repository.edit("Cargo.lock", 'dependencies = ["demo"]', 'dependencies = ["demo 0.0.0", "demo 0.9.0"]')
         self.repository.write("Cargo.lock", (self.repository.root / "Cargo.lock").read_text() + OWN)
+        self.repository.write("plumb.toml", '[release.cargo]\nregistry = "perish"\npackages = ["demo"]\n')
         self.repository.commit()
         self.root = self.repository.root
         self.expected = {"packages": [{"ecosystem": "cargo", "name": "demo", "version": "0.9.0"}]}
@@ -76,7 +77,6 @@ class Replay(unittest.TestCase):
         self.assertTrue(replay.applies(self.held(self.expected), lambda held, *args: git(self.root, *args).strip()))
         self.assertFalse(replay.applies(self.held(None), None))
         self.assertFalse(replay.applies(self.held({"packages": [{"ecosystem": "npm", "name": "x", "version": "1"}]}), None))
-
 
 
 THIRD = """
@@ -172,7 +172,7 @@ class Mixed(unittest.TestCase):
         fixture.setUp()
         self.root = fixture.root
         self.expected = fixture.expected
-        fixture.repository.write("plumb.toml", '[release.npm]\npackages = ["@perishlab/owned"]\n')
+        fixture.repository.write("plumb.toml", '[release.cargo]\nregistry = "perish"\npackages = ["demo"]\n[release.npm]\npackages = ["@perishlab/owned"]\n')
         fixture.repository.commit()
         self.expected["packages"].append({"ecosystem": "npm", "name": "@perishlab/demo", "version": "0.9.0"})
         self.expected["tree"] = git(self.root, "rev-parse", "HEAD^{tree}").strip()

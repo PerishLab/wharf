@@ -212,7 +212,7 @@ class ExecutionAndPlan(unittest.TestCase):
                         request.captured["configuration"] = selected
                     yield root, verified, lambda: None
 
-                for target, name, value in ((plan.snapshot, "prepared", prepared), (plan.toolchain, "versions", lambda: DOMAIN), (plan.r2, "configured", lambda: bucket), (plan.basis, "carried", lambda source: False), (plan.trial, "capture", lambda source, identity: None), (plan.node, "carried", lambda source: False), (plan.cfworker, "workers", lambda source: []), (plan.preflight, "planning", lambda *args: None)):
+                for target, name, value in ((plan.snapshot, "prepared", prepared), (plan.toolchain, "versions", lambda: DOMAIN), (plan.r2, "configured", lambda: bucket), (plan.basis, "carried", lambda source: False), (plan.trial, "capture", lambda source, identity: None), (plan.node, "carried", lambda source: False), (plan.cfworker, "workers", lambda source: []), (plan.preflight, "planning", lambda *args: None), (plan.material, "capture", lambda source, verified: {"schema": "wharf.release.material/v1", "snapshot": "0" * 64, "files": []})):
                     stack.enter_context(mock.patch.object(target, name, value))
                 stack.enter_context(mock.patch.object(plan.parameters, "answer"))
                 result = plan.record(held)

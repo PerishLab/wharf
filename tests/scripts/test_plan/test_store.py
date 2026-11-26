@@ -46,7 +46,7 @@ class Store(unittest.TestCase):
             def prepared(request):
                 yield root, dict(schema="wharf.release.snapshot/v1", source=identity, head="d" * 40, tree=held["tree"], packages=[], controls={}, domain={}, guard={}), lambda: None
 
-            patches = [(plan.snapshot, "prepared", prepared), (plan.toolchain, "versions", lambda: {}), (plan.r2, "configured", lambda: bucket), (plan.basis, "carried", lambda source: False), (plan.trial, "capture", lambda source, identity: None), (plan.node, "carried", lambda source: False), (plan.cfworker, "workers", lambda source: []), (plan.preflight, "planning", lambda *args: None)]
+            patches = [(plan.snapshot, "prepared", prepared), (plan.toolchain, "versions", lambda: {}), (plan.r2, "configured", lambda: bucket), (plan.basis, "carried", lambda source: False), (plan.trial, "capture", lambda source, identity: None), (plan.node, "carried", lambda source: False), (plan.cfworker, "workers", lambda source: []), (plan.preflight, "planning", lambda *args: None), (plan.material, "capture", lambda source, verified: {"schema": "wharf.release.material/v1", "snapshot": "0" * 64, "files": []})]
             for target, name, value in patches:
                 stack.enter_context(mock.patch.object(target, name, value))
             answer = stack.enter_context(mock.patch.object(plan.parameters, "answer"))

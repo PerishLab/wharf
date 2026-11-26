@@ -199,6 +199,16 @@ def storage(bucket):
     return r2.reference(bucket)
 
 
+def standing_material(bucket, held, expected):
+    if expected is None or not bucket.exists(plan.standing(held)):
+        return None
+    document = json.loads(bucket.get(plan.standing(held)))
+    payload = document.get("context", {}).get("material") if isinstance(document, dict) else None
+    if not isinstance(payload, dict) or payload.get("snapshot") != canonical.digest(plan.combination(expected)):
+        return None
+    return payload
+
+
 def record(held):
     source = Path(held["source"])
     if basis.carried(source):
@@ -217,7 +227,7 @@ def record(held):
         context, entries = completed
         recorded = completion.recorded(bucket, context, entries)
         return dict(recorded, storage=storage(bucket), decided=emit(entries, held["attempt"], context["snapshot"]), entry={name: entry["decision"] for name, entry in entries.items()})
-    request = snapshot.Request(Path(held["source"]), identity, toolchain.versions(), expected, destination=snapshot.destination(held["source"]), recall=lambda observed: plan.recall(bucket, observed, recalled), pull=lambda: pulled(identity, offers), captured=captured)
+    request = snapshot.Request(Path(held["source"]), identity, toolchain.versions(), expected, destination=snapshot.destination(held["source"]), recall=lambda observed: plan.recall(bucket, observed, recalled), pull=lambda: pulled(identity, offers), captured=captured, material=material.restorer(standing_material(bucket, held, expected)))
     with snapshot.prepared(request) as (root, verified, confirm):
         plan.matching(bucket, held, verified)
         suite = trial.capture(root, identity)
@@ -240,8 +250,7 @@ def record(held):
         taken = attributed(offers, verified["guard"])
         pinned = captured.get("configuration")
         context = dict({field: held[field] for field in CONTEXT}, snapshot=verified, **({"configuration": pinned} if pinned is not None else {}), **({"recalled": recalled} if recalled else {}), **({"pulled": taken} if taken is not None else {}))
-        if "binary-arm64" in entries or identity["repository"] in ("PerishLab/plumb", "PerishLab/concord"):
-            context["material"] = material.capture(root, verified)
+        context["material"] = material.capture(root, verified)
         if suite is not None:
             context["trial"] = suite
         if release.carried(root):

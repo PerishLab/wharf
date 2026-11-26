@@ -43,7 +43,7 @@ def perform(action, handler, held):
         raise Refusal("this build needs a verified release snapshot in its plan")
     pinned = pinned_configuration(document, expected)
     identity = {field: document["context"][field] for field in IDENTITY}
-    request = snapshot.Request(Path(held["source"]), identity, toolchain.versions(), expected, snapshot.destination(held["source"]), configuration=pinned)
+    request = snapshot.Request(Path(held["source"]), identity, toolchain.versions(), expected, snapshot.destination(held["source"]), configuration=pinned, material=material.restorer(document["context"].get("material")))
     native = action == "apk-verify" or action == "binary" and held.get("target") == "aarch64-unknown-linux-musl"
     prepared = material.prepared(request, document["context"].get("material"), action == "binary") if native else snapshot.prepared(request)
     with prepared as (root, record, confirm):
