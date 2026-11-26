@@ -16,6 +16,7 @@ from lib.store import plan, workload
 from tests.association.fixtures import MACOS, WINDOWS
 from tests.association.world import AUTHORITY, World
 from tests.association.test_run import IDENTITY, REPOSITORY, run
+from tests.lib import process as fixtures
 
 
 class Candidate(unittest.TestCase):
@@ -130,15 +131,15 @@ class Candidate(unittest.TestCase):
 
 class Provenance(unittest.TestCase):
     def observation(self, role="[prove] native binary", step="[prove] native binary"):
-        self.job = {"id": 42, "name": role, "run_id": 7, "run_attempt": 1, "head_sha": "a" * 40, "head_branch": "main", "status": "completed", "conclusion": "success", "started_at": "2026-11-04T05:00:00Z", "steps": [{"name": step, "status": "completed", "conclusion": "success", "started_at": "2026-11-04T05:00:00Z"}]}
-        self.document = {"total_count": 1, "jobs": [self.job]}
+        self.job = fixtures.job(role, 7, 42, status="completed", started_at="2026-11-04T05:00:00Z", steps=[fixtures.step(step)])
+        self.document = fixtures.jobs([self.job])
         self.native = run("completed")
 
         def api(path):
             if path == "":
                 return REPOSITORY
             if path == "branches/main":
-                return {"name": "main", "protected": True}
+                return fixtures.branch("main", "a" * 40)
             if path.endswith("/jobs?per_page=100"):
                 return self.document
             return self.native
@@ -180,14 +181,19 @@ class Provenance(unittest.TestCase):
 
     def test_issuance_requires_the_fixed_completed_proof_step(self):
         api = self.observation("[prove] native binary", "[prove] native binary")
+        self.assertNotIn("started_at", self.job["steps"][0])
         self.job.update(status="in_progress", conclusion=None)
         with mock.patch.object(control, "api", side_effect=api):
             self.assertEqual(native.issued(IDENTITY), (IDENTITY, self.job["started_at"]))
-        for changed in ({"status": "in_progress", "conclusion": None}, {"status": "completed", "conclusion": "failure"}, {"name": "[read] native binary"}, {"started_at": None}):
+        for changed in ({"status": "in_progress", "conclusion": None}, {"status": "completed", "conclusion": "failure"}, {"conclusion": None}, {"name": "[read] native binary"}):
             api = self.observation("[prove] native binary", "[prove] native binary")
             self.job["steps"][0].update(changed)
             with self.subTest(changed=changed), mock.patch.object(control, "api", side_effect=api), self.assertRaises(Refusal):
                 native.issued(IDENTITY)
+        api = self.observation("[prove] native binary", "[prove] native binary")
+        self.job["started_at"] = None
+        with mock.patch.object(control, "api", side_effect=api), self.assertRaises(Refusal):
+            native.issued(IDENTITY)
 
 
 class Declarations(unittest.TestCase):
