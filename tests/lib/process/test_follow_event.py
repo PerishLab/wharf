@@ -66,6 +66,36 @@ class Webhook(unittest.TestCase):
             with self.subTest(change=change), self.assertRaises(Refusal):
                 event.webhook(body, headers(body), SECRET)
 
+    def test_auto_follow_bot_merge_push_is_ignored_without_dispatch(self):
+        auto_push = dict(
+            PUSH,
+            sender={"login": "perishlab-auto[bot]", "type": "Bot"},
+            head_commit={"id": PUSH["after"], "message": f"{event.AUTO_TITLE}\n\nRefs #343.\n\nLand-Source: auto/343@{'b' * 40}\n"},
+        )
+        body = canonical.encode(auto_push)
+        send = mock.Mock()
+        self.assertIsNone(event.webhook(body, headers(body), SECRET))
+        self.assertEqual(receiver.receive(body, headers(body), {event.SECRET: SECRET}, send)["state"], "ignored")
+        send.assert_not_called()
+
+    def test_spoofed_or_non_follow_pushes_still_dispatch_and_bad_signatures_refuse(self):
+        message = f"{event.AUTO_TITLE}\n\nRefs #343.\n\nLand-Source: auto/343@{'b' * 40}\n"
+        variants = (
+            {"sender": {"login": "LiberteCode", "type": "User"}, "head_commit": {"id": PUSH["after"], "message": message}},
+            {"sender": {"login": "perishlab-auto[bot]", "type": "User"}, "head_commit": {"id": PUSH["after"], "message": message}},
+            {"sender": {"login": "perishlab-auto[bot]", "type": "Bot"}, "head_commit": {"id": "c" * 40, "message": message}},
+            {"sender": {"login": "perishlab-auto[bot]", "type": "Bot"}, "head_commit": {"id": PUSH["after"], "message": "Regular commit\n\nLand-Source: land/12@" + "b" * 40}},
+            {"sender": {"login": "perishlab-auto[bot]", "type": "Bot"}, "head_commit": {"id": PUSH["after"], "message": event.AUTO_TITLE}},
+        )
+        for extra in variants:
+            body = canonical.encode(dict(PUSH, **extra))
+            with self.subTest(extra=extra):
+                held = event.webhook(body, headers(body), SECRET)
+                self.assertEqual(held["repository"], "PerishLab/example")
+        bad_auto = canonical.encode(dict(PUSH, sender={"login": "perishlab-auto[bot]", "type": "Bot"}, head_commit={"id": PUSH["after"], "message": message}))
+        with self.assertRaisesRegex(Refusal, "signature"):
+            event.webhook(bad_auto, dict(headers(bad_auto), **{"X-Hub-Signature-256": "invalid"}), SECRET)
+
 
 class Admission(unittest.TestCase):
     def setUp(self):

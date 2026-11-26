@@ -14,6 +14,9 @@ OBJECT = re.compile(r"[0-9a-f]{40}")
 PURPOSE = b"wharf.follow.dispatch/v1\x00"
 SECRET = "WHARF_FOLLOW_WEBHOOK_SECRET"
 WORKFLOW = "PerishLab/wharf/.github/workflows/follow.yml@refs/heads/main"
+AUTO_ACTOR = "perishlab-auto[bot]"
+AUTO_TITLE = "Follow the latest first-party packages"
+AUTO_SOURCE = re.compile(r"^Land-Source: auto/[1-9][0-9]*@[0-9a-f]{40}$", re.MULTILINE)
 
 
 def decode(body):
@@ -56,6 +59,20 @@ def checked(held):
     return held
 
 
+def self_follow(held):
+    sender = held.get("sender")
+    if not isinstance(sender, dict) or sender.get("login") != AUTO_ACTOR or sender.get("type") != "Bot":
+        return False
+    commit = held.get("head_commit")
+    if not isinstance(commit, dict) or commit.get("id") != held.get("after"):
+        return False
+    message = commit.get("message")
+    if not isinstance(message, str):
+        return False
+    lines = message.splitlines()
+    return bool(lines) and lines[0].strip() == AUTO_TITLE and AUTO_SOURCE.search(message) is not None
+
+
 def webhook(body, headers, secret):
     if len(body) > LIMIT:
         raise Refusal("follow webhook exceeds its size limit")
@@ -70,6 +87,8 @@ def webhook(body, headers, secret):
     if not isinstance(repository, dict) or not isinstance(installation, dict) or repository.get("default_branch") != "main":
         raise Refusal("follow push has no governed main identity")
     summary = checked({"schema": "wharf.follow.push/v1", "repository": repository.get("full_name"), "repository_id": repository.get("id"), "installation_id": installation.get("id"), "after": held.get("after"), "delivery": headers.get("X-GitHub-Delivery")})
+    if self_follow(held):
+        return None
     return {"repository": summary["repository"], "summary": summary, "signature": signature(canonical.encode(summary), secret, PURPOSE)}
 
 
