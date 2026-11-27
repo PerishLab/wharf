@@ -125,6 +125,40 @@ class Units(Seeded):
             self.assertEqual(ship.run_smoke(self.held)["key"], key)
         self.assertEqual(seen, {"names": ["santi", "santi-api"], "marker": "v0.1.0-rc.2"})
 
+    def test_validate_pins_and_passes_verified_plumb_configuration(self):
+        self.declare('[release]\nbinaries = ["plumb"]\ntargets = ["x86_64-unknown-linux-gnu"]\n')
+        bound = self.recorded("b" * 64, {f"plumb-{LINUX}": b"bin", "receipt.json": b"{}"})
+        pinned = {
+            "channel": "rc",
+            "version": "v0.170.0-rc.1",
+            "generation": "c" * 64,
+            "manifest": {"url": f"{ship.depot_configuration.BASE}/channels/rc/configurations/versions/v0.170.0-rc.1/generations/{'c' * 64}/manifest.json", "sha256": "d" * 64, "size": 64},
+        }
+        held_basis = {"entry": {"kind": "binary-validate", "binary": bound, "configuration": "c" * 64}}
+        key = self.key(held_basis, (["lib.identity.smoke"], ["validators.json"]))
+        held = dict(self.held, repository="PerishLab/plumb", marker="v0.170.0")
+        plan.record(
+            self.bucket,
+            dict(CONTEXT, repository="PerishLab/plumb", marker="v0.170.0", commit="a" * 40, tree="b" * 40, validation_configuration=pinned),
+            {"bind-linux": {"key": bound, "decision": "skip"}, "validate": {"key": key, "decision": "run"}},
+            {},
+        )
+        seen = {}
+
+        def checked(artifact, output, release):
+            seen.update(name=artifact.name, release=release)
+            Path(output).mkdir(parents=True)
+            Path(output).joinpath("receipt.json").write_text("{}")
+
+        with (
+            self.configured(),
+            mock.patch.object(ship.depot_configuration, "verify_planned", return_value=pinned) as verified,
+            mock.patch.object(ship, "configured", side_effect=checked),
+        ):
+            self.assertEqual(ship.validate(held)["key"], key)
+        verified.assert_called_once_with(str(self.source), "PerishLab/plumb", pinned)
+        self.assertEqual(seen, {"name": "plumb", "release": {"repository": "PerishLab/plumb", "marker": "v0.170.0", "configuration": pinned}})
+
     def test_the_deb_is_built_from_the_bound_executable_it_names(self):
         self.declare(SANTI + DEB)
         bound = self.recorded("b" * 64, {f"santi-{LINUX}": b"cli", f"santi-api-{LINUX}": b"server"})

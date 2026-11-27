@@ -873,6 +873,8 @@ jobs:
           WHARF_R2_ENDPOINT: ${{ vars.WHARF_R2_ENDPOINT }}
           WHARF_R2_ACCESS_KEY_ID: ${{ secrets.WHARF_R2_ACCESS_KEY_ID }}
           WHARF_R2_SECRET_ACCESS_KEY: ${{ secrets.WHARF_R2_SECRET_ACCESS_KEY }}
+          WHARF_DEPOT_ACCESS_KEY_ID: ${{ secrets.WHARF_DEPOT_ACCESS_KEY_ID }}
+          WHARF_DEPOT_SECRET_ACCESS_KEY: ${{ secrets.WHARF_DEPOT_SECRET_ACCESS_KEY }}
         run: python3 -B -m scripts.plan record
 
   layer-1:
@@ -1448,8 +1450,11 @@ jobs:
           WHARF_ATTEMPT: ${{ github.run_attempt }}
           WHARF_PLANNED: ${{ needs.plan.outputs.planned }}
           WHARF_SOURCE: ../product
+          WHARF_R2_ENDPOINT: ${{ vars.WHARF_R2_ENDPOINT }}
           WHARF_RELEASES_ACCESS_KEY_ID: ${{ secrets.WHARF_RELEASES_ACCESS_KEY_ID }}
           WHARF_RELEASES_SECRET_ACCESS_KEY: ${{ secrets.WHARF_RELEASES_SECRET_ACCESS_KEY }}
+          WHARF_DEPOT_ACCESS_KEY_ID: ${{ secrets.WHARF_DEPOT_ACCESS_KEY_ID }}
+          WHARF_DEPOT_SECRET_ACCESS_KEY: ${{ secrets.WHARF_DEPOT_SECRET_ACCESS_KEY }}
           WHARF_REPOSITORY: ${{ inputs.repository }}
           WHARF_MARKER: ${{ inputs.marker }}
           WHARF_WHARF: ${{ github.sha }}

@@ -93,6 +93,31 @@ class Configured(unittest.TestCase):
         declared = configured(self.artifact, str(Path(tempfile.mkdtemp()) / "other"), {"repository": "PerishLab/other", "marker": "v1.0.0"}, runner)
         self.assertEqual(declared["steps"], [])
 
+    def test_injects_plumb_configuration_into_clean_home_when_present(self):
+        seen = []
+        pinned = {
+            "channel": "rc",
+            "version": "v0.170.0-rc.1",
+            "generation": "a" * 64,
+            "manifest": {
+                "url": "https://depot.plumb.perish.uk/channels/rc/configurations/versions/v0.170.0-rc.1/generations/" + "a" * 64 + "/manifest.json",
+                "sha256": "b" * 64,
+                "size": 128,
+            },
+        }
+
+        def runner(argv, cwd, env):
+            seen.append(dict(env))
+            return ""
+
+        bare = Path(tempfile.mkdtemp()) / "bare"
+        configured(self.artifact, str(bare), {"repository": "PerishLab/plumb", "marker": "v0.170.0-rc.1"}, runner)
+        self.assertNotIn("PLUMB_CONFIGURATION", seen[0])
+        staged = Path(tempfile.mkdtemp()) / "staged"
+        receipt = configured(self.artifact, str(staged), {"repository": "PerishLab/plumb", "marker": "v0.170.0", "configuration": pinned}, runner)
+        self.assertEqual(json.loads(seen[1]["PLUMB_CONFIGURATION"]), pinned)
+        self.assertEqual(receipt["configuration"], "a" * 64)
+
 
 BINDING = {
     "product": "demo-tool",

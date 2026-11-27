@@ -4,7 +4,7 @@ import subprocess
 import tempfile
 from pathlib import Path
 
-from lib.content import resources
+from lib.content import canonical, resources
 from lib.process import run
 from lib.refusal import Refusal
 
@@ -48,19 +48,23 @@ def configured(artifact, output, release, runner=run):
     if output.exists():
         raise Refusal(f"output {output} already exists")
     steps = resources.read_json("validators.json").get(release["repository"], [])
-    marker = release["marker"]
     if steps:
-        validated(artifact, steps, marker, runner)
+        validated(artifact, steps, release, runner)
     output.mkdir(parents=True)
     receipt = {"action": "ship.binary.configured", "steps": [" ".join(step) for step in steps]}
+    if release.get("configuration") is not None:
+        receipt["configuration"] = release["configuration"]["generation"]
     (output / "receipt.json").write_text(json.dumps(receipt, indent=2, sort_keys=True) + "\n")
     return receipt
 
 
-def validated(artifact, steps, marker, runner):
+def validated(artifact, steps, release, runner):
     artifact.file.chmod(0o755)
+    marker = release["marker"]
     with tempfile.TemporaryDirectory() as home:
         env = {"HOME": home, "PATH": os.environ.get("PATH", "/usr/bin:/bin")}
+        if release.get("configuration") is not None:
+            env["PLUMB_CONFIGURATION"] = canonical.encode(release["configuration"]).decode()
         for step in steps:
             argv = [str(artifact.file.resolve()), *(part.replace("{marker}", marker) for part in step)]
             try:

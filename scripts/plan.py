@@ -9,6 +9,7 @@ from lib.content import canonical, declaration, executables, implementation, mar
 from lib.package.debian import package
 from lib.package.debian.version import debian
 from lib.media import cfworker, node, npm, release
+from lib.media.depot import configuration as depot_configuration
 from lib.media.release import completion
 from lib.identity.guard import coverage, material, pull, snapshot
 from lib.identity.bind import inventory
@@ -16,7 +17,6 @@ from lib.process import git
 from lib.process.promotion import preflight
 from lib.refusal import Refusal
 from lib.store import plan, r2, workload
-from lib.store.plan import decided
 from lib.package.openwrt import operation
 from lib.process.trial import declaration as trial
 
@@ -56,12 +56,12 @@ def binaries(held, bucket, entries):
         known, names = target["name"], executables.built(listed, target["target"])
         if not names:
             raise Refusal(f"plumb.toml declares {target['target']} and no executable built for it")
-        entries[f"dependencies-{known}"] = decided(bucket, basis.dependencies(held["source"], names, target["target"], target["runner"]), CARGO, entries)
-        entries[f"binary-{known}"] = decided(bucket, basis.resolve(held["source"], names, target["target"], target["runner"]), CARGO, entries)
+        entries[f"dependencies-{known}"] = plan.decided(bucket, basis.dependencies(held["source"], names, target["target"], target["runner"]), CARGO, entries)
+        entries[f"binary-{known}"] = plan.decided(bucket, basis.resolve(held["source"], names, target["target"], target["runner"]), CARGO, entries)
         bound = {"entry": {"kind": "binary-identity", "binary": entries[f"binary-{known}"]["key"]}, "identity": identity}
-        entries[f"bind-{known}"] = decided(bucket, bound, (["lib.identity.bind"], ["identity/format.json"]), entries)
+        entries[f"bind-{known}"] = plan.decided(bucket, bound, (["lib.identity.bind"], ["identity/format.json"]), entries)
         smoked = {"entry": {"kind": "binary-smoke", "binary": entries[f"bind-{known}"]["key"]}}
-        entries[f"smoke-{known}"] = decided(bucket, smoked, (["lib.identity.smoke"], []), entries)
+        entries[f"smoke-{known}"] = plan.decided(bucket, smoked, (["lib.identity.smoke"], []), entries)
 
 
 def placements(held, bucket, entries):
@@ -70,15 +70,15 @@ def placements(held, bucket, entries):
     if binary is not None:
         bound = entries[f"bind-{PRIMARY['name']}"]["key"]
         built = package.basis(held["source"], package.declared(held["source"], binary), bound, debian(held["marker"]))
-        entries["deb"] = decided(bucket, built, (["lib.package.debian.package"], ["releases.json"]), entries)
-        entries["verify-deb"] = decided(bucket, {"entry": {"kind": "deb-verify", "deb": entries["deb"]["key"]}}, (["lib.package.debian.verify"], ["build/config.json"]), entries)
+        entries["deb"] = plan.decided(bucket, built, (["lib.package.debian.package"], ["releases.json"]), entries)
+        entries["verify-deb"] = plan.decided(bucket, {"entry": {"kind": "deb-verify", "deb": entries["deb"]["key"]}}, (["lib.package.debian.verify"], ["build/config.json"]), entries)
     selected = operation.declared(held["source"], plan.product(held))
     if selected is not None:
         bound = entries["bind-arm64"]["key"]
         built = operation.package.basis(held["source"], selected, bound, operation.version(held["marker"]))
-        entries["apk"] = decided(bucket, built, operation.PACK, entries)
+        entries["apk"] = plan.decided(bucket, built, operation.PACK, entries)
         verified = {"entry": {"kind": "apk-verify", "apk": entries["apk"]["key"], "binary": bound}}
-        entries["verify-apk"] = decided(bucket, verified, operation.VERIFY, entries)
+        entries["verify-apk"] = plan.decided(bucket, verified, operation.VERIFY, entries)
 
 
 def suites(held, bucket, entries):
@@ -89,11 +89,11 @@ def suites(held, bucket, entries):
             if target["name"] == BUILD["primary"] and covered:
                 continue
             held_basis = basis.suite(source, target["runner"], target["target"])
-            entries[f"suite-{target['name']}"] = decided(bucket, held_basis, (["lib.cargo.basis", "lib.cargo.suite"], ["build/config.json"]), entries)
+            entries[f"suite-{target['name']}"] = plan.decided(bucket, held_basis, (["lib.cargo.basis", "lib.cargo.suite"], ["build/config.json"]), entries)
     if node.carried(source):
-        entries["suite-node"] = decided(bucket, node.basis(source, RUNNER), (["lib.media.node"], []), entries)
+        entries["suite-node"] = plan.decided(bucket, node.basis(source, RUNNER), (["lib.media.node"], []), entries)
     if cfworker.workers(source):
-        entries["cfworker"] = decided(bucket, cfworker.basis(source, RUNNER), (["lib.media.cfworker"], []), entries)
+        entries["cfworker"] = plan.decided(bucket, cfworker.basis(source, RUNNER), (["lib.media.cfworker"], []), entries)
 
 
 def tested(source):
@@ -113,15 +113,15 @@ def media(observed, entries):
         entries[name] = {"decision": decision, "presence": observed[name].get("presence", "present")}
 
 
-def validation(bucket, entries):
+def validation(bucket, entries, scoped=None):
     if f"bind-{BUILD['primary']}" not in entries:
-        return
-    primary = entries[f"bind-{BUILD['primary']}"]["key"]
-    held = {"entry": {"kind": "binary-validate", "binary": primary}}
-    entries["validate"] = decided(bucket, held, (["lib.identity.smoke"], ["validators.json"]), entries)
+        return None
+    staged = None if scoped is None or scoped.get("preparing") else depot_configuration.prepare(scoped)
+    entries["validate"] = plan.decided(bucket, depot_configuration.basis(entries[f"bind-{BUILD['primary']}"]["key"], staged), (["lib.identity.smoke"], ["validators.json"]), entries)
     for name in ("validate", "deb", "verify-deb"):
         if name in entries and entries.get("release", {}).get("decision") == "skip":
             entries[name]["decision"] = "skip"
+    return staged
 
 
 def reported(text):
@@ -244,14 +244,14 @@ def record(held):
             cargo_check.plan(root, coverage.tested(verified) and manifest.virtual(root), bucket, entries)
             media(observed, entries)
         if entries.get("npm", {}).get("decision") == "run":
-            entries["pack-npm"] = decided(bucket, npm.basis(root, held["marker"]), (["lib.media.npm"], []), entries)
-        validation(bucket, entries)
+            entries["pack-npm"] = plan.decided(bucket, npm.basis(root, held["marker"]), (["lib.media.npm"], []), entries)
+        validated = validation(bucket, entries, scoped)
         if not preparing:
             plan.legacy(bucket, held, entries, observed)
         engines = node.expected(root) if node.carried(root) else {}
         taken = attributed(offers, verified["guard"])
         pinned = captured.get("configuration")
-        context = dict({field: held[field] for field in CONTEXT}, snapshot=verified, **({"configuration": pinned} if pinned is not None else {}), **({"recalled": recalled} if recalled else {}), **({"pulled": taken} if taken is not None else {}))
+        context = dict({field: held[field] for field in CONTEXT}, snapshot=verified, **({"configuration": pinned} if pinned is not None else {}), **({"validation_configuration": validated} if validated is not None else {}), **({"recalled": recalled} if recalled else {}), **({"pulled": taken} if taken is not None else {}))
         context["material"] = material.capture(root, verified)
         if suite is not None:
             context["trial"] = suite
