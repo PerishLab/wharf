@@ -5,7 +5,8 @@ from dataclasses import replace
 from pathlib import Path
 
 from lib import parameters
-from lib.cargo import toolchain
+from lib.cargo import basis, toolchain
+from lib.cargo.suite import check as cargo_checking
 from lib.cargo.version import marker
 from lib.content import implementation
 from lib.identity.guard import configuration, material, snapshot
@@ -13,7 +14,7 @@ from lib.media import npm
 from lib.refusal import Refusal
 from lib.store import plan, r2, workload
 
-BUILDING = {"apk", "apk-verify", "binary", "suite", "node-suite", "cfworker-deploy", "npm-pack"}
+BUILDING = {"apk", "apk-verify", "binary", "cargo-check", "suite", "node-suite", "cfworker-deploy", "npm-pack"}
 PUBLISHING = {"npm-publish", "oci-publish", "cargo-publish", "chart-publish", "release", "cfworker-deploy"}
 CONTEXT = ("repository", "marker", "wharf", "run")
 IDENTITY = ("repository", "marker", "commit", "tree")
@@ -44,8 +45,8 @@ def perform(action, handler, held):
     pinned = pinned_configuration(document, expected)
     identity = {field: document["context"][field] for field in IDENTITY}
     request = snapshot.Request(Path(held["source"]), identity, toolchain.versions(), expected, snapshot.destination(held["source"]), configuration=pinned, material=material.restorer(document["context"].get("material")))
-    native = action == "apk-verify" or action == "binary" and held.get("target") == "aarch64-unknown-linux-musl"
-    prepared = material.prepared(request, document["context"].get("material"), action == "binary") if native else snapshot.prepared(request)
+    native = action == "apk-verify" or action in ("binary", "cargo-check") and held.get("target") == "aarch64-unknown-linux-musl"
+    prepared = material.prepared(request, document["context"].get("material"), action in ("binary", "cargo-check")) if native else snapshot.prepared(request)
     with prepared as (root, record, confirm):
         scoped = dict(held, source=root, snapshot=record, confirm=confirm)
         if action in PUBLISHING:
@@ -110,3 +111,19 @@ def pack(held):
         output = Path(directory) / "archives"
         npm.prepare(source, marker(held["marker"]), output)
         return publish(held, bucket, key, workload.Produced(output, basis, context))
+
+
+def cargo_check(held):
+    target = cargo_checking.targeted(held["target"])
+    bucket = r2.configured()
+    context = dict({field: held[field] for field in CONTEXT}, attempt=held["planned"])
+    document = plan.read(bucket, context)
+    entry = plan.planned(document, f"cargo-check-{target['name']}")
+    names = cargo_checking.packages(held["source"])
+    held_basis = basis.cargo_check(held["source"], names, target["target"], target["runner"])
+    key = workload.key(held_basis, implementation.resourced(*cargo_checking.MODULES))
+    if key != entry["key"]:
+        raise Refusal(f"this job resolved {key}, the plan for this run recorded {entry['key']}")
+    output = workload.place()
+    cargo_checking.check(cargo_checking.Check(Path(held["source"]), output, target["target"], names))
+    return publish(held, bucket, entry["key"], workload.Produced(output, held_basis, context))

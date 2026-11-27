@@ -33,6 +33,18 @@
         "pnpm"
       ]
     },
+    "cargo-check": {
+      "action": "cargo-check",
+      "verb": "check",
+      "object": "cargo",
+      "per": "target",
+      "prepare": [
+        "snapshot",
+        "rust",
+        "node",
+        "pnpm"
+      ]
+    },
     "suite-node": {
       "action": "node-suite",
       "verb": "test",
@@ -110,6 +122,15 @@
         "rust",
         "node",
         "pnpm"
+      ]
+    },
+    "cargo-check-arm64": {
+      "action": "cargo-check",
+      "verb": "check",
+      "object": "cargo",
+      "per": "target",
+      "prepare": [
+        "rust"
       ]
     }
   }

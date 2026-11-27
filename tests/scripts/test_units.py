@@ -68,6 +68,48 @@ class Units(Seeded):
                 ship.run_suite(self.held)
         tested.assert_not_called()
 
+    def test_cargo_check_unit_consumes_its_exact_platform_entry(self):
+        held = dict(self.held, target="aarch64-apple-darwin")
+        held_basis = {"entry": {"kind": "cargo-check", "packages": ["demo"], "target": held["target"], "runner": "macos-15"}}
+        modules = (["lib.cargo.basis", "lib.cargo.suite.check"], ["build/config.json"])
+        key = self.key(held_basis, modules)
+        self.planned({"cargo-check-macos": {"key": key, "decision": "run"}})
+        seen = {}
+
+        def checked(request):
+            seen.update(target=request.target, packages=request.packages, source=str(request.source))
+            request.output.mkdir(parents=True)
+            (request.output / "receipt.json").write_text("{}")
+
+        with (
+            self.configured(),
+            mock.patch.object(ship.execution.cargo_checking, "packages", return_value=("demo",)),
+            mock.patch.object(ship.execution.basis, "cargo_check", return_value=held_basis) as resolved_basis,
+            mock.patch.object(ship.execution.cargo_checking, "check", side_effect=checked),
+        ):
+            self.assertEqual(ship.ACTIONS["cargo-check"][0](held)["key"], key)
+        self.assertEqual(resolved_basis.call_args.args, (held["source"], ("demo",), "aarch64-apple-darwin", "macos-15"))
+        self.assertEqual(seen, {"target": "aarch64-apple-darwin", "packages": ("demo",), "source": str(self.source)})
+
+    def test_arm64_cargo_check_uses_material_prepared_with_compiling_enabled(self):
+        held = dict(self.held, target="aarch64-unknown-linux-musl")
+        document = {"context": dict(CONTEXT, commit="a" * 40, tree="b" * 40, snapshot={"schema": "wharf.release.snapshot/v1"}, material={"tree": "b" * 40}), "entries": {}}
+        seen = {}
+
+        def restored(request, held_material, compiling):
+            seen.update(material=held_material, compiling=compiling)
+            return mock.MagicMock(__enter__=lambda _: (self.source, {}, lambda: None), __exit__=lambda *_: False)
+
+        with (
+            self.configured(),
+            mock.patch.object(ship.execution.plan, "read", return_value=document),
+            mock.patch.object(ship.execution, "pinned_configuration", return_value=None),
+            mock.patch.object(ship.execution.toolchain, "versions", return_value={}),
+            mock.patch.object(ship.execution.material, "prepared", side_effect=restored),
+        ):
+            self.assertEqual(ship.execution.perform("cargo-check", lambda scoped: {"root": scoped["source"]}, held), {"root": self.source})
+        self.assertEqual(seen, {"material": {"tree": "b" * 40}, "compiling": True})
+
     def test_smoke_runs_every_bound_executable_against_the_marker(self):
         bound = self.recorded("b" * 64, {f"santi-{LINUX}": b"a", f"santi-api-{LINUX}": b"b", "receipt.json": b"{}"})
         key = self.key({"entry": {"kind": "binary-smoke", "binary": bound}}, (["lib.identity.smoke"], []))

@@ -81,3 +81,23 @@ def suite(source, runner, target):
         "tree": git(source, "rev-parse", "HEAD^{tree}"),
         "widened": SUITE_WIDENED,
     }
+
+
+def cargo_check(source, packages, target, runner):
+    source = Path(source)
+    root = manifest.read(source, "Cargo.toml")
+    workspace = manifest.members(source, root)
+    manifest.unversioned(source, root, workspace)
+    listed = list(dict.fromkeys(packages))
+    if not listed:
+        raise Refusal("a cargo check names at least one publishable package")
+    members = sorted({member for package in listed for member in manifest.closure(source, workspace, package)})
+    return {
+        "entry": {"kind": "cargo-check", "packages": listed, "target": target, "runner": runner},
+        "toolchain": toolchain.current(),
+        "manifest": {"Cargo.toml": manifest.object_id(source, "Cargo.toml")},
+        "members": {workspace[member]: manifest.object_id(source, workspace[member]) for member in members},
+        "lock": lock.closure(source, members),
+        "config": configured(source),
+        "widened": WIDENED,
+    }

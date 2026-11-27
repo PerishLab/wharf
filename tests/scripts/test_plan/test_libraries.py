@@ -73,3 +73,19 @@ class Libraries(unittest.TestCase):
             self.declare(f"targets={targets}\n")
             with self.subTest(targets=targets), self.assertRaises(Refusal):
                 self.entries()
+
+    def test_cargo_check_entries_map_to_layer_one_native_units(self):
+        entries = {
+            "cargo-check-arm64": {"key": "c" * 64, "decision": "run"},
+            "cargo-check-macos": {"key": "a" * 64, "decision": "run"},
+            "cargo-check-windows": {"key": "b" * 64, "decision": "run"},
+        }
+        units = plan.units(entries)["layer-1"]
+        self.assertEqual(
+            [(item["name"], item["action"], item["target"], item["runner"], item["prepare"]) for item in units],
+            [
+                ("[check] cargo arm64", "cargo-check", "aarch64-unknown-linux-musl", "ubuntu-24.04-arm", ["musl", "rust"]),
+                ("[check] cargo macos", "cargo-check", "aarch64-apple-darwin", "macos-15", ["snapshot", "rust", "node", "pnpm"]),
+                ("[check] cargo windows", "cargo-check", "x86_64-pc-windows-msvc", "windows-2025", ["autocrlf", "snapshot", "rust", "node", "pnpm"]),
+            ],
+        )

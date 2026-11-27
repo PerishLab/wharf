@@ -4,6 +4,7 @@ from pathlib import Path
 
 from lib import parameters
 from lib.cargo import basis, manifest, toolchain
+from lib.cargo.suite import check as cargo_check
 from lib.content import canonical, declaration, executables, implementation, marker, resources
 from lib.package.debian import package
 from lib.package.debian.version import debian
@@ -129,7 +130,7 @@ def reported(text):
 
 
 def unit(name, signing=True):
-    kind, _, target = name.partition("-")
+    kind, _, target = name.rpartition("-") if "-" in name else (name, "", "")
     spec = UNITS["units"].get(name) or UNITS["units"].get(kind)
     if spec is None:
         return None
@@ -240,6 +241,7 @@ def record(held):
                 placements(scoped, bucket, entries)
         if not preparing:
             suites(scoped, bucket, entries)
+            cargo_check.plan(root, coverage.tested(verified) and manifest.virtual(root), bucket, entries)
             media(observed, entries)
         if entries.get("npm", {}).get("decision") == "run":
             entries["pack-npm"] = decided(bucket, npm.basis(root, held["marker"]), (["lib.media.npm"], []), entries)
