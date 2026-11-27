@@ -7,6 +7,7 @@ from lib import parameters
 from lib.content import executables
 from lib.identity.bind import publication
 from lib.media import release
+from lib.media.depot import configuration as depot_configuration
 from lib.media.release import completion
 from lib.refusal import Refusal
 from lib.store import r2
@@ -33,7 +34,9 @@ def point(held):
     publication.sealed(context, seal)
     listed = executables.declared(held["source"], release.targets(held["source"]))
     release.render(pointed, str(managers), {target: executables.installed(listed, target) for target in release.sealed_targets(seal)}, held["source"])
-    return release.point(pointed, managers, bucket)
+    promoted = depot_configuration.promote(held["source"], context)
+    result = release.point(pointed, managers, bucket)
+    return dict(result, configuration=promoted) if promoted is not None else result
 
 
 ACTIONS = {"plan": (plan, ["repository", "marker", "source"]), "point": (point, ["repository", "marker", "wharf", "source", "run", "attempt", "planned"])}

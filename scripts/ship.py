@@ -11,6 +11,7 @@ from lib.identity import bind, guard
 from lib.refusal import Refusal
 from lib.identity.smoke import configured, smoke
 from lib.media import cfworker, node, release as releasing
+from lib.media.depot import configuration as depot_configuration
 from lib.identity.guard import execution
 from lib.store import plan, r2, workload
 from lib.store.workload import place, staged
@@ -138,12 +139,13 @@ def run_bind(held):
 def validate(held):
     bucket, document, entry = opened(held, "validate")
     primary = document["entries"][f"bind-{PRIMARY['name']}"]["key"]
-    held_basis = {"entry": {"kind": "binary-validate", "binary": primary}}
+    pinned = depot_configuration.verify_planned(held["source"], held["repository"], document["context"].get("validation_configuration"))
+    held_basis = depot_configuration.basis(primary, pinned)
     resolved(entry, held_basis, (["lib.identity.smoke"], ["validators.json"]))
     name = executables.primary(declared(held["source"]), plan.product(document["context"]))
     artifact = bind.Artifact(staged(bucket, primary), name, PRIMARY["target"])
     output = place()
-    configured(artifact, str(output), {"repository": held["repository"], "marker": held["marker"]})
+    configured(artifact, str(output), depot_configuration.release(held, pinned))
     return execution.publish(held, bucket, entry["key"], workload.Produced(output, held_basis, carried(held)))
 
 
