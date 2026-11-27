@@ -261,6 +261,7 @@ def step(held):
 
 ACTIONS = {
     "binary": (run_binary, ["source", "target", *PLANNED]),
+    "cargo-check": (execution.cargo_check, ["source", "target", *PLANNED]),
     "suite": (run_suite, ["source", "target", *PLANNED]),
     "bind": (run_bind, [*PLANNED]),
     "smoke": (run_smoke, ["target", *PLANNED]),
