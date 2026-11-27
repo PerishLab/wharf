@@ -23,7 +23,18 @@ on:
           - configuration
       digest:
         description: sha256 of the yard consignment for lodge, or the target generation for rollback
-        required: true
+        required: false
+        default: ""
+        type: string
+      commit:
+        description: Exact 40-char commit sha of refs/tags/<marker> for tag-native source lodging
+        required: false
+        default: ""
+        type: string
+      target:
+        description: Relative material directory inside refs/tags/<marker> for tag-native source lodging
+        required: false
+        default: ""
         type: string
       action:
         description: Depot action to execute
@@ -32,6 +43,7 @@ on:
         type: choice
         options:
           - lodge
+          - source
           - rollback
 
 permissions:
@@ -91,6 +103,45 @@ jobs:
           WHARF_DEPOT_ACCESS_KEY_ID: ${{ secrets.WHARF_DEPOT_ACCESS_KEY_ID }}
           WHARF_DEPOT_SECRET_ACCESS_KEY: ${{ secrets.WHARF_DEPOT_SECRET_ACCESS_KEY }}
         run: python3 -B -m scripts.depot lodge
+
+  source:
+    if: ${{ inputs.action == 'source' }}
+    name: "[source] ${{ inputs.kind }}"
+    runs-on: ubuntu-24.04
+    steps:
+      - name: "[checkout] wharf"
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          path: wharf
+          persist-credentials: false
+
+      - name: "[verify] request"
+        env:
+          WHARF_REPOSITORY: ${{ inputs.repository }}
+          WHARF_MARKER: ${{ inputs.marker }}
+        run: python3 -B -m scripts.plan check
+
+      - name: "[checkout] product"
+        uses: ./wharf/.github/actions/product
+        with:
+          repository: ${{ inputs.repository }}
+          marker: ${{ inputs.marker }}
+          client-id: ${{ vars.WHARF_APP_CLIENT_ID }}
+          private-key: ${{ secrets.WHARF_APP_PRIVATE_KEY }}
+          fetch-depth: 0
+
+      - name: "[source] ${{ inputs.kind }}"
+        env:
+          WHARF_SOURCE: ../product
+          WHARF_REPOSITORY: ${{ inputs.repository }}
+          WHARF_MARKER: ${{ inputs.marker }}
+          WHARF_KIND: ${{ inputs.kind }}
+          WHARF_COMMIT: ${{ inputs.commit }}
+          WHARF_TARGET: ${{ inputs.target }}
+          WHARF_R2_ENDPOINT: ${{ vars.WHARF_R2_ENDPOINT }}
+          WHARF_DEPOT_ACCESS_KEY_ID: ${{ secrets.WHARF_DEPOT_ACCESS_KEY_ID }}
+          WHARF_DEPOT_SECRET_ACCESS_KEY: ${{ secrets.WHARF_DEPOT_SECRET_ACCESS_KEY }}
+        run: python3 -B -m scripts.depot source
 
   rollback:
     if: ${{ inputs.action == 'rollback' }}
